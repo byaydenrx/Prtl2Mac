@@ -32,6 +32,7 @@ mod movers;
 mod options;
 mod overlays;
 mod paint;
+mod paint_props;
 mod portals;
 mod props;
 mod scenes;
@@ -108,6 +109,7 @@ fn main() {
             vscripts::VScriptPlugin,
             exposure::ExposurePlugin,
             paint::PaintPlugin,
+            paint_props::PaintPropsPlugin,
             texture_toggle::TextureTogglePlugin,
             movies::MoviesPlugin,
         ))
