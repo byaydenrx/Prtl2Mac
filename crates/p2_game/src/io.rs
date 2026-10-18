@@ -45,6 +45,24 @@ pub struct GameEnt {
 }
 
 impl GameEnt {
+    /// A point entity made at run time (scripts' scene entities).
+    pub fn logic(class: &str, name: &str, keyvalues: Vec<(String, String)>) -> Self {
+        GameEnt {
+            class: class.into(),
+            name: name.to_ascii_lowercase(),
+            keyvalues,
+            outputs: Vec::new(),
+            entity: None,
+            transform: Transform::IDENTITY,
+            brush_model: None,
+            bounds: None,
+            enabled: true,
+            killed: false,
+            spawnflags: 0,
+            value: 0.0,
+            aux: 0.0,
+        }
+    }
     pub fn get(&self, key: &str) -> Option<&str> {
         self.keyvalues.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
     }
@@ -94,6 +112,10 @@ pub struct Ents {
     direct: Vec<(usize, String)>,
     /// Seconds since the map spawned (game time: stops while paused).
     pub now: f32,
+    /// Script functions hooked to outputs (`ConnectOutput`): (entity, output, function).
+    pub script_hooks: Vec<(usize, String, String)>,
+    /// Hooked functions to call: (entity, function, activator, caller).
+    pub script_calls: Vec<(usize, String, Option<usize>, usize)>,
     started: bool,
     rng: u32,
 }
@@ -161,7 +183,17 @@ impl Ents {
                 info!("TRACE trigger {} {:?} flags {} enabled {} bounds {:.2?}", e.class, e.name, e.spawnflags, e.enabled, e.bounds);
             }
         }
-        Ents { list, by_name, queue: Vec::new(), direct: Vec::new(), now: 0.0, started: false, rng: 0x2545_f491 }
+        Ents {
+            list,
+            by_name,
+            queue: Vec::new(),
+            direct: Vec::new(),
+            now: 0.0,
+            started: false,
+            rng: 0x2545_f491,
+            script_hooks: Vec::new(),
+            script_calls: Vec::new(),
+        }
     }
 
     /// Entities named `target` (wildcard `*` suffix, `!player`/`!activator`/`!self`/`!caller`).
@@ -172,6 +204,8 @@ impl Ents {
             "!player" | "!pvsplayer" | "player" => vec![PLAYER],
             "!activator" => activator.into_iter().collect(),
             "!self" | "!caller" => vec![caller],
+            // `#12`: an entity by index (scripts' entity handles).
+            t if t.starts_with('#') => t[1..].parse::<usize>().ok().filter(|i| *i < self.list.len()).into_iter().collect(),
             _ => {
                 if let Some(prefix) = t.strip_suffix('*') {
                     self.list
@@ -218,6 +252,11 @@ impl Ents {
             debug!("io: {} {:?} fires {event} ({} targets)", e.class, e.name, queued.len());
         }
         self.queue.extend(queued);
+        for (i, out, func) in &self.script_hooks {
+            if *i == ent && out.eq_ignore_ascii_case(event) {
+                self.script_calls.push((ent, func.clone(), activator, ent));
+            }
+        }
     }
 
     /// A new entity (a template's copy); it gets inputs by name from now on.
@@ -233,6 +272,18 @@ impl Ents {
     /// Send an input to entity `i` on the next update (the player using it).
     pub fn input_to(&mut self, i: usize, input: &str) {
         self.direct.push((i, input.to_ascii_lowercase()));
+    }
+
+    /// Queue an input from a script entity (`EntFire`).
+    pub fn send_from(&mut self, target: &str, input: &str, param: &str, delay: f32, caller: usize, activator: Option<usize>) {
+        self.queue.push(Pending {
+            at: self.now + delay.max(0.0),
+            target: target.into(),
+            input: input.to_ascii_lowercase(),
+            param: param.into(),
+            caller,
+            activator,
+        });
     }
 
     /// Queue an input directly (scripts, the console).

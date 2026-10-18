@@ -31,6 +31,7 @@ mod triggers;
 mod turrets;
 mod ui;
 mod viewcontrol;
+mod vscripts;
 
 /// What the command line asked for.
 #[derive(Resource, Clone, Debug, Default)]
@@ -82,6 +83,7 @@ fn main() {
             lasers::LasersPlugin,
             bridges::BridgesPlugin,
             tractor::TractorPlugin,
+            vscripts::VScriptPlugin,
         ))
         .insert_resource(args)
         .add_plugins(p2_room::HarnessPlugin);

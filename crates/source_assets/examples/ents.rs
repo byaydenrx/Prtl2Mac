@@ -1,6 +1,7 @@
 //! Entity classes in a map, and the outputs of one class.
 //!
 //! cargo run -p source_assets --example ents -- sp_a1_intro2 [classname]
+//! `--all` instead of a class prints every entity.
 use source_assets::GameFs;
 
 fn main() -> anyhow::Result<()> {
@@ -21,7 +22,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Some(class) => {
-            for e in ents.iter().filter(|e| &e.classname == class || e.get("model") == Some(class.as_str()) || e.targetname.as_deref() == Some(class.as_str())) {
+            for e in ents.iter().filter(|e| class == "--all" || &e.classname == class || e.get("model") == Some(class.as_str()) || e.targetname.as_deref() == Some(class.as_str())) {
                 println!("{} {:?} at {:?}", e.classname, e.targetname, e.origin);
                 for (k, v) in &e.keyvalues {
                     println!("    {k} = {}", v.replace('\u{1b}', " | "));

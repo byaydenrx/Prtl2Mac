@@ -1,0 +1,9 @@
+[package]
+name = "vscript"
+version = "0.1.0"
+edition = "2021"
+description = "A small interpreter for the Squirrel subset Portal 2's level scripts use"
+license = "MIT"
+
+[dependencies]
+indexmap = "2"

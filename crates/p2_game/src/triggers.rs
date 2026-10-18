@@ -260,6 +260,19 @@ pub fn catapult_velocity(from: Vec3, target: Option<Vec3>, direction: Option<&st
     Vec3::new(src.x, src.z, -src.y) * speed
 }
 
+/// Console commands maps and scripts run; several can be joined with ';'.
+fn console_command(line: &str, gun: &mut PortalGun, exit: &mut MessageWriter<LevelExit>) {
+    for c in line.split(';').map(|c| c.trim().to_ascii_lowercase()) {
+        if c.starts_with("changelevel") || c.starts_with("map ") {
+            exit.write(LevelExit);
+        } else if c == "give weapon_portalgun" || c == "give_portalgun" {
+            gun.can_fire[0] = true;
+        } else if c.starts_with("upgrade_portalgun") || c.starts_with("upgrade_potatogun") {
+            gun.can_fire = [true, true];
+        }
+    }
+}
+
 /// View yaw (0 looks down -Z) facing a map entity's forward (`rotation * X`).
 pub fn entity_yaw(rotation: Quat) -> f32 {
     let f = rotation * Vec3::X;
@@ -277,7 +290,15 @@ fn player_inputs(
     mut fizzle: MessageWriter<FizzlePortals>,
     mut exit: MessageWriter<LevelExit>,
     mut title: MessageWriter<crate::ui::ShowChapterTitle>,
+    scripted: Res<crate::vscripts::ScriptedEnts>,
+    mut console: MessageReader<crate::vscripts::ConsoleCommand>,
 ) {
+    // Console commands from scripts (`SendToConsole`, `GivePlayerPortalgun`).
+    for c in console.read() {
+        if let Ok((.., mut gun)) = players.single_mut() {
+            console_command(&c.0, &mut gun, &mut exit);
+        }
+    }
     let Some(ents) = ents else {
         inputs.clear();
         return;
@@ -317,22 +338,12 @@ fn player_inputs(
                 exit.write(LevelExit);
             }
             ("point_clientcommand" | "point_servercommand" | "point_broadcastclientcommand", "command") => {
-                // Console commands maps run; several can be joined with ';'.
-                for c in msg.param.split(';').map(|c| c.trim().to_ascii_lowercase()) {
-                    if c.starts_with("changelevel") || c.starts_with("map ") {
-                        exit.write(LevelExit);
-                    } else if c == "give weapon_portalgun" {
-                        if let Ok((.., mut gun)) = players.single_mut() {
-                            gun.can_fire[0] = true;
-                        }
-                    } else if c.starts_with("upgrade_portalgun") || c.starts_with("upgrade_potatogun") {
-                        if let Ok((.., mut gun)) = players.single_mut() {
-                            gun.can_fire = [true, true];
-                        }
-                    }
+                if let Ok((.., mut gun)) = players.single_mut() {
+                    console_command(&msg.param, &mut gun, &mut exit);
                 }
             }
-            (_, "runscriptcode") => {
+            // Entities without a loaded script: stand-ins for the common calls.
+            (_, "runscriptcode") if !scripted.0.contains(&msg.target) => {
                 let code = msg.param.to_ascii_lowercase();
                 if code.contains("transitionfrommap") {
                     exit.write(LevelExit);
@@ -359,7 +370,7 @@ fn player_inputs(
                 gun.can_fire[1] |= e.get("canfireportal2") == Some("1");
             }
         }
-        if msg.input == "runscriptcode" && msg.param.to_ascii_lowercase().contains("upgrade") {
+        if msg.input == "runscriptcode" && !scripted.0.contains(&msg.target) && msg.param.to_ascii_lowercase().contains("upgrade") {
             if let Ok((.., mut gun)) = players.single_mut() {
                 gun.can_fire = [true, true];
             }

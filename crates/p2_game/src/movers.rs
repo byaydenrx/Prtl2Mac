@@ -112,6 +112,7 @@ fn mover_inputs(
     mut fire: MessageWriter<FireOutput>,
     children: Query<&Children>,
     colliders: Query<(), With<Collider>>,
+    scripted: Res<crate::vscripts::ScriptedEnts>,
 ) {
     let (Some(mut ents), Some(map)) = (ents, map) else {
         inputs.clear();
@@ -147,12 +148,21 @@ fn mover_inputs(
                     }
                     "stop" => m.motion = None,
                     "setspeed" | "setspeedreal" | "setspeeddir" => {
-                        if let Some(Motion::Path { speed: s, .. }) = &mut m.motion {
-                            let p = source_assets::kv::parse_f32(&msg.param).unwrap_or(0.0);
-                            *s = if input == "setspeed" { speed * p } else { u(p.abs()) };
+                        let p = source_assets::kv::parse_f32(&msg.param).unwrap_or(0.0);
+                        let want = if input == "setspeed" { speed * p } else { u(p.abs()) };
+                        match &mut m.motion {
+                            Some(Motion::Path { speed: s, .. }) => *s = want,
+                            // A stopped train given a speed sets off along its path
+                            // (the elevators' StartMoving script does this).
+                            None if want > 0.0 => {
+                                let nodes = path_from(&ents, m.node, None);
+                                m.motion = Some(Motion::Path { nodes, speed: want, dest: None });
+                                movers.riders.insert(i, None);
+                            }
+                            _ => {}
                         }
                     }
-                    "runscriptcode" if msg.param.contains("startmoving") => {
+                    "runscriptcode" if msg.param.contains("startmoving") && !scripted.0.contains(&i) => {
                         let nodes = path_from(&ents, m.node, None);
                         m.motion = Some(Motion::Path { nodes, speed, dest: None });
                         movers.riders.insert(i, None);

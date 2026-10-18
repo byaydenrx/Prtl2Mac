@@ -52,6 +52,17 @@ u/s^2), trigger_hurt + death fade + level reload (`health.rs`, also
 `player_loadsaved`), trigger_push, lasers (`lasers.rs`: portals,
 reflection cubes, catchers, relays, burn).
 
+Level scripts: `crates/vscript` is our own Squirrel interpreter (lexer,
+parser, tree-walker; parses all 82 shipped `.nut` files). `vscripts.rs`
+loads every entity's `vscripts`, runs Precache/OnPostSpawn, think
+functions, RunScriptCode/CallScriptFunction, ConnectOutput hooks, and
+answers EntFire/CreateSceneEntity/Entities.*/handle methods. Entities whose
+scripts loaded skip the old hand-written runscriptcode stand-ins.
+`P2_NOSCRIPTS=1` turns scripts off. Known gap: video_splitter calls
+GetMapIndexInPlayOrder (defined in the transition script's scope).
+
+Owner's feature wishlist: docs/ROADMAP.md.
+
 ## Next (priority order)
 
 1. **sp_a1_intro1 wake-up camera** (`viewcontrol.rs`): ghostanim `sp_a1_intro`

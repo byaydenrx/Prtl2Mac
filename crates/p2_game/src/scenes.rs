@@ -121,7 +121,14 @@ struct Running {
 }
 
 #[derive(Resource, Default)]
-struct Playing(Vec<Running>);
+pub struct Playing(Vec<Running>);
+
+impl Playing {
+    /// Is scene entity `ent` playing (not paused)?
+    pub fn is_playing(&self, ent: usize) -> bool {
+        self.0.iter().any(|r| r.ent == ent)
+    }
+}
 
 fn scene_inputs(
     mut inputs: MessageReader<EntInput>,
@@ -161,7 +168,12 @@ fn scene_inputs(
                 playing.0.push(Running { ent: msg.target, scene, started: now, done: vec![false; n], paused_at: None });
                 fire.write(FireOutput { ent: msg.target, event: "OnStart".into(), activator: msg.activator });
             }
-            "cancel" | "kill" => playing.0.retain(|r| r.ent != msg.target),
+            "cancel" | "kill" => {
+                if playing.0.iter().any(|r| r.ent == msg.target) {
+                    fire.write(FireOutput { ent: msg.target, event: "OnCanceled".into(), activator: msg.activator });
+                }
+                playing.0.retain(|r| r.ent != msg.target);
+            }
             "pause" => {
                 for r in playing.0.iter_mut().filter(|r| r.ent == msg.target) {
                     r.paused_at.get_or_insert(now);
