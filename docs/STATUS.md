@@ -22,6 +22,10 @@ Scripted tests: `P2_SCRIPT="5 goto box 60; 5.2 lookat box; 5.5 use; 6 shot /tmp/
 input and stay windowed. Screenshots of a covered/background window can come
 out black (macOS stops drawing it) — not a game bug.
 
+Autopilot extras: `input <target> <input> [param]` sends a map input,
+`ray x y z` logs what is below a Source point. `P2_TRACE=1` also logs
+laser legs and catapult launches.
+
 Tools: `cargo run -p source_assets --example ents -- MAP [class|targetname|*N]`,
 `--example ls -- PREFIX` / `-- --cat PATH` / `-- --fmt PREFIX`, `--example pak -- MAP`,
 `--example probe -- MAP x,y,z`, `cargo run -p p2_assets --example animinfo -- MODEL SEQ ATTACH`.
@@ -38,7 +42,15 @@ use-to-open + locks), buttons (floor + use, locks), map portals, dynamic cubes
 scenes (`.vcd` text) with voice lines and OnTrigger/OnCompletion, captions
 (text + compiled VCCD from every game folder), ai_script_conditions,
 instructor hints (text only), ambient_generic, menu music, point_viewcontrol
-(hold time; animated-rig cameras behind `P2_CINEMATIC=1`), OnAnimationDone.
+(hold time; animated-rig cameras behind `P2_CINEMATIC=1`), OnAnimationDone,
+cube droppers / entity templates (`templates.rs`: point_template and
+env_entity_maker ForceSpawn clone the templated entity hierarchy), fizzled
+cubes fire OnFizzled, OnStartTouchAll/OnEndTouchAll, per-bone `.phy`
+collision posed by the default sequence, faith plates (`trigger_catapult`:
+playerspeed = ground speed toward launchtarget, vertical solved for 600
+u/s^2), trigger_hurt + death fade + level reload (`health.rs`, also
+`player_loadsaved`), trigger_push, lasers (`lasers.rs`: portals,
+reflection cubes, catchers, relays, burn).
 
 ## Next (priority order)
 
@@ -62,3 +74,8 @@ instructor hints (text only), ambient_generic, menu music, point_viewcontrol
    refract/glass shaders (vault window), env_tonemap, sounds on prop events.
 5. Play on through sp_a1_intro2..intro7 with P2_SCRIPT runs, fixing whatever
    blocks progress (map wiring is mostly standard).
+6. Missing puzzle elements, by how many campaign maps use them:
+   prop_wall_projector (light bridges, 7 maps), prop_tractor_beam (12),
+   npc_portal_turret_floor (16), info_paint_sprayer gels (12),
+   npc_personality_core / npc_wheatley_boss (finale), func_rotating,
+   logic_playerproxy, env_global, trigger_look (currently fires on touch).
