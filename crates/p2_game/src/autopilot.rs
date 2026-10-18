@@ -73,12 +73,40 @@ fn drive(
     names: Query<(Option<&Name>, Option<&ChildOf>)>,
 ) {
     // The script clock is real time: menus pause the world's clock.
-    if loaded.read().any(|e| !e.menu) {
-        pilot.start = Some(real.elapsed_secs());
+    // It starts with the first level (the menu's too, for menu tests) and
+    // restarts on every playable one.
+    for e in loaded.read() {
+        if !e.menu || pilot.start.is_none() {
+            pilot.start = Some(real.elapsed_secs());
+        }
     }
     let Some(start) = pilot.start else { return };
     let t = real.elapsed_secs() - start;
-    let Ok((player, mut tf, mut feet, mut view, mut input, mut vel, gun)) = players.single_mut() else { return };
+    let Ok((player, mut tf, mut feet, mut view, mut input, mut vel, gun)) = players.single_mut() else {
+        // No player (the main menu): only menu clicks, screenshots and quit.
+        for step in pilot.steps.iter_mut().filter(|s| !s.done && s.at <= t) {
+            let a = &step.args;
+            match step.cmd.as_str() {
+                "click" => {
+                    click.write(crate::ui::MenuClick(a.join("")));
+                }
+                "shot" => {
+                    if let Some(path) = a.first() {
+                        commands
+                            .spawn(bevy::render::view::screenshot::Screenshot::primary_window())
+                            .observe(bevy::render::view::screenshot::save_to_disk(path.clone()));
+                    }
+                }
+                "quit" => {
+                    exit.write(AppExit::Success);
+                }
+                _ => continue,
+            }
+            info!("autopilot t={t:.2}: {} {:?} (menu)", step.cmd, a);
+            step.done = true;
+        }
+        return;
+    };
     let f = |a: &[String], i: usize| a.get(i).and_then(|v| v.parse::<f32>().ok()).unwrap_or(0.0);
     let now = time.elapsed_secs();
     let mut new_holds = Vec::new();

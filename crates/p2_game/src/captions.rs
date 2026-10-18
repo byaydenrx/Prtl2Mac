@@ -1,13 +1,18 @@
-//! Subtitles: the game's own caption text (`resource/closecaption_english.txt`
-//! and `subtitles_english.txt`, keyed by soundscript name) shown at the
-//! bottom of the screen while a voice line plays, in the size, colour and
-//! background the player picked under Options > Subtitles.
+//! Captions: the game's own caption text (`resource/closecaption_<lang>.txt`
+//! and `subtitles_<lang>.txt`, keyed by soundscript name) shown at the
+//! bottom of the screen while a voice line plays, as Options > Audio >
+//! Captioning says (subtitles: the dialogue files first; closed captions:
+//! the closecaption files, which also describe sounds), in the language,
+//! size, colour and background the player picked.
+//!
+//! TODO: closed captions for sound effects need audio.rs to send
+//! [`ShowCaption`] for every sound it starts; only scene lines do today.
 use std::collections::HashMap;
 
 use bevy::prelude::*;
 use p2_assets::GameFsRes;
 
-use crate::settings::Settings;
+use crate::settings::{CaptionMode, Settings};
 use crate::ui::UiFonts;
 
 pub struct CaptionsPlugin;
@@ -16,8 +21,7 @@ impl Plugin for CaptionsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CaptionLines>()
             .add_message::<ShowCaption>()
-            .add_systems(Startup, load_captions)
-            .add_systems(Update, (queue_captions, draw_captions).chain());
+            .add_systems(Update, (load_captions, queue_captions, draw_captions).chain());
     }
 }
 
@@ -28,18 +32,41 @@ pub struct ShowCaption {
     pub seconds: f32,
 }
 
-#[derive(Resource, Default)]
-struct CaptionText {
+/// One kind of caption file (subtitles or closecaption).
+#[derive(Default)]
+struct CaptionSet {
     /// From the text files, by lowercased token.
     by_name: HashMap<String, (String, Color)>,
     /// From the compiled `.dat` files, by CRC32 of the lowercased token.
     by_hash: HashMap<u32, (String, Color)>,
 }
 
-impl CaptionText {
+impl CaptionSet {
     fn get(&self, token: &str) -> Option<(String, Color)> {
         let t = token.to_ascii_lowercase();
         self.by_name.get(&t).or_else(|| self.by_hash.get(&crc32(t.as_bytes()))).cloned()
+    }
+
+    fn len(&self) -> usize {
+        self.by_name.len() + self.by_hash.len()
+    }
+}
+
+#[derive(Resource, Default)]
+struct CaptionText {
+    language: String,
+    subtitles: CaptionSet,
+    closecaption: CaptionSet,
+}
+
+impl CaptionText {
+    /// The line for `token` in `mode`, from the mode's own files first.
+    fn get(&self, token: &str, mode: CaptionMode) -> Option<(String, Color)> {
+        match mode {
+            CaptionMode::Off => None,
+            CaptionMode::Subtitles => self.subtitles.get(token).or_else(|| self.closecaption.get(token)),
+            CaptionMode::ClosedCaptions => self.closecaption.get(token).or_else(|| self.subtitles.get(token)),
+        }
     }
 }
 
@@ -118,41 +145,53 @@ fn decode(b: &[u8]) -> String {
     }
 }
 
-fn load_captions(mut commands: Commands, game: Res<GameFsRes>) {
-    let mut map = HashMap::new();
-    for f in ["resource/closecaption_english.txt", "resource/subtitles_english.txt"] {
-        let Some(b) = game.read(f) else { continue };
+/// One caption set (`closecaption` or `subtitles`) in `lang`: the text file,
+/// then every game folder's compiled file (the main campaign's, DLC1's,
+/// DLC2's share names, so the search path would only show the first).
+fn load_set(game: &GameFsRes, kind: &str, lang: &str) -> CaptionSet {
+    let mut set = CaptionSet::default();
+    if let Some(b) = game.read(&format!("resource/{kind}_{lang}.txt")) {
         let kv = source_assets::kv::parse(&decode(&b));
-        let Some((_, root)) = kv.root() else { continue };
-        if let Some(tokens) = root.block("tokens") {
+        if let Some(tokens) = kv.root().and_then(|(_, root)| root.block("tokens")) {
             for (k, v) in &tokens.entries {
                 if let source_assets::kv::KvValue::Str(s) = v {
-                    map.insert(k.to_ascii_lowercase(), clean(s));
+                    set.by_name.insert(k.to_ascii_lowercase(), clean(s));
                 }
             }
         }
     }
-    // Each game folder ships its own caption files with the same names (the
-    // main campaign's, DLC1's, DLC2's); the search path would only show the
-    // first, so read every folder's copy, base game first.
-    let mut by_hash = HashMap::new();
+    let file = format!("{kind}_{lang}.dat");
     let root = game.0.config.root.clone();
     for dir in ["portal2", "portal2_dlc1", "portal2_dlc2", "update"] {
-        for f in ["closecaption_english.dat", "subtitles_english.dat"] {
-            if let Ok(b) = std::fs::read(root.join(dir).join("resource").join(f)) {
-                read_vccd(&b, &mut by_hash);
-            }
+        if let Ok(b) = std::fs::read(root.join(dir).join("resource").join(&file)) {
+            read_vccd(&b, &mut set.by_hash);
         }
     }
-    if by_hash.is_empty() {
-        for f in ["resource/closecaption_english.dat", "resource/subtitles_english.dat"] {
-            if let Some(b) = game.read(f) {
-                read_vccd(&b, &mut by_hash);
-            }
+    if set.by_hash.is_empty() {
+        if let Some(b) = game.read(&format!("resource/{file}")) {
+            read_vccd(&b, &mut set.by_hash);
         }
     }
-    info!("portal2: {} caption lines ({} compiled)", map.len() + by_hash.len(), by_hash.len());
-    commands.insert_resource(CaptionText { by_name: map, by_hash });
+    set
+}
+
+/// (Re)load the caption files when the language changes; a language the
+/// install has no captions for falls back to English.
+fn load_captions(mut commands: Commands, game: Res<GameFsRes>, settings: Res<Settings>, text: Option<Res<CaptionText>>) {
+    if text.as_ref().is_some_and(|t| t.language == settings.language) {
+        return;
+    }
+    let mut lang = settings.language.clone();
+    let mut subtitles = load_set(&game, "subtitles", &lang);
+    let mut closecaption = load_set(&game, "closecaption", &lang);
+    if subtitles.len() + closecaption.len() == 0 && lang != "english" {
+        warn!("portal2: no {lang} captions in the game files; using English");
+        lang = "english".into();
+        subtitles = load_set(&game, "subtitles", &lang);
+        closecaption = load_set(&game, "closecaption", &lang);
+    }
+    info!("portal2: {} subtitle and {} caption lines ({lang})", subtitles.len(), closecaption.len());
+    commands.insert_resource(CaptionText { language: settings.language.clone(), subtitles, closecaption });
 }
 
 fn queue_captions(
@@ -167,10 +206,7 @@ fn queue_captions(
     lines.0.retain(|l| l.2 > now);
     let mut changed = lines.0.len() != before;
     for c in shown.read() {
-        if !settings.subtitles {
-            continue;
-        }
-        let Some((t, color)) = text.as_ref().and_then(|t| t.get(&c.sound)) else { continue };
+        let Some((t, color)) = text.as_ref().and_then(|t| t.get(&c.sound, settings.captions)) else { continue };
         if t.is_empty() {
             continue;
         }

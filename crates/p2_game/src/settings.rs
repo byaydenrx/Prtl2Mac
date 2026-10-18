@@ -2,15 +2,23 @@
 //! (or the platform's config folder) and applied to the controller, camera,
 //! audio, renderer and window as they change, plus the frame limiter.
 //!
-//! The file is `key value` lines with a `version` line first. Files from
-//! older builds (no `version`) read as before; lines this build doesn't know
-//! (from a newer build) are kept and written back unchanged.
+//! The file is `key value` lines with a `version` line first, then the key
+//! bindings as `unbindall` / `bind "key" "command"` lines like Source's
+//! config.cfg (only once the player changed one). Files from older builds
+//! (no `version`) read as before; lines this build doesn't know (from a newer
+//! build) are kept and written back unchanged.
+//!
+//! With no file (first launch) everything is Portal 2's default. Options
+//! the engine doesn't use yet are still kept and shown; each says what
+//! should read it.
 use std::time::{Duration, Instant};
 
 use bevy::prelude::*;
 use bevy::window::{Monitor, MonitorSelection, PresentMode, PrimaryMonitor, PrimaryWindow, VideoModeSelection, WindowMode};
 use p2_core::MainCamera;
 use source_assets::valve_render::ValveQuality;
+
+use crate::bindings::{parse_bind, BindTable};
 
 pub struct SettingsPlugin;
 
@@ -20,8 +28,10 @@ impl Plugin for SettingsPlugin {
     }
 }
 
-/// Written as the `version` line. 1 is the file from before the line existed.
-pub const SETTINGS_VERSION: u32 = 2;
+/// Written as the `version` line. 1 is the file from before the line existed;
+/// 3 added `closecaption` (with it, `cc_subtitles` means dialogue only, as
+/// in Source) and the bindings.
+pub const SETTINGS_VERSION: u32 = 3;
 
 /// `fov_desired`: the game's 75 up to 110.
 pub const FOV_RANGE: (f32, f32) = (75.0, 110.0);
@@ -29,12 +39,99 @@ pub const FOV_RANGE: (f32, f32) = (75.0, 110.0);
 /// The frame limit slider (`fps_max`), 0 is unlimited.
 pub const FRAME_LIMITS: [u32; 7] = [30, 60, 120, 144, 165, 240, 0];
 
-/// Fixed sizes offered besides native: common 16:9 and 16:10.
-pub const RESOLUTIONS: [(u32, u32); 10] =
-    [(1280, 720), (1280, 800), (1440, 900), (1600, 900), (1680, 1050), (1920, 1080), (1920, 1200), (2560, 1440), (2560, 1600), (3840, 2160)];
+/// Fixed sizes offered besides native: common 4:3, 16:9 and 16:10.
+pub const RESOLUTIONS: [(u32, u32); 13] = [
+    (1024, 768),
+    (1280, 720),
+    (1280, 800),
+    (1280, 960),
+    (1440, 900),
+    (1600, 900),
+    (1600, 1200),
+    (1680, 1050),
+    (1920, 1080),
+    (1920, 1200),
+    (2560, 1440),
+    (2560, 1600),
+    (3840, 2160),
+];
 
 /// Anisotropic filtering steps (`mat_forceaniso`); 1 is off.
-pub const ANISOTROPY: [u16; 4] = [1, 4, 8, 16];
+pub const ANISOTROPY: [u16; 5] = [1, 2, 4, 8, 16];
+
+/// `mat_monitorgamma`: the Brightness slider, 2.2 by default.
+pub const GAMMA_RANGE: (f32, f32) = (1.6, 2.6);
+
+/// Captioning: off, dialogue only, or dialogue and sound effects.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CaptionMode {
+    #[default]
+    Off,
+    Subtitles,
+    ClosedCaptions,
+}
+
+impl CaptionMode {
+    pub const ALL: [CaptionMode; 3] = [Self::Off, Self::Subtitles, Self::ClosedCaptions];
+
+    pub fn shown(self) -> bool {
+        self != Self::Off
+    }
+}
+
+/// `snd_surround_speakers`. TODO: audio.rs mixes stereo whatever this says.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Speakers {
+    Headphones,
+    #[default]
+    Stereo,
+    Quad,
+    Surround51,
+    Surround71,
+}
+
+impl Speakers {
+    pub const ALL: [Speakers; 5] = [Self::Headphones, Self::Stereo, Self::Quad, Self::Surround51, Self::Surround71];
+
+    pub fn cvar(self) -> u32 {
+        match self {
+            Self::Headphones => 0,
+            Self::Stereo => 2,
+            Self::Quad => 4,
+            Self::Surround51 => 5,
+            Self::Surround71 => 7,
+        }
+    }
+
+    pub fn from_cvar(v: f32) -> Self {
+        Self::ALL.into_iter().find(|s| s.cvar() as f32 == v).unwrap_or_default()
+    }
+}
+
+/// The caption languages Portal 2 ships (`cc_lang`); captions fall back to
+/// English when the install has no file for one.
+pub const LANGUAGES: [&str; 20] = [
+    "english",
+    "french",
+    "german",
+    "spanish",
+    "latam",
+    "italian",
+    "portuguese",
+    "brazilian",
+    "russian",
+    "polish",
+    "czech",
+    "hungarian",
+    "dutch",
+    "danish",
+    "finnish",
+    "norwegian",
+    "swedish",
+    "japanese",
+    "koreana",
+    "schinese",
+];
 
 /// Caption text sizes (px) and their names.
 pub const SUBTITLE_SIZES: [(f32, &str); 4] = [(16.0, "SMALL"), (20.0, "MEDIUM"), (26.0, "LARGE"), (32.0, "HUGE")];
@@ -107,8 +204,45 @@ pub struct Settings {
     /// The Original / Enhanced graphics preset. Only stored for now; see
     /// [`ValveQuality::enhanced`].
     pub enhanced_graphics: bool,
-    /// Voice-line captions.
-    pub subtitles: bool,
+    /// Use raw mouse motion (`m_rawinput`). On by default because the
+    /// controller always reads raw motion. TODO: p2_movement::input should
+    /// use OS-accelerated cursor motion when off.
+    pub raw_input: bool,
+    /// `m_customaccel`. TODO: p2_movement::rules::look should accelerate.
+    pub mouse_accel: bool,
+    /// The player's key bindings; `None` until one is changed (the game's
+    /// defaults apply, see `bindings::DefaultBinds`).
+    pub binds: Option<BindTable>,
+    /// Controller (`joystick`, `joy_sensitivity`, `joy_inverty`,
+    /// `joy_vibration`). TODO: nothing reads gamepads yet.
+    pub joystick: bool,
+    pub joy_sensitivity: f32,
+    pub joy_invert: bool,
+    pub joy_vibration: bool,
+    /// Speaker configuration.
+    pub speakers: Speakers,
+    /// Captioning (`closecaption` + `cc_subtitles`).
+    pub captions: CaptionMode,
+    /// Caption language (`cc_lang`), one of [`LANGUAGES`].
+    pub language: String,
+    /// Brightness (`mat_monitorgamma`), see [`GAMMA_RANGE`]. TODO: the
+    /// renderer should apply it (Portal 2 ramps the output gamma).
+    pub gamma: f32,
+    /// Filtering mode below anisotropic: trilinear (`mat_trilinear`) or
+    /// bilinear. TODO: source_assets::valve_render samplers should read it.
+    pub trilinear: bool,
+    /// `mat_motion_blur_enabled`. TODO: no motion blur pass yet.
+    pub motion_blur: bool,
+    /// Multicore rendering (`mat_queue_mode`). Bevy always renders on its
+    /// own thread; kept for the menu.
+    pub multicore: bool,
+    /// Shader detail 0..3 (`gpu_level`), effect detail 0..2 (`cpu_level`),
+    /// model/texture detail 0..2 (`gpu_mem_level`), paged pool memory 0..2
+    /// (`mem_level`). TODO: the renderer draws everything at the top level.
+    pub shader_detail: u8,
+    pub effect_detail: u8,
+    pub model_detail: u8,
+    pub paged_pool: u8,
     /// Caption text size in px.
     pub subtitle_size: f32,
     pub subtitle_color: SubtitleColor,
@@ -121,13 +255,14 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            master_volume: 0.8,
-            music_volume: 0.6,
+            master_volume: 1.0,
+            music_volume: 1.0,
             effects_volume: 1.0,
             mouse_sensitivity: 3.0,
             invert_mouse: false,
             mouse_filter: false,
             fov: 75.0,
+            // Windowed and subtitled on first launch, as the owner asked.
             fullscreen: false,
             resolution: None,
             vsync: true,
@@ -135,7 +270,24 @@ impl Default for Settings {
             msaa: true,
             anisotropy: 16,
             enhanced_graphics: false,
-            subtitles: true,
+            raw_input: true,
+            mouse_accel: false,
+            binds: None,
+            joystick: false,
+            joy_sensitivity: 1.0,
+            joy_invert: false,
+            joy_vibration: true,
+            speakers: Speakers::Stereo,
+            captions: CaptionMode::Subtitles,
+            language: "english".into(),
+            gamma: 2.2,
+            trilinear: true,
+            motion_blur: true,
+            multicore: true,
+            shader_detail: 3,
+            effect_detail: 2,
+            model_detail: 2,
+            paged_pool: 2,
             subtitle_size: 20.0,
             subtitle_color: SubtitleColor::Original,
             subtitle_background: 0.6,
@@ -189,15 +341,9 @@ pub fn step_in<T: Copy + PartialEq>(list: &[T], current: T, dir: i32, rank: impl
 /// table: a size the display can't show would quietly fall back to native.
 static DISPLAY_MODES: std::sync::Mutex<Vec<UVec2>> = std::sync::Mutex::new(Vec::new());
 
-/// Native first, then the display's sizes (or a fixed table before the
-/// display is known) smallest to largest.
-pub fn resolution_choices() -> Vec<Option<UVec2>> {
-    // The usual sizes (for a window) and every size the display has (fullscreen).
-    let mut sizes: Vec<UVec2> = RESOLUTIONS.iter().map(|&(w, h)| UVec2::new(w, h)).collect();
-    sizes.extend(DISPLAY_MODES.lock().map(|m| m.clone()).unwrap_or_default());
-    sizes.sort_by_key(|s| (s.x * s.y, s.x));
-    sizes.dedup();
-    std::iter::once(None).chain(sizes.into_iter().map(Some)).collect()
+/// Every pixel size the primary display offers (empty until it is known).
+pub fn display_modes() -> Vec<UVec2> {
+    DISPLAY_MODES.lock().map(|m| m.clone()).unwrap_or_default()
 }
 
 fn learn_display_modes(monitors: Query<(&Monitor, Has<PrimaryMonitor>)>, mut done: Local<bool>) {
@@ -229,7 +375,7 @@ pub fn frame_limit_rank(fps: u32) -> f32 {
 }
 
 /// Every key this version reads and writes.
-const KEYS: [&str; 19] = [
+const KEYS: [&str; 38] = [
     "volume",
     "snd_musicvolume",
     "snd_effectsvolume",
@@ -249,6 +395,25 @@ const KEYS: [&str; 19] = [
     "cc_color",
     "cc_bg_opacity",
     "version",
+    "m_rawinput",
+    "m_customaccel",
+    "joystick",
+    "joy_sensitivity",
+    "joy_inverty",
+    "joy_vibration",
+    "snd_surround_speakers",
+    "closecaption",
+    "cc_lang",
+    "mat_monitorgamma",
+    "mat_trilinear",
+    "mat_motion_blur_enabled",
+    "mat_queue_mode",
+    "gpu_level",
+    "cpu_level",
+    "gpu_mem_level",
+    "mem_level",
+    "unbindall",
+    "bind",
 ];
 
 impl Settings {
@@ -262,13 +427,17 @@ impl Settings {
     pub fn parse(text: &str) -> Self {
         let mut s = Settings::default();
         let mut version = 1;
+        let (mut closecaption, mut cc_subtitles) = (None, None);
         for line in text.lines() {
             let line = line.trim();
             if line.is_empty() {
                 continue;
             }
             let (k, v) = line.split_once(char::is_whitespace).map_or((line, ""), |(k, v)| (k, v.trim()));
+            // Source configs quote values (`sensitivity "3"`).
+            let v = v.strip_prefix('"').and_then(|v| v.strip_suffix('"')).unwrap_or(v);
             let f = v.parse::<f32>().ok().filter(|f| f.is_finite());
+            let lvl = |max: u8| f.map(|f| f.clamp(0.0, max as f32) as u8);
             match (k, f) {
                 ("version", _) => version = f.map_or(1, |f| f as u32),
                 ("volume", Some(f)) => s.master_volume = f.clamp(0.0, 1.0),
@@ -285,7 +454,30 @@ impl Settings {
                 ("mat_antialias", Some(f)) => s.msaa = f >= 2.0,
                 ("mat_forceaniso", Some(f)) => s.anisotropy = ANISOTROPY.into_iter().rfind(|a| *a as f32 <= f).unwrap_or(1),
                 ("enhanced_graphics", Some(f)) => s.enhanced_graphics = f != 0.0,
-                ("cc_subtitles", Some(f)) => s.subtitles = f != 0.0,
+                ("cc_subtitles", Some(f)) => cc_subtitles = Some(f != 0.0),
+                ("closecaption", Some(f)) => closecaption = Some(f != 0.0),
+                ("cc_lang", _) if LANGUAGES.contains(&v.to_ascii_lowercase().as_str()) => s.language = v.to_ascii_lowercase(),
+                ("m_rawinput", Some(f)) => s.raw_input = f != 0.0,
+                ("m_customaccel", Some(f)) => s.mouse_accel = f != 0.0,
+                ("joystick", Some(f)) => s.joystick = f != 0.0,
+                ("joy_sensitivity", Some(f)) => s.joy_sensitivity = f.clamp(0.1, 5.0),
+                ("joy_inverty", Some(f)) => s.joy_invert = f != 0.0,
+                ("joy_vibration", Some(f)) => s.joy_vibration = f != 0.0,
+                ("snd_surround_speakers", Some(f)) => s.speakers = Speakers::from_cvar(f),
+                ("mat_monitorgamma", Some(f)) => s.gamma = f.clamp(GAMMA_RANGE.0, GAMMA_RANGE.1),
+                ("mat_trilinear", Some(f)) => s.trilinear = f != 0.0,
+                ("mat_motion_blur_enabled", Some(f)) => s.motion_blur = f != 0.0,
+                ("mat_queue_mode", Some(f)) => s.multicore = f != 0.0,
+                ("gpu_level", _) if lvl(3).is_some() => s.shader_detail = lvl(3).unwrap_or(3),
+                ("cpu_level", _) if lvl(2).is_some() => s.effect_detail = lvl(2).unwrap_or(2),
+                ("gpu_mem_level", _) if lvl(2).is_some() => s.model_detail = lvl(2).unwrap_or(2),
+                ("mem_level", _) if lvl(2).is_some() => s.paged_pool = lvl(2).unwrap_or(2),
+                ("unbindall", _) => s.binds = Some(BindTable::default()),
+                ("bind", _) => {
+                    if let Some((key, cmd)) = parse_bind(line) {
+                        s.binds.get_or_insert_with(BindTable::default).0.insert(key, cmd);
+                    }
+                }
                 ("cc_size", Some(f)) => s.subtitle_size = f.clamp(10.0, 48.0),
                 ("cc_color", _) => s.subtitle_color = SubtitleColor::from_key(v).unwrap_or_default(),
                 ("cc_bg_opacity", Some(f)) => s.subtitle_background = f.clamp(0.0, 1.0),
@@ -294,6 +486,15 @@ impl Settings {
                 _ => s.unknown.push(line.to_string()),
             }
         }
+        // Captions: before version 3 `cc_subtitles` alone switched them on.
+        s.captions = match (closecaption, cc_subtitles) {
+            (Some(false), _) => CaptionMode::Off,
+            (Some(true), Some(true)) => CaptionMode::Subtitles,
+            (Some(true), _) => CaptionMode::ClosedCaptions,
+            (None, Some(true)) => CaptionMode::Subtitles,
+            (None, Some(false)) => CaptionMode::Off,
+            (None, None) => s.captions,
+        };
         // Version 1 used the same keys and narrower ranges, so it reads as is.
         // Later changes to a key's meaning convert old values here.
         if version > SETTINGS_VERSION {
@@ -305,7 +506,9 @@ impl Settings {
     pub fn to_text(&self) -> String {
         let res = self.resolution.map_or("native".to_string(), |r| format!("{}x{}", r.x, r.y));
         let mut text = format!(
-            "version {}\nvolume {}\nsnd_musicvolume {}\nsnd_effectsvolume {}\nsensitivity {}\nm_invert {}\nm_filter {}\nfov_desired {}\nfullscreen {}\nresolution {}\nmat_vsync {}\nfps_max {}\nmat_antialias {}\nmat_forceaniso {}\nenhanced_graphics {}\ncc_subtitles {}\ncc_size {}\ncc_color {}\ncc_bg_opacity {}\n",
+            "version {}\nvolume {}\nsnd_musicvolume {}\nsnd_effectsvolume {}\nsensitivity {}\nm_invert {}\nm_filter {}\nfov_desired {}\nfullscreen {}\nresolution {}\nmat_vsync {}\nfps_max {}\nmat_antialias {}\nmat_forceaniso {}\nenhanced_graphics {}\ncc_subtitles {}\ncc_size {}\ncc_color {}\ncc_bg_opacity {}\n\
+             closecaption {}\ncc_lang {}\nm_rawinput {}\nm_customaccel {}\njoystick {}\njoy_sensitivity {}\njoy_inverty {}\njoy_vibration {}\nsnd_surround_speakers {}\n\
+             mat_monitorgamma {}\nmat_trilinear {}\nmat_motion_blur_enabled {}\nmat_queue_mode {}\ngpu_level {}\ncpu_level {}\ngpu_mem_level {}\nmem_level {}\n",
             SETTINGS_VERSION,
             self.master_volume,
             self.music_volume,
@@ -321,11 +524,31 @@ impl Settings {
             if self.msaa { 4 } else { 0 },
             self.anisotropy,
             self.enhanced_graphics as u8,
-            self.subtitles as u8,
+            (self.captions == CaptionMode::Subtitles) as u8,
             self.subtitle_size,
             self.subtitle_color.key(),
             self.subtitle_background,
+            self.captions.shown() as u8,
+            self.language,
+            self.raw_input as u8,
+            self.mouse_accel as u8,
+            self.joystick as u8,
+            self.joy_sensitivity,
+            self.joy_invert as u8,
+            self.joy_vibration as u8,
+            self.speakers.cvar(),
+            self.gamma,
+            self.trilinear as u8,
+            self.motion_blur as u8,
+            if self.multicore { 2 } else { 0 },
+            self.shader_detail,
+            self.effect_detail,
+            self.model_detail,
+            self.paged_pool,
         );
+        if let Some(b) = &self.binds {
+            text.push_str(&b.to_lines());
+        }
         for l in &self.unknown {
             text.push_str(l);
             text.push('\n');
@@ -538,7 +761,22 @@ mod tests {
             msaa: false,
             anisotropy: 4,
             enhanced_graphics: true,
-            subtitles: false,
+            captions: CaptionMode::ClosedCaptions,
+            language: "german".into(),
+            joystick: true,
+            joy_sensitivity: 1.5,
+            speakers: Speakers::Surround51,
+            gamma: 1.8,
+            trilinear: false,
+            motion_blur: false,
+            multicore: false,
+            shader_detail: 1,
+            effect_detail: 0,
+            model_detail: 1,
+            paged_pool: 0,
+            raw_input: false,
+            mouse_accel: true,
+            binds: Some(BindTable::builtin()),
             subtitle_size: 26.0,
             subtitle_color: SubtitleColor::Yellow,
             subtitle_background: 0.2,
@@ -554,7 +792,9 @@ mod tests {
         let s = Settings::parse(old);
         assert_eq!(s.master_volume, 0.5);
         assert_eq!(s.mouse_sensitivity, 2.5);
-        assert!(s.invert_mouse && s.fullscreen && !s.subtitles);
+        assert!(s.invert_mouse && s.fullscreen);
+        assert_eq!(s.captions, CaptionMode::Off);
+        assert_eq!(Settings::parse("cc_subtitles 1\n").captions, CaptionMode::Subtitles);
         assert_eq!(s.fov, 90.0);
         let d = Settings::default();
         assert_eq!((s.vsync, s.frame_limit, s.msaa, s.anisotropy, s.resolution), (d.vsync, d.frame_limit, d.msaa, d.anisotropy, d.resolution));
@@ -575,6 +815,71 @@ mod tests {
     }
 
     #[test]
+    fn first_launch_is_portal2s_defaults() {
+        let s = Settings::default();
+        assert_eq!((s.master_volume, s.music_volume, s.mouse_sensitivity, s.fov), (1.0, 1.0, 3.0, 75.0));
+        // Windowed and subtitled: the owner's choice over Portal 2's own.
+        assert!(!s.fullscreen && s.resolution.is_none() && s.vsync);
+        assert_eq!(s.captions, CaptionMode::Subtitles);
+        assert_eq!(s.language, "english");
+        assert_eq!(s.gamma, 2.2);
+        assert!(!s.invert_mouse && !s.mouse_filter && !s.mouse_accel);
+        assert_eq!(s.speakers, Speakers::Stereo);
+        assert!(s.motion_blur && s.multicore);
+        assert_eq!((s.model_detail, s.effect_detail, s.shader_detail, s.paged_pool), (2, 2, 3, 2));
+        // Extras at the original behaviour: no cap, the Original look, the game's own caption colours.
+        assert_eq!((s.frame_limit, s.enhanced_graphics, s.subtitle_color), (0, false, SubtitleColor::Original));
+        // Bindings: the game's defaults until the player changes one.
+        assert!(s.binds.is_none());
+        assert!(!s.to_text().contains("bind"));
+    }
+
+    #[test]
+    fn captions_old_and_new() {
+        // Version 2 and older: cc_subtitles switched captions on or off.
+        assert_eq!(Settings::parse("version 2\ncc_subtitles 1\n").captions, CaptionMode::Subtitles);
+        assert_eq!(Settings::parse("version 2\ncc_subtitles 0\n").captions, CaptionMode::Off);
+        // Version 3: Source's pair.
+        assert_eq!(Settings::parse("closecaption 1\ncc_subtitles 0\n").captions, CaptionMode::ClosedCaptions);
+        assert_eq!(Settings::parse("closecaption 1\ncc_subtitles 1\n").captions, CaptionMode::Subtitles);
+        assert_eq!(Settings::parse("closecaption 0\ncc_subtitles 1\n").captions, CaptionMode::Off);
+        for m in CaptionMode::ALL {
+            let s = Settings { captions: m, ..Settings::default() };
+            assert_eq!(Settings::parse(&s.to_text()).captions, m);
+        }
+        assert_eq!(Settings::parse("cc_lang klingon\n").language, "english");
+        assert_eq!(Settings::parse("cc_lang \"German\"\n").language, "german");
+    }
+
+    #[test]
+    fn bindings_in_the_file() {
+        let mut b = BindTable::builtin();
+        b.rebind("+jump", "mwheeldown");
+        let s = Settings { binds: Some(b.clone()), ..Settings::default() };
+        let text = s.to_text();
+        assert!(text.contains("unbindall\nbind"));
+        let back = Settings::parse(&text);
+        assert_eq!(back.binds, Some(b));
+        assert!(back.unknown.is_empty());
+        // Everything unbound stays unbound.
+        let none = Settings { binds: Some(BindTable::default()), ..Settings::default() };
+        assert_eq!(Settings::parse(&none.to_text()).binds, Some(BindTable::default()));
+        // A version 2 file with no bindings keeps the defaults.
+        assert!(Settings::parse("version 2\nvolume 0.5\n").binds.is_none());
+    }
+
+    #[test]
+    fn quoted_source_values_read() {
+        let s = Settings::parse("sensitivity \"2.5\"\nmat_monitorgamma \"2.0\"\nsnd_surround_speakers \"5\"\ngpu_level 9\nmem_level -3\nmat_queue_mode -1\n");
+        assert_eq!(s.mouse_sensitivity, 2.5);
+        assert_eq!(s.gamma, 2.0);
+        assert_eq!(s.speakers, Speakers::Surround51);
+        assert_eq!((s.shader_detail, s.paged_pool), (3, 0));
+        assert!(s.multicore);
+        assert!(s.unknown.is_empty());
+    }
+
+    #[test]
     fn anisotropy_snaps_down() {
         assert_eq!(Settings::parse("mat_forceaniso 0").anisotropy, 1);
         assert_eq!(Settings::parse("mat_forceaniso 6").anisotropy, 4);
@@ -590,9 +895,6 @@ mod tests {
         assert_eq!(step_in(&FRAME_LIMITS, 60, 1, frame_limit_rank), 120);
         // 75 from a hand-edited file snaps to 60 before stepping.
         assert_eq!(step_in(&FRAME_LIMITS, 75, 1, frame_limit_rank), 60);
-        let res = resolution_choices();
-        assert_eq!(step_in(&res, None, 1, |_| 0.0), Some(UVec2::new(1280, 720)));
-        assert_eq!(step_in(&res, Some(UVec2::new(1280, 720)), -1, |_| 0.0), None);
     }
 
     #[test]

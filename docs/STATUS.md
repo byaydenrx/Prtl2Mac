@@ -24,9 +24,11 @@ out black (macOS stops drawing it) — not a game bug.
 
 Autopilot extras: `input <target> <input> [param]` sends a map input,
 `ray x y z` logs what is below a Source point, `click <Action>` presses a
-menu button by its action (`click pause`, `click Options`,
-`click Toggle(VSync)`, `click Adjust(Fov,5.0)`; an unknown name logs the
-buttons on screen). The script clock is real time (menus pause the world).
+menu button by its action (`click pause`, `click Options` (opens the
+flyout), `click Page(AdvancedVideo)`, `click Toggle(VSync)`,
+`click Adjust(Fov,1.0)`, `click Done`, `click SinglePlayer` then
+`click Continue`/`click NewGame`; Quit and Quit to main menu need
+`click ConfirmOk`; an unknown name logs the buttons on screen). The script clock is real time (menus pause the world).
 `P2_TRACE=1` also logs laser legs, catapult launches, trigger_look and gel
 bounces; `RUST_LOG=...,portal2=debug` logs portal shot results and
 no-portal volumes.
@@ -41,10 +43,8 @@ Tools: `cargo run -p source_assets --example ents -- MAP [class|targetname|*N]`,
 
 ## Works
 
-Menus (main, chapter select, pause, options: volumes, mouse, FOV 75..110,
-fullscreen, resolution, v-sync, frame limit, MSAA, anisotropic filtering,
-Original/Enhanced preset (stored only), and a Subtitles page with size,
-colour and background), autosave/continue, campaign order + chapter
+Menus (main, chapter select, pause, Portal 2's options with the extras;
+see the cloud/ui section below), autosave/continue, campaign order + chapter
 titles from `sp_transition_list.nut`, level loading/exits, entity I/O
 (relays, counters, branches, cases, timers, proxies, autos), triggers,
 teleports, fades, elevator trains (player locked to the car), doors (incl.
@@ -203,3 +203,79 @@ Subtitles page opens and BACK returns to Options then the pause menu, the
 user's old settings.cfg loads, and settings.cfg/save.txt are written as
 `version 2` (old save files still Continue; unit tests cover both). Not
 checked: exclusive fullscreen resolutions, Esc on the Subtitles page.
+
+## cloud/ui branch (untested in game)
+
+Menus restyled after Portal 2's PC menus, with all of its options. Built
+and unit-tested on Linux only (`cargo test -p p2_game -p p2_core`); nothing
+here has been seen on screen yet.
+
+What changed:
+- Main menu: logo top left, items at the lower left: PLAY SINGLE PLAYER
+  (flyout: CONTINUE GAME when there is a save, NEW GAME), OPTIONS (flyout:
+  KEYBOARD / MOUSE, CONTROLLER, AUDIO, VIDEO), QUIT. NEW GAME opens the
+  chapter dialog (as Source's New Game does); the separate CHAPTER SELECT
+  item is gone. Not shown until they exist: co-op, community test
+  chambers, extras, load/save game.
+- Pause menu: same items as before at the lower left over the dimmed game
+  (no "PAUSED" title); OPTIONS is a flyout. Quit and Quit to main menu ask
+  first (OK / CANCEL).
+- Options pages are dialogs: rows of `label  < value >` (click the value to
+  step and wrap) or sliders (click the track to jump), footer buttons:
+  DONE keeps, CANCEL puts the page back as it was, Esc = DONE. Video's
+  resolution / aspect ratio / display mode wait for APPLY (or DONE).
+  - Keyboard/Mouse: Customize keyboard (key list from the game's
+    `scripts/kb_act.lst` with its localized labels, defaults from
+    `cfg/config_default.cfg`; click a row, press a key/mouse button/wheel,
+    Esc cancels; USE DEFAULTS, CLEAR KEY), sensitivity, reverse mouse,
+    mouse filter, mouse acceleration, raw input.
+  - Controller: game controller, look sensitivity, reverse look, vibration.
+  - Audio: game volume, music volume, speaker configuration, captioning
+    (Off / Subtitles / Closed captions), language (caption files), and our
+    Subtitle style page (size, colour, background).
+  - Video: resolution, aspect ratio, display mode, brightness, Advanced
+    video: model/texture, effect, shader detail, paged pool memory,
+    multicore, anti-aliasing, filtering (bilinear/trilinear/aniso 2-16x),
+    v-sync, motion blur, field of view, max frame rate, Original/Enhanced.
+- Bindings drive movement: `p2_core::InputBindings` (new) is read by
+  `p2_movement::input::read_keys`; with no resource it uses today's keys.
+- settings.cfg is version 3: new keys use Source's names (`closecaption`,
+  `cc_lang`, `m_rawinput`, `mat_monitorgamma`, `gpu_level`...), bindings
+  are `unbindall` + `bind "key" "command"` lines once one is changed.
+  Version 1/2 files load (old `cc_subtitles 1` = Subtitles).
+- First-launch defaults are Portal 2's: volume and music 100%, fullscreen
+  at native resolution, captions off, brightness 2.2, top detail levels,
+  motion blur and multicore on (the old file defaults were 80%/60%
+  volume, windowed, subtitles on). An existing settings.cfg keeps the
+  player's values.
+
+Saved and shown but not used yet (TODO in the code says what should read
+each): +attack/+attack2 rebinding (p2_gun reads mouse buttons itself) and
+the other non-movement commands, raw input, mouse acceleration, the whole
+Controller page, speaker configuration, closed captions for sound effects
+(audio.rs would have to send ShowCaption), brightness, bilinear vs
+trilinear, motion blur, multicore, the detail levels, effects volume (kept
+in the file, no longer on screen).
+
+Check in the real game:
+1. Fonts: the log lists `font files in the game` and the `menu font` it
+   picked. If Portal 2's menu font isn't picked (or the wrong one is), set
+   `P2_MENU_FONT=resource/<file>` to try one and fix `pick_menu_font`.
+2. Logo: the log lists `logo textures in the game` and the `menu logo`
+   used; without one a text "PORTAL 2" shows. `P2_MENU_LOGO` overrides.
+3. Main menu against the real Portal 2: item names and order, case,
+   size, colours, hover bar, flyout position; logo size/position.
+4. Pause menu over the game, the dimming, the confirm dialogs.
+5. Every Options page fits at 1280x720 and fullscreen; the key list
+   scrolls with the wheel and keeps its place after a rebind; key labels
+   come from the game (not `#Valve_...` tokens).
+6. Rebind jump to the wheel or move-forward to another key, play, restart
+   the game: the binding sticks and moves the player; USE DEFAULTS
+   restores the game's keys (right Ctrl no longer ducks with the game's
+   config_default.cfg, which only binds CTRL).
+7. Video: change resolution/display mode, nothing happens until APPLY;
+   CANCEL after APPLY puts the old mode back.
+8. Captioning: Subtitles vs Closed captions text on a scene line (closed
+   captions use the closecaption files), language switch reloads captions.
+9. Delete settings.cfg (or set `P2_DATA_DIR` to an empty folder): first
+   launch is fullscreen, 100% volume, captions off.
