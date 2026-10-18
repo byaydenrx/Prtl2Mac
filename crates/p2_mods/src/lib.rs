@@ -38,6 +38,8 @@ pub use manifest::{Conflict, Dependency, Manifest, MANIFEST};
 pub use profile::{Profile, ProfileEntry};
 pub use resolve::{Issue, Resolution, Severity};
 pub use store::InstalledMod;
+/// The version types in this API.
+pub use semver;
 
 /// The profile used until the player makes another.
 pub const DEFAULT_PROFILE: &str = "default";

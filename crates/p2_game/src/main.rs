@@ -16,10 +16,12 @@ mod autopilot;
 mod bridges;
 mod campaign;
 mod captions;
+mod community;
 mod health;
 mod io;
 mod lasers;
 mod level;
+mod mounts;
 mod movers;
 mod paint;
 mod portals;
@@ -48,6 +50,8 @@ fn main() {
         eprintln!("{msg}");
         std::process::exit(1);
     });
+    // Enabled mods ahead of the install, community maps behind it.
+    let (game, source_config, mounts, community) = mounts::mount(game);
     let args = p2_room::HarnessArgs::from_env();
     let launch = Launch { map: args.rest.iter().find(|a| !a.starts_with("--")).cloned() };
     let mut app = App::new();
@@ -57,7 +61,8 @@ fn main() {
         .insert_resource(SourceRenderSettings::default())
         .insert_resource(source_assets::valve_render::ValveExposure(source_assets::DEFAULT_LIGHT_SCALE))
         .add_plugins(PhysicsPlugins::default().with_collision_hooks::<props::PortalHooks>())
-        .add_plugins(SourceMapPlugin::default())
+        .add_plugins(SourceMapPlugin { config: source_config })
+        .add_plugins(mounts::MountsPlugin { mounts, community })
         .add_plugins(p2_portals::PortalPlugins)
         .insert_resource(if launch.map.is_some() { ui::Screen::None } else { ui::Screen::Main })
         .insert_resource(launch)

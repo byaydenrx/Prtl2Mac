@@ -4658,6 +4658,7 @@ dependencies = [
  "p2_core",
  "p2_fx",
  "p2_gun",
+ "p2_mods",
  "p2_movement",
  "p2_portals",
  "p2_render",
