@@ -17,7 +17,7 @@ pub struct LasersPlugin;
 impl Plugin for LasersPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LaserState>()
-            .add_systems(Update, (laser_inputs, trace_lasers, draw_beams).chain().after(crate::io::run_io).in_set(GameSet::Logic));
+            .add_systems(Update, (laser_inputs, trace_lasers, crate::turrets::run_turrets, draw_beams).chain().after(crate::io::run_io).in_set(GameSet::Logic));
     }
 }
 
@@ -30,7 +30,11 @@ const MAX_LEGS: usize = 12;
 const BURN: f32 = 40.0;
 
 #[derive(Resource, Default)]
-struct LaserState {
+pub struct LaserState {
+    /// Turret sight lines to draw this frame (thin), written by `turrets.rs`.
+    pub sights: Vec<(Vec3, Vec3)>,
+    /// Entities a beam ends on this frame (turrets burn).
+    pub hit: Vec<usize>,
     /// Emitters switched on (by ent index).
     on: HashSet<usize>,
     /// Catchers and relays powered last frame.
@@ -121,6 +125,7 @@ fn trace_lasers(
     mut damage: MessageWriter<crate::health::DamagePlayer>,
 ) {
     state.legs.clear();
+    state.hit.clear();
     let Some(ents) = ents else { return };
     if state.on.is_empty() && state.powered.is_empty() {
         return;
@@ -230,6 +235,7 @@ fn trace_lasers(
             }
             let Some(h) = hit else { break };
             let Some(i) = ent_of(h.entity) else { break };
+            state.hit.push(i);
             match ents.list[i].class.as_str() {
                 "prop_laser_catcher" => {
                     powered.insert(i);
@@ -313,6 +319,8 @@ fn draw_beams(
     }
     // Two cylinders per leg (core and glow); spawn any missing, reuse the rest.
     let legs_list = &state.legs;
+    let mut legs_list: Vec<((Vec3, Vec3), f32)> = legs_list.iter().map(|l| (*l, 1.0)).collect();
+    legs_list.extend(state.sights.iter().map(|l| (*l, 0.1)));
     let want = legs_list.len() * 2;
     for k in legs.iter().count()..want {
         let glow = k % 2 == 1;
@@ -330,12 +338,12 @@ fn draw_beams(
         let leg = i / 2;
         let glow = i % 2 == 1;
         i += 1;
-        let Some((a, b)) = legs_list.get(leg) else {
+        let Some(((a, b), thick)) = legs_list.get(leg) else {
             *vis = Visibility::Hidden;
             continue;
         };
         let d = *b - *a;
-        let r = if glow { 4.0 * U } else { 1.2 * U };
+        let r = if glow { 4.0 * U } else { 1.2 * U } * thick;
         *tf = Transform::from_translation((*a + *b) * 0.5)
             .with_rotation(Quat::from_rotation_arc(Vec3::Y, d.normalize_or(Vec3::Y)))
             .with_scale(Vec3::new(r, d.length(), r));

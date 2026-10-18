@@ -27,6 +27,7 @@ mod scenes;
 mod settings;
 mod templates;
 mod triggers;
+mod turrets;
 mod ui;
 mod viewcontrol;
 

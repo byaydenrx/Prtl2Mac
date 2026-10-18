@@ -24,7 +24,7 @@ impl Plugin for PropsPlugin {
 }
 
 /// Things the player can pick up.
-const PICKUP_CLASSES: &[&str] = &["prop_weighted_cube", "prop_monster_box", "prop_physics", "prop_physics_override"];
+pub const PICKUP_CLASSES: &[&str] = &["prop_weighted_cube", "prop_monster_box", "prop_physics", "prop_physics_override", "npc_portal_turret_floor"];
 /// How far the use key reaches (Portal 2 `player_use_dist` ~ 80 u from the eye).
 const USE_RANGE: f32 = 80.0 * shared::SOURCE_UNIT;
 /// Fastest a held object moves to its target (m/s).
@@ -209,6 +209,7 @@ fn use_key(
         ));
         if let Some(mut ents) = ents {
             ents.fire(prop.ent, "onplayerpickup", Some(PLAYER));
+            ents.fire(prop.ent, "onphysgunpickup", Some(PLAYER));
         }
         return;
     }

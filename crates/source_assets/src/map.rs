@@ -315,6 +315,10 @@ pub fn default_entity_model(e: &SourceEntity) -> Option<String> {
         "prop_laser_relay" => "models/props/laser_receptacle.mdl",
         "env_portal_laser" => "models/props/laser_emitter.mdl",
         "prop_monster_box" => "models/npcs/monsters/monster_a.mdl",
+        "npc_portal_turret_floor" => "models/npcs/turret/turret.mdl",
+        "prop_wall_projector" => "models/props/wall_emitter.mdl",
+        "prop_tractor_beam" => "models/props/tractor_beam_emitter.mdl",
+        "npc_security_camera" => "models/props/security_camera.mdl",
         _ => return None,
     };
     Some(m.to_string())
