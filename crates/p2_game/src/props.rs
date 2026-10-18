@@ -137,7 +137,39 @@ fn use_key(
     let eye = feet.curr + Vec3::Y * crouch.eye_height;
     let dir = Dir3::new(view.forward()).unwrap_or(Dir3::NEG_Z);
     let filter = SpatialQueryFilter::from_excluded_entities([player]);
-    let Some(hit) = spatial.cast_ray(eye, dir, USE_RANGE, true, &filter) else { return };
+    let hit = spatial.cast_ray(eye, dir, USE_RANGE, true, &filter);
+    // Like Source's FindUseEntity: a usable button in front of the player
+    // wins over whatever surface the ray happens to hit first (the bed's
+    // mattress covers the bed's button).
+    if let Some(ents) = &ents {
+        let hit_dist = hit.map_or(f32::MAX, |h| h.distance);
+        let mut best: Option<(usize, f32)> = None;
+        for (i, e) in ents.list.iter().enumerate() {
+            if e.killed || !matches!(e.class.as_str(), "func_button" | "func_rot_button" | "prop_button" | "prop_under_button") {
+                continue;
+            }
+            let (lo, hi) = e.bounds.unwrap_or((e.transform.translation - Vec3::splat(0.3), e.transform.translation + Vec3::splat(0.3)));
+            let closest = eye.clamp(lo, hi);
+            let d = closest.distance(eye);
+            let toward = ((lo + hi) * 0.5 - eye).normalize_or_zero();
+            if d <= USE_RANGE + 0.3 && toward.dot(*dir) > 0.8 && d <= hit_dist + 0.6 && best.is_none_or(|b| d < b.1) {
+                best = Some((i, d));
+            }
+        }
+        if let Some((i, _)) = best {
+            let class = ents.list[i].class.clone();
+            if ents.list[i].value == 0.0 {
+                fire.write(FireOutput { ent: i, event: "OnUseLocked".into(), activator: Some(PLAYER) });
+            } else {
+                fire.write(FireOutput { ent: i, event: "OnPressed".into(), activator: Some(PLAYER) });
+                if class == "func_button" {
+                    fire.write(FireOutput { ent: i, event: "OnIn".into(), activator: Some(PLAYER) });
+                }
+            }
+            return;
+        }
+    }
+    let Some(hit) = hit else { return };
     let body = body_of.get(hit.entity).map_or(hit.entity, |c| c.body);
     if let Ok((prop, tf)) = props.get(body) {
         let mut cols: Vec<Entity> = children.iter_descendants(body).filter(|c| colliders.contains(*c)).collect();
@@ -168,9 +200,13 @@ fn use_key(
             if let Some(i) = ents.list.iter().position(|g| g.entity == Some(cur)) {
                 let class = ents.list[i].class.as_str();
                 if matches!(class, "prop_button" | "prop_under_button" | "func_button" | "func_rot_button") {
-                    fire.write(FireOutput { ent: i, event: "OnPressed".into(), activator: Some(PLAYER) });
-                    if class == "func_button" {
-                        fire.write(FireOutput { ent: i, event: "OnIn".into(), activator: Some(PLAYER) });
+                    if ents.list[i].value == 0.0 {
+                        fire.write(FireOutput { ent: i, event: "OnUseLocked".into(), activator: Some(PLAYER) });
+                    } else {
+                        fire.write(FireOutput { ent: i, event: "OnPressed".into(), activator: Some(PLAYER) });
+                        if class == "func_button" {
+                            fire.write(FireOutput { ent: i, event: "OnIn".into(), activator: Some(PLAYER) });
+                        }
                     }
                 }
                 break;

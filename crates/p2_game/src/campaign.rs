@@ -17,6 +17,10 @@ pub struct Chapter {
     pub subtitle: String,
     /// `materials/vgui/chapters/chapterN` (without extension).
     pub picture: String,
+    /// Show the title card when the map starts (else the map asks for it).
+    pub display_on_spawn: bool,
+    /// Seconds after the start (or the request) before the card shows.
+    pub display_delay: f32,
 }
 
 #[derive(Resource, Clone, Debug, Default)]
@@ -46,10 +50,17 @@ impl Campaign {
                 }
             }
         }
-        for (i, (map, title, subtitle)) in chapter_starts(&text).into_iter().enumerate() {
+        for (i, (map, title, subtitle, on_spawn, delay)) in chapter_starts(&text).into_iter().enumerate() {
             let title = c.text(&title);
             let subtitle = c.text(&subtitle);
-            c.chapters.push(Chapter { map, title, subtitle, picture: format!("vgui/chapters/chapter{}", i + 1) });
+            c.chapters.push(Chapter {
+                map,
+                title,
+                subtitle,
+                picture: format!("vgui/chapters/chapter{}", i + 1),
+                display_on_spawn: on_spawn,
+                display_delay: delay,
+            });
         }
         info!("portal2: campaign of {} maps in {} chapters", c.maps.len(), c.chapters.len());
         c
@@ -95,7 +106,7 @@ fn map_play_order(text: &str) -> Vec<String> {
 }
 
 /// The chapter table: `{ map = "...", title_text = "#...", subtitle_text = "#..." ... }`.
-fn chapter_starts(text: &str) -> Vec<(String, String, String)> {
+fn chapter_starts(text: &str) -> Vec<(String, String, String, bool, f32)> {
     let field = |line: &str, key: &str| -> Option<String> {
         let i = line.find(key)?;
         let rest = &line[i + key.len()..];
@@ -105,7 +116,15 @@ fn chapter_starts(text: &str) -> Vec<(String, String, String)> {
     };
     text.lines()
         .filter(|l| !l.trim_start().starts_with("//"))
-        .filter_map(|l| Some((field(l, "map =")?, field(l, "title_text =")?, field(l, "subtitle_text =")?)))
+        .filter_map(|l| {
+            let bare = |key: &str| -> Option<String> {
+                let i = l.find(key)?;
+                Some(l[i + key.len()..].trim_start().split(|c: char| c == ',' || c.is_whitespace() || c == '}').next()?.to_string())
+            };
+            let on_spawn = bare("displayOnSpawn =").map(|v| v == "true").unwrap_or(true);
+            let delay = bare("displaydelay =").and_then(|v| v.parse().ok()).unwrap_or(1.0);
+            Some((field(l, "map =")?, field(l, "title_text =")?, field(l, "subtitle_text =")?, on_spawn, delay))
+        })
         .collect()
 }
 

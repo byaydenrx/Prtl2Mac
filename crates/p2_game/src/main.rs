@@ -10,6 +10,7 @@ use bevy::prelude::*;
 use p2_core::*;
 use source_assets::{SourceMapPlugin, SourceRenderSettings};
 
+mod ai;
 mod audio;
 mod autopilot;
 mod campaign;
@@ -18,6 +19,7 @@ mod level;
 mod movers;
 mod portals;
 mod props;
+mod scenes;
 mod settings;
 mod triggers;
 mod ui;
@@ -61,6 +63,8 @@ fn main() {
             triggers::TriggersPlugin,
             audio::GameAudioPlugin,
             autopilot::AutopilotPlugin,
+            scenes::ScenesPlugin,
+            ai::AiPlugin,
         ))
         .insert_resource(args)
         .add_plugins(p2_room::HarnessPlugin);

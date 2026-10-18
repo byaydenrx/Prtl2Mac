@@ -14,10 +14,15 @@ use crate::settings::{data_dir, Settings};
 
 pub struct UiPlugin;
 
+/// Show the current chapter's title card (the map's `DisplayChapterTitle()`).
+#[derive(Message, Clone, Copy, Debug)]
+pub struct ShowChapterTitle;
+
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Screen::Main)
             .init_resource::<TitleCard>()
+            .add_message::<ShowChapterTitle>()
             .add_systems(Startup, (load_fonts, open_main_menu).chain().after(crate::campaign::load_campaign))
             .add_systems(
                 Update,
@@ -559,6 +564,8 @@ fn autosave(mut loaded: MessageReader<LevelLoaded>) {
 fn title_card(
     mut commands: Commands,
     mut loaded: MessageReader<LevelLoaded>,
+    mut requested: MessageReader<ShowChapterTitle>,
+    map: Option<Res<CurrentMap>>,
     campaign: Res<Campaign>,
     fonts: Option<Res<UiFonts>>,
     time: Res<Time<Real>>,
@@ -569,15 +576,29 @@ fn title_card(
     music: Query<(), With<GameSound>>,
 ) {
     let Some(fonts) = fonts else { return };
+    // A chapter's first map shows its card on spawn, or when the map asks.
+    let mut show: Option<(usize, f32)> = None;
     for ev in loaded.read() {
         if ev.menu {
             continue;
         }
         if let Some(i) = campaign.chapters.iter().position(|c| c.map.eq_ignore_ascii_case(&ev.map)) {
+            if campaign.chapters[i].display_on_spawn {
+                show = Some((i, campaign.chapters[i].display_delay));
+            }
+        }
+    }
+    if requested.read().count() > 0 {
+        if let Some(i) = map.as_ref().and_then(|m| campaign.chapter_of(&m.info.name)) {
+            show = Some((i, 0.0));
+        }
+    }
+    {
+        if let Some((i, delay)) = show {
             let c = &campaign.chapters[i];
             // The game's own strings: "Chapter 1" / "The Courtesy Call".
             card.lines = Some((String::new(), c.title.clone(), c.subtitle.to_uppercase()));
-            card.shown_at = time.elapsed_secs() + 1.0;
+            card.shown_at = time.elapsed_secs() + delay;
             for r in &roots {
                 commands.entity(r).despawn();
             }

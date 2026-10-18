@@ -173,6 +173,7 @@ fn player_inputs(
     mut players: Query<(&mut Transform, &mut InterpolatedFeet, &mut CharacterVelocity, &mut ViewAngles, &mut PortalGun), With<Player>>,
     mut fizzle: MessageWriter<FizzlePortals>,
     mut exit: MessageWriter<LevelExit>,
+    mut title: MessageWriter<crate::ui::ShowChapterTitle>,
 ) {
     let Some(ents) = ents else {
         inputs.clear();
@@ -198,7 +199,8 @@ fn player_inputs(
                 // spawnflags 1 = fade from (in), else fade to (out).
                 let fade_in = e.spawnflags & 1 != 0;
                 *fade = ScreenFade {
-                    color: Vec4::new(c[0], c[1], c[2], alpha),
+                    // rendercolor is 0..255.
+                    color: Vec4::new(c[0], c[1], c[2], 0.0).map(|v| if v > 1.0 { v / 255.0 } else { v }).with_w(alpha),
                     start: time.elapsed_secs(),
                     duration: e.get_f32("duration").unwrap_or(1.0),
                     hold: e.get_f32("holdtime").unwrap_or(0.0),
@@ -231,6 +233,9 @@ fn player_inputs(
                 }
                 if code.contains("fizzle") {
                     fizzle.write(FizzlePortals);
+                }
+                if code.contains("displaychaptertitle") {
+                    title.write(crate::ui::ShowChapterTitle);
                 }
             }
             ("player" | "!player", "disabledraw" | "enabledraw") => {}

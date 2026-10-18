@@ -117,7 +117,12 @@ impl Ents {
             let get = |k: &str| e.keyvalues.iter().find(|(kk, _)| kk == k).map(|(_, v)| v.as_str());
             let outputs = e.keyvalues.iter().filter_map(|(k, v)| parse_output(k, v)).collect();
             let start_disabled = get("startdisabled").is_some_and(|v| v.trim() == "1");
-            let value = get("startvalue").or(get("initialvalue")).and_then(source_assets::kv::parse_f32).unwrap_or(0.0);
+            let mut value = get("startvalue").or(get("initialvalue")).and_then(source_assets::kv::parse_f32).unwrap_or(0.0);
+            // Buttons: value 1 = unlocked (spawnflag 2048 starts them locked).
+            if matches!(e.classname.as_str(), "func_button" | "func_rot_button" | "prop_button" | "prop_under_button") {
+                let flags: u32 = get("spawnflags").and_then(|v| v.trim().parse().ok()).unwrap_or(0);
+                value = if flags & 2048 != 0 { 0.0 } else { 1.0 };
+            }
             list.push(GameEnt {
                 class: e.classname.to_ascii_lowercase(),
                 name: e.targetname.clone().unwrap_or_default().to_ascii_lowercase(),
@@ -395,8 +400,18 @@ impl Ents {
                         self.list[i].keyvalues.push(("refiretime".into(), param.into()));
                     }
                     "firetimer" => self.fire(i, "ontimer", activator),
-                    "resettimer" => self.list[i].aux = 0.0,
-                    "enable" | "toggle" => self.list[i].aux = 0.0,
+                    // Counting starts when the timer is (re)started.
+                    "resettimer" | "enable" | "toggle" => self.list[i].aux = self.now,
+                    _ => {}
+                }
+                true
+            }
+            "func_button" | "func_rot_button" | "prop_button" | "prop_under_button" => {
+                match input {
+                    "lock" => self.list[i].value = 0.0,
+                    "unlock" => self.list[i].value = 1.0,
+                    "press" | "pressin" => self.fire(i, "onpressed", activator),
+                    "pressout" => self.fire(i, "onout", activator),
                     _ => {}
                 }
                 true
