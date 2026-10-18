@@ -35,6 +35,9 @@ pub struct PropAnims {
     attached: HashMap<usize, (usize, String)>,
     /// Each attached child's pose relative to its attachment.
     offsets: HashMap<usize, Transform>,
+    /// Each attached child's drawn transform relative to its map transform
+    /// when it was attached (brush geometry is stored already turned).
+    drawn_rel: HashMap<usize, Mat4>,
     animators: HashMap<String, Option<Arc<Animator>>>,
 }
 
@@ -112,6 +115,7 @@ fn track_animations(
         anims.playing.clear();
         anims.attached.clear();
         anims.offsets.clear();
+        anims.drawn_rel.clear();
     }
     let Some(ents) = ents else {
         inputs.clear();
@@ -137,6 +141,7 @@ fn track_animations(
                         Transform::IDENTITY
                     };
                     anims.attached.insert(msg.target, (p, att));
+                    anims.drawn_rel.remove(&msg.target);
                     anims.offsets.insert(msg.target, offset);
                 }
             }
@@ -323,6 +328,7 @@ fn follow_attachments(
         let Some(a) = anims.attachment_transform(&game, ents, parent, &att) else { continue };
         let world = Transform::from_matrix(a.to_matrix() * offset.to_matrix());
         let delta = world.translation - ents.list[child].transform.translation;
+        let before = ents.list[child].transform;
         ents.list[child].transform = world;
         if let Some((lo, hi)) = &mut ents.list[child].bounds {
             *lo += delta;
@@ -330,8 +336,21 @@ fn follow_attachments(
         }
         if let Some(r) = ents.list[child].entity {
             if let Ok(mut t) = transforms.get_mut(r) {
-                t.translation = world.translation;
-                t.rotation = world.rotation;
+                let rel = *anims.drawn_rel.entry(child).or_insert_with(|| before.to_matrix().inverse() * t.to_matrix());
+                let drawn = Transform::from_matrix(world.to_matrix() * rel);
+                if std::env::var_os("P2_TRACE").is_some() && ents.now.fract() < 0.02 {
+                    let (y, p, r) = drawn.rotation.to_euler(EulerRot::YXZ);
+                    info!(
+                        "TRACE attached {:?} at {:.0?} drawn rot {:.0} {:.0} {:.0}",
+                        ents.list[child].name,
+                        drawn.translation / shared::SOURCE_UNIT,
+                        y.to_degrees(),
+                        p.to_degrees(),
+                        r.to_degrees()
+                    );
+                }
+                t.translation = drawn.translation;
+                t.rotation = drawn.rotation;
             }
         }
     }

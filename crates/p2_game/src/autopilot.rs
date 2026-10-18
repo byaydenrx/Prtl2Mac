@@ -59,7 +59,7 @@ fn drive(
     time: Res<Time>,
     mut pilot: ResMut<Autopilot>,
     mut loaded: MessageReader<LevelLoaded>,
-    mut players: Query<(Entity, &mut Transform, &mut InterpolatedFeet, &mut ViewAngles, &mut MoveInput, &mut CharacterVelocity), With<Player>>,
+    mut players: Query<(Entity, &mut Transform, &mut InterpolatedFeet, &mut ViewAngles, &mut MoveInput, &mut CharacterVelocity, &PortalGun), With<Player>>,
     mut fire: MessageWriter<FirePortal>,
     mut exit: MessageWriter<AppExit>,
     mut ents: Option<ResMut<crate::io::Ents>>,
@@ -77,7 +77,7 @@ fn drive(
     }
     let Some(start) = pilot.start else { return };
     let t = time.elapsed_secs() - start;
-    let Ok((player, mut tf, mut feet, mut view, mut input, mut vel)) = players.single_mut() else { return };
+    let Ok((player, mut tf, mut feet, mut view, mut input, mut vel, gun)) = players.single_mut() else { return };
     let f = |a: &[String], i: usize| a.get(i).and_then(|v| v.parse::<f32>().ok()).unwrap_or(0.0);
     let now = time.elapsed_secs();
     let mut new_holds = Vec::new();
@@ -175,7 +175,14 @@ fn drive(
             }
             "log" => {
                 let s = tf.translation / shared::SOURCE_UNIT;
-                info!("autopilot: feet source ({:.0} {:.0} {:.0}) yaw {:.0}", s.x, -s.z, s.y, view.yaw.to_degrees() + 90.0);
+                info!(
+                    "autopilot: feet source ({:.0} {:.0} {:.0}) yaw {:.0} portals {:?}",
+                    s.x,
+                    -s.z,
+                    s.y,
+                    view.yaw.to_degrees() + 90.0,
+                    gun.portals.iter().map(Option::is_some).collect::<Vec<_>>()
+                );
                 for (pe, _) in &prop_ents {
                     for c in children.iter_descendants(pe) {
                         if let Ok((of, has, dis)) = collider_of.get(c) {

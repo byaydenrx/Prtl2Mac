@@ -553,6 +553,18 @@ pub fn run_io(
     ents.now += time.delta_secs();
     if !ents.started {
         ents.started = true;
+        // Every entity's OnSpawn as the level comes up (relays use it to
+        // attach panels to their arms), then the autos.
+        let spawned: Vec<usize> = ents
+            .list
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| e.outputs.iter().any(|o| o.event.eq_ignore_ascii_case("onspawn")))
+            .map(|(i, _)| i)
+            .collect();
+        for i in spawned {
+            ents.fire(i, "onspawn", None);
+        }
         let autos: Vec<usize> = ents.list.iter().enumerate().filter(|(_, e)| e.class == "logic_auto").map(|(i, _)| i).collect();
         for a in autos {
             ents.fire(a, "onmapspawn", None);

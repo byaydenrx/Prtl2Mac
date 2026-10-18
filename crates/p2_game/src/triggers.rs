@@ -18,7 +18,7 @@ impl Plugin for TriggersPlugin {
             .init_resource::<ScreenFade>()
             .add_message::<FizzlePortals>()
             .add_message::<LevelExit>()
-            .add_systems(Update, (touch_triggers, gun_pickup, player_inputs, level_exit, fizzle_portals, draw_fade).after(crate::io::run_io).in_set(crate::level::GameSet::Logic));
+            .add_systems(Update, (touch_triggers, gun_pickup, player_inputs, level_exit, fizzle_portals, fizzle_on_moving_surfaces, draw_fade).after(crate::io::run_io).in_set(crate::level::GameSet::Logic));
     }
 }
 
@@ -425,6 +425,26 @@ fn level_exit(
             *pending = None;
             load.write(LoadLevel { map: next, menu: false });
             *fade = ScreenFade { color: Vec4::new(0.0, 0.0, 0.0, 1.0), start: time.elapsed_secs(), duration: 1.0, hold: 0.0, out: false, active: true, stay: false };
+        }
+    }
+}
+
+/// A portal on something that moves (a flipping panel, a door) fizzles.
+fn fizzle_on_moving_surfaces(
+    mut commands: Commands,
+    mut players: Query<&mut PortalGun, With<Player>>,
+    portals: Query<(&Portal, &Transform)>,
+    moved: Query<Ref<GlobalTransform>>,
+    mut closed: MessageWriter<PortalClosed>,
+) {
+    let Ok(mut gun) = players.single_mut() else { return };
+    for slot in gun.portals.iter_mut() {
+        let Some(p) = *slot else { continue };
+        let Ok((portal, tf)) = portals.get(p) else { continue };
+        if portal.surfaces.iter().any(|s| moved.get(*s).is_ok_and(|g| g.is_changed() && !g.is_added())) {
+            closed.write(PortalClosed { kind: portal.kind, transform: *tf });
+            commands.entity(p).despawn();
+            *slot = None;
         }
     }
 }
