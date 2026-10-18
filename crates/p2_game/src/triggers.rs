@@ -213,12 +213,20 @@ fn player_inputs(
             ("point_changelevel" | "trigger_changelevel", "changelevel") => {
                 exit.write(LevelExit);
             }
-            ("point_clientcommand" | "point_servercommand", "command") => {
-                let c = msg.param.trim().to_ascii_lowercase();
-                if c.starts_with("changelevel") || c.starts_with("map ") {
-                    exit.write(LevelExit);
-                } else if c.starts_with("fadeout") || c.starts_with("fadein") {
-                    // handled by env_fade in practice
+            ("point_clientcommand" | "point_servercommand" | "point_broadcastclientcommand", "command") => {
+                // Console commands maps run; several can be joined with ';'.
+                for c in msg.param.split(';').map(|c| c.trim().to_ascii_lowercase()) {
+                    if c.starts_with("changelevel") || c.starts_with("map ") {
+                        exit.write(LevelExit);
+                    } else if c == "give weapon_portalgun" {
+                        if let Ok((.., mut gun)) = players.single_mut() {
+                            gun.can_fire[0] = true;
+                        }
+                    } else if c.starts_with("upgrade_portalgun") || c.starts_with("upgrade_potatogun") {
+                        if let Ok((.., mut gun)) = players.single_mut() {
+                            gun.can_fire = [true, true];
+                        }
+                    }
                 }
             }
             (_, "runscriptcode") => {
