@@ -2,10 +2,10 @@
 //! [`MoveInput`] and [`ViewAngles`] themselves don't need this plugin.
 //!
 //! Nothing is read while [`InputLocked`] is set, and the cursor is never grabbed then.
-use bevy::input::mouse::AccumulatedMouseMotion;
+use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
-use p2_core::{InputLocked, MoveInput, Player, P2Systems, ViewAngles};
+use p2_core::{InputBindings, InputLocked, InputState, MoveInput, Player, P2Systems, ViewAngles};
 
 use crate::config::MovementConfig;
 use crate::rules;
@@ -14,6 +14,7 @@ use crate::rules;
 ///
 /// WASD writes [`MoveInput::wish`], Ctrl [`MoveInput::duck`], Space latches
 /// [`MoveInput::jump`] (the fixed tick consumes it), E sets [`MoveInput::use_key`].
+/// The keys come from [`InputBindings`] when the app has one (those are the defaults).
 /// Mouse motion turns [`ViewAngles`] while the cursor is grabbed. Left click
 /// grabs the cursor and Esc releases it. Does nothing while [`InputLocked`] is true.
 pub struct InputPlugin;
@@ -73,21 +74,25 @@ fn mouse_look(
     }
 }
 
-/// Keyboard into [`MoveInput`].
+/// Keyboard (as bound in [`InputBindings`]) into [`MoveInput`].
 fn read_keys(
     locked: Res<InputLocked>,
     keys: Option<Res<ButtonInput<KeyCode>>>,
+    (mouse, scroll, bindings): (Option<Res<ButtonInput<MouseButton>>>, Option<Res<AccumulatedMouseScroll>>, Option<Res<InputBindings>>),
     mut q: Query<&mut MoveInput, With<Player>>,
 ) {
     if locked.0 {
         return;
     }
     let Some(keys) = keys else { return };
-    let axis = |pos: KeyCode, neg: KeyCode| (keys.pressed(pos) as i32 - keys.pressed(neg) as i32) as f32;
-    let wish = Vec2::new(axis(KeyCode::KeyD, KeyCode::KeyA), axis(KeyCode::KeyW, KeyCode::KeyS));
-    let duck = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
-    let jump = keys.just_pressed(KeyCode::Space);
-    let use_key = keys.just_pressed(KeyCode::KeyE);
+    let default = InputBindings::default();
+    let b = bindings.as_deref().unwrap_or(&default);
+    let input = InputState { keys: Some(&keys), mouse: mouse.as_deref(), scroll: scroll.as_deref() };
+    let axis = |pos: &str, neg: &str| (b.pressed(pos, &input) as i32 - b.pressed(neg, &input) as i32) as f32;
+    let wish = Vec2::new(axis("+moveright", "+moveleft"), axis("+forward", "+back"));
+    let duck = b.pressed("+duck", &input);
+    let jump = b.just_pressed("+jump", &input);
+    let use_key = b.just_pressed("+use", &input);
     for mut input in &mut q {
         input.wish = wish;
         input.duck = duck;

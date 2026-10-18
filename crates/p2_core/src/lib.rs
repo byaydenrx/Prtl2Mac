@@ -19,8 +19,10 @@
 //!   unit scale, top-level entity.
 use bevy::prelude::*;
 
+pub mod bindings;
 pub mod math;
 
+pub use bindings::{InputBindings, InputButton, InputState};
 pub use math::{PortalFrame, PortalPair, PORTAL_HALF_SIZE};
 pub use shared::{
     source_dir_to_world, source_to_world, CharacterVelocity, EyeOffset, IgnoreColliders, Player, Portalable,
