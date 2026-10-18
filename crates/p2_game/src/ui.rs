@@ -12,6 +12,7 @@ use crate::campaign::Campaign;
 use crate::level::{CurrentMap, LevelLoaded, LoadLevel};
 use crate::settings::{data_dir, frame_limit_rank, resolution_choices, step_in, Settings, SubtitleColor, ANISOTROPY, FOV_RANGE, FRAME_LIMITS, SUBTITLE_SIZES};
 use crate::community::CommunityMaps;
+use crate::mods_page::ModsPage;
 use crate::tool_settings::{key_name, SpeedrunMode, BIND_KEYS, CHECKPOINT_SLOTS};
 
 pub struct UiPlugin;
@@ -30,6 +31,7 @@ impl Plugin for UiPlugin {
         app.insert_resource(Screen::Main)
             .init_resource::<OptionsPage>()
             .init_resource::<ChapterTab>()
+            .init_resource::<ModsPage>()
             .init_resource::<TitleCard>()
             .add_message::<ShowChapterTitle>()
             .add_message::<MenuClick>()
@@ -59,6 +61,7 @@ enum OptionsPage {
     Main,
     Subtitles,
     Speedrun,
+    Mods,
 }
 
 /// Chapter select's page: the campaign, or the community maps (the tabs
@@ -100,6 +103,9 @@ enum Action {
     Options,
     SubtitleOptions,
     SpeedrunOptions,
+    ModsOptions,
+    ModToggle(usize),
+    ModRollback,
     ChapterTab(bool),
     CommunityPage(i32),
     CommunityMap(usize),
@@ -143,6 +149,7 @@ enum Setting {
     SaveCheckpointKey,
     LoadCheckpointKey,
     CheckpointSlot,
+    ModProfile,
 }
 
 /// The control at the right of an options row.
@@ -260,7 +267,7 @@ fn rebuild_menu(
     fonts: Option<Res<UiFonts>>,
     campaign: Res<Campaign>,
     settings: Res<Settings>,
-    (tab, community): (Res<ChapterTab>, Res<CommunityMaps>),
+    (tab, community, mods): (Res<ChapterTab>, Res<CommunityMaps>, Res<ModsPage>),
     roots: Query<Entity, With<MenuRoot>>,
     game: Res<GameFsRes>,
     mut images: ResMut<Assets<Image>>,
@@ -268,7 +275,7 @@ fn rebuild_menu(
     mut backgrounds: Local<std::collections::HashMap<usize, Option<Handle<Image>>>>,
 ) {
     let Some(fonts) = fonts else { return };
-    let options_changed = (settings.is_changed() || page.is_changed()) && matches!(*screen, Screen::Options { .. });
+    let options_changed = (settings.is_changed() || page.is_changed() || mods.is_changed()) && matches!(*screen, Screen::Options { .. });
     let chapters_changed = (tab.is_changed() || community.is_changed()) && *screen == Screen::Chapters;
     if !screen.is_changed() && !options_changed && !chapters_changed && !fonts.is_added() {
         return;
@@ -417,6 +424,37 @@ fn rebuild_menu(
                 p.spawn(button(&fonts, "BACK", Action::Back, 22.0));
             });
         }
+        Screen::Options { .. } if *page == OptionsPage::Mods => {
+            let mut root = commands.spawn((MenuRoot, full, BackgroundColor(PANEL), GlobalZIndex(10)));
+            root.with_children(|p| {
+                p.spawn(text(&fonts.bold, 40.0, "MODS", WHITE));
+                p.spawn(Node { height: Val::Px(12.0), ..default() });
+                option_row(p, &fonts, "PROFILE", mods.profile.to_uppercase(), Ctl::Step(Setting::ModProfile, 1.0));
+                if mods.mods.is_empty() {
+                    p.spawn(text(&fonts.regular, 16.0, "No mods installed. Add them with the p2mods tool: p2mods install <folder or .zip>", DIM));
+                }
+                const SHOWN: usize = 10;
+                for (i, m) in mods.mods.iter().enumerate().take(SHOWN) {
+                    option_row(p, &fonts, &format!("{} {}", m.name.to_uppercase(), m.version), on_off(m.enabled), Ctl::Press(Action::ModToggle(i)));
+                }
+                if mods.mods.len() > SHOWN {
+                    p.spawn(text(&fonts.regular, 15.0, format!("...and {} more (p2mods list)", mods.mods.len() - SHOWN), DIM));
+                }
+                if let Some(undo) = &mods.undo {
+                    option_row(p, &fonts, "UNDO LAST CHANGE", undo.to_uppercase(), Ctl::Press(Action::ModRollback));
+                }
+                for (error, msg) in mods.issues.iter().take(4) {
+                    let color = if *error { Color::srgb(1.0, 0.45, 0.4) } else { DIM };
+                    p.spawn((Node { max_width: Val::Px(900.0), ..default() }, children![text(&fonts.regular, 14.0, msg.clone(), color)]));
+                }
+                let mut note = mods.note.clone();
+                if mods.restart_needed {
+                    note = format!("{note}  Restart the game to load the changes.").trim().to_string();
+                }
+                p.spawn((Node { margin: UiRect::vertical(Val::Px(10.0)), ..default() }, children![text(&fonts.regular, 15.0, note, WHITE)]));
+                p.spawn(button(&fonts, "BACK", Action::Back, 22.0));
+            });
+        }
         Screen::Options { .. } if *page == OptionsPage::Speedrun => {
             let t = &settings.tools;
             let mode = t.speedrun_mode.label().to_string();
@@ -487,8 +525,8 @@ fn rebuild_menu(
                         option_row(c, &fonts, "MOUSE SMOOTHING", on_off(settings.mouse_filter), Ctl::Press(Action::Toggle(Setting::Smoothing)));
                         heading(c, &fonts, "EXTRAS");
                         option_row(c, &fonts, "DEVELOPER CONSOLE", on_off(settings.tools.dev_console), Ctl::Press(Action::Toggle(Setting::DevConsole)));
-                        option_row(c, &fonts, "MOVEMENT STATS", on_off(settings.tools.show_pos), Ctl::Press(Action::Toggle(Setting::ShowPos)));
                         option_row(c, &fonts, "SPEEDRUN", format!("{}  >", on_off(settings.tools.speedrun_timer)), Ctl::Press(Action::SpeedrunOptions));
+                        option_row(c, &fonts, "MODS", ">".into(), Ctl::Press(Action::ModsOptions));
                     });
                     cols.spawn(column).with_children(|c| {
                         heading(c, &fonts, "VIDEO");
@@ -501,6 +539,7 @@ fn rebuild_menu(
                         option_row(c, &fonts, "TEXTURE FILTERING", aniso, Ctl::Step(Setting::Anisotropy, 1.0));
                         option_row(c, &fonts, "GRAPHICS", if settings.enhanced_graphics { "ENHANCED".into() } else { "ORIGINAL".into() }, Ctl::Press(Action::Toggle(Setting::Graphics)));
                         option_row(c, &fonts, "SHOW FPS", on_off(settings.tools.show_fps), Ctl::Press(Action::Toggle(Setting::ShowFps)));
+                        option_row(c, &fonts, "MOVEMENT STATS", on_off(settings.tools.show_pos), Ctl::Press(Action::Toggle(Setting::ShowPos)));
                     });
                 });
                 p.spawn(Node { height: Val::Px(16.0), ..default() });
@@ -571,6 +610,7 @@ fn buttons(
     mut load: MessageWriter<LoadLevel>,
     mut exit: MessageWriter<AppExit>,
     (mut tab, mut community): (ResMut<ChapterTab>, ResMut<CommunityMaps>),
+    (mut mods, mounts): (ResMut<ModsPage>, Res<crate::mounts::Mounts>),
 ) {
     for (interaction, action, children) in &mut q {
         let color = match interaction {
@@ -630,6 +670,14 @@ fn buttons(
             }
             Action::SubtitleOptions => *page = OptionsPage::Subtitles,
             Action::SpeedrunOptions => *page = OptionsPage::Speedrun,
+            Action::ModsOptions => {
+                mods.note.clear();
+                mods.refresh(&mounts.mods);
+                *page = OptionsPage::Mods;
+            }
+            Action::ModToggle(i) => mods.toggle(i, &mounts.mods),
+            Action::ModRollback => mods.rollback(&mounts.mods),
+            Action::Adjust(Setting::ModProfile, d) => mods.step_profile(d.signum() as i32, &mounts.mods),
             Action::Back if *page != OptionsPage::Main && matches!(*screen, Screen::Options { .. }) => {
                 *page = OptionsPage::Main;
                 settings.save();

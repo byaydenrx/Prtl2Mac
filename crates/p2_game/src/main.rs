@@ -22,6 +22,7 @@ mod health;
 mod io;
 mod lasers;
 mod level;
+mod mods_page;
 mod mounts;
 mod movers;
 mod overlays;

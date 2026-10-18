@@ -149,8 +149,12 @@ a Community tab), `main.rs` (module lines, plugins, mounting),
 `autopilot.rs` (a `con` step).
 
 What's in it:
-- **Options**: column 1 gets EXTRAS (DEVELOPER CONSOLE, MOVEMENT STATS,
-  SPEEDRUN >), column 2 gets SHOW FPS under VIDEO. SPEEDRUN opens a page like
+- **Options**: column 1 gets EXTRAS (DEVELOPER CONSOLE, SPEEDRUN >, MODS >),
+  column 2 gets SHOW FPS and MOVEMENT STATS under VIDEO. MODS opens a page
+  with the active mod profile (< >), every installed mod ON/OFF, UNDO LAST
+  CHANGE, the first problems p2_mods reports, and "Restart the game to load
+  the changes" when the profile differs from what was mounted (`mods_page.rs`).
+  SPEEDRUN opens a page like
   Subtitles: timer on/off, mode (full run / single map), quick restart and
   its key (F6), practice checkpoints and their keys (F7 save, F8 load),
   checkpoint slot 1-5. Keys step through F1-F12, Insert, Delete, Home, End,
@@ -211,7 +215,8 @@ What's in it:
 
 Verify in the real game (`P2_SCRIPT` steps can run console lines with
 `con ...`; `click` names: `Toggle(DevConsole)`, `Toggle(ShowFps)`,
-`Toggle(ShowPos)`, `SpeedrunOptions`, `Toggle(SpeedrunTimer)`,
+`Toggle(ShowPos)`, `SpeedrunOptions`, `Toggle(SpeedrunTimer)`, `ModsOptions`,
+`ModToggle(0)`, `ModRollback`, `Adjust(ModProfile,1.0)`,
 `Adjust(SpeedrunMode,1.0)`, `ChapterTab(true)`, `CommunityMap(0)`):
 1. Options still fits at 1280x720 with the new rows; the Speedrun page opens,
    BACK and Esc return to Options; values survive a restart (settings.cfg).
@@ -239,8 +244,9 @@ Verify in the real game (`P2_SCRIPT` steps can run console lines with
    `~/Library/Application Support/Portal2Rust/maps/`, open chapter select,
    COMMUNITY tab, start it, die / restart it, quit and Continue.
 7. Mods: `p2mods install some_mod_folder --enable` with a mod that replaces
-   a material, start the game; the material changes; `p2mods rollback`
-   undoes it on the next start.
+   a material, start the game; the material changes; `p2mods rollback` (or
+   Options > Mods > UNDO LAST CHANGE) undoes it on the next start. The Mods
+   page fits with 10 mods and a couple of problem lines.
 
 TODO hooks for the local session (in files this branch didn't touch):
 - `health.rs`: god mode tops `PlayerHealth::hp` up to 1e9 every frame (works
