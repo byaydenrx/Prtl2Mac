@@ -24,9 +24,10 @@ out black (macOS stops drawing it) — not a game bug.
 
 Autopilot extras: `input <target> <input> [param]` sends a map input,
 `ray x y z` logs what is below a Source point, `click <Action>` presses a
-menu button by its action (`click pause`, `click Options`,
-`click Toggle(VSync)`, `click Adjust(Fov,5.0)`; an unknown name logs the
-buttons on screen). The script clock is real time (menus pause the world).
+menu button by its action (`click pause`, `click Options` opens the
+flyout, then `click Page(Video)` etc.; `click Toggle(VSync)`,
+`click Adjust(Fov,1.0)`, `click Done`; the full list is under "cloud/ui
+round 2"; an unknown name logs the buttons on screen). The script clock is real time (menus pause the world).
 `P2_TRACE=1` also logs laser legs, catapult launches, trigger_look and gel
 bounces; `RUST_LOG=...,portal2=debug` logs portal shot results and
 no-portal volumes.
@@ -388,10 +389,7 @@ Community tab). They prove the systems fit together and the logic; they
 don't show anything on screen.
 
 Verify in the real game (`P2_SCRIPT` steps can run console lines with
-`con ...`; `click` names: `Toggle(DevConsole)`, `Toggle(ShowFps)`,
-`Toggle(ShowPos)`, `SpeedrunOptions`, `Toggle(SpeedrunTimer)`, `ModsOptions`,
-`ModToggle(0)`, `ModRollback`, `Adjust(ModProfile,1.0)`,
-`Adjust(SpeedrunMode,1.0)`, `ChapterTab(true)`, `CommunityMap(0)`):
+`con ...`; `click` names: see "cloud/ui round 2"):
 1. Options still fits at 1280x720 with the new rows; the Speedrun page opens,
    BACK and Esc return to Options; values survive a restart (settings.cfg).
 2. Console: opens only when enabled; typing doesn't move the player or open
@@ -519,3 +517,72 @@ Check in the real game:
    captions use the closecaption files), language switch reloads captions.
 9. Delete settings.cfg (or set `P2_DATA_DIR` to an empty folder): first
    launch is fullscreen, 100% volume, captions off.
+
+## cloud/ui round 2 (untested in game)
+
+The remaining screens on the light Portal 2 theme. Built and tested
+headless only (`cargo test -p p2_game`: 77 tests, including
+`tools_tests::options_pages_work`, which is no longer ignored and clicks
+through every page below).
+
+What changed:
+- Options rows: only the row under the mouse shows its ◀ ▶ arrows, on a
+  dark bar (`theme::ROW_HOVER`) with white text; the others show just
+  label and value. Sliders turn light on the dark bar. Key-list rows use
+  the same bar. Hover comes from the row's `RelativeCursorPosition`
+  (`hover_rows`), so the arrows and value on it still take the clicks.
+- Speedrun and Mods are two more entries in the Options flyout (after
+  VIDEO). Main and pause menus have no new buttons.
+  - Speedrun: timer, timer mode, quick restart (+ key), practice
+    checkpoints (+ save/load keys, slot), and where splits are kept.
+  - Mods: profile (◀ ▶), each mod Enabled/Disabled, Undo last change,
+    problems in red, "Restart the game..." when the profile changed.
+    Footer DONE only: mod changes are written as they're made.
+    The list scrolls like the key list.
+- New Game: CAMPAIGN / COMMUNITY MAPS tabs (small dark buttons, the
+  chosen one darker) when community maps exist; community tiles with
+  name and folder, ◀ PAGE n / m ▶ past 9 maps. Opening New Game rescans
+  the maps folders, so maps copied in while the game runs show up.
+- Quit confirmations use the same dialog (title tab, light panel, dark
+  OK / CANCEL), centred over the dimmed menu.
+- The pause menu keeps its items over the dimmed game; its Options
+  flyout is the light panel with the dark hover bar.
+
+Click names (autopilot `click`, case and spaces ignored):
+- Main: `SinglePlayer` then `Continue` / `NewGame` (old `Chapters` still
+  works); `Options` (flyout), `Quit` then `ConfirmOk` / `ConfirmCancel`.
+- Pause: `pause`, `Resume`, `Restart`, `Options`, `MainMenu` then
+  `ConfirmOk`, `Quit`.
+- Options flyout: `Page(KeyboardMouse)`, `Page(Controller)`,
+  `Page(Audio)`, `Page(Video)`, `Page(Speedrun)` (old `SpeedrunOptions`),
+  `Page(Mods)` (old `ModsOptions`). Links: `Page(Keys)`,
+  `Page(Subtitles)` (old `SubtitleOptions`), `Page(AdvancedVideo)`.
+- Rows: `Adjust(<Setting>,-1.0)` / `Adjust(<Setting>,1.0)` (the arrows,
+  hidden but clickable by script), `Toggle(<Setting>)` (the value),
+  `Slide(<Setting>)`, `Bind(<n>)`. Settings include `DevConsole`
+  (Keyboard/Mouse), `ShowFps`, `ShowPos`, `Fov`, `VSync` (Advanced
+  video), `SpeedrunTimer`, `SpeedrunMode`, `QuickRestart`,
+  `QuickRestartKey`, `Practice`, `SaveCheckpointKey`,
+  `LoadCheckpointKey`, `CheckpointSlot`, `ModProfile`.
+- Mods: `ModToggle(<n>)`, `ModRollback`. New Game: `ChapterTab(true)`,
+  `ChapterTab(false)`, `CommunityPage(1)`, `CommunityMap(<n>)`,
+  `Chapter(<n>)`.
+- Footers: `Done`, `Cancel`, `Apply`, `UseDefaults`, `ClearKey`, `Back`.
+
+Check in screenshots:
+1. Any Options page with the mouse over a row: that row alone is dark
+   with white text and ◀ ▶; moving down moves the bar; nothing flickers
+   when the mouse is on the arrows or the value. A click rebuilds the
+   page, so the bar may blink off for one frame after each click (the new
+   rows only learn they're hovered on the next frame); if that shows,
+   carry the hovered row across the rebuild in `rebuild_menu`.
+2. A slider row hovered: track and fill still visible on the dark bar.
+3. Customize keyboard: hover bar on key rows; the clicked row stays dark.
+4. Options flyout lists SPEEDRUN and MODS after VIDEO, on the main menu
+   and the pause menu.
+5. Speedrun page and Mods page (with and without mods installed; with a
+   broken mod for the red problem line) fit at 1280x720.
+6. New Game with a `.bsp` in the maps folder: tabs above the grid, the
+   community tile, starting it loads the map.
+7. Quit and Quit to main menu: the confirm dialog's tab and panel are
+   centred together; OK and CANCEL look like the footer buttons.
