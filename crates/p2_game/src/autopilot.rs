@@ -5,7 +5,8 @@
 //! `setpos x y z [pitch yaw]` (Source units/degrees, feet like the game's
 //! `setpos`), `look pitch yaw`, `walk secs` (forward), `back secs`,
 //! `left secs`, `right secs`, `jump`, `duck secs`, `use`, `fire blue|orange`,
-//! `shot path.png`, `log`.
+//! `shot path.png`, `log`, `con <console line>` (runs a developer-console
+//! command, e.g. `con sv_cheats 1` then `con noclip`; `;` can't be used inside).
 use bevy::prelude::*;
 use p2_core::*;
 
@@ -61,7 +62,7 @@ fn drive(
     mut loaded: MessageReader<LevelLoaded>,
     mut players: Query<(Entity, &mut Transform, &mut InterpolatedFeet, &mut ViewAngles, &mut MoveInput, &mut CharacterVelocity, &PortalGun), With<Player>>,
     mut fire: MessageWriter<FirePortal>,
-    (mut exit, mut click, real): (MessageWriter<AppExit>, MessageWriter<crate::ui::MenuClick>, Res<Time<Real>>),
+    (mut exit, mut click, real, mut con): (MessageWriter<AppExit>, MessageWriter<crate::ui::MenuClick>, Res<Time<Real>>, MessageWriter<crate::console::ConsoleSubmit>),
     mut ents: Option<ResMut<crate::io::Ents>>,
     spatial: avian3d::prelude::SpatialQuery,
     props: Query<(&crate::props::Prop, &Transform), Without<Player>>,
@@ -211,6 +212,9 @@ fn drive(
             }
             "quit" => {
                 exit.write(AppExit::Success);
+            }
+            "con" => {
+                con.write(crate::console::ConsoleSubmit(a.join(" ")));
             }
             _ => warn!("autopilot: unknown command {}", step.cmd),
         }

@@ -17,17 +17,21 @@ mod bridges;
 mod campaign;
 mod captions;
 mod community;
+mod console;
 mod health;
 mod io;
 mod lasers;
 mod level;
 mod mounts;
 mod movers;
+mod overlays;
 mod paint;
 mod portals;
 mod props;
 mod scenes;
 mod settings;
+mod speedrun;
+mod splits;
 mod tool_settings;
 mod templates;
 mod tractor;
@@ -93,6 +97,8 @@ fn main() {
             vscripts::VScriptPlugin,
             paint::PaintPlugin,
         ))
+        // Developer, speedrun and modding tools (all off until turned on in Options).
+        .add_plugins((console::ConsolePlugin, overlays::OverlaysPlugin, speedrun::SpeedrunPlugin))
         .insert_resource(args)
         .add_plugins(p2_room::HarnessPlugin);
     // UI after the Screen resource above (its own default is the main menu).
