@@ -77,6 +77,7 @@ const NATIVES: &[&str] = &[
     "TryDLC1InstalledOrCatch", "UniqueString", "ShowMessage", "ScriptShowHudMessageAll", "GetDeveloperLevel", "Developer", "Msg",
     "RecordAchievementEvent", "IsLocalSplitScreen", "PrecacheMovie", "ScriptIsAlive", "AddThinkToEnt", "GetPlayerSilenced",
     "ScriptSteamShowURL", "SetDucking", "IsPlayerABot", "GetCoopSectionIndex", "GetHighestActiveBranch", "GetNumPlayersConnected",
+    "GetMapIndexInPlayOrder", "GetNumMapsPlayed",
 ];
 
 /// The engine as scripts see it, for one call.
@@ -222,6 +223,9 @@ impl Host for GameHost<'_> {
             | "ScriptSteamShowURL" => Value::Null,
             "GetDeveloperLevel" | "Developer" | "GetCoopSectionIndex" | "GetHighestActiveBranch" => Value::Int(0),
             "GetNumPlayersConnected" => Value::Int(1),
+            // Community-map play order; -2 means "not a community map".
+            "GetMapIndexInPlayOrder" => Value::Int(-2),
+            "GetNumMapsPlayed" => Value::Int(0),
             "ScriptIsAlive" => Value::Bool(ent_of(&a(0)).is_some_and(|i| !self.ents.list[i].killed)),
             "UniqueString" => Value::Str(format!("u{}_{}", self.rand(), s(&a(0))).into()),
             "AddThinkToEnt" => {
@@ -351,6 +355,7 @@ impl Host for GameHost<'_> {
                 Value::Null
             }
             "IsPlayingBack" => Value::Bool(self.playing.is_playing(i)),
+            "GetCurrentScene" => self.playing.current_for(&self.ents.list[i].name).map_or(Value::Null, handle),
             "EstimateLength" => Value::Float(self.scene_length(i) as f64),
             "__KeyValueFromString" | "__KeyValueFromInt" | "__KeyValueFromFloat" => {
                 let (k, v) = (s(&a(0)).to_ascii_lowercase(), s(&a(1)));

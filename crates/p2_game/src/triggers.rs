@@ -15,6 +15,7 @@ pub struct TriggersPlugin;
 impl Plugin for TriggersPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Touching>()
+            .init_resource::<LookTimes>()
             .init_resource::<ScreenFade>()
             .add_message::<FizzlePortals>()
             .add_message::<LevelExit>()
@@ -25,6 +26,11 @@ impl Plugin for TriggersPlugin {
 /// Which triggers each toucher is in (`PLAYER` or a prop's ent index).
 #[derive(Resource, Default)]
 struct Touching(std::collections::HashSet<(usize, usize)>);
+
+/// `trigger_look`: seconds the player has looked at the target, and has
+/// been inside, without a break.
+#[derive(Resource, Default)]
+struct LookTimes(std::collections::HashMap<usize, (f32, f32)>);
 
 /// Close the player's portals (fizzler, `trigger_portal_cleanser`, scripts).
 #[derive(Message, Clone, Copy, Debug)]
@@ -69,6 +75,7 @@ fn touch_triggers(
     ents: Option<ResMut<Ents>>,
     map: Option<Res<CurrentMap>>,
     mut touching: ResMut<Touching>,
+    mut looks: ResMut<LookTimes>,
     mut players: Query<(&mut Transform, &mut InterpolatedFeet, &mut CharacterVelocity, &mut ViewAngles, &Crouch), With<Player>>,
     props: Query<(Entity, &Prop, &Position, Has<Held>, &LinearVelocity)>,
     mut fire: MessageWriter<FireOutput>,
@@ -79,6 +86,7 @@ fn touch_triggers(
 ) {
     if loaded.read().count() > 0 {
         touching.0.clear();
+        looks.0.clear();
     }
     let dt = time.delta_secs();
     let (Some(mut ents), Some(map)) = (ents, map) else { return };
@@ -106,7 +114,7 @@ fn touch_triggers(
         let flags = e.spawnflags;
         let class = e.class.clone();
         // spawnflags: 1 clients, 8 physics objects (cleansers catch everything).
-        let wants_player = flags & 1 != 0 || class == "trigger_portal_cleanser" || flags == 0;
+        let wants_player = flags & 1 != 0 || class == "trigger_portal_cleanser" || class == "trigger_look" || flags == 0;
         let wants_props = flags & 8 != 0 || class == "trigger_portal_cleanser";
         let mut touchers: Vec<usize> = Vec::new();
         if wants_player && overlaps(lo, hi, p_lo, p_hi) {
@@ -155,7 +163,10 @@ fn touch_triggers(
                 info!("TRACE touch {} {:?} by {t}", class, ents.list[i].name);
             }
             fire.write(FireOutput { ent: i, event: "OnStartTouch".into(), activator: Some(t) });
-            fire.write(FireOutput { ent: i, event: "OnTrigger".into(), activator: Some(t) });
+            // trigger_look fires OnTrigger from the look check below.
+            if class != "trigger_look" {
+                fire.write(FireOutput { ent: i, event: "OnTrigger".into(), activator: Some(t) });
+            }
             match class.as_str() {
                 // Once only: stop listening (its queued outputs still fire).
                 "trigger_once" => ents.list[i].enabled = false,
@@ -216,6 +227,45 @@ fn touch_triggers(
         } else if was > 0 && is == 0 {
             fire.write(FireOutput { ent: i, event: "OnEndTouchAll".into(), activator: None });
         }
+    }
+    // trigger_look: while the player is inside, looking within `fieldofview`
+    // (a cosine) of the target for `looktime` seconds fires OnTrigger once;
+    // looking away resets the clock. `timeout` > 0 fires OnTimeout instead
+    // after that long inside without looking. Leaving resets both.
+    // TODO: spawnflag 128 (line of sight) isn't checked.
+    let eye = ptf.translation + Vec3::Y * crouch.eye_height;
+    let fwd = view.forward();
+    looks.0.retain(|i, _| now_touching.contains(&(*i, PLAYER)));
+    for &(i, t) in &now_touching {
+        if t != PLAYER || ents.list[i].class != "trigger_look" || !ents.list[i].enabled {
+            continue;
+        }
+        let e = &ents.list[i];
+        let target = e.get("target").and_then(|n| ents.find(n, i, Some(PLAYER)).first().copied());
+        let Some(target) = target else { continue };
+        let tp = match ents.list[target].bounds {
+            Some((lo, hi)) if target != PLAYER => (lo + hi) * 0.5,
+            _ => ents.list[target].transform.translation,
+        };
+        let fov = e.get_f32("fieldofview").unwrap_or(0.9);
+        let need = e.get_f32("looktime").unwrap_or(0.5);
+        let timeout = e.get_f32("timeout").unwrap_or(0.0);
+        let looking = (tp - eye).normalize_or_zero().dot(fwd) >= fov;
+        let entry = looks.0.entry(i).or_insert((0.0, 0.0));
+        entry.0 = if looking { entry.0 + dt } else { 0.0 };
+        entry.1 += dt;
+        let event = if looking && entry.0 >= need {
+            "OnTrigger"
+        } else if timeout > 0.0 && entry.1 >= timeout {
+            "OnTimeout"
+        } else {
+            continue;
+        };
+        if std::env::var_os("P2_TRACE").is_some() {
+            info!("TRACE trigger_look {:?} {event}", e.name);
+        }
+        fire.write(FireOutput { ent: i, event: event.into(), activator: Some(PLAYER) });
+        ents.list[i].enabled = false;
     }
     touching.0 = now_touching;
     for (d, ent) in dissolve {

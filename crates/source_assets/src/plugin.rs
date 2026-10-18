@@ -847,7 +847,7 @@ pub fn spawn_loaded_map(
         }
         if let Some(path) = &model_path {
             if let Some(model) = map.models.get(path) {
-                let skin = e.get("skin").and_then(|s| s.parse().ok()).unwrap_or(0);
+                let skin = e.get("skin").or(e.get("modelskin")).and_then(|s| s.parse().ok()).unwrap_or(0);
                 let scale = e.get_f32("modelscale").filter(|s| *s > 0.0).unwrap_or(1.0);
                 let local = Transform::from_translation(source_to_world(e.origin))
                     .with_rotation(source_angles_to_world(e.angles))
@@ -916,7 +916,7 @@ pub fn spawn_loaded_map(
             transform,
             model: model_path,
             brush_model: e.brush_model(),
-            skin: e.get("skin").and_then(|s| s.parse().ok()).unwrap_or(0),
+            skin: e.get("skin").or(e.get("modelskin")).and_then(|s| s.parse().ok()).unwrap_or(0),
             entity: spawned,
             bounds: bounds_e,
             keyvalues: e.keyvalues.clone(),

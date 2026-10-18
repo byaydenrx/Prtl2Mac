@@ -39,6 +39,8 @@ pub struct Scene {
     pub events: Vec<SceneEvent>,
     /// When the scene is over (last event end, or a `stoppoint`/`stopplayback`).
     pub length: f32,
+    /// Its actors' entity names (`actor "@glados"`), lowercase.
+    pub actors: Vec<String>,
 }
 
 /// Parses a text `.vcd`: events with their `time start end` and `param`.
@@ -70,6 +72,12 @@ pub fn parse_vcd(text: &str) -> Scene {
         }
         let mut words = l.split_whitespace();
         match words.next() {
+            Some("actor") => {
+                let name = l["actor".len()..].trim().trim_matches('"').to_ascii_lowercase();
+                if !name.is_empty() && !scene.actors.contains(&name) {
+                    scene.actors.push(name);
+                }
+            }
             Some("event") if cur.is_none() => {
                 let kind = match words.next() {
                     Some("speak") => SceneEventKind::Speak,
@@ -127,6 +135,10 @@ impl Playing {
     /// Is scene entity `ent` playing (not paused)?
     pub fn is_playing(&self, ent: usize) -> bool {
         self.0.iter().any(|r| r.ent == ent)
+    }
+    /// The scene entity actor `name` is in now (the latest started).
+    pub fn current_for(&self, name: &str) -> Option<usize> {
+        self.0.iter().filter(|r| r.paused_at.is_none() && r.scene.actors.iter().any(|a| a == name)).max_by(|a, b| a.started.total_cmp(&b.started)).map(|r| r.ent)
     }
 }
 
