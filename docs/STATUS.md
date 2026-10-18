@@ -133,3 +133,125 @@ Subtitles page opens and BACK returns to Options then the pause menu, the
 user's old settings.cfg loads, and settings.cfg/save.txt are written as
 `version 2` (old save files still Continue; unit tests cover both). Not
 checked: exclusive fullscreen resolutions, Esc on the Subtitles page.
+
+## cloud/tools branch (untested in game)
+
+Developer, speedrun and modding tools from docs/ROADMAP.md, built in a cloud
+session that can't run the game: `cargo check -p p2_game` and `cargo test`
+pass, nothing here has been seen on screen. Every option defaults to off /
+the original behaviour, all options live inside Options (no new main or
+pause menu buttons), and none of the gameplay files listed as being worked on
+locally were touched. New files: `console.rs`, `overlays.rs`, `speedrun.rs`
++ `splits.rs` (pure timing logic), `community.rs`, `mounts.rs`,
+`tool_settings.rs`, and the crate `crates/p2_mods`. Small additive edits:
+`settings.rs` (one `tools` field, 5 lines), `ui.rs` (rows, a Speedrun page,
+a Community tab), `main.rs` (module lines, plugins, mounting),
+`autopilot.rs` (a `con` step).
+
+What's in it:
+- **Options**: column 1 gets EXTRAS (DEVELOPER CONSOLE, MOVEMENT STATS,
+  SPEEDRUN >), column 2 gets SHOW FPS under VIDEO. SPEEDRUN opens a page like
+  Subtitles: timer on/off, mode (full run / single map), quick restart and
+  its key (F6), practice checkpoints and their keys (F7 save, F8 load),
+  checkpoint slot 1-5. Keys step through F1-F12, Insert, Delete, Home, End,
+  PageUp, PageDown. Stored in settings.cfg as `con_enable`, `cl_showfps`,
+  `cl_showpos`, `speedrun_timer`, `speedrun_mode`, `quick_restart(_key)`,
+  `practice_mode`, `checkpoint_save_key`, `checkpoint_load_key`,
+  `checkpoint_slot`, `community_maps_dir` (the extra community folder; only
+  set by editing the file).
+- **Console** (` or ~ once enabled; on macOS also IntlBackslash, which I
+  expect ISO keyboards to send for the key left of 1 — check): pauses the world, frees the mouse, takes every key.
+  History (Up/Down), Tab completion of commands, map names, entity names and
+  inputs (with a suggestion list), PageUp/PageDown scroll, Esc or ` closes.
+  `cmdlist` lists everything: map, maps, restart, noclip, god, give
+  weapon_portalgun, upgrade_portalgun, setpos, setang, getpos (prints the
+  feet, so it pastes back into setpos), fov, host_timescale, cl_showfps,
+  cl_showpos, sv_cheats, fire/ent_fire, ent_list, practice_save/load/list/
+  delete, speedrun_reset, mods, help, find, echo, clear, quit. Cheats need
+  `sv_cheats 1` with Portal 2's message; noclip and god reset on map load,
+  sv_cheats 0 turns them and host_timescale back off.
+- **Overlays** (top left): FPS with frame time min/avg/max over the last
+  second; movement stats (pos/ang in Source units, speed and horizontal
+  speed in u/s, ground yes/no).
+- **Speedrun timer** (top right): real time while playing, stopped in menus,
+  the pause menu, the console, from a level exit until the next map loads,
+  and on the frame after a load. Splits when a map is left (`LevelExit`) and
+  when a chapter ends, against the PB (green ahead, red behind, gold for a
+  best segment). Files in `<data>/splits/`: `golds.txt` and one file per
+  category (`run-<start map>.txt` for full runs, `map-<map>.txt` for single
+  maps). Full-run mode keeps one run through restarts/deaths and the next
+  campaign map; any other map start (chapter select, `map`) starts a new run;
+  single-map mode restarts the clock on every load. A run with `sv_cheats 1`,
+  `host_timescale` other than 1 or a loaded checkpoint is marked and never
+  saved as a PB or gold.
+- **Practice**: checkpoints (feet, velocity, view, crouch via `ForceDuck`) in
+  `<data>/practice/<map>.txt`, Source units, named (`practice_save name`) or
+  per slot from the keys.
+- **Community maps**: `.bsp` files in `<data>/maps/` (and subfolders) plus the
+  `community_maps_dir` folder. Chapter select shows CAMPAIGN / COMMUNITY tabs
+  only when there are some (12 per page). At startup they are mounted as
+  `maps/<name>.bsp` behind every game folder through a folder of symlinks
+  (`<data>/.mount/community/maps/`), so they load by name and restart,
+  death reload, Continue and trigger bounds work like campaign maps. Maps
+  added while the game runs load by path until the next start.
+- **Mods** (`crates/p2_mods`, CLI `cargo run -p p2_mods --bin p2mods --
+  help`): store in `<data>/mods/`, install from a folder or zip, mod.toml
+  manifest (id, name, version, dependencies with semver ranges, optional
+  dependencies, conflicts, content folder, engine range), profiles, load
+  order, dependency/conflict/cycle checks, file-overlap warnings, a snapshot
+  before every profile change and `p2mods rollback`. At startup `mounts.rs`
+  mounts the active profile's working mods *ahead of* the install's folders
+  (`GameConfig::search_paths`, no change to fs.rs; with no mods and no
+  community maps the game mounts exactly what it did before). `mods` in the
+  console shows what loaded and why anything was left out.
+
+Verify in the real game (`P2_SCRIPT` steps can run console lines with
+`con ...`; `click` names: `Toggle(DevConsole)`, `Toggle(ShowFps)`,
+`Toggle(ShowPos)`, `SpeedrunOptions`, `Toggle(SpeedrunTimer)`,
+`Adjust(SpeedrunMode,1.0)`, `ChapterTab(true)`, `CommunityMap(0)`):
+1. Options still fits at 1280x720 with the new rows; the Speedrun page opens,
+   BACK and Esc return to Options; values survive a restart (settings.cfg).
+2. Console: opens only when enabled; typing doesn't move the player or open
+   the pause menu; Esc closes it without pausing; the mouse is grabbed again
+   on close in game and free in menus; the world (and timer) stop while open.
+   Check the font (looks for `resource/linux_fonts/dejavusansmono.ttf`,
+   falls back to the menu font) and that the panel and suggestion box sit
+   over everything.
+3. `sv_cheats 1; noclip`: fly with WASD/Space/Ctrl through walls and through
+   portals; nothing jitters (p2_movement still runs its move underneath and
+   noclip replaces the result each tick). `god` in goo / turret fire.
+   `getpos` then `setpos ...;setang ...` lands at the same spot and view.
+   `fire @exit_door Open` (any name from Tab), `ent_list prop_`,
+   `host_timescale 0.5`, `map sp_a2_laser_intro`, `restart`,
+   `give weapon_portalgun` / `upgrade_portalgun` in sp_a1_intro3.
+4. SHOW FPS with v-sync on/off and each frame cap: the numbers should match
+   the cap (frame times are frame start to frame start).
+5. Speedrun: turn the timer on, New Game, finish sp_a1_intro1..intro3; a
+   split line per map in the console, chapter 1's split after its last map,
+   `<data>/splits/` written; a second run shows deltas and golds; F6 restarts
+   the map; F7/F8 save and load a checkpoint (also ducked in a vent) and mark
+   the run PRACTICE.
+6. Community: copy any .bsp (e.g. a copy of sp_a1_intro3 renamed) to
+   `~/Library/Application Support/Portal2Rust/maps/`, open chapter select,
+   COMMUNITY tab, start it, die / restart it, quit and Continue.
+7. Mods: `p2mods install some_mod_folder --enable` with a mod that replaces
+   a material, start the game; the material changes; `p2mods rollback`
+   undoes it on the next start.
+
+TODO hooks for the local session (in files this branch didn't touch):
+- `health.rs`: god mode tops `PlayerHealth::hp` up to 1e9 every frame (works
+  because any hit is far below it); an `invulnerable` flag that skips damage
+  would be cleaner.
+- `p2_movement`: noclip overrides the controller's result after
+  `P2Systems::Move`; the controller still pushes props it would touch. A
+  "skip this player" marker in the controller would remove that.
+- Finale: the run finishes on a `LevelExit` with no next map; the last map
+  (sp_a4_finale4) ends with the credits instead, so a full run never
+  finishes. Send `LevelExit` (or a new message) where the ending starts.
+- `source_assets/src/fs.rs`: loose mounts skip `sound/` folders, so a mod's
+  loose sounds are ignored (VPK mods are fine). Indexing `sound/` only for
+  mod folders would fix it.
+- Seen while reading `ui.rs`: Options opened from the pause menu unpauses the
+  world (`pause_world` only pauses on `Screen::Pause`). The timer ignores
+  that (it only runs on `Screen::None`), but the level keeps running behind
+  Options.
