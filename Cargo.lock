@@ -4667,6 +4667,7 @@ dependencies = [
  "shared",
  "source_assets",
  "vbsp",
+ "vscript",
 ]
 
 [[package]]
@@ -6364,6 +6365,13 @@ dependencies = [
  "ahash",
  "binrw",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "vscript"
+version = "0.1.0"
+dependencies = [
+ "indexmap",
 ]
 
 [[package]]
