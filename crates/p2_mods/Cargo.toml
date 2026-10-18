@@ -1,0 +1,16 @@
+[package]
+name = "p2_mods"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Mod manager core: a managed store of mods, profiles with load order, dependency and conflict checks, rollback snapshots, and the folders to mount ahead of the base game. Pure Rust, no Bevy."
+
+[dependencies]
+semver = "1"
+toml_edit = { version = "0.25", default-features = false, features = ["parse"] }
+flate2 = "1"
+crc32fast = "1"
+
+[[bin]]
+name = "p2mods"
+path = "src/bin/p2mods.rs"

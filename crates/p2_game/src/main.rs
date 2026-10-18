@@ -18,18 +18,28 @@ mod bindings;
 mod bridges;
 mod campaign;
 mod captions;
+mod community;
+mod console;
 mod exposure;
 mod health;
 mod io;
 mod lasers;
 mod level;
+mod mods_page;
+mod mounts;
 mod movers;
 mod options;
+mod overlays;
 mod paint;
 mod portals;
 mod props;
 mod scenes;
 mod settings;
+mod speedrun;
+mod splits;
+mod tool_settings;
+#[cfg(test)]
+mod tools_tests;
 mod templates;
 mod tractor;
 mod triggers;
@@ -51,6 +61,8 @@ fn main() {
         eprintln!("{msg}");
         std::process::exit(1);
     });
+    // Enabled mods ahead of the install, community maps behind it.
+    let (game, source_config, mounts, community) = mounts::mount(game);
     let args = p2_room::HarnessArgs::from_env();
     let launch = Launch { map: args.rest.iter().find(|a| !a.starts_with("--")).cloned() };
     let mut app = App::new();
@@ -60,7 +72,8 @@ fn main() {
         .insert_resource(SourceRenderSettings::default())
         .insert_resource(source_assets::valve_render::ValveExposure(source_assets::DEFAULT_LIGHT_SCALE))
         .add_plugins(PhysicsPlugins::default().with_collision_hooks::<props::PortalHooks>())
-        .add_plugins(SourceMapPlugin::default())
+        .add_plugins(SourceMapPlugin { config: source_config })
+        .add_plugins(mounts::MountsPlugin { mounts, community })
         .add_plugins(p2_portals::PortalPlugins)
         .insert_resource(if launch.map.is_some() { ui::Screen::None } else { ui::Screen::Main })
         .insert_resource(launch)
@@ -94,6 +107,8 @@ fn main() {
             exposure::ExposurePlugin,
             paint::PaintPlugin,
         ))
+        // Developer, speedrun and modding tools (all off until turned on in Options).
+        .add_plugins((console::ConsolePlugin, overlays::OverlaysPlugin, speedrun::SpeedrunPlugin))
         .insert_resource(args)
         .add_plugins(p2_room::HarnessPlugin);
     // UI after the Screen resource above (its own default is the main menu).

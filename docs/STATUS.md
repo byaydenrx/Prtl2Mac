@@ -24,11 +24,9 @@ out black (macOS stops drawing it) — not a game bug.
 
 Autopilot extras: `input <target> <input> [param]` sends a map input,
 `ray x y z` logs what is below a Source point, `click <Action>` presses a
-menu button by its action (`click pause`, `click Options` (opens the
-flyout), `click Page(AdvancedVideo)`, `click Toggle(VSync)`,
-`click Adjust(Fov,1.0)`, `click Done`, `click SinglePlayer` then
-`click Continue`/`click NewGame`; Quit and Quit to main menu need
-`click ConfirmOk`; an unknown name logs the buttons on screen). The script clock is real time (menus pause the world).
+menu button by its action (`click pause`, `click Options`,
+`click Toggle(VSync)`, `click Adjust(Fov,5.0)`; an unknown name logs the
+buttons on screen). The script clock is real time (menus pause the world).
 `P2_TRACE=1` also logs laser legs, catapult launches, trigger_look and gel
 bounces; `RUST_LOG=...,portal2=debug` logs portal shot results and
 no-portal volumes.
@@ -43,8 +41,10 @@ Tools: `cargo run -p source_assets --example ents -- MAP [class|targetname|*N]`,
 
 ## Works
 
-Menus (main, chapter select, pause, Portal 2's options with the extras;
-see the cloud/ui section below), autosave/continue, campaign order + chapter
+Menus (main, chapter select, pause, options: volumes, mouse, FOV 75..110,
+fullscreen, resolution, v-sync, frame limit, MSAA, anisotropic filtering,
+Original/Enhanced preset (stored only), and a Subtitles page with size,
+colour and background), autosave/continue, campaign order + chapter
 titles from `sp_transition_list.nut`, level loading/exits, entity I/O
 (relays, counters, branches, cases, timers, proxies, autos), triggers,
 teleports, fades, elevator trains (player locked to the car), doors (incl.
@@ -204,78 +204,150 @@ user's old settings.cfg loads, and settings.cfg/save.txt are written as
 `version 2` (old save files still Continue; unit tests cover both). Not
 checked: exclusive fullscreen resolutions, Esc on the Subtitles page.
 
-## cloud/ui branch (untested in game)
+## cloud/tools branch (merged 2026-10-18 into the Portal 2-style menus)
 
-Menus restyled after Portal 2's PC menus, with all of its options. Built
-and unit-tested on Linux only (`cargo test -p p2_game -p p2_core`); nothing
-here has been seen on screen yet.
+Merged: developer console (~, off by default; toggle in Keyboard/Mouse),
+FPS and movement-stat overlays (Advanced Video: Show frame rate / Show
+movement stats; verified in game: 120 fps, steady frame times),
+speedrun timer and practice checkpoints, mod store (crates/p2_mods,
+`p2mods` CLI) and mounting, community map discovery. Not yet in the new
+menus: the Speedrun and Mods option pages and the chapter select
+Community tab (their console commands work; tools_tests::options_pages_work
+is ignored until they're rebuilt as Portal 2-style pages).
 
-What changed:
-- Main menu: logo top left, items at the lower left: PLAY SINGLE PLAYER
-  (flyout: CONTINUE GAME when there is a save, NEW GAME), OPTIONS (flyout:
-  KEYBOARD / MOUSE, CONTROLLER, AUDIO, VIDEO), QUIT. NEW GAME opens the
-  chapter dialog (as Source's New Game does); the separate CHAPTER SELECT
-  item is gone. Not shown until they exist: co-op, community test
-  chambers, extras, load/save game.
-- Pause menu: same items as before at the lower left over the dimmed game
-  (no "PAUSED" title); OPTIONS is a flyout. Quit and Quit to main menu ask
-  first (OK / CANCEL).
-- Options pages are dialogs: rows of `label  < value >` (click the value to
-  step and wrap) or sliders (click the track to jump), footer buttons:
-  DONE keeps, CANCEL puts the page back as it was, Esc = DONE. Video's
-  resolution / aspect ratio / display mode wait for APPLY (or DONE).
-  - Keyboard/Mouse: Customize keyboard (key list from the game's
-    `scripts/kb_act.lst` with its localized labels, defaults from
-    `cfg/config_default.cfg`; click a row, press a key/mouse button/wheel,
-    Esc cancels; USE DEFAULTS, CLEAR KEY), sensitivity, reverse mouse,
-    mouse filter, mouse acceleration, raw input.
-  - Controller: game controller, look sensitivity, reverse look, vibration.
-  - Audio: game volume, music volume, speaker configuration, captioning
-    (Off / Subtitles / Closed captions), language (caption files), and our
-    Subtitle style page (size, colour, background).
-  - Video: resolution, aspect ratio, display mode, brightness, Advanced
-    video: model/texture, effect, shader detail, paged pool memory,
-    multicore, anti-aliasing, filtering (bilinear/trilinear/aniso 2-16x),
-    v-sync, motion blur, field of view, max frame rate, Original/Enhanced.
-- Bindings drive movement: `p2_core::InputBindings` (new) is read by
-  `p2_movement::input::read_keys`; with no resource it uses today's keys.
-- settings.cfg is version 3: new keys use Source's names (`closecaption`,
-  `cc_lang`, `m_rawinput`, `mat_monitorgamma`, `gpu_level`...), bindings
-  are `unbindall` + `bind "key" "command"` lines once one is changed.
-  Version 1/2 files load (old `cc_subtitles 1` = Subtitles).
-- First-launch defaults are Portal 2's: volume and music 100%, fullscreen
-  at native resolution, captions off, brightness 2.2, top detail levels,
-  motion blur and multicore on (the old file defaults were 80%/60%
-  volume, windowed, subtitles on). An existing settings.cfg keeps the
-  player's values.
+### Original notes from the cloud session
 
-Saved and shown but not used yet (TODO in the code says what should read
-each): +attack/+attack2 rebinding (p2_gun reads mouse buttons itself) and
-the other non-movement commands, raw input, mouse acceleration, the whole
-Controller page, speaker configuration, closed captions for sound effects
-(audio.rs would have to send ShowCaption), brightness, bilinear vs
-trilinear, motion blur, multicore, the detail levels, effects volume (kept
-in the file, no longer on screen).
+Developer, speedrun and modding tools from docs/ROADMAP.md, built in a cloud
+session that can't run the game: `cargo check -p p2_game` and `cargo test`
+pass, nothing here has been seen on screen. Every option defaults to off /
+the original behaviour, all options live inside Options (no new main or
+pause menu buttons), and none of the gameplay files listed as being worked on
+locally were touched. New files: `console.rs`, `overlays.rs`, `speedrun.rs`
++ `splits.rs` (pure timing logic), `community.rs`, `mounts.rs`,
+`tool_settings.rs`, and the crate `crates/p2_mods`. Small additive edits:
+`settings.rs` (one `tools` field, 5 lines), `ui.rs` (rows, a Speedrun page,
+a Community tab), `main.rs` (module lines, plugins, mounting),
+`autopilot.rs` (a `con` step).
 
-Check in the real game:
-1. Fonts: the log lists `font files in the game` and the `menu font` it
-   picked. If Portal 2's menu font isn't picked (or the wrong one is), set
-   `P2_MENU_FONT=resource/<file>` to try one and fix `pick_menu_font`.
-2. Logo: the log lists `logo textures in the game` and the `menu logo`
-   used; without one a text "PORTAL 2" shows. `P2_MENU_LOGO` overrides.
-3. Main menu against the real Portal 2: item names and order, case,
-   size, colours, hover bar, flyout position; logo size/position.
-4. Pause menu over the game, the dimming, the confirm dialogs.
-5. Every Options page fits at 1280x720 and fullscreen; the key list
-   scrolls with the wheel and keeps its place after a rebind; key labels
-   come from the game (not `#Valve_...` tokens).
-6. Rebind jump to the wheel or move-forward to another key, play, restart
-   the game: the binding sticks and moves the player; USE DEFAULTS
-   restores the game's keys (right Ctrl no longer ducks with the game's
-   config_default.cfg, which only binds CTRL).
-7. Video: change resolution/display mode, nothing happens until APPLY;
-   CANCEL after APPLY puts the old mode back.
-8. Captioning: Subtitles vs Closed captions text on a scene line (closed
-   captions use the closecaption files), language switch reloads captions.
-9. Delete settings.cfg (or set `P2_DATA_DIR` to an empty folder): first
-   launch is fullscreen, 100% volume, captions off.
+What's in it:
+- **Options**: column 1 gets EXTRAS (DEVELOPER CONSOLE, SPEEDRUN >, MODS >),
+  column 2 gets SHOW FPS and MOVEMENT STATS under VIDEO. MODS opens a page
+  with the active mod profile (< >), every installed mod ON/OFF, UNDO LAST
+  CHANGE, the first problems p2_mods reports, and "Restart the game to load
+  the changes" when the profile differs from what was mounted (`mods_page.rs`).
+  SPEEDRUN opens a page like
+  Subtitles: timer on/off, mode (full run / single map), quick restart and
+  its key (F6), practice checkpoints and their keys (F7 save, F8 load),
+  checkpoint slot 1-5. Keys step through F1-F12, Insert, Delete, Home, End,
+  PageUp, PageDown. Stored in settings.cfg as `con_enable`, `cl_showfps`,
+  `cl_showpos`, `speedrun_timer`, `speedrun_mode`, `quick_restart(_key)`,
+  `practice_mode`, `checkpoint_save_key`, `checkpoint_load_key`,
+  `checkpoint_slot`, `community_maps_dir` (the extra community folder; only
+  set by editing the file).
+- **Console** (` or ~ once enabled; on macOS also IntlBackslash, which I
+  expect ISO keyboards to send for the key left of 1 — check): pauses the world, frees the mouse, takes every key.
+  History (Up/Down), Tab completion of commands, map names, entity names and
+  inputs (with a suggestion list), PageUp/PageDown scroll, Esc or ` closes.
+  `cmdlist` lists everything: map, maps, restart, noclip, god, give
+  weapon_portalgun, upgrade_portalgun, setpos, setang, getpos (prints the
+  feet, so it pastes back into setpos), fov, host_timescale, cl_showfps,
+  cl_showpos, sv_cheats, fire/ent_fire, ent_list, practice_save/load/list/
+  delete, speedrun_reset, speedrun_splits (PB table, golds, sum of best),
+  mods, mod_list, mod_enable, mod_disable, mod_profile, mod_rollback (mod
+  changes apply at the next start), exec (`<data>/cfg/<name>.cfg`;
+  `autoexec.cfg` runs at startup when the console is enabled), help, find,
+  echo, clear, quit. Cheats need
+  `sv_cheats 1` with Portal 2's message; noclip and god reset on map load,
+  sv_cheats 0 turns them and host_timescale back off.
+- **Overlays** (top left): FPS with frame time min/avg/max over the last
+  second; movement stats (pos/ang in Source units, speed and horizontal
+  speed in u/s, ground yes/no).
+- **Speedrun timer** (top right): real time while playing, stopped in menus,
+  the pause menu, the console, from a level exit until the next map loads,
+  and on the frame after a load. Splits when a map is left (`LevelExit`) and
+  when a chapter ends, against the PB (green ahead, red behind, gold for a
+  best segment). Files in `<data>/splits/`: `golds.txt` and one file per
+  category (`run-<start map>.txt` for full runs, `map-<map>.txt` for single
+  maps). Full-run mode keeps one run through restarts/deaths and the next
+  campaign map; any other map start (chapter select, `map`) starts a new run;
+  single-map mode restarts the clock on every load. A run with `sv_cheats 1`,
+  `host_timescale` other than 1 or a loaded checkpoint is marked and never
+  saved as a PB or gold.
+- **Practice**: checkpoints (feet, velocity, view, crouch via `ForceDuck`) in
+  `<data>/practice/<map>.txt`, Source units, named (`practice_save name`) or
+  per slot from the keys.
+- **Community maps**: `.bsp` files in `<data>/maps/` (and subfolders) plus the
+  `community_maps_dir` folder. Chapter select shows CAMPAIGN / COMMUNITY tabs
+  only when there are some (12 per page). At startup they are mounted as
+  `maps/<name>.bsp` behind every game folder through a folder of symlinks
+  (`<data>/.mount/community/maps/`), so they load by name and restart,
+  death reload, Continue and trigger bounds work like campaign maps. Maps
+  added while the game runs load by path until the next start.
+- **Mods** (`crates/p2_mods`, CLI `cargo run -p p2_mods --bin p2mods --
+  help`): store in `<data>/mods/`, install from a folder or zip, mod.toml
+  manifest (id, name, version, dependencies with semver ranges, optional
+  dependencies, conflicts, content folder, engine range), profiles, load
+  order, dependency/conflict/cycle checks, file-overlap warnings, a snapshot
+  before every profile change and `p2mods rollback`. At startup `mounts.rs`
+  mounts the active profile's working mods *ahead of* the install's folders
+  (`GameConfig::search_paths`, no change to fs.rs; with no mods and no
+  community maps the game mounts exactly what it did before). `mods` in the
+  console shows what loaded and why anything was left out.
+
+Tests: `cargo test -p p2_mods` (store, manifests, resolution, profiles,
+rollback, zip) and `cargo test -p p2_game` (console parsing/completion/
+history, splits and PB/golds, checkpoints, settings, community discovery,
+plus `tools_tests.rs`: the console/overlay/speedrun plugins and the real
+`UiPlugin` run headless for a few frames with a panicking error handler,
+clicking through the new Options rows, Speedrun and Mods pages and the
+Community tab). They prove the systems fit together and the logic; they
+don't show anything on screen.
+
+Verify in the real game (`P2_SCRIPT` steps can run console lines with
+`con ...`; `click` names: `Toggle(DevConsole)`, `Toggle(ShowFps)`,
+`Toggle(ShowPos)`, `SpeedrunOptions`, `Toggle(SpeedrunTimer)`, `ModsOptions`,
+`ModToggle(0)`, `ModRollback`, `Adjust(ModProfile,1.0)`,
+`Adjust(SpeedrunMode,1.0)`, `ChapterTab(true)`, `CommunityMap(0)`):
+1. Options still fits at 1280x720 with the new rows; the Speedrun page opens,
+   BACK and Esc return to Options; values survive a restart (settings.cfg).
+2. Console: opens only when enabled; typing doesn't move the player or open
+   the pause menu; Esc closes it without pausing; the mouse is grabbed again
+   on close in game and free in menus; the world (and timer) stop while open.
+   Check the font (looks for `resource/linux_fonts/dejavusansmono.ttf`,
+   falls back to the menu font) and that the panel and suggestion box sit
+   over everything.
+3. `sv_cheats 1; noclip`: fly with WASD/Space/Ctrl through walls and through
+   portals; nothing jitters (p2_movement still runs its move underneath and
+   noclip replaces the result each tick). `god` in goo / turret fire.
+   `getpos` then `setpos ...;setang ...` lands at the same spot and view.
+   `fire @exit_door Open` (any name from Tab), `ent_list prop_`,
+   `host_timescale 0.5`, `map sp_a2_laser_intro`, `restart`,
+   `give weapon_portalgun` / `upgrade_portalgun` in sp_a1_intro3.
+4. SHOW FPS with v-sync on/off and each frame cap: the numbers should match
+   the cap (frame times are frame start to frame start).
+5. Speedrun: turn the timer on, New Game, finish sp_a1_intro1..intro3; a
+   split line per map in the console, chapter 1's split after its last map,
+   `<data>/splits/` written; a second run shows deltas and golds; F6 restarts
+   the map; F7/F8 save and load a checkpoint (also ducked in a vent) and mark
+   the run PRACTICE.
+6. Community: copy any .bsp (e.g. a copy of sp_a1_intro3 renamed) to
+   `~/Library/Application Support/Portal2Rust/maps/`, open chapter select,
+   COMMUNITY tab, start it, die / restart it, quit and Continue.
+7. Mods: `p2mods install some_mod_folder --enable` with a mod that replaces
+   a material, start the game; the material changes; `p2mods rollback` (or
+   Options > Mods > UNDO LAST CHANGE) undoes it on the next start. The Mods
+   page fits with 10 mods and a couple of problem lines.
+
+TODO hooks for the local session (in files this branch didn't touch):
+- `health.rs`: god mode tops `PlayerHealth::hp` up to 1e9 every frame (works
+  because any hit is far below it); an `invulnerable` flag that skips damage
+  would be cleaner.
+- `p2_movement`: noclip overrides the controller's result after
+  `P2Systems::Move`; the controller still pushes props it would touch. A
+  "skip this player" marker in the controller would remove that.
+- Finale: the run finishes on a `LevelExit` with no next map; the last map
+  (sp_a4_finale4) ends with the credits instead, so a full run never
+  finishes. Send `LevelExit` (or a new message) where the ending starts.
+- `source_assets/src/fs.rs`: loose mounts skip `sound/` folders, so a mod's
+  loose sounds are ignored (VPK mods are fine). Indexing `sound/` only for
+  mod folders would fix it.

@@ -131,6 +131,10 @@ pub enum Setting {
     Fov,
     FrameLimit,
     Graphics,
+    // Extras (off by default)
+    DevConsole,
+    ShowFps,
+    ShowPos,
 }
 
 /// Resolution and display mode as picked on the Video page; they take
@@ -383,6 +387,8 @@ fn keyboard_mouse_rows(s: &Settings) -> Vec<Row> {
         choice("Mouse filter", on_off(s.mouse_filter), Setting::Smoothing),
         choice("Mouse acceleration", on_off(s.mouse_accel), Setting::Accel),
         choice("Raw mouse input", on_off(s.raw_input), Setting::RawInput),
+        // Portal 2 has this under Keyboard's advanced settings.
+        choice("Developer console (~)", on_off(s.tools.dev_console), Setting::DevConsole),
     ]
 }
 
@@ -466,6 +472,8 @@ fn advanced_video_rows(s: &Settings) -> Vec<Row> {
         slider(s, "Field of view", Setting::Fov),
         choice("Max frame rate", frame_limit, Setting::FrameLimit),
         choice("Graphics", if s.enhanced_graphics { "Enhanced" } else { "Original" }, Setting::Graphics),
+        choice("Show frame rate", on_off(s.tools.show_fps), Setting::ShowFps),
+        choice("Show movement stats", on_off(s.tools.show_pos), Setting::ShowPos),
     ]
 }
 
@@ -507,6 +515,9 @@ pub fn adjust(s: &mut Settings, video: &mut VideoMode, native: UVec2, setting: S
         Setting::VSync => flip(&mut s.vsync),
         Setting::MotionBlur => flip(&mut s.motion_blur),
         Setting::Graphics => flip(&mut s.enhanced_graphics),
+        Setting::DevConsole => flip(&mut s.tools.dev_console),
+        Setting::ShowFps => flip(&mut s.tools.show_fps),
+        Setting::ShowPos => flip(&mut s.tools.show_pos),
         Setting::DisplayMode => flip(&mut video.fullscreen),
         Setting::Speakers => s.speakers = pick(&Speakers::ALL, s.speakers, dir, wrap),
         Setting::Captions => s.captions = pick(&CaptionMode::ALL, s.captions, dir, wrap),

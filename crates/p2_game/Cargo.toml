@@ -28,3 +28,4 @@ p2_fx = { path = "../p2_fx" }
 p2_transit = { path = "../p2_transit" }
 p2_body = { path = "../p2_body" }
 vscript = { path = "../vscript" }
+p2_mods = { path = "../p2_mods" }
