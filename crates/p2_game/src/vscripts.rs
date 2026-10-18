@@ -219,7 +219,10 @@ impl Host for GameHost<'_> {
                 self.console.push("upgrade_potatogun".into());
                 Value::Null
             }
-            "TryDLC1InstalledOrCatch" | "ShowMessage" | "ScriptShowHudMessageAll" | "Msg" | "RecordAchievementEvent" | "PrecacheMovie" | "SetDucking"
+            // Throws unless the map has the DLC's stats controller (only
+            // community maps do); TransitionFromMap then changes level itself.
+            "TryDLC1InstalledOrCatch" => return Some(Err("DLC1 level-end stats are not used here".into())),
+            "ShowMessage" | "ScriptShowHudMessageAll" | "Msg" | "RecordAchievementEvent" | "PrecacheMovie" | "SetDucking"
             | "ScriptSteamShowURL" => Value::Null,
             "GetDeveloperLevel" | "Developer" | "GetCoopSectionIndex" | "GetHighestActiveBranch" => Value::Int(0),
             "GetNumPlayersConnected" => Value::Int(1),
@@ -328,6 +331,7 @@ impl Host for GameHost<'_> {
             "SetVelocity" | "SetAngles" | "SetForwardVector" | "SetModel" | "SetSize" | "SetOwner" | "SetHealth" | "SetMaxHealth" | "StopSound"
             | "PrecacheSoundScript" | "PrecacheScriptSound" | "SetGravity" | "SetFriction" | "__KeyValueFromVector" => Value::Null,
             "GetHealth" | "GetMaxHealth" => Value::Int(100),
+            "IsNoclipping" => Value::Bool(false),
             "GetTeam" => Value::Int(*self.teams.get(&i).unwrap_or(&0)),
             "SetTeam" => {
                 self.teams.insert(i, f(0) as i64);

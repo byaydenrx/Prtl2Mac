@@ -385,7 +385,7 @@ pub fn load_map(fs: &GameFs, surfprops: &SurfaceProps, name: &str) -> anyhow::Re
     let mapfs = MapFs { game: fs, pak: &pak };
     let read = |p: &str| mapfs.read(p);
 
-    let entities = entities::parse_entities(&bsp.entities);
+    let entities = entities::parse_entities(&entities::entity_lump(&data, &bsp.entities));
     let mut brush_model_entity = HashMap::new();
     for (i, e) in entities.iter().enumerate() {
         if let Some(m) = e.brush_model() {

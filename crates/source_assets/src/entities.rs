@@ -88,6 +88,21 @@ pub fn source_view_to_world(angles: Vec3) -> Quat {
     Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0)
 }
 
+/// Keys holding an output connection (`OnTrigger`, `OutValue`, `OnPressed`...).
+pub fn is_output_key(k: &str) -> bool {
+    k.starts_with("on") || k.starts_with("out") || k.starts_with("pressed") || k.starts_with("unpressed")
+}
+
+/// The entity lump as written in the map. `vbsp` lowercases all of it,
+/// which breaks script code in outputs; read the raw lump when we can.
+pub fn entity_lump(data: &[u8], parsed: &vbsp::Entities) -> vbsp::Entities {
+    crate::bsp_raw::RawBsp::new(data)
+        .ok()
+        .and_then(|raw| raw.lump(0).map(|b| String::from_utf8_lossy(b).trim_end_matches('\0').to_string()))
+        .map(|entities| vbsp::Entities { entities })
+        .unwrap_or_else(|| vbsp::Entities { entities: parsed.entities.clone() })
+}
+
 pub fn parse_entities(lump: &vbsp::Entities) -> Vec<SourceEntity> {
     lump.iter()
         .map(|raw| {
@@ -99,7 +114,11 @@ pub fn parse_entities(lump: &vbsp::Entities) -> Vec<SourceEntity> {
                     "targetname" => e.targetname = Some(v.to_string()),
                     _ => {}
                 }
-                e.keyvalues.push((k, v.to_string()));
+                // Everything is matched lowercase, except script code and
+                // function names (Squirrel is case-sensitive): output
+                // parameters (RunScriptCode) and think functions.
+                let keep = is_output_key(&k) || k == "thinkfunction";
+                e.keyvalues.push((k, if keep { v.to_string() } else { v.to_ascii_lowercase() }));
             }
             e.origin = e.get_vec3("origin").unwrap_or(Vec3::ZERO);
             e.angles = e.get_vec3("angles").unwrap_or(Vec3::ZERO);
