@@ -680,12 +680,17 @@ pub fn run_io(
             if targets.is_empty() {
                 trace!("io: no target {:?} for {}", p.target, p.input);
             }
+            // Parameters are matched lowercase, except script code (and
+            // AddOutput, which may carry some).
+            let script = matches!(p.input.as_str(), "runscriptcode" | "callscriptfunction" | "runscriptfile");
+            let param = if script || p.input == "addoutput" { p.param.clone() } else { p.param.to_ascii_lowercase() };
             for t in targets {
                 if ents.list[t].killed && p.input != "kill" {
                     continue;
                 }
-                if !ents.apply(t, &p.input, &p.param, p.caller, p.activator) {
-                    out.write(EntInput { target: t, input: p.input.clone(), param: p.param.clone(), activator: p.activator });
+                // Script inputs always go on to the script system.
+                if script || !ents.apply(t, &p.input, &param, p.caller, p.activator) {
+                    out.write(EntInput { target: t, input: p.input.clone(), param: param.clone(), activator: p.activator });
                 }
             }
         }

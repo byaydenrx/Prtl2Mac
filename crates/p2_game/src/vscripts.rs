@@ -77,6 +77,7 @@ const NATIVES: &[&str] = &[
     "TryDLC1InstalledOrCatch", "UniqueString", "ShowMessage", "ScriptShowHudMessageAll", "GetDeveloperLevel", "Developer", "Msg",
     "RecordAchievementEvent", "IsLocalSplitScreen", "PrecacheMovie", "ScriptIsAlive", "AddThinkToEnt", "GetPlayerSilenced",
     "ScriptSteamShowURL", "SetDucking", "IsPlayerABot", "GetCoopSectionIndex", "GetHighestActiveBranch", "GetNumPlayersConnected",
+    "GetMapIndexInPlayOrder", "GetNumMapsPlayed",
 ];
 
 /// The engine as scripts see it, for one call.
@@ -218,10 +219,16 @@ impl Host for GameHost<'_> {
                 self.console.push("upgrade_potatogun".into());
                 Value::Null
             }
-            "TryDLC1InstalledOrCatch" | "ShowMessage" | "ScriptShowHudMessageAll" | "Msg" | "RecordAchievementEvent" | "PrecacheMovie" | "SetDucking"
+            // Throws unless the map has the DLC's stats controller (only
+            // community maps do); TransitionFromMap then changes level itself.
+            "TryDLC1InstalledOrCatch" => return Some(Err("DLC1 level-end stats are not used here".into())),
+            "ShowMessage" | "ScriptShowHudMessageAll" | "Msg" | "RecordAchievementEvent" | "PrecacheMovie" | "SetDucking"
             | "ScriptSteamShowURL" => Value::Null,
             "GetDeveloperLevel" | "Developer" | "GetCoopSectionIndex" | "GetHighestActiveBranch" => Value::Int(0),
             "GetNumPlayersConnected" => Value::Int(1),
+            // Community-map play order; -2 means "not a community map".
+            "GetMapIndexInPlayOrder" => Value::Int(-2),
+            "GetNumMapsPlayed" => Value::Int(0),
             "ScriptIsAlive" => Value::Bool(ent_of(&a(0)).is_some_and(|i| !self.ents.list[i].killed)),
             "UniqueString" => Value::Str(format!("u{}_{}", self.rand(), s(&a(0))).into()),
             "AddThinkToEnt" => {
@@ -324,6 +331,7 @@ impl Host for GameHost<'_> {
             "SetVelocity" | "SetAngles" | "SetForwardVector" | "SetModel" | "SetSize" | "SetOwner" | "SetHealth" | "SetMaxHealth" | "StopSound"
             | "PrecacheSoundScript" | "PrecacheScriptSound" | "SetGravity" | "SetFriction" | "__KeyValueFromVector" => Value::Null,
             "GetHealth" | "GetMaxHealth" => Value::Int(100),
+            "IsNoclipping" => Value::Bool(false),
             "GetTeam" => Value::Int(*self.teams.get(&i).unwrap_or(&0)),
             "SetTeam" => {
                 self.teams.insert(i, f(0) as i64);
@@ -351,6 +359,7 @@ impl Host for GameHost<'_> {
                 Value::Null
             }
             "IsPlayingBack" => Value::Bool(self.playing.is_playing(i)),
+            "GetCurrentScene" => self.playing.current_for(&self.ents.list[i].name).map_or(Value::Null, handle),
             "EstimateLength" => Value::Float(self.scene_length(i) as f64),
             "__KeyValueFromString" | "__KeyValueFromInt" | "__KeyValueFromFloat" => {
                 let (k, v) = (s(&a(0)).to_ascii_lowercase(), s(&a(1)));

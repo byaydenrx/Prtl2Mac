@@ -319,6 +319,7 @@ pub fn default_entity_model(e: &SourceEntity) -> Option<String> {
         "prop_wall_projector" => "models/props/wall_emitter.mdl",
         "prop_tractor_beam" => "models/props/tractor_beam_emitter.mdl",
         "npc_security_camera" => "models/props/security_camera.mdl",
+        "npc_personality_core" => "models/npcs/personality_sphere/personality_sphere.mdl",
         _ => return None,
     };
     Some(m.to_string())
@@ -338,7 +339,7 @@ pub fn class_default_sequence(classname: &str) -> Option<&'static str> {
 pub fn entity_renders_model(e: &SourceEntity) -> bool {
     let c = e.classname.as_str();
     c.starts_with("prop_") && c != "prop_portal" && c != "prop_static"
-        || matches!(c, "env_portal_laser" | "npc_security_camera" | "npc_portal_turret_floor")
+        || matches!(c, "env_portal_laser" | "npc_security_camera" | "npc_portal_turret_floor" | "npc_personality_core")
 }
 
 pub fn entity_model(e: &SourceEntity) -> Option<String> {
@@ -384,7 +385,7 @@ pub fn load_map(fs: &GameFs, surfprops: &SurfaceProps, name: &str) -> anyhow::Re
     let mapfs = MapFs { game: fs, pak: &pak };
     let read = |p: &str| mapfs.read(p);
 
-    let entities = entities::parse_entities(&bsp.entities);
+    let entities = entities::parse_entities(&entities::entity_lump(&data, &bsp.entities));
     let mut brush_model_entity = HashMap::new();
     for (i, e) in entities.iter().enumerate() {
         if let Some(m) = e.brush_model() {

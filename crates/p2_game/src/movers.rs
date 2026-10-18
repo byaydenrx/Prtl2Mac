@@ -162,7 +162,7 @@ fn mover_inputs(
                             _ => {}
                         }
                     }
-                    "runscriptcode" if msg.param.contains("startmoving") && !scripted.0.contains(&i) => {
+                    "runscriptcode" if msg.param.to_ascii_lowercase().contains("startmoving") && !scripted.0.contains(&i) => {
                         let nodes = path_from(&ents, m.node, None);
                         m.motion = Some(Motion::Path { nodes, speed, dest: None });
                         movers.riders.insert(i, None);

@@ -166,6 +166,29 @@ pub struct MoveInput {
     pub use_key: bool,
 }
 
+/// World boxes (min, max) where portals can't open (`func_noportal_volume`),
+/// kept up to date by the game; the gun refuses a portal whose opening
+/// reaches into one.
+#[derive(Resource, Clone, Debug, Default)]
+pub struct NoPortalVolumes(pub Vec<(Vec3, Vec3)>);
+
+impl NoPortalVolumes {
+    /// Does an opening of `half` size on `frame` reach into a volume?
+    pub fn blocks(&self, frame: &PortalFrame, half: Vec2) -> bool {
+        // Sample the opening (a little inside its edge) and the centre, on
+        // the surface and a couple of units either side of it: maps put the
+        // volume's face just in front of or behind the wall.
+        let d = 2.0 * 0.0254;
+        let mut pts = Vec::new();
+        for z in [-d, 0.0, d] {
+            for (x, y) in [(-0.95f32, -0.95f32), (0.95, -0.95), (-0.95, 0.95), (0.95, 0.95), (0.0, 0.0), (0.0, -0.95), (0.0, 0.95), (-0.95, 0.0), (0.95, 0.0)] {
+                pts.push(frame.to_world(Vec3::new(half.x * x, half.y * y, z)));
+            }
+        }
+        self.0.iter().any(|(lo, hi)| pts.iter().any(|p| p.cmpge(*lo).all() && p.cmple(*hi).all()))
+    }
+}
+
 /// Set to disable all keyboard/mouse reading (scripted runs, tests).
 #[derive(Resource, Clone, Copy, Debug, Default)]
 pub struct InputLocked(pub bool);
@@ -504,6 +527,7 @@ impl Plugin for CorePlugin {
             app.insert_resource(Time::<Fixed>::from_hz(TICK_HZ));
         }
         app.init_resource::<InputLocked>()
+            .init_resource::<NoPortalVolumes>()
             .init_resource::<LocalEye>()
             .add_message::<FirePortal>()
             .add_message::<GunFired>()
@@ -562,5 +586,17 @@ mod tests {
     fn sizes() {
         assert!((HULL_STAND.y - 1.8288).abs() < 1e-4);
         assert!((PORTAL_HALF_SIZE.y - 56.0 * U).abs() < 1e-6);
+    }
+
+    #[test]
+    fn noportal_volume_blocks_overlapping_openings() {
+        // A wall facing +Z at z = 0; a volume slab just in front of it.
+        let frame = |x: f32| PortalFrame::new(Vec3::new(x, 1.0, 0.0), Quat::IDENTITY);
+        let v = NoPortalVolumes(vec![(Vec3::new(-1.0, 0.0, 0.01), Vec3::new(1.0, 2.0, 0.2))]);
+        assert!(v.blocks(&frame(0.0), PORTAL_HALF_SIZE));
+        // Partly over the edge still blocks; well clear does not.
+        assert!(v.blocks(&frame(1.5), PORTAL_HALF_SIZE));
+        assert!(!v.blocks(&frame(3.0), PORTAL_HALF_SIZE));
+        assert!(!NoPortalVolumes::default().blocks(&frame(0.0), PORTAL_HALF_SIZE));
     }
 }

@@ -12,7 +12,7 @@ pub struct MapPortalsPlugin;
 
 impl Plugin for MapPortalsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (spawn_active_portals, portal_inputs).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic));
+        app.add_systems(Update, (spawn_active_portals, portal_inputs, sync_noportal_volumes, log_shots).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic));
     }
 }
 
@@ -167,5 +167,31 @@ fn portal_inputs(
             }
             _ => {}
         }
+    }
+}
+
+/// Keep the gun's `func_noportal_volume` boxes in step with the map (they
+/// can be enabled and disabled).
+fn sync_noportal_volumes(ents: Option<Res<Ents>>, mut volumes: ResMut<NoPortalVolumes>) {
+    let boxes: Vec<(Vec3, Vec3)> = ents
+        .iter()
+        .flat_map(|e| e.list.iter())
+        .filter(|e| e.class == "func_noportal_volume" && e.enabled && !e.killed)
+        .filter_map(|e| e.bounds)
+        .collect();
+    if volumes.0 != boxes {
+        debug!("portal2: no-portal volumes {:.2?}", boxes.iter().map(|(lo, hi)| { let s = |v: Vec3| Vec3::new(v.x, -v.z, v.y) / shared::SOURCE_UNIT; (s(*lo), s(*hi)) }).collect::<Vec<_>>());
+        volumes.0 = boxes;
+    }
+}
+
+/// Portal shot results in the debug log (scripted tests read them).
+fn log_shots(mut failed: MessageReader<PortalShotFailed>, mut placed: MessageReader<PortalPlaced>) {
+    let s = |v: Vec3| Vec3::new(v.x, -v.z, v.y) / shared::SOURCE_UNIT;
+    for f in failed.read() {
+        debug!("portal2: {:?} shot failed: {:?} at {:.0?}", f.kind, f.reason, f.point.map(s));
+    }
+    for p in placed.read() {
+        debug!("portal2: {:?} portal placed at {:.0?}", p.kind, s(p.transform.translation));
     }
 }

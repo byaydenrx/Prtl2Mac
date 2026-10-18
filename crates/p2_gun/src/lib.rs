@@ -17,7 +17,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use p2_core::{
-    Crouch, FirePortal, GunFired, InputLocked, InterpolatedFeet, P2Systems, Portal, PortalClosed, PortalGun, PortalHelperCollider,
+    Crouch, FirePortal, GunFired, InputLocked, InterpolatedFeet, P2Systems, Portal, PortalClosed, PortalGun, PortalHelperCollider, NoPortalVolumes,
     PortalKind, PortalLink, PortalPlaced, PortalShotFailed, Portalable, ShotFailReason, ViewAngles, PORTAL_HALF_SIZE,
 };
 
@@ -153,6 +153,7 @@ fn fire(
     mut guns: Query<(&mut PortalGun, &mut GunTimer, &InterpolatedFeet, &Crouch, &ViewAngles)>,
     portals: Query<(Entity, &Portal, &Transform, Option<&PortalLink>)>,
     spatial: SpatialQuery,
+    noportal: Option<Res<NoPortalVolumes>>,
     (helpers, sensors, bodies, body_of, portalable_q): (
         Query<(), With<PortalHelperCollider>>,
         Query<(), With<Sensor>>,
@@ -224,7 +225,15 @@ fn fire(
             .map(|(_, p, t, _)| Open { frame: Portal::frame(t), half: p.half_size })
             .collect();
 
-        match place(&world, hit, trace.dir, half, &others) {
+        let placed = place(&world, hit, trace.dir, half, &others)
+            .and_then(|p| {
+                if noportal.as_ref().is_some_and(|v| v.blocks(&p.frame, half)) {
+                    debug!("p2_gun: a no-portal volume blocks the portal at {:.2?}", p.frame.position);
+                    return Err(ShotFailReason::NotPortalable);
+                }
+                Ok(p)
+            });
+        match placed {
             Err(reason) => {
                 failed_w.write(PortalShotFailed {
                     gun: player,
