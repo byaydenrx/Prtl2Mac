@@ -101,6 +101,7 @@ fn open_portal(
         commands.entity(new).insert(PortalLink(partner));
         commands.entity(partner).insert(PortalLink(new));
     }
+    debug!("portal2: map portal {} ({kind:?}) open at {:.2?} normal {:.2?}, {} wall colliders", e.name, tf.translation, frame.normal(), gun.portals[kind.index()].map_or(0, |_| 1));
     placed.write(PortalPlaced { gun: player, portal: new, kind, transform: tf });
 }
 

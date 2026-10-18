@@ -149,7 +149,15 @@ fn use_key(
             if e.killed || !(usable_door || matches!(e.class.as_str(), "func_button" | "func_rot_button" | "prop_button" | "prop_under_button")) {
                 continue;
             }
-            let (lo, hi) = e.bounds.unwrap_or((e.transform.translation - Vec3::splat(0.3), e.transform.translation + Vec3::splat(0.3)));
+            // Brush entities have world bounds; model props get a box around
+            // them (a pedestal button is about 48 units tall).
+            let (lo, hi) = match (e.brush_model, e.bounds) {
+                (Some(_), Some(b)) => b,
+                _ => {
+                    let p = e.transform.translation;
+                    (p - Vec3::new(0.4, 0.05, 0.4), p + Vec3::new(0.4, 1.4, 0.4))
+                }
+            };
             let closest = eye.clamp(lo, hi);
             let d = closest.distance(eye);
             let toward = ((lo + hi) * 0.5 - eye).normalize_or_zero();
