@@ -80,6 +80,21 @@ struct AmbientLookup {
 }
 
 impl AmbientLookup {
+    fn solid_at(&self, p: Vec3) -> bool {
+        if self.nodes.is_empty() {
+            return false;
+        }
+        let mut node = 0i32;
+        let mut guard = 0;
+        while node >= 0 && guard < 4096 {
+            let (plane, children) = self.nodes[node as usize];
+            let (n, d) = self.planes[plane];
+            node = if p.dot(n) - d >= 0.0 { children[0] } else { children[1] };
+            guard += 1;
+        }
+        self.leaf_solid.get((-1 - node) as usize).copied().unwrap_or(false)
+    }
+
     fn sample(&self, p: Vec3) -> Option<AmbientCube> {
         if self.nodes.is_empty() {
             return None;
@@ -141,8 +156,129 @@ impl LoadedMap {
             })
     }
 
+    /// Is the straight line from `a` to `b` (Source units) clear of solid
+    /// world? Checked every 8 units, leaving out the ends.
+    pub fn line_clear(&self, a: Vec3, b: Vec3) -> bool {
+        let Some(amb) = self.ambient.as_ref() else { return true };
+        let len = a.distance(b);
+        let steps = (len / 8.0) as usize;
+        (1..steps).all(|k| !amb.solid_at(a.lerp(b, k as f32 / steps as f32)))
+    }
+
+    /// The map's `light` and `light_spot` entities (Source units).
+    pub fn world_lights(&self) -> Vec<WorldLight> {
+        self.entities.iter().filter_map(WorldLight::from_entity).collect()
+    }
+
+    /// Lighting for a moving model at `p`: the leaf's ambient cube plus the
+    /// direct light of every world light that reaches it, as Source adds
+    /// world lights to a model's lighting at run time (the baked ambient
+    /// samples only hold bounced light).
+    pub fn lit_ambient_at(&self, p: Vec3, lights: &[WorldLight]) -> AmbientCube {
+        let mut cube = self.ambient_at(p);
+        const AXES: [Vec3; 6] = [Vec3::X, Vec3::NEG_X, Vec3::Y, Vec3::NEG_Y, Vec3::Z, Vec3::NEG_Z];
+        for l in lights {
+            let Some(c) = l.at(p) else { continue };
+            if !self.line_clear(l.pos, p) {
+                continue;
+            }
+            let dir = (l.pos - p).normalize_or_zero();
+            for (side, axis) in cube.sides.iter_mut().zip(AXES) {
+                *side += c * axis.dot(dir).max(0.0);
+            }
+        }
+        cube
+    }
+
     pub fn worldspawn(&self) -> Option<&SourceEntity> {
         self.entities.iter().find(|e| e.classname == "worldspawn")
+    }
+}
+
+/// A point or spot light from the map, as the engine lights models with it.
+#[derive(Clone, Debug)]
+pub struct WorldLight {
+    pub pos: Vec3,
+    /// Linear colour times brightness/255: the light at 100 units.
+    pub intensity: Vec3,
+    /// Spot: (direction, cos inner, cos outer).
+    pub spot: Option<(Vec3, f32, f32)>,
+    constant: f32,
+    linear: f32,
+    quadratic: f32,
+    /// `_zero_percent_distance`: no light beyond this.
+    zero: f32,
+}
+
+impl WorldLight {
+    fn from_entity(e: &SourceEntity) -> Option<WorldLight> {
+        let spot = match e.classname.as_str() {
+            "light" => false,
+            "light_spot" => true,
+            _ => return None,
+        };
+        // Lights that start off (spawnflags 1) are left out.
+        if e.get("spawnflags").and_then(|v| v.trim().parse::<u32>().ok()).unwrap_or(0) & 1 != 0 && e.targetname.is_some() {
+            return None;
+        }
+        let v: Vec<f32> = e.get("_light")?.split_whitespace().filter_map(|x| x.parse().ok()).collect();
+        if v.len() < 3 {
+            return None;
+        }
+        let bright = v.get(3).copied().unwrap_or(200.0);
+        let lin = |c: f32| (c / 255.0).max(0.0).powf(2.2);
+        let intensity = Vec3::new(lin(v[0]), lin(v[1]), lin(v[2])) * bright / 255.0;
+        if intensity.max_element() <= 0.0 {
+            return None;
+        }
+        let f = |k: &str| e.get_f32(k).unwrap_or(0.0);
+        let (mut constant, mut linear, mut quadratic) = (f("_constant_attn"), f("_linear_attn"), f("_quadratic_attn"));
+        let fifty = f("_fifty_percent_distance");
+        if fifty > 0.0 {
+            // Half brightness at `fifty` units.
+            constant = 1.0;
+            linear = 0.0;
+            quadratic = 1.0 / (fifty * fifty);
+        } else if constant + linear + quadratic <= 0.0 {
+            quadratic = 1.0;
+        }
+        let spot = spot.then(|| {
+            let mut ang = e.angles;
+            if let Some(p) = e.get_f32("pitch") {
+                ang.x = p;
+            }
+            let (p, y) = (ang.x.to_radians(), ang.y.to_radians());
+            let dir = Vec3::new(p.cos() * y.cos(), p.cos() * y.sin(), -p.sin());
+            let outer = e.get_f32("_cone").unwrap_or(45.0).clamp(1.0, 89.0);
+            let inner = e.get_f32("_inner_cone").unwrap_or(outer * 0.5).clamp(0.0, outer);
+            (dir, inner.to_radians().cos(), outer.to_radians().cos())
+        });
+        Some(WorldLight { pos: e.origin, intensity, spot, constant, linear, quadratic, zero: f("_zero_percent_distance") })
+    }
+
+    /// Light arriving at `p` (before the surface angle), if any.
+    pub fn at(&self, p: Vec3) -> Option<Vec3> {
+        let d = self.pos.distance(p).max(1.0);
+        if self.zero > 0.0 && d >= self.zero {
+            return None;
+        }
+        // Normalised so that the stated brightness holds at 100 units.
+        let scale = self.constant + 100.0 * self.linear + 10000.0 * self.quadratic;
+        let mut atten = scale / (self.constant + self.linear * d + self.quadratic * d * d);
+        if self.zero > 0.0 {
+            atten *= (1.0 - d / self.zero).clamp(0.0, 1.0).sqrt();
+        }
+        if let Some((dir, inner, outer)) = self.spot {
+            let c = dir.dot((p - self.pos) / d);
+            if c <= outer {
+                return None;
+            }
+            if c < inner {
+                atten *= (c - outer) / (inner - outer).max(1e-4);
+            }
+        }
+        let light = self.intensity * atten;
+        (light.max_element() > 1.0 / 2048.0).then_some(light)
     }
 }
 

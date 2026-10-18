@@ -16,6 +16,7 @@ mod autopilot;
 mod bridges;
 mod campaign;
 mod captions;
+mod exposure;
 mod health;
 mod io;
 mod lasers;
@@ -85,6 +86,7 @@ fn main() {
             bridges::BridgesPlugin,
             tractor::TractorPlugin,
             vscripts::VScriptPlugin,
+            exposure::ExposurePlugin,
             paint::PaintPlugin,
         ))
         .insert_resource(args)

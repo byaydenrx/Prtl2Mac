@@ -812,6 +812,7 @@ pub fn spawn_loaded_map(
     // Entity lump.
     let mut player_start = None;
     let mut light_env = None;
+    let world_lights = map.world_lights();
     for (ei, e) in map.entities.iter().enumerate() {
         let kind = classify(e);
         let transform = Transform::from_translation(source_to_world(e.origin) + offset)
@@ -857,7 +858,11 @@ pub fn spawn_loaded_map(
                 let q_src = Quat::from_rotation_z(e.angles.y.to_radians())
                     * Quat::from_rotation_y(e.angles.x.to_radians())
                     * Quat::from_rotation_x(e.angles.z.to_radians());
-                let amb = map.ambient_at(e.origin + q_src * model.illum_position * scale);
+                let amb = map.lit_ambient_at(e.origin + q_src * model.illum_position * scale, &world_lights);
+                if std::env::var_os("P2_TRACE_LIGHT").is_some() {
+                    let avg: Vec3 = amb.sides.iter().copied().sum::<Vec3>() / 6.0;
+                    info!("TRACE light {} {:?} illum {:?} -> {:?} avg {:.3?}", e.classname, e.targetname, model.illum_position, e.origin + q_src * model.illum_position * scale, avg);
+                }
                 let tint = e
                     .get_vec3("rendercolor")
                     .map(|c| (c / 255.0).powf(2.2))

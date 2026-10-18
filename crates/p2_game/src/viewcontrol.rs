@@ -363,29 +363,74 @@ fn follow_attachments(
 #[derive(Resource, Default)]
 pub struct ViewProxy {
     active: Option<usize>,
+    /// When the proxy rides an animated attachment of its parent
+    /// (`proxyattachment`, e.g. the container's `vstAttachment`): the parent,
+    /// the attachment, and the proxy's pose relative to it at enable time.
+    follow: Option<(usize, String, Mat4)>,
+    /// The proxy's pose when enabled (`offsettype 2`: the view only moves by
+    /// how far the proxy has moved since).
+    start: Option<Mat4>,
 }
 
 impl ViewProxy {
-    /// The transform from the registration point to the proxy, now.
-    fn mapping(&self, ents: &Ents) -> Option<Mat4> {
+    fn proxy_of(&self, ents: &Ents) -> Option<(usize, usize)> {
         let i = self.active?;
+        let proxy = ents.list[i].get("proxy").and_then(|p| ents.find(p, i, None).first().copied())?;
+        Some((i, proxy))
+    }
+
+    /// Start using registration point `i`; work out what its proxy rides.
+    fn enable(&mut self, i: usize, ents: &Ents, anims: &mut PropAnims, game: &GameFsRes) {
+        self.active = Some(i);
+        self.follow = None;
+        self.start = None;
+        let Some((_, proxy)) = self.proxy_of(ents) else { return };
+        let att = ents.list[i].get("proxyattachment").or(ents.list[proxy].get("proxyattachment")).filter(|a| !a.is_empty());
+        let parent = ents.list[proxy].get("parentname").and_then(|p| ents.find(p, proxy, None).first().copied());
+        if let (Some(att), Some(parent)) = (att, parent) {
+            if let Some(a) = anims.attachment_transform(game, ents, parent, att) {
+                let rel = a.to_matrix().inverse() * ents.list[proxy].transform.to_matrix();
+                self.follow = Some((parent, att.to_string(), rel));
+            }
+        }
+        if ents.list[i].get("offsettype").is_some_and(|v| v.trim() == "2") {
+            self.start = self.proxy_now(proxy, ents, anims, game);
+        }
+    }
+
+    fn proxy_now(&self, proxy: usize, ents: &Ents, anims: &mut PropAnims, game: &GameFsRes) -> Option<Mat4> {
+        Some(match &self.follow {
+            Some((parent, att, rel)) => anims.attachment_transform(game, ents, *parent, att).map(|a| a.to_matrix() * *rel).unwrap_or(ents.list[proxy].transform.to_matrix()),
+            None => ents.list[proxy].transform.to_matrix(),
+        })
+    }
+
+    /// The transform from the registration point to the proxy, now.
+    fn mapping(&self, ents: &Ents, anims: &mut PropAnims, game: &GameFsRes) -> Option<Mat4> {
+        let (i, proxy) = self.proxy_of(ents)?;
+        let to = self.proxy_now(proxy, ents, anims, game)?;
+        if let Some(start) = self.start {
+            return Some(to * start.inverse());
+        }
         let e = &ents.list[i];
-        let proxy = e.get("proxy").and_then(|p| ents.find(p, i, None).first().copied())?;
         let from = Transform::from_translation(e.transform.translation).with_rotation(e.transform.rotation);
-        let to = ents.list[proxy].transform;
-        Some(to.to_matrix() * from.to_matrix().inverse())
+        Some(to * from.to_matrix().inverse())
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn viewproxy_inputs(
     mut inputs: MessageReader<EntInput>,
     ents: Option<Res<Ents>>,
     mut proxy: ResMut<ViewProxy>,
+    mut anims: ResMut<PropAnims>,
+    game: Res<GameFsRes>,
     mut players: Query<(&mut Transform, &mut InterpolatedFeet, &mut ViewAngles, &mut CharacterVelocity), With<Player>>,
     mut loaded: MessageReader<LevelLoaded>,
 ) {
     if loaded.read().count() > 0 {
         proxy.active = None;
+        proxy.follow = None;
     }
     let Some(ents) = ents else {
         inputs.clear();
@@ -396,12 +441,15 @@ fn viewproxy_inputs(
             continue;
         }
         match msg.input.as_str() {
-            "enable" => proxy.active = Some(msg.target),
-            "disable" if proxy.active == Some(msg.target) => proxy.active = None,
+            "enable" => proxy.enable(msg.target, &ents, &mut anims, &game),
+            "disable" if proxy.active == Some(msg.target) => {
+                proxy.active = None;
+                proxy.follow = None;
+            }
             "teleportplayertoproxy" => {
-                let was = proxy.active;
-                proxy.active = Some(msg.target);
-                if let (Some(m), Ok((mut tf, mut feet, mut view, mut vel))) = (proxy.mapping(&ents), players.single_mut()) {
+                let was = (proxy.active, proxy.follow.clone(), proxy.start);
+                proxy.enable(msg.target, &ents, &mut anims, &game);
+                if let (Some(m), Ok((mut tf, mut feet, mut view, mut vel))) = (proxy.mapping(&ents, &mut anims, &game), players.single_mut()) {
                     let at = m.transform_point3(tf.translation);
                     tf.translation = at;
                     *feet = InterpolatedFeet { prev: at, curr: at };
@@ -409,7 +457,14 @@ fn viewproxy_inputs(
                     view.yaw = (-fwd.x).atan2(-fwd.z);
                     vel.0 = Vec3::ZERO;
                 }
-                proxy.active = if was == Some(msg.target) { None } else { was };
+                if was.0 == Some(msg.target) {
+                    proxy.active = None;
+                    proxy.follow = None;
+                } else {
+                    proxy.active = was.0;
+                    proxy.follow = was.1;
+                    proxy.start = was.2;
+                }
             }
             _ => {}
         }
@@ -417,9 +472,15 @@ fn viewproxy_inputs(
 }
 
 /// Moves the main camera through the proxy mapping.
-fn apply_viewproxy(proxy: Res<ViewProxy>, ents: Option<Res<Ents>>, mut cams: Query<&mut Transform, With<MainCamera>>) {
+fn apply_viewproxy(
+    proxy: Res<ViewProxy>,
+    ents: Option<Res<Ents>>,
+    mut anims: ResMut<PropAnims>,
+    game: Res<GameFsRes>,
+    mut cams: Query<&mut Transform, With<MainCamera>>,
+) {
     let (Some(ents), true) = (ents, proxy.active.is_some()) else { return };
-    let Some(m) = proxy.mapping(&ents) else { return };
+    let Some(m) = proxy.mapping(&ents, &mut anims, &game) else { return };
     for mut tf in &mut cams {
         *tf = Transform::from_matrix(m * tf.to_matrix());
     }

@@ -5,3 +5,4 @@
 !docs/**/*.png
 __pycache__/
 .DS_Store
+graphify-out/
