@@ -230,10 +230,12 @@ fn drive(
                 }
             }
             "ray" => {
-                // ray x y z: what is straight below a Source point.
+                // ray x y z [dx dy dz]: what is straight below a Source
+                // point (or along a Source direction).
                 let from = shared::source_to_world(Vec3::new(f(a, 0), f(a, 1), f(a, 2)));
+                let dir = if a.len() >= 6 { Dir3::new(shared::source_to_world(Vec3::new(f(a, 3), f(a, 4), f(a, 5)))).unwrap_or(Dir3::NEG_Y) } else { Dir3::NEG_Y };
                 let filter = avian3d::prelude::SpatialQueryFilter::from_excluded_entities([player]);
-                if let Some(h) = spatial.cast_ray(from, Dir3::NEG_Y, 100.0, true, &filter) {
+                if let Some(h) = spatial.cast_ray(from, dir, 100.0, true, &filter) {
                     let mut chain = Vec::new();
                     let mut e = Some(h.entity);
                     while let Some(c) = e {
@@ -241,7 +243,15 @@ fn drive(
                         chain.push(format!("{c}:{}", n.map(|n| n.as_str()).unwrap_or("-")));
                         e = p.map(|p| p.parent());
                     }
-                    info!("autopilot: ray hit at source z {:.0}: {}", (from.y - h.distance) / shared::SOURCE_UNIT, chain.join(" < "));
+                    let at = from + *dir * h.distance;
+                    info!(
+                        "autopilot: ray hit at source z {:.0} ({:.0} {:.0} {:.0}): {}",
+                        at.y / shared::SOURCE_UNIT,
+                        at.x / shared::SOURCE_UNIT,
+                        -at.z / shared::SOURCE_UNIT,
+                        at.y / shared::SOURCE_UNIT,
+                        chain.join(" < ")
+                    );
                 } else {
                     info!("autopilot: ray hit nothing");
                 }
