@@ -27,16 +27,21 @@ possible. New options only inside Settings (no extra main/pause menu buttons).
   wake-up and Wheatley's knocking/nagging (door does not open early).
 
 ## Known problems / next steps (in order)
-1. Chapter 2 exits: sp_a2_catapult_intro, sp_a2_sphere_peek, sp_a2_turret_intro,
-   sp_a2_laser_relays, sp_a2_turret_tower don't leave via the departure elevator
-   in the sweep (`3 goto departure_elevator-elevator_1`). In working maps an
-   unnamed trigger_once inside the departure elevator fires OnTrigger ->
-   departure_elevator-close -> path_tracks -> transition. In catapult_intro that
-   trigger never fires after the goto: check whether it's disabled until the
-   chamber is solved (then the sweep needs to enable/solve) or whether the goto
-   lands outside it; turret_intro/turret_tower have no departure_elevator-* names
-   (different exit). Then solve each chapter 2 chamber for real (autopilot) and
-   fix what blocks it.
+1. Chapter 2 exits: ALL chapter 1-2 (and 3) maps reach their next map when the
+   player follows the real path. The earlier "no exit" results were the sweep's
+   fault: departure cars only arrive after the player walks through
+   `departure_elevator-source_elevator_door_open_trigger`, and turret_intro exits
+   through a walk-in `transition_trigger` whose volume is not at its origin
+   (use autopilot `info <name>` to print an entity's bounds). sp_a2_turret_tower
+   doesn't exist (ring_around_turrets is the real map). Proven sequences:
+   catapult_intro `3 setpos -64 -1512 -400; 9 setpos -64 -2126 -575`,
+   sphere_peek `3 setpos -544 1176 500; 9 setpos -544 562 316`,
+   laser_relays `3 setpos -320 -1192 52; 9 setpos -320 -1806 -132`,
+   turret_intro `3 setpos -336 392 -250`.
+   NEXT: verify each chamber can actually be SOLVED (exit doors open from the
+   puzzle: lasers into catchers, buttons, catapults, fizzlers), map by map in
+   play order: sp_a2_intro, laser_intro, laser_stairs, dual_lasers,
+   laser_over_goo, catapult_intro, trust_fling, pit_flings, fizzler_intro.
 2. Wrecked relaxation vault (intro1) is still dark: it and most elevator areas
    are lit by env_projectedtexture (shadowed spotlights) that we don't render.
    cloud/projtex was asked to implement them; verify and merge.

@@ -191,6 +191,25 @@ fn drive(
                     }
                 }
             }
+            "info" => {
+                // info <name>: an entity's state, bounds (Source units) and position.
+                let key = a.first().map(|k| k.to_ascii_lowercase()).unwrap_or_default();
+                if let Some(ents) = ents.as_deref() {
+                    for (i, e) in ents.list.iter().enumerate().filter(|(_, e)| e.name == key) {
+                        let b = e.bounds.map(|(lo, hi)| (shared::world_to_source(lo), shared::world_to_source(hi)));
+                        info!(
+                            "autopilot: #{i} {} {:?} enabled {} killed {} value {} at source {:.0?} bounds {:.0?}",
+                            e.class,
+                            e.name,
+                            e.enabled,
+                            e.killed,
+                            e.value,
+                            shared::world_to_source(e.transform.translation),
+                            b
+                        );
+                    }
+                }
+            }
             "ray" => {
                 // ray x y z: what is straight below a Source point.
                 let from = shared::source_to_world(Vec3::new(f(a, 0), f(a, 1), f(a, 2)));

@@ -15,6 +15,11 @@ pub fn source_to_world(v: Vec3) -> Vec3 {
     Vec3::new(v.x, v.z, -v.y) * SOURCE_UNIT
 }
 
+/// World position (Y-up, metres) back to Source (Z-up, inches).
+pub fn world_to_source(v: Vec3) -> Vec3 {
+    Vec3::new(v.x, -v.z, v.y) / SOURCE_UNIT
+}
+
 /// Source direction (Z-up) to world direction (Y-up), unscaled.
 pub fn source_dir_to_world(v: Vec3) -> Vec3 {
     Vec3::new(v.x, v.z, -v.y)
