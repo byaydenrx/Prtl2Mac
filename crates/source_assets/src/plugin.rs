@@ -149,6 +149,23 @@ impl SourceCollider {
     }
 }
 
+/// On an entity prop drawn as rigid per-bone parts so it can animate
+/// ([`crate::map::class_animates`], [`ModelData::is_animated`]). Its
+/// [`BonePart`] children start in the default pose; a game moves them.
+#[derive(Component, Clone, Debug)]
+pub struct AnimatedModel {
+    /// The `.mdl` path.
+    pub model: String,
+}
+
+/// A child of an [`AnimatedModel`] carrying the meshes (and per-bone `.phy`
+/// collision) that follow one bone. Its transform is that bone's
+/// model-space transform in world axes ([`crate::models::bone_transform`]).
+#[derive(Component, Clone, Copy, Debug)]
+pub struct BonePart {
+    pub bone: u16,
+}
+
 /// Collider the portal gun's shot passes through (grates, player clips).
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct PortalShotPassthrough;
@@ -769,7 +786,7 @@ pub fn spawn_loaded_map(
         let Some(model) = map.models.get(&sp.model) else { continue };
         let transform = Transform::from_translation(source_to_world(sp.origin))
             .with_rotation(source_angles_to_world(sp.angles));
-        let e = spawn_model(
+        let (e, _) = spawn_model(
             commands,
             assets,
             map,
@@ -787,11 +804,11 @@ pub fn spawn_loaded_map(
                 }
             },
             Vec3::from_slice(&sp.tint[..3]),
-            None,
+            ModelPose::Stored,
             if sp.vertex_light.is_some() { vhv_ctx.as_ref() } else { amb_ctx.as_ref() },
         );
         if sp.solid != 0 {
-            spawn_prop_collider(commands, model, e, sp.solid as i32, None);
+            spawn_prop_collider(commands, model, e, sp.solid as i32, None, &HashMap::new());
         }
         let idx = entities_out.len();
         commands.entity(e).insert(SourceEntityRef { kind: MapEntityKind::StaticProp, index: idx });
@@ -862,7 +879,13 @@ pub fn spawn_loaded_map(
                     .get_vec3("rendercolor")
                     .map(|c| (c / 255.0).powf(2.2))
                     .unwrap_or(Vec3::ONE);
-                let ent = spawn_model(
+                let seq = e.get("defaultanim").filter(|s| !s.is_empty()).or_else(|| map::class_default_sequence(&e.classname));
+                let pose = if map::class_animates(&e.classname) && model.is_animated() {
+                    ModelPose::Animated(seq)
+                } else {
+                    ModelPose::Posed(seq)
+                };
+                let (ent, parts) = spawn_model(
                     commands,
                     assets,
                     map,
@@ -875,11 +898,7 @@ pub fn spawn_loaded_map(
                         amb.eval(Vec3::new(wn.x, -wn.z, wn.y))
                     },
                     tint,
-                    Some(
-                        e.get("defaultanim")
-                            .filter(|s| !s.is_empty())
-                            .or_else(|| map::class_default_sequence(&e.classname)),
-                    ),
+                    pose,
                     amb_ctx.as_ref(),
                 );
                 if e.get("startdisabled") == Some("1") || e.get("rendermode") == Some("10") {
@@ -891,8 +910,7 @@ pub fn spawn_loaded_map(
                 // Entity props collide too unless `solid` is 0 (not solid).
                 let solid = e.get("solid").and_then(|v| v.trim().parse().ok()).unwrap_or(6);
                 if solid != 0 {
-                    let seq = e.get("defaultanim").filter(|s| !s.is_empty()).or_else(|| map::class_default_sequence(&e.classname));
-                    spawn_prop_collider(commands, model, ent, solid, seq);
+                    spawn_prop_collider(commands, model, ent, solid, seq, &parts);
                 }
                 spawned = Some(ent);
                 bounds_e = Some(model_bounds(model));
@@ -1022,11 +1040,21 @@ fn spawn_collider(commands: &mut Commands, c: &ColliderData, parent: Entity) {
 /// Prop collision: the model's `.phy` convex pieces; its bounding box only
 /// for `solid 2` (SOLID_BBOX). A `solid 6` (VPhysics) model without a
 /// `.phy` is not solid, as in the engine.
-fn spawn_prop_collider(commands: &mut Commands, model: &ModelData, parent: Entity, solid: i32, sequence: Option<&str>) {
-    let collider = if !model.physics.is_empty() {
-        let parts: Vec<(Vec3, Quat, Collider)> = model
-            .posed_physics(sequence)
-            .iter()
+///
+/// For a model drawn as bone parts (`bone_parts`: bone -> part entity),
+/// each per-bone solid goes, unposed (it is stored in its bone's space),
+/// on its bone's part, so it follows the animation.
+fn spawn_prop_collider(
+    commands: &mut Commands,
+    model: &ModelData,
+    parent: Entity,
+    solid: i32,
+    sequence: Option<&str>,
+    bone_parts: &HashMap<usize, Entity>,
+) {
+    let compound = |pieces: Vec<&Vec<Vec3>>| -> Option<Collider> {
+        let parts: Vec<(Vec3, Quat, Collider)> = pieces
+            .into_iter()
             .filter_map(|p| Collider::convex_hull(p.clone()).map(|c| (Vec3::ZERO, Quat::IDENTITY, c)))
             .collect();
         match parts.len() {
@@ -1034,6 +1062,25 @@ fn spawn_prop_collider(commands: &mut Commands, model: &ModelData, parent: Entit
             1 => parts.into_iter().next().map(|p| p.2),
             _ => Some(Collider::compound(parts)),
         }
+    };
+    let collider = if !model.physics.is_empty() && !bone_parts.is_empty() {
+        let mut by_bone: std::collections::BTreeMap<usize, Vec<&Vec<Vec3>>> = Default::default();
+        let mut rest = Vec::new();
+        for (piece, bone) in model.physics.iter().zip(&model.physics_bones) {
+            match bone.filter(|b| bone_parts.contains_key(b)) {
+                Some(b) => by_bone.entry(b).or_default().push(piece),
+                None => rest.push(piece),
+            }
+        }
+        for (b, pieces) in by_bone {
+            if let Some(c) = compound(pieces) {
+                commands.spawn((Name::new("prop collider"), c, Transform::IDENTITY, ChildOf(bone_parts[&b])));
+            }
+        }
+        compound(rest)
+    } else if !model.physics.is_empty() {
+        let posed = model.posed_physics(sequence);
+        compound(posed.iter().collect())
     } else if solid == 2 {
         let (lo, hi) = model_bounds(model);
         let size = hi - lo;
@@ -1048,6 +1095,20 @@ fn spawn_prop_collider(commands: &mut Commands, model: &ModelData, parent: Entit
     }
 }
 
+/// How [`spawn_model`] poses a model's vertices.
+#[derive(Clone, Copy, Debug)]
+enum ModelPose<'a> {
+    /// As stored (static props: bones collapsed).
+    Stored,
+    /// Baked into frame 0 of a sequence (its name, or sequence 0).
+    Posed(Option<&'a str>),
+    /// Rigid per-bone parts ([`BonePart`]) under an [`AnimatedModel`],
+    /// starting in frame 0 of the sequence.
+    Animated(Option<&'a str>),
+}
+
+/// Spawns a model's meshes under a new entity at `transform`; returns it and,
+/// for [`ModelPose::Animated`], its bone part entities by bone.
 #[allow(clippy::too_many_arguments)]
 fn spawn_model(
     commands: &mut Commands,
@@ -1059,11 +1120,9 @@ fn spawn_model(
     parent: Entity,
     light: &dyn Fn(Vec3, u32) -> Vec3,
     tint: Vec3,
-    // Some(sequence name or None for sequence 0) to draw the default pose;
-    // None to draw the stored (reference / static prop) pose.
-    pose: Option<Option<&str>>,
+    pose: ModelPose,
     valve: Option<&ValveCtx>,
-) -> Entity {
+) -> (Entity, HashMap<usize, Entity>) {
     let e = commands
         .spawn((
             Name::new(model.path.clone()),
@@ -1072,11 +1131,58 @@ fn spawn_model(
             ChildOf(parent),
         ))
         .id();
-    let meshes = match pose {
-        Some(seq) => model.posed_meshes(seq),
-        None => std::borrow::Cow::Borrowed(&model.meshes[..]),
+    use std::borrow::Cow;
+    // Eyeball meshes get their iris projected (their stored UVs are unused).
+    fn eyes<'a>(model: &ModelData, m: Cow<'a, crate::models::ModelMesh>) -> Cow<'a, crate::models::ModelMesh> {
+        match model.iris_uvs(&m) {
+            Some(uvs) => Cow::Owned(crate::models::ModelMesh { uvs, ..m.into_owned() }),
+            None => m,
+        }
+    }
+    let mut parts = HashMap::new();
+    // (mesh, light normals if not its own source normals, parent entity)
+    let draws: Vec<(Cow<crate::models::ModelMesh>, Option<Vec<Vec3>>, Entity)> = match pose {
+        ModelPose::Stored => model.meshes.iter().map(|m| (eyes(model, Cow::Borrowed(m)), None, e)).collect(),
+        ModelPose::Posed(seq) => match model.posed_meshes(seq) {
+            Cow::Borrowed(ms) => ms.iter().map(|m| (eyes(model, Cow::Borrowed(m)), None, e)).collect(),
+            Cow::Owned(ms) => ms.into_iter().map(|m| (eyes(model, Cow::Owned(m)), None, e)).collect(),
+        },
+        ModelPose::Animated(seq) => {
+            let sk = model.skeleton.as_ref().expect("animated models have a skeleton");
+            let bone_to_model = sk.bone_to_model(seq.and_then(|n| sk.sequence_index(n)).or(Some(0)));
+            let pose_to_bone: Vec<_> = sk.bones.iter().map(|b| b.pose_to_bone).collect();
+            let split: Vec<_> = model
+                .meshes
+                .iter()
+                .flat_map(|m| crate::models::split_by_bone(&eyes(model, Cow::Borrowed(m)), &pose_to_bone, &bone_to_model))
+                .collect();
+            let bones: std::collections::BTreeSet<usize> =
+                split.iter().map(|p| p.bone).chain(model.physics_bones.iter().flatten().copied()).filter(|&b| b < sk.bones.len()).collect();
+            for b in bones {
+                let part = commands
+                    .spawn((
+                        Name::new(format!("bone {}", sk.bones[b].name)),
+                        BonePart { bone: b as u16 },
+                        crate::models::bone_transform(bone_to_model[b]),
+                        Visibility::default(),
+                        ChildOf(e),
+                    ))
+                    .id();
+                parts.insert(b, part);
+            }
+            commands.entity(e).insert(AnimatedModel { model: model.path.clone() });
+            split
+                .into_iter()
+                .map(|p| {
+                    let parent = parts.get(&p.bone).copied().unwrap_or(e);
+                    (Cow::Owned(p.mesh), Some(p.light_normals), parent)
+                })
+                .collect()
+        }
     };
-    for mesh in meshes.iter() {
+    for (mesh, light_normals, e) in &draws {
+        let (mesh, e) = (&**mesh, *e);
+        let normals = light_normals.as_deref().unwrap_or(&mesh.source_normals);
         let Some(mat_name) = model.material_for(skin, mesh.material_index) else { continue };
         let Some(mi) = map.material_id(mat_name) else { continue };
         let minfo = &map.materials[mi];
@@ -1086,7 +1192,7 @@ fn spawn_model(
         if let Some(v) = valve {
             if matches!(minfo.shader.as_str(), "vertexlitgeneric" | "unlitgeneric") {
                 let verts = crate::valve::model_vertices(mesh, &|i| {
-                    let l = light(mesh.source_normals[i], mesh.vvd_index[i]) * tint * v.light_scale;
+                    let l = light(normals[i], mesh.vvd_index[i]) * tint * v.light_scale;
                     crate::valve::encode_static_light(l)
                 });
                 let fs = assets.game.fs.clone().unwrap();
@@ -1140,8 +1246,7 @@ fn spawn_model(
                 h
             }
         };
-        let colors: Vec<[f32; 4]> = mesh
-            .source_normals
+        let colors: Vec<[f32; 4]> = normals
             .iter()
             .zip(&mesh.vvd_index)
             .map(|(&n, &vi)| {
@@ -1162,5 +1267,5 @@ fn spawn_model(
             ChildOf(e),
         ));
     }
-    e
+    (e, parts)
 }

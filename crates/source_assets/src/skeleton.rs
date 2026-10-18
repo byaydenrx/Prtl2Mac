@@ -205,6 +205,11 @@ impl Skeleton {
             .position(|s| s.label.eq_ignore_ascii_case(name))
     }
 
+    /// Whether any animation has more than one frame (the model can move).
+    pub fn has_motion(&self) -> bool {
+        self.anims.iter().any(|a| a.frames > 1)
+    }
+
     /// Local (parent-space) bone transforms at frame 0 of a local animation.
     fn local_frame0(&self, anim: Option<usize>) -> Vec<(Vec3, Quat)> {
         let mut local: Vec<(Vec3, Quat)> = self.bones.iter().map(|b| (b.pos, b.quat)).collect();
