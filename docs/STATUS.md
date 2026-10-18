@@ -117,6 +117,7 @@ Owner's feature wishlist: docs/ROADMAP.md.
    with `paintpower`, prop_paint_bomb), splat look (soft edges, lighting),
    trigger_paint_cleanser, paint_sphere (finale). Blobs through portals and
    white gel taking portals are written but not yet tried in a map.
+   (Props, cleanser, bombs, paint_sphere, tuning: cloud/gels, below.)
 7. trigger_look's line-of-sight flag (128) isn't checked.
 8. Missing: npc_wheatley_boss (finale), func_rotating, logic_playerproxy,
    env_global, Wheatley's rail animation (item 2).
@@ -519,3 +520,76 @@ Check in the real game:
    captions use the closecaption files), language switch reloads captions.
 9. Delete settings.cfg (or set `P2_DATA_DIR` to an empty folder): first
    launch is fullscreen, 100% volume, captions off.
+
+## cloud/gels branch (untested in game)
+
+Chapters 6-8 gel work, from `main` 709086c, built in a cloud session without
+the game: `cargo test -p p2_game` passes (81 + the new paint tests, among
+them headless runs of `PaintPlugin` + `PaintPropsPlugin` with a panicking
+error handler), nothing has been seen on screen. Behaviour comes from the
+entities' documented keyvalues/inputs and published descriptions; every
+tuning number is a named constant saying where it comes from or that it is
+an estimate. Files: `paint.rs` (edited), new `paint_props.rs`, one entry
+added to `props::PICKUP_CLASSES` (`prop_paint_bomb`, so bombs are physics
+props, dropper copies included, and fizzlers dissolve them).
+
+What's new:
+- **Paint on props**: a blob that hits a prop paints it (blobs no longer
+  pass through dynamic bodies). Blue: restitution 0.9 (Max combine) and
+  props falling onto blue floors bounce; orange: friction 0.02 (Min
+  combine); white: looks only; water (painttype 4) washes. The coat is a
+  translucent box (a ball for `cubetype` 3 spheres) over the prop. Map props
+  start painted from `paintpower` (0 bounce, 2 speed, 3 portal, 4 none).
+- **trigger_paint_cleanser**: while enabled, props whose box is inside it
+  lose their paint (Enable/Disable through the usual inputs).
+- **prop_paint_bomb**: bursts on the first frame its velocity changes by
+  more than 120 u/s (a landing, a wall), paints everything a 160-ray fan
+  reaches within 160 u (props included) with its `painttype`, fires
+  `OnExploded`, goes away. Held bombs don't burst. `bombtype` isn't used.
+- **paint_sphere**: `Paint` input paints everything within `radius`
+  (default 128 u) with its `painttype`.
+- **info_paint_sprayer**: also `Toggle` and `ChangePaintType <n>`;
+  `silent`, `light_position_name`, `render_mode` and the streak keyvalues
+  are read by nobody (look/sound only; noted in the code).
+- **Bounce tuning**: landing on blue gives back the whole speed of the fall
+  (you bounce back to the height you dropped from, every time; at least
+  450 u/s = ~170 u when walking on), off the splat's own slope, keeping the
+  run along it; crouch still stops it. Blue walls reflect your run and add
+  200 u/s up. `P2_TRACE=1` logs `TRACE bounce gel: off at N u/s (to H u)`.
+- **Speed gel**: unchanged numbers (800 u/s top, accelerate 1, friction
+  0.3), now documented as estimates.
+- **White gel and portals**: the gun already accepts gel-covered points
+  (`PortalGel`); now a portal standing only on white gel closes when that gel
+  is washed off or painted over (portals on surfaces that take portals
+  anyway stay).
+
+Verify in the real game (`cl_showpos 1` shows speeds; `ent_list
+info_paint_sprayer`, `ent_list prop_paint_bomb`, `ent_list paint` in the
+console find the entities; `P2_TRACE=1` logs bounces):
+1. sp_a3_jump_intro: the pre-painted blue floors are there at the start;
+   walking onto blue bounces you ~170 u (about to a 2-high wall); dropping
+   from a ledge onto blue bounces you back to the ledge height again and
+   again; holding crouch stops it; running into a blue wall bounces you back
+   and a little up. A cube dropped or thrown onto blue jumps; carry a cube
+   under a blue sprayer: it turns blue and bounces off floors and walls.
+2. sp_a3_speed_ramp: orange floors let you reach the far side with a run
+   (check top speed in `cl_showpos`, ~800 u/s; tell us if the ramp jump is
+   short or long, then tune `SPEED_GEL_MAX` / `SPEED_GEL_ACCELERATE`);
+   an orange cube slides when pushed; letting go of the keys on orange
+   keeps you sliding.
+3. sp_a3_portal_intro: white gel from the sprayer makes plain walls take
+   portals; a portal shot onto white gel works; washing that gel (water, if
+   the map has it, or `fire <water sprayer> Start`) or painting it over
+   closes that portal; a portal on a normal white wall stays.
+4. Any bomb chamber (sp_a3_bomb_flings, sp_a4_...): bombs from the dropper
+   burst where they land and paint a few metres around; cubes nearby take
+   the colour; a fizzler dissolves a bomb carried through it.
+5. A cleanser (trigger_paint_cleanser, e.g. a water curtain in the later
+   chambers) strips a painted cube carried through it.
+6. Look: coats sit over the cube (not offset) and follow it; spheres get a
+   ball.
+
+TODO / not done: blob streaks and drips, the player's screen splashing,
+painted props' own surface paint (coat only), dry vs wet bombs, splat look
+(still flat discs), measuring the tuning against the real game.
+

@@ -8,9 +8,15 @@
 //! stopping them a moment later (sp_a3_jump_intro), so paint is simulated
 //! from the start rather than read from the map.
 //!
+//! Paint on props, `trigger_paint_cleanser`, `prop_paint_bomb` and
+//! `paint_sphere` are in `paint_props.rs`; this file keeps the surfaces.
+//! A portal standing only on white gel closes when that gel is washed off
+//! or painted over.
+//!
 //! Approximations (not measured against the game yet): splat size, the
-//! bounce and speed-gel tuning below, paint on props (not done), the
-//! player's own view getting splashed (not done).
+//! bounce and speed-gel tuning below (each constant says where its number
+//! comes from), blob streaks (`blob_streak_percentage`...: blobs just
+//! splat), the player's own view getting splashed (not done).
 use std::collections::HashMap;
 
 use avian3d::prelude::*;
@@ -25,7 +31,12 @@ pub struct PaintPlugin;
 impl Plugin for PaintPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Paint>()
-            .add_systems(Update, (sprayer_inputs, spray, fly_blobs, sync_portal_gel).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic))
+            .add_message::<PaintSurface>()
+            .add_message::<crate::paint_props::PaintProp>()
+            .add_systems(
+                Update,
+                (sprayer_inputs, spray, fly_blobs, paint_requests, sync_portal_gel, drop_unsupported_portals).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic),
+            )
             .add_systems(FixedUpdate, (speed_gel.before(P2Systems::Move), bounce_gel.after(P2Systems::Move).before(P2Systems::Transit)));
     }
 }
@@ -36,12 +47,30 @@ const U: f32 = shared::SOURCE_UNIT;
 const SPLAT_RADIUS: f32 = 26.0;
 /// Gravity on blobs, u/s^2 (`sv_gravity`).
 const GRAVITY: f32 = 600.0;
-/// Upward speed a blue floor gives at the least (walking onto it), u/s.
-const BOUNCE_MIN_SPEED: f32 = 450.0;
-/// Running speed on orange gel, u/s, and how fast it builds up / bleeds off.
-const SPEED_GEL_MAX: f32 = 800.0;
-const SPEED_GEL_ACCELERATE: f32 = 1.0;
-const SPEED_GEL_FRICTION: f32 = 0.3;
+/// Upward speed a blue floor gives at the least (walking or dropping a
+/// little onto it), u/s. Estimate: Portal 2 bounces a player who walks onto
+/// blue gel roughly a crouch-jump's worth of headroom over a standing
+/// player (~170 u, = 450^2 / (2 * 600)); not measured.
+pub const BOUNCE_MIN_SPEED: f32 = 450.0;
+/// Speed kept off a blue floor: Portal 2 gives back the whole speed of the
+/// fall, so a player bounces back to the height they fell from, over and
+/// over (published behaviour, "Repulsion Gel"); 1.0 is that.
+pub const BOUNCE_KEEP: f32 = 1.0;
+/// Upward speed added when bouncing off a blue wall, u/s. Estimate: enough
+/// to clear a little height between wall jumps, as the game does.
+pub const BOUNCE_WALL_UP_SPEED: f32 = 200.0;
+/// Slowest run into a blue wall that bounces, u/s (walking along one doesn't). Estimate.
+pub const BOUNCE_WALL_MIN_SPEED: f32 = 50.0;
+/// Running speed on orange gel, u/s. Estimate: published descriptions put
+/// Propulsion Gel running at several times the 175 u/s walk; 800 u/s is
+/// enough for the speed-ramp jumps in sp_a3_speed_ramp (to be checked there).
+pub const SPEED_GEL_MAX: f32 = 800.0;
+/// Acceleration factor on orange gel (`sv_accelerate` is 10 off it):
+/// speed builds up over a few seconds instead of at once. Estimate.
+pub const SPEED_GEL_ACCELERATE: f32 = 1.0;
+/// Friction on orange gel (`sv_friction` is 4 off it): little, so the
+/// player slides on when they let go. Estimate.
+pub const SPEED_GEL_FRICTION: f32 = 0.3;
 /// Most splats kept; the oldest go first.
 const MAX_SPLATS: usize = 8000;
 /// Most blobs in flight over all sprayers.
@@ -56,8 +85,8 @@ pub enum Gel {
 }
 
 impl Gel {
-    /// `painttype`: 0 bounce, 1 (unused reflection) as bounce, 2 speed, 3 portal, 4 water.
-    fn from_type(t: i32) -> Gel {
+    /// `painttype`: 0 bounce, 1 (unused stick/reflection) as bounce, 2 speed, 3 portal, 4 water.
+    pub fn from_type(t: i32) -> Gel {
         match t {
             2 => Gel::Speed,
             3 => Gel::Portal,
@@ -65,10 +94,14 @@ impl Gel {
             _ => Gel::Bounce,
         }
     }
+    /// A prop's `paintpower` (same numbers; 4 is no paint).
+    pub fn from_power(t: i32) -> Option<Gel> {
+        (0..=3).contains(&t).then(|| Gel::from_type(t))
+    }
     fn index(self) -> usize {
         self as usize
     }
-    fn color(self) -> Color {
+    pub fn color(self) -> Color {
         match self {
             Gel::Bounce => Color::srgb(0.02, 0.22, 0.72),
             Gel::Speed => Color::srgb(0.85, 0.36, 0.02),
@@ -99,6 +132,37 @@ struct Sprayer {
     active: bool,
     owed: f32,
     live: usize,
+    /// Set by `ChangePaintType`; else the `painttype` keyvalue.
+    gel: Option<Gel>,
+}
+
+/// Paint a surface point (bombs, `paint_sphere`): handled like a blob landing there.
+#[derive(Message, Clone, Copy, Debug)]
+pub struct PaintSurface {
+    pub pos: Vec3,
+    pub normal: Vec3,
+    pub gel: Gel,
+}
+
+/// The first solid thing a list of ray hits reaches: not a trigger volume,
+/// nearest first.
+pub fn first_solid(mut hits: Vec<RayHitData>, sensors: &Query<(), With<Sensor>>) -> Option<RayHitData> {
+    hits.sort_by(|a, b| a.distance.total_cmp(&b.distance));
+    hits.into_iter().find(|h| !sensors.contains(h.entity))
+}
+
+/// The speed off a blue surface with normal `n`, arriving at `v_in` (any
+/// units): the part along the surface stays, the part into it comes back
+/// out (times [`BOUNCE_KEEP`]), and at least `min` out.
+pub fn bounce_off(v_in: Vec3, n: Vec3, min: f32) -> Vec3 {
+    let into = (-v_in.dot(n)).max(0.0);
+    let out = (into * BOUNCE_KEEP).max(min);
+    v_in + n * (into + out)
+}
+
+/// How high a bounce at `speed` u/s straight up goes, u (`sv_gravity` 600).
+pub fn bounce_height(speed: f32) -> f32 {
+    speed * speed / (2.0 * GRAVITY)
 }
 
 #[derive(Resource, Default)]
@@ -109,6 +173,8 @@ pub struct Paint {
     /// Splat index by grid cell (half a splat wide) for merging.
     grid: HashMap<IVec3, Vec<usize>>,
     dirty: bool,
+    /// White gel went away (washed, painted over): check the portals on it.
+    portal_gel_lost: bool,
     rng: u32,
     look: Option<Look>,
 }
@@ -194,6 +260,13 @@ fn sprayer_inputs(mut paint: ResMut<Paint>, ents: Option<Res<Ents>>, mut inputs:
         match msg.input.as_str() {
             "start" => s.active = true,
             "stop" => s.active = false,
+            "toggle" => s.active = !s.active,
+            // ChangePaintType <painttype>.
+            "changepainttype" => {
+                if let Ok(t) = msg.param.trim().parse::<f32>() {
+                    s.gel = Some(Gel::from_type(t as i32));
+                }
+            }
             _ => {}
         }
     }
@@ -210,7 +283,10 @@ fn look(paint: &mut Paint, meshes: &mut Assets<Mesh>, materials: &mut Assets<Sta
 
 /// Active sprayers throw `blobs_per_second` blobs in a cone of
 /// `blob_spread_angle` from a disc of `blob_spread_radius` at
-/// `min_speed`..`max_speed` along their forward.
+/// `min_speed`..`max_speed` along their forward, up to `maxblobcount` in
+/// flight; `drawonly` blobs don't paint. `silent` (no splat sounds; blobs
+/// make none here yet), `light_position_name` and `render_mode` only change
+/// how the game draws and sounds them and are not used.
 #[allow(clippy::too_many_arguments)]
 fn spray(
     mut commands: Commands,
@@ -237,7 +313,7 @@ fn spray(
         let (lo, hi) = (e.get_f32("min_speed").unwrap_or(100.0), e.get_f32("max_speed").unwrap_or(100.0));
         let radius = e.get_f32("blob_spread_radius").unwrap_or(0.0) * U;
         let angle = e.get_f32("blob_spread_angle").unwrap_or(0.0).to_radians();
-        let gel = Gel::from_type(e.get("painttype").and_then(|v| v.trim().parse().ok()).unwrap_or(0));
+        let gel = paint.sprayers.get(&i).and_then(|s| s.gel).unwrap_or_else(|| Gel::from_type(e.get("painttype").and_then(|v| v.trim().parse().ok()).unwrap_or(0)));
         let paints = e.get("drawonly").is_none_or(|v| v.trim() != "1");
         let fwd = (e.transform.rotation * Vec3::X).normalize_or(Vec3::NEG_Y);
         let side = fwd.any_orthonormal_vector();
@@ -269,7 +345,7 @@ fn spray(
 }
 
 /// Blobs fall, go through linked portals, and paint the first solid
-/// surface they hit (props and the player don't take paint).
+/// surface they hit; a prop they hit takes the gel (the player doesn't).
 #[allow(clippy::too_many_arguments)]
 fn fly_blobs(
     mut commands: Commands,
@@ -282,16 +358,14 @@ fn fly_blobs(
     body_of: Query<&ColliderOf>,
     portals: Query<(&Portal, &Transform, Option<&PortalLink>)>,
     mut transforms: Query<&mut Transform, Without<Portal>>,
+    props: Query<(), With<crate::props::Prop>>,
+    mut paint_props: MessageWriter<crate::paint_props::PaintProp>,
 ) {
     let dt = time.delta_secs();
     if dt <= 0.0 || paint.blobs.is_empty() {
         return;
     }
     let filter = SpatialQueryFilter::from_excluded_entities(players.iter());
-    let skip = |e: Entity| {
-        let body = body_of.get(e).map_or(e, |c| c.body);
-        sensors.contains(e) || matches!(bodies.get(body), Ok(RigidBody::Dynamic))
-    };
     // Open, linked portals: (entry frame, half size, exit frame).
     let links: Vec<(PortalFrame, Vec2, PortalFrame)> = portals
         .iter()
@@ -325,12 +399,15 @@ fn fly_blobs(
             }
         }
         let len = step.length();
-        let hit = Dir3::new(step).ok().and_then(|dir| {
-            spatial.ray_hits(b.pos, dir, len, 4, true, &filter).into_iter().find(|h| !skip(h.entity)).map(|h| (h, dir))
-        });
+        let hit = Dir3::new(step).ok().and_then(|dir| first_solid(spatial.ray_hits(b.pos, dir, len, 4, true, &filter), &sensors).map(|h| (h, dir)));
         if let Some((h, dir)) = hit {
-            if b.paints && !matches!(bodies.get(body_of.get(h.entity).map_or(h.entity, |c| c.body)), Ok(RigidBody::Dynamic)) {
-                landed.push((b.pos + dir * h.distance, h.normal, b.gel));
+            let body = body_of.get(h.entity).map_or(h.entity, |c| c.body);
+            if b.paints {
+                if props.contains(body) {
+                    paint_props.write(crate::paint_props::PaintProp { entity: body, gel: b.gel });
+                } else if !matches!(bodies.get(body), Ok(RigidBody::Dynamic)) {
+                    landed.push((b.pos + dir * h.distance, h.normal, b.gel));
+                }
             }
             commands.entity(b.entity).despawn();
             *sprayer = usize::MAX;
@@ -366,13 +443,16 @@ fn add_splat(commands: &mut Commands, paint: &mut Paint, p: Vec3, n: Vec3, gel: 
     let r = SPLAT_RADIUS * U;
     if gel == Gel::Erase {
         let before = paint.splats.len();
+        let mut lost = false;
         paint.splats.retain(|s| {
             let gone = s.pos.distance(p) < r * 1.5;
             if gone {
+                lost |= s.gel == Gel::Portal;
                 commands.entity(s.entity).despawn();
             }
             !gone
         });
+        paint.portal_gel_lost |= lost;
         if paint.splats.len() != before {
             paint.rebuild_grid();
             paint.dirty = true;
@@ -398,6 +478,7 @@ fn add_splat(commands: &mut Commands, paint: &mut Paint, p: Vec3, n: Vec3, gel: 
     let look = paint.look.as_ref().unwrap();
     if let Some(k) = near {
         if paint.splats[k].gel != gel {
+            paint.portal_gel_lost |= paint.splats[k].gel == Gel::Portal;
             paint.splats[k].gel = gel;
             commands.entity(paint.splats[k].entity).insert(MeshMaterial3d(look.mats[gel.index()].clone()));
             paint.dirty = true;
@@ -418,10 +499,74 @@ fn add_splat(commands: &mut Commands, paint: &mut Paint, p: Vec3, n: Vec3, gel: 
     paint.grid.entry(cell).or_default().push(paint.splats.len() - 1);
     if paint.splats.len() > MAX_SPLATS {
         let old = paint.splats.remove(0);
+        paint.portal_gel_lost |= old.gel == Gel::Portal;
         commands.entity(old.entity).despawn();
         paint.rebuild_grid();
     }
     paint.dirty = true;
+}
+
+/// Paint asked for by bombs and `paint_sphere`.
+fn paint_requests(
+    mut commands: Commands,
+    mut paint: ResMut<Paint>,
+    mut requests: MessageReader<PaintSurface>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    if requests.is_empty() {
+        return;
+    }
+    look(&mut paint, &mut meshes, &mut materials);
+    for r in requests.read() {
+        add_splat(&mut commands, &mut paint, r.pos, r.normal, r.gel);
+    }
+}
+
+/// A portal that stood only on white gel closes when the gel under it goes
+/// (washed off or painted over), as in Portal 2. Portals on walls that take
+/// portals anyway stay.
+#[allow(clippy::too_many_arguments)]
+fn drop_unsupported_portals(
+    mut commands: Commands,
+    mut paint: ResMut<Paint>,
+    gel: Res<PortalGel>,
+    spatial: SpatialQuery,
+    portalable: Query<(), With<Portalable>>,
+    body_of: Query<&ColliderOf>,
+    sensors: Query<(), With<Sensor>>,
+    portals: Query<(&Portal, &Transform)>,
+    mut guns: Query<&mut PortalGun, With<Player>>,
+    mut closed: MessageWriter<PortalClosed>,
+) {
+    if !std::mem::take(&mut paint.portal_gel_lost) {
+        return;
+    }
+    let Ok(mut gun) = guns.single_mut() else { return };
+    for slot in gun.portals.iter_mut() {
+        let Some(p) = *slot else { continue };
+        let Ok((portal, tf)) = portals.get(p) else { continue };
+        let centre = tf.translation;
+        let n = tf.rotation * Vec3::Z;
+        if gel.covers(centre) {
+            continue;
+        }
+        // Does the surface it sits on take portals by itself? (The colliders
+        // the gun recorded, else whatever is right behind it.)
+        let takes = |e: Entity| portalable.contains(e) || body_of.get(e).is_ok_and(|c| portalable.contains(c.body));
+        let native = if portal.surfaces.is_empty() {
+            let Ok(back) = Dir3::new(-n) else { continue };
+            first_solid(spatial.ray_hits(centre + n * 2.0 * U, back, 8.0 * U, 4, true, &SpatialQueryFilter::default()), &sensors).is_some_and(|h| takes(h.entity))
+        } else {
+            portal.surfaces.iter().any(|&e| takes(e))
+        };
+        if !native {
+            info!("portal2: the white gel under the {:?} portal is gone; it closes", portal.kind);
+            closed.write(PortalClosed { kind: portal.kind, transform: *tf });
+            commands.entity(p).despawn();
+            *slot = None;
+        }
+    }
 }
 
 /// White gel for the portal gun.
@@ -455,7 +600,7 @@ fn speed_gel(
 fn bounce_gel(
     paint: Res<Paint>,
     mut players: Query<(&Transform, &mut CharacterVelocity, &mut Grounded, &Crouch, &MoveInput), With<Player>>,
-    mut fall: Local<f32>,
+    mut air_vel: Local<Vec3>,
 ) {
     if paint.splats.is_empty() {
         return;
@@ -463,32 +608,105 @@ fn bounce_gel(
     let Ok((tf, mut vel, mut grounded, crouch, input)) = players.single_mut() else { return };
     let feet = tf.translation;
     if !grounded.on_ground {
-        *fall = (-vel.0.y / U).max(0.0);
+        // The speed it lands with (the move zeroes it on landing).
+        *air_vel = vel.0 / U;
     }
-    if grounded.on_ground && !input.duck && !crouch.ducked && paint.gel_at(feet, Vec3::Y, 8.0 * U, 0.7).is_some_and(|x| x.0 == Gel::Bounce) {
-        let up = fall.max(BOUNCE_MIN_SPEED);
-        vel.0.y = up * U;
-        grounded.on_ground = false;
-        *fall = 0.0;
-        if std::env::var_os("P2_TRACE").is_some() {
-            info!("TRACE bounce gel: up at {up:.0} u/s");
+    if grounded.on_ground && !input.duck && !crouch.ducked {
+        if let Some((Gel::Bounce, n)) = paint.gel_at(feet, Vec3::Y, 8.0 * U, 0.7) {
+            // Off the floor's own slope, keeping the run along it.
+            let arrive = Vec3::new(vel.0.x / U, air_vel.y.min(0.0), vel.0.z / U);
+            let out = bounce_off(arrive, n, BOUNCE_MIN_SPEED);
+            vel.0 = out * U;
+            grounded.on_ground = false;
+            *air_vel = Vec3::ZERO;
+            if std::env::var_os("P2_TRACE").is_some() {
+                info!("TRACE bounce gel: off at {:.0} u/s (to {:.0} u)", out.y, bounce_height(out.y));
+            }
+            return;
         }
-        return;
     }
     // Walls: the hull's side (16 u from its centre) against a blue splat.
     let centre = feet + Vec3::Y * crouch.hull().y * 0.5;
     let flat = Vec3::new(vel.0.x, 0.0, vel.0.z);
-    if flat.length() < 50.0 * U {
+    if flat.length() < BOUNCE_WALL_MIN_SPEED * U {
         return;
     }
     let dir = flat.normalize();
     if let Some((Gel::Bounce, n)) = paint.gel_at(centre + dir * 16.0 * U, -dir, 6.0 * U, 0.5) {
         let into = vel.0.dot(n);
         if into < 0.0 && n.y.abs() < 0.7 {
-            vel.0 -= n * 2.0 * into;
+            let mut out = bounce_off(vel.0 / U, n, 0.0);
+            out.y = out.y.max(0.0) + BOUNCE_WALL_UP_SPEED;
+            vel.0 = out * U;
+            grounded.on_ground = false;
             if std::env::var_os("P2_TRACE").is_some() {
                 info!("TRACE bounce gel: off a wall");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn splat(pos: Vec3, normal: Vec3, gel: Gel) -> Splat {
+        Splat { pos, normal, gel, entity: Entity::PLACEHOLDER }
+    }
+
+    #[test]
+    fn paint_types() {
+        assert_eq!(Gel::from_type(0), Gel::Bounce);
+        assert_eq!(Gel::from_type(1), Gel::Bounce);
+        assert_eq!(Gel::from_type(2), Gel::Speed);
+        assert_eq!(Gel::from_type(3), Gel::Portal);
+        assert_eq!(Gel::from_type(4), Gel::Erase);
+        assert_eq!(Gel::from_power(3), Some(Gel::Portal));
+        assert_eq!(Gel::from_power(4), None);
+        assert_eq!(Gel::from_power(-1), None);
+    }
+
+    #[test]
+    fn bounce_gives_back_the_fall() {
+        // Dropped from 300 u: lands at sqrt(2 g h) = 600 u/s, bounces back to 300 u.
+        let land = (2.0 * GRAVITY * 300.0f32).sqrt();
+        let out = bounce_off(Vec3::new(0.0, -land, 0.0), Vec3::Y, BOUNCE_MIN_SPEED);
+        assert!((out.y - land).abs() < 1e-3);
+        assert!((bounce_height(out.y) - 300.0).abs() < 0.01);
+        // Walking on (no fall): the least bounce, about 170 u high.
+        let walk = bounce_off(Vec3::new(175.0, 0.0, 0.0), Vec3::Y, BOUNCE_MIN_SPEED);
+        assert_eq!(walk, Vec3::new(175.0, BOUNCE_MIN_SPEED, 0.0));
+        assert!((bounce_height(walk.y) - 168.75).abs() < 0.01);
+        // Speed along the surface is kept.
+        let run = bounce_off(Vec3::new(400.0, -700.0, 0.0), Vec3::Y, BOUNCE_MIN_SPEED);
+        assert_eq!(run, Vec3::new(400.0, 700.0, 0.0));
+    }
+
+    #[test]
+    fn bounce_off_slopes_and_walls() {
+        // A 45-degree ramp facing +X: falling straight down throws you along +X.
+        let n = Vec3::new(1.0, 1.0, 0.0).normalize();
+        let out = bounce_off(Vec3::new(0.0, -600.0, 0.0), n, 0.0);
+        assert!((out - Vec3::new(600.0, 0.0, 0.0)).length() < 1e-2, "{out:?}");
+        // A wall facing -X, run into at 300 u/s: straight back.
+        let out = bounce_off(Vec3::new(300.0, 0.0, 50.0), Vec3::NEG_X, 0.0);
+        assert_eq!(out, Vec3::new(-300.0, 0.0, 50.0));
+        // Moving away from the surface: untouched (but at least `min` out).
+        assert_eq!(bounce_off(Vec3::new(0.0, 100.0, 0.0), Vec3::Y, 0.0), Vec3::new(0.0, 100.0, 0.0));
+    }
+
+    #[test]
+    fn gel_under_a_point() {
+        let mut p = Paint::default();
+        p.splats.push(splat(Vec3::ZERO, Vec3::Y, Gel::Bounce));
+        p.splats.push(splat(Vec3::new(1.0, 0.0, 0.0), Vec3::Y, Gel::Erase));
+        p.splats.push(splat(Vec3::new(0.0, 1.0, 2.0), Vec3::Z, Gel::Speed));
+        // Standing on the floor splat (feet a little above it).
+        assert_eq!(p.gel_at(Vec3::new(0.1, 2.0 * U, 0.0), Vec3::Y, 8.0 * U, 0.7).map(|g| g.0), Some(Gel::Bounce));
+        // Out past its edge, or facing the wrong way: none. Water isn't gel.
+        assert_eq!(p.gel_at(Vec3::new(2.0, 0.0, 0.0), Vec3::Y, 8.0 * U, 0.7), None);
+        assert_eq!(p.gel_at(Vec3::ZERO, Vec3::X, 8.0 * U, 0.7), None);
+        // The wall splat, seen from in front of it.
+        assert_eq!(p.gel_at(Vec3::new(0.0, 1.0, 2.0 + 4.0 * U), Vec3::Z, 6.0 * U, 0.5).map(|g| g.0), Some(Gel::Speed));
     }
 }
