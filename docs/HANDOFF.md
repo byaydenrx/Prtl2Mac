@@ -1,6 +1,6 @@
 # Handoff (latest session update)
 
-Updated 2026-10-18 ~19:45 EDT by the local session ("Portal 2 native Silicon Mac").
+Updated 2026-10-18 ~20:10 EDT by the local session ("Portal 2 native Silicon Mac").
 
 ## Priorities (owner)
 Chapters 1-2 fully playable and finished first, then the next chapters, then
@@ -55,8 +55,12 @@ possible. New options only inside Settings (no extra main/pause menu buttons).
 5. Wheatley look-at during scenes, sequence blending: cloud/anim round 2.
 
 ## Cloud sessions (each pushes its own branch and documents checks in STATUS.md)
-- cloud/anim: crossfades, gesture layers, VCD lookat (Wheatley aims at player).
-- cloud/gels: paint on props, cleansers, paint bombs, bounce/speed tuning.
+- cloud/anim round 2 MERGED (crossfades, gesture layers, VCD lookat). Only
+  smoke-tested (Wheatley renders, no panics): run its STATUS checklist
+  ("cloud/anim (round 2)") in sp_a1_intro1/intro7, esp. Wheatley looking at you.
+- cloud/gels MERGED (paint on props, cleansers, paint bombs, bounce/speed
+  tuning). Not tested in game: run its STATUS checklist ("cloud/gels") in
+  sp_a3_jump_intro, sp_a3_speed_ramp, sp_a3_portal_intro.
 - cloud/projtex: env_projectedtexture lights with shadows.
 - cloud/saves: autosave/quicksave/load, Continue/Load Game menu entries.
 - cloud/ui: round 2 done and merged.
