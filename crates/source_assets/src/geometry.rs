@@ -279,9 +279,17 @@ impl<'a> FaceBuilder<'a> {
                 if base + (w * h * 4) as usize > lighting.len() {
                     break;
                 }
+                let nstyles = if std::env::var_os("P2_ALLSTYLES").is_some() { fl.styles.iter().take_while(|s| **s != 255).count().max(1) } else { 1 };
+                let stride = (w * h * 4 * blocks) as usize;
                 let get = |x: u32, y: u32| {
-                    let o = base + ((y * w + x) * 4) as usize;
-                    pack_rgb9e5(bsp_raw::rgbexp_to_linear(&lighting[o..o + 4]))
+                    let mut c = Vec3::ZERO;
+                    for k in 0..nstyles {
+                        let o = base + k * stride + ((y * w + x) * 4) as usize;
+                        if let Some(t) = lighting.get(o..o + 4) {
+                            c += bsp_raw::rgbexp_to_linear(t);
+                        }
+                    }
+                    pack_rgb9e5(c)
                 };
                 let bx = x0 + block * (w + 2);
                 // copy with a 1-texel clamped border

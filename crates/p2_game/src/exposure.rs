@@ -39,10 +39,11 @@ const PROBE_H: u32 = 36;
 /// The probe renders every this many frames.
 const PROBE_EVERY: u32 = 3;
 
-/// Brightness the view's typical (60th percentile) texel is scaled to,
-/// tuned so lit chambers reach their maximum exposure and the dark parts of
-/// the game open up the way they do in Portal 2.
-const TARGET: f32 = 0.45;
+/// Brightness (linear) the view's 60th percentile texel is scaled to,
+/// matched against footage of the real game: the relaxation vault before
+/// stasis comes out at ~1 (its range 1..1.5), dark arrival areas and the
+/// wrecked vault at their maximum.
+const TARGET: f32 = 0.08;
 
 #[derive(Resource, Debug, Clone, Copy)]
 pub struct AutoExposure {
@@ -73,9 +74,9 @@ pub struct ExposureProbe {
 #[derive(Component)]
 struct ProbeCamera;
 
-/// Opt-in (`P2_AUTOEXPOSURE`) until the target brightness is calibrated.
+/// On unless `P2_NOAUTOEXPOSURE` (or a fixed `P2_EXPOSURE`) is set.
 fn enabled() -> bool {
-    std::env::var_os("P2_AUTOEXPOSURE").is_some() && std::env::var_os("P2_EXPOSURE").is_none()
+    std::env::var_os("P2_NOAUTOEXPOSURE").is_none() && std::env::var_os("P2_EXPOSURE").is_none()
 }
 
 fn tonemap_inputs(mut inputs: MessageReader<EntInput>, ents: Option<Res<Ents>>, mut auto: ResMut<AutoExposure>, mut loaded: MessageReader<LevelLoaded>, mut probe: ResMut<ExposureProbe>) {
