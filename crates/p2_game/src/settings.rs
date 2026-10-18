@@ -16,7 +16,7 @@ pub struct SettingsPlugin;
 
 impl Plugin for SettingsPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Settings::load()).add_systems(Update, apply_settings).add_systems(Last, limit_frame_rate);
+        app.insert_resource(Settings::load()).add_systems(Update, (learn_display_modes, apply_settings, autosave_settings).chain()).add_systems(Last, limit_frame_rate);
     }
 }
 
@@ -184,9 +184,39 @@ pub fn step_in<T: Copy + PartialEq>(list: &[T], current: T, dir: i32, rank: impl
     }
 }
 
-/// Native first, then the fixed sizes smallest to largest.
+/// The primary display's own modes (pixel sizes), smallest first, filled in
+/// once the window is up. Portal 2 lists the display's modes, not a fixed
+/// table: a size the display can't show would quietly fall back to native.
+static DISPLAY_MODES: std::sync::Mutex<Vec<UVec2>> = std::sync::Mutex::new(Vec::new());
+
+/// Native first, then the display's sizes (or a fixed table before the
+/// display is known) smallest to largest.
 pub fn resolution_choices() -> Vec<Option<UVec2>> {
-    std::iter::once(None).chain(RESOLUTIONS.iter().map(|&(w, h)| Some(UVec2::new(w, h)))).collect()
+    // The usual sizes (for a window) and every size the display has (fullscreen).
+    let mut sizes: Vec<UVec2> = RESOLUTIONS.iter().map(|&(w, h)| UVec2::new(w, h)).collect();
+    sizes.extend(DISPLAY_MODES.lock().map(|m| m.clone()).unwrap_or_default());
+    sizes.sort_by_key(|s| (s.x * s.y, s.x));
+    sizes.dedup();
+    std::iter::once(None).chain(sizes.into_iter().map(Some)).collect()
+}
+
+fn learn_display_modes(monitors: Query<(&Monitor, Has<PrimaryMonitor>)>, mut done: Local<bool>) {
+    if *done {
+        return;
+    }
+    let mut mons: Vec<_> = monitors.iter().collect();
+    mons.sort_by_key(|(_, primary)| !primary);
+    let Some((m, _)) = mons.first() else { return };
+    let mut sizes: Vec<UVec2> = m.video_modes.iter().map(|v| v.physical_size).filter(|s| s.x >= 640 && s.y >= 480).collect();
+    sizes.sort_by_key(|s| (s.x * s.y, s.x));
+    sizes.dedup();
+    if !sizes.is_empty() {
+        info!("portal2: display modes {:?}", sizes);
+        if let Ok(mut g) = DISPLAY_MODES.lock() {
+            *g = sizes;
+        }
+        *done = true;
+    }
 }
 
 /// For [`step_in`]: unlimited counts as the fastest.
@@ -313,6 +343,31 @@ impl Settings {
     }
 }
 
+/// Every change is written to settings.cfg (a second after the last one),
+/// and a first launch writes the defaults, so choices stick from then on.
+fn autosave_settings(time: Res<Time<Real>>, settings: Res<Settings>, mut saved: Local<Option<(Settings, f32)>>) {
+    let now = time.elapsed_secs();
+    match saved.as_mut() {
+        None => {
+            if !data_dir().join("settings.cfg").exists() {
+                settings.save();
+            }
+            *saved = Some((settings.clone(), now));
+        }
+        Some((last, at)) => {
+            if *last != *settings {
+                if now - *at > 1.0 {
+                    settings.save();
+                    *last = settings.clone();
+                    *at = now;
+                }
+            } else {
+                *at = now;
+            }
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn apply_settings(
     settings: Res<Settings>,
@@ -394,7 +449,8 @@ fn apply_settings(
         let mode_changed = applied.as_ref().is_none_or(|a| a.fullscreen != settings.fullscreen);
         if want == WindowMode::Windowed && !scripted {
             match (resolution, *launch_size) {
-                (Some(r), _) if res_changed || mode_changed => w.resolution.set(r.x as f32, r.y as f32),
+                // The setting is in pixels (as Portal 2's is), not points.
+                (Some(r), _) if res_changed || mode_changed => w.resolution.set_physical_resolution(r.x, r.y),
                 (None, Some(s)) if res_changed => w.resolution.set(s.x, s.y),
                 _ => {}
             }
