@@ -77,7 +77,7 @@ const NATIVES: &[&str] = &[
     "TryDLC1InstalledOrCatch", "UniqueString", "ShowMessage", "ScriptShowHudMessageAll", "GetDeveloperLevel", "Developer", "Msg",
     "RecordAchievementEvent", "IsLocalSplitScreen", "PrecacheMovie", "ScriptIsAlive", "AddThinkToEnt", "GetPlayerSilenced",
     "ScriptSteamShowURL", "SetDucking", "IsPlayerABot", "GetCoopSectionIndex", "GetHighestActiveBranch", "GetNumPlayersConnected",
-    "GetMapIndexInPlayOrder", "GetNumMapsPlayed",
+    "GetMapIndexInPlayOrder", "GetNumMapsPlayed", "regexp",
 ];
 
 /// The engine as scripts see it, for one call.
@@ -229,6 +229,9 @@ impl Host for GameHost<'_> {
             // Community-map play order; -2 means "not a community map".
             "GetMapIndexInPlayOrder" => Value::Int(-2),
             "GetNumMapsPlayed" => Value::Int(0),
+            // Only made for the engine's own output-hook helpers (we hook
+            // outputs natively), so the pattern string stands in for it.
+            "regexp" => a(0),
             "ScriptIsAlive" => Value::Bool(ent_of(&a(0)).is_some_and(|i| !self.ents.list[i].killed)),
             "UniqueString" => Value::Str(format!("u{}_{}", self.rand(), s(&a(0))).into()),
             "AddThinkToEnt" => {

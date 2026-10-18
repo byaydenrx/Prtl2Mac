@@ -21,6 +21,7 @@ mod io;
 mod lasers;
 mod level;
 mod movers;
+mod paint;
 mod portals;
 mod props;
 mod scenes;
@@ -84,6 +85,7 @@ fn main() {
             bridges::BridgesPlugin,
             tractor::TractorPlugin,
             vscripts::VScriptPlugin,
+            paint::PaintPlugin,
         ))
         .insert_resource(args)
         .add_plugins(p2_room::HarnessPlugin);

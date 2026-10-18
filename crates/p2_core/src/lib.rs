@@ -189,6 +189,17 @@ impl NoPortalVolumes {
     }
 }
 
+/// Spots of portal gel (white paint): centre, surface normal, radius
+/// (metres). Any surface takes portals where it is covered.
+#[derive(Resource, Clone, Debug, Default)]
+pub struct PortalGel(pub Vec<(Vec3, Vec3, f32)>);
+
+impl PortalGel {
+    pub fn covers(&self, p: Vec3) -> bool {
+        self.0.iter().any(|(c, n, r)| (p - *c).dot(*n).abs() < 2.0 * 0.0254 && p.distance_squared(*c) <= r * r)
+    }
+}
+
 /// Set to disable all keyboard/mouse reading (scripted runs, tests).
 #[derive(Resource, Clone, Copy, Debug, Default)]
 pub struct InputLocked(pub bool);
@@ -528,6 +539,7 @@ impl Plugin for CorePlugin {
         }
         app.init_resource::<InputLocked>()
             .init_resource::<NoPortalVolumes>()
+            .init_resource::<PortalGel>()
             .init_resource::<LocalEye>()
             .add_message::<FirePortal>()
             .add_message::<GunFired>()

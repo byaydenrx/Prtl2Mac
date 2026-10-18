@@ -17,7 +17,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use p2_core::{
-    Crouch, FirePortal, GunFired, InputLocked, InterpolatedFeet, P2Systems, Portal, PortalClosed, PortalGun, PortalHelperCollider, NoPortalVolumes,
+    Crouch, FirePortal, GunFired, InputLocked, InterpolatedFeet, P2Systems, Portal, PortalClosed, PortalGun, PortalHelperCollider, NoPortalVolumes, PortalGel,
     PortalKind, PortalLink, PortalPlaced, PortalShotFailed, Portalable, ShotFailReason, ViewAngles, PORTAL_HALF_SIZE,
 };
 
@@ -153,7 +153,7 @@ fn fire(
     mut guns: Query<(&mut PortalGun, &mut GunTimer, &InterpolatedFeet, &Crouch, &ViewAngles)>,
     portals: Query<(Entity, &Portal, &Transform, Option<&PortalLink>)>,
     spatial: SpatialQuery,
-    noportal: Option<Res<NoPortalVolumes>>,
+    (noportal, gel): (Option<Res<NoPortalVolumes>>, Option<Res<PortalGel>>),
     (helpers, sensors, bodies, body_of, portalable_q): (
         Query<(), With<PortalHelperCollider>>,
         Query<(), With<Sensor>>,
@@ -192,7 +192,9 @@ fn fire(
             body == player || matches!(bodies.get(body), Ok(RigidBody::Dynamic))
         };
         // Any collider (or its body) tagged Portalable takes a portal.
-        let portalable = |e: Entity| portalable_q.contains(e) || body_of.get(e).is_ok_and(|c| portalable_q.contains(c.body));
+        let portalable = |e: Entity, p: Vec3| {
+            portalable_q.contains(e) || body_of.get(e).is_ok_and(|c| portalable_q.contains(c.body)) || gel.as_ref().is_some_and(|g| g.covers(p))
+        };
         let world = PhysicsWorld {
             spatial: &spatial,
             filter: SpatialQueryFilter::from_excluded_entities([player]),

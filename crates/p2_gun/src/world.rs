@@ -13,8 +13,9 @@ pub struct PhysicsWorld<'a> {
     pub filter: SpatialQueryFilter,
     /// True for colliders a shot passes through.
     pub skip: &'a dyn Fn(Entity) -> bool,
-    /// True for colliders (or bodies) tagged `Portalable`.
-    pub portalable: &'a dyn Fn(Entity) -> bool,
+    /// True for colliders (or bodies) tagged `Portalable`, or a point
+    /// covered in portal gel.
+    pub portalable: &'a dyn Fn(Entity, Vec3) -> bool,
 }
 
 impl World for PhysicsWorld<'_> {
@@ -24,7 +25,7 @@ impl World for PhysicsWorld<'_> {
         Some(Hit { entity: h.entity, point: origin + dir * h.distance, normal: h.normal, distance: h.distance })
     }
 
-    fn portalable(&self, entity: Entity) -> bool {
-        (self.portalable)(entity)
+    fn portalable(&self, entity: Entity, point: Vec3) -> bool {
+        (self.portalable)(entity, point)
     }
 }

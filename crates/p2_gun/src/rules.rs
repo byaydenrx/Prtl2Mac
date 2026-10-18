@@ -25,8 +25,9 @@ pub trait World {
     /// Nearest solid hit along `origin + t * dir` for `0 <= t <= max`.
     /// `dir` is unit length.
     fn ray(&self, origin: Vec3, dir: Vec3, max: f32) -> Option<Hit>;
-    /// Whether the surface of this entity takes portals (`Portalable`).
-    fn portalable(&self, entity: Entity) -> bool;
+    /// Whether the surface of this entity takes portals at `point`
+    /// (`Portalable`, or covered in portal gel there).
+    fn portalable(&self, entity: Entity, point: Vec3) -> bool;
 }
 
 /// Max bump rounds (`FitPortalOnSurface` depth 5).
@@ -44,7 +45,7 @@ pub fn max_slide(half: Vec2) -> f32 {
 /// at one unit. Returns that surface's entity.
 pub fn surface_at(w: &dyn World, p: Vec3, n: Vec3) -> Option<Entity> {
     let h = w.ray(p + n * U, -n, 2.0 * U)?;
-    (h.distance > 0.0 && (h.distance - U).abs() < 0.5 * U && h.normal.dot(n) > 0.98 && w.portalable(h.entity))
+    (h.distance > 0.0 && (h.distance - U).abs() < 0.5 * U && h.normal.dot(n) > 0.98 && w.portalable(h.entity, h.point))
         .then_some(h.entity)
 }
 
@@ -288,7 +289,7 @@ pub fn place(
     half: Vec2,
     others: &[Open],
 ) -> Result<Placed, ShotFailReason> {
-    if !w.portalable(hit.entity) {
+    if !w.portalable(hit.entity, hit.point) {
         return Err(ShotFailReason::NotPortalable);
     }
     let frame = initial_frame(hit.point, hit.normal, shot_dir).ok_or(ShotFailReason::DoesNotFit)?;
@@ -428,7 +429,7 @@ mod tests {
             }
             best
         }
-        fn portalable(&self, e: Entity) -> bool {
+        fn portalable(&self, e: Entity, _p: Vec3) -> bool {
             self.0.iter().find(|q| q.e == e).is_some_and(|q| q.portalable)
         }
     }
