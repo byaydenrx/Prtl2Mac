@@ -23,6 +23,7 @@ mod scenes;
 mod settings;
 mod triggers;
 mod ui;
+mod viewcontrol;
 
 /// What the command line asked for.
 #[derive(Resource, Clone, Debug, Default)]
@@ -65,6 +66,7 @@ fn main() {
             autopilot::AutopilotPlugin,
             scenes::ScenesPlugin,
             ai::AiPlugin,
+            viewcontrol::ViewControlPlugin,
         ))
         .insert_resource(args)
         .add_plugins(p2_room::HarnessPlugin);
