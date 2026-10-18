@@ -29,6 +29,8 @@ pub const PICKUP_CLASSES: &[&str] = &["prop_weighted_cube", "prop_monster_box", 
 const USE_RANGE: f32 = 80.0 * shared::SOURCE_UNIT;
 /// Fastest a held object moves to its target (m/s).
 const HOLD_MAX_SPEED: f32 = 1000.0 * shared::SOURCE_UNIT;
+/// How quickly a held object closes the gap to its hold point (s).
+const HOLD_CATCH_UP: f32 = 0.08;
 /// A held object pulled this far from where it should be is dropped.
 const HOLD_BREAK_DISTANCE: f32 = 64.0 * shared::SOURCE_UNIT;
 
@@ -48,6 +50,8 @@ pub struct Held {
     pub yaw_offset: f32,
     /// Distance in front of the eye.
     pub distance: f32,
+    /// How long it has been too far from its hold point (stuck on something).
+    pub stuck_for: f32,
 }
 
 /// The prop's colliders the player ignores while carrying it.
@@ -186,6 +190,9 @@ fn use_key(
             return;
         }
     }
+    if std::env::var_os("P2_TRACE").is_some() {
+        info!("TRACE use: eye {:.2?} dir {:.2?} hit {:?}", eye, dir, hit.map(|h| (h.entity, h.distance, body_of.get(h.entity).ok().map(|c| c.body))));
+    }
     let Some(hit) = hit else { return };
     let body = body_of.get(hit.entity).map_or(hit.entity, |c| c.body);
     if let Ok((prop, tf)) = props.get(body) {
@@ -203,7 +210,7 @@ fn use_key(
         let reflective = ents.as_deref().is_some_and(|e| crate::lasers::reflective(e, prop.ent));
         let yaw_offset = if reflective { std::f32::consts::FRAC_PI_2 } else { prop_yaw - view.yaw };
         commands.entity(body).insert((
-            Held { yaw_offset, distance: radius + 24.0 * shared::SOURCE_UNIT + 16.0 * shared::SOURCE_UNIT },
+            Held { stuck_for: 0.0, yaw_offset, distance: radius + 24.0 * shared::SOURCE_UNIT + 16.0 * shared::SOURCE_UNIT },
             HeldColliders(cols),
             GravityScale(0.0),
         ));
@@ -238,39 +245,74 @@ fn use_key(
     }
 }
 
-/// Carry: float the held prop in front of the eye.
+/// Carry: float the held prop in front of the eye. Looking through a
+/// portal, the hold point is carried through it (Portal 2 lets you hold a
+/// cube on the far side of a portal you're looking into).
 fn carry(
     mut commands: Commands,
     time: Res<Time>,
-    mut players: Query<(&InterpolatedFeet, &Crouch, &ViewAngles, &mut IgnoreColliders), With<Player>>,
-    mut held: Query<(Entity, &Held, &HeldColliders, &Transform, &mut LinearVelocity, &mut AngularVelocity)>,
+    mut players: Query<(Entity, &InterpolatedFeet, &Crouch, &ViewAngles, &mut IgnoreColliders), With<Player>>,
+    mut held: Query<(Entity, &mut Held, &HeldColliders, &mut Transform, &mut Position, &mut Rotation, &mut LinearVelocity, &mut AngularVelocity)>,
+    portals: Query<(&Portal, &Transform, &PortalLink), Without<Held>>,
+    all_portals: Query<&Transform, (With<Portal>, Without<Held>)>,
+    mut teleported: MessageReader<PortalTeleported>,
 ) {
-    let Ok((feet, crouch, view, mut ignore)) = players.single_mut() else { return };
+    let Ok((player, feet, crouch, view, mut ignore)) = players.single_mut() else { return };
+    // The player went through a portal: what they hold comes with them.
+    for t in teleported.read() {
+        if t.entity != player {
+            continue;
+        }
+        for (_, _, _, mut tf, mut pos, mut rot, mut lv, _) in &mut held {
+            let p = t.pair.map_point(tf.translation);
+            let r = t.pair.map_rotation(tf.rotation);
+            tf.translation = p;
+            tf.rotation = r;
+            pos.0 = p;
+            rot.0 = r;
+            lv.0 = t.pair.map_dir(lv.0);
+        }
+    }
     let dt = time.delta_secs().max(1e-4);
-    for (e, h, hc, tf, mut lv, mut av) in &mut held {
+    for (e, mut h, hc, tf, _, _, mut lv, mut av) in &mut held {
         let eye = feet.curr + Vec3::Y * crouch.eye_height;
         // Portal 2 keeps the held object level, a little below the view line.
         let pitch = view.pitch.clamp(-1.2, 1.2);
         let fwd = Quat::from_euler(EulerRot::YXZ, view.yaw, pitch, 0.0) * Vec3::NEG_Z;
-        let target = eye + fwd * h.distance - Vec3::Y * (8.0 * shared::SOURCE_UNIT);
+        let mut target = eye + fwd * h.distance - Vec3::Y * (8.0 * shared::SOURCE_UNIT);
+        let mut want = Quat::from_rotation_y(view.yaw + h.yaw_offset);
+        // The hold line passes through a portal: carry the point through.
+        for (p, ptf, link) in &portals {
+            let Ok(exit) = all_portals.get(link.0) else { continue };
+            let frame = Portal::frame(ptf);
+            if segment_crosses_opening(&frame, p.half_size, eye, target).is_some() {
+                let pair = PortalPair::new(frame, Portal::frame(exit));
+                target = pair.map_point(target);
+                want = pair.map_rotation(want);
+                break;
+            }
+        }
         let to = target - tf.translation;
-        if to.length() > HOLD_BREAK_DISTANCE {
+        // Dropped only when it stays too far (stuck behind something), not
+        // when the player whips around.
+        h.stuck_for = if to.length() > HOLD_BREAK_DISTANCE { h.stuck_for + dt } else { 0.0 };
+        if h.stuck_for > 0.5 {
             for c in &hc.0 {
                 ignore.remove(c);
             }
             commands.entity(e).remove::<(Held, HeldColliders)>().insert(GravityScale(1.0));
             continue;
         }
-        let v = to / dt;
+        // Close the gap in about a tenth of a second, as Source's held-object
+        // controller does, instead of snapping every tick (jitter).
+        let v = to / dt.max(HOLD_CATCH_UP);
         lv.0 = v.clamp_length_max(HOLD_MAX_SPEED);
-        // Upright, turned with the player.
-        let want = Quat::from_rotation_y(view.yaw + h.yaw_offset);
         let delta = want * tf.rotation.inverse();
         let (axis, mut angle) = delta.to_axis_angle();
         if angle > std::f32::consts::PI {
             angle -= std::f32::consts::TAU;
         }
-        av.0 = if axis.is_finite() { axis * angle / dt * 0.5 } else { Vec3::ZERO };
+        av.0 = if axis.is_finite() { axis * angle / dt.max(HOLD_CATCH_UP) } else { Vec3::ZERO };
     }
 }
 
@@ -296,6 +338,11 @@ fn prop_transit(
         seen.insert(e);
         let now = pos.0;
         let before = last.insert(e, now).unwrap_or(now);
+        // Moved by a teleport (carried through with the player), not by
+        // flying through an opening.
+        if before.distance(now) > 2.0 {
+            continue;
+        }
         for (from, to, frame, half, pair, n_in, n_out) in &pairs {
             if segment_crosses_opening(frame, *half, before, now).is_none() {
                 continue;
