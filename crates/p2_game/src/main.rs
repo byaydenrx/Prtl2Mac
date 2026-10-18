@@ -34,6 +34,8 @@ mod settings;
 mod speedrun;
 mod splits;
 mod tool_settings;
+#[cfg(test)]
+mod tools_tests;
 mod templates;
 mod tractor;
 mod triggers;

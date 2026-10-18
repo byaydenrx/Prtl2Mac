@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn toggle_profile_and_rollback() {
-        // The only test that moves the data folder.
+        let _env = crate::tools_tests::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let dir = std::env::temp_dir().join(format!("p2-modspage-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::env::set_var("P2_DATA_DIR", &dir);
