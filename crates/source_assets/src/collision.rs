@@ -100,7 +100,9 @@ pub fn brush_sides(bsp: &vbsp::Bsp, bi: usize, texinfo_material: &dyn Fn(i16) ->
             (
                 DVec3::new(p.normal.x as f64, p.normal.y as f64, p.normal.z as f64),
                 p.dist as f64,
-                s.bevel != 0,
+                // BSP v21 dbrushside_t: `bevel` and `thin` are one byte each,
+                // read together here; only the low byte marks a bevel plane.
+                s.bevel & 0xff != 0,
             )
         })
         .collect();

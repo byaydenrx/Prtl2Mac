@@ -55,6 +55,9 @@ pub struct LoadedMap {
     pub overlays: Vec<BrushMesh>,
     pub lightmap: LightmapAtlas,
     pub colliders: Vec<ColliderData>,
+    /// World displacement surfaces as one triangle mesh (world axes, metres):
+    /// solid terrain the brush colliders don't cover.
+    pub displacement_collision: MeshData,
     pub entities: Vec<SourceEntity>,
     /// Brush model index -> entity index using it.
     pub brush_model_entity: HashMap<usize, usize>,
@@ -451,6 +454,15 @@ pub fn load_map(fs: &GameFs, surfprops: &SurfaceProps, name: &str) -> anyhow::Re
         })
         .collect();
     brush_meshes.sort_by_key(|b| (b.model, b.material));
+    // Displacements are surfaces, not brushes: collide with their triangles.
+    let mut displacement_collision = MeshData::default();
+    if let Some((_, world_faces)) = faces_by_model.iter().find(|(m, _)| *m == 0) {
+        for &f in world_faces {
+            if bsp.faces[f].displacement_info >= 0 {
+                fb.build_face(f, &mut displacement_collision, Vec3::ZERO);
+            }
+        }
+    }
     // info_overlays (signs, stains): quads lit by the face they sit on.
     let mut overlays: Vec<BrushMesh> = Vec::new();
     for ov in bsp_raw::parse_overlays(&raw) {
@@ -756,6 +768,7 @@ pub fn load_map(fs: &GameFs, surfprops: &SurfaceProps, name: &str) -> anyhow::Re
         materials,
         material_index,
         brush_meshes,
+        displacement_collision,
         overlays,
         lightmap,
         colliders,

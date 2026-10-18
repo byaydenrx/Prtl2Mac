@@ -48,6 +48,8 @@ pub struct MovementConfig {
     pub mouse_sensitivity: f32,
     /// Pitch clamp, degrees either way.
     pub pitch_limit_deg: f32,
+    /// Mouse up looks down (Source `m_pitch` negative).
+    pub invert_pitch: bool,
     /// Steer airborne players into floor and ceiling portals (`sv_player_funnel_into_portals`).
     pub funnel_into_portals: bool,
 }
@@ -74,6 +76,7 @@ impl Default for MovementConfig {
             mouse_m_yaw_deg: 0.022,
             mouse_sensitivity: 3.0,
             pitch_limit_deg: 89.0,
+            invert_pitch: false,
             funnel_into_portals: true,
         }
     }

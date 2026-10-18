@@ -143,7 +143,8 @@ pub fn look(cfg: &MovementConfig, yaw: f32, pitch: f32, counts: Vec2) -> (f32, f
     let k = cfg.radians_per_count();
     let limit = cfg.pitch_limit_deg.to_radians();
     let yaw = (yaw - counts.x * k).rem_euclid(2.0 * PI);
-    let pitch = (pitch - counts.y * k).clamp(-limit, limit);
+    let sign = if cfg.invert_pitch { -1.0 } else { 1.0 };
+    let pitch = (pitch - counts.y * k * sign).clamp(-limit, limit);
     (yaw, pitch)
 }
 

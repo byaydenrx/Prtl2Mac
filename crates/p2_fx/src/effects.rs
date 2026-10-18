@@ -357,7 +357,8 @@ fn sync_gun_top_light(
         let Ok(mut fx) = effects.get_mut(e) else { continue };
         match att.top_light {
             Some(pose) => {
-                fx.visible = true;
+                // Hosts can hide it at run time (no gun yet, menus).
+                fx.visible = settings.top_light;
                 // Eye space: the attachment relative to the eye.
                 let eye = eye_of(feet, crouch, view, fixed.overstep_fraction());
                 let inv = eye.compute_affine().inverse();

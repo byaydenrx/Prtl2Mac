@@ -740,6 +740,13 @@ pub fn spawn_loaded_map(
     for c in &map.colliders {
         spawn_collider(commands, c, model_parent.get(&(c.model as usize)).copied().unwrap_or(root));
     }
+    // Displacement terrain: one triangle mesh, not portalable.
+    let dc = &map.displacement_collision;
+    if dc.indices.len() >= 3 {
+        let verts: Vec<Vec3> = dc.positions.iter().map(|p| Vec3::from(*p)).collect();
+        let tris: Vec<[u32; 3]> = dc.indices.chunks_exact(3).map(|t| [t[0], t[1], t[2]]).collect();
+        commands.spawn((Name::new("displacement collision"), Collider::trimesh(verts, tris), Transform::IDENTITY, ChildOf(root)));
+    }
 
     // Model surfaces on Valve shaders share these per-map inputs.
     let vhv_ctx = use_valve.then(|| ValveCtx {
@@ -881,6 +888,10 @@ pub fn spawn_loaded_map(
                 if let Some(tn) = &e.targetname {
                     commands.entity(ent).insert(Name::new(format!("{} {tn}", e.classname)));
                 }
+                // Entity props collide too unless `solid` is 0 (not solid).
+                if e.get("solid").map(str::trim) != Some("0") {
+                    spawn_prop_collider(commands, model, ent);
+                }
                 spawned = Some(ent);
                 bounds_e = Some(model_bounds(model));
             }
@@ -890,9 +901,8 @@ pub fn spawn_loaded_map(
                 spawned = model_entities.iter().find(|x| x.0 == m).map(|x| x.2);
             }
         }
-        if kind == MapEntityKind::Other && spawned.is_none() {
-            continue;
-        }
+        // Logic entities (relays, triggers, counters...) are kept too: a game
+        // runs the level's I/O on them.
         let idx = entities_out.len();
         if let Some(s) = spawned {
             commands.entity(s).insert(SourceEntityRef { kind, index: idx });

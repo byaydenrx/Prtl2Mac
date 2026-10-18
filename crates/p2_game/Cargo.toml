@@ -1,0 +1,29 @@
+[package]
+name = "p2_game"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The game: Portal 2's levels from the player's own install, with menus, music and puzzle entities, on the p2 crates."
+
+[[bin]]
+name = "portal2"
+path = "src/main.rs"
+
+[dependencies]
+bevy = { workspace = true, features = ["wav", "mp3"] }
+avian3d = { workspace = true }
+shared = { path = "../shared" }
+source_assets = { path = "../source_assets" }
+vbsp = "0.9.1"
+anyhow = "1"
+p2_core = { path = "../p2_core" }
+p2_portals = { path = "../p2_portals" }
+p2_assets = { path = "../p2_assets" }
+p2_room = { path = "../p2_room" }
+p2_movement = { path = "../p2_movement" }
+p2_view = { path = "../p2_view" }
+p2_gun = { path = "../p2_gun" }
+p2_render = { path = "../p2_render" }
+p2_fx = { path = "../p2_fx" }
+p2_transit = { path = "../p2_transit" }
+p2_body = { path = "../p2_body" }
