@@ -4,12 +4,16 @@
 //! Like Portal 2, Options is a list of categories (Keyboard/Mouse,
 //! Controller, Audio, Video); each opens its own dialog, and some dialogs
 //! open a further one (Customize keyboard, Advanced video, and our
-//! Subtitle style page). One function per page returns its rows. To add a
+//! Subtitle style page). Our launcher-type pages (Speedrun, Mods) are two
+//! more categories in the same list, so the main and pause menus keep
+//! Portal 2's buttons. One function per page returns its rows. To add a
 //! page: a variant in [`OptionsPage`], its parent, title and footer, a
 //! function returning its rows, and a link row on its parent.
 use bevy::math::UVec2;
 
 use crate::bindings::{key_label, BindTable, KeyAction};
+use crate::mods_page::ModsPage;
+use crate::tool_settings::{key_name, SpeedrunMode, BIND_KEYS, CHECKPOINT_SLOTS};
 use crate::settings::{
     frame_limit_rank, step_in, CaptionMode, Settings, Speakers, SubtitleColor, ANISOTROPY, FOV_RANGE, FRAME_LIMITS, GAMMA_RANGE, LANGUAGES, RESOLUTIONS,
     SUBTITLE_SIZES,
@@ -29,6 +33,10 @@ pub enum OptionsPage {
     Subtitles,
     Video,
     AdvancedVideo,
+    /// Speedrun timer, quick restart and practice checkpoints.
+    Speedrun,
+    /// The installed mods and the mod profile.
+    Mods,
 }
 
 /// The buttons along the bottom of a dialog.
@@ -60,7 +68,7 @@ impl OptionsPage {
     pub fn parent(self) -> Option<OptionsPage> {
         match self {
             Self::List => None,
-            Self::KeyboardMouse | Self::Controller | Self::Audio | Self::Video => Some(Self::List),
+            Self::KeyboardMouse | Self::Controller | Self::Audio | Self::Video | Self::Speedrun | Self::Mods => Some(Self::List),
             Self::Keys => Some(Self::KeyboardMouse),
             Self::Subtitles => Some(Self::Audio),
             Self::AdvancedVideo => Some(Self::Video),
@@ -77,6 +85,8 @@ impl OptionsPage {
             Self::Subtitles => "SUBTITLE STYLE",
             Self::Video => "VIDEO",
             Self::AdvancedVideo => "ADVANCED VIDEO",
+            Self::Speedrun => "SPEEDRUN",
+            Self::Mods => "MODS",
         }
     }
 
@@ -85,6 +95,8 @@ impl OptionsPage {
             Self::List => &[Footer::Back],
             Self::Keys => &[Footer::UseDefaults, Footer::ClearKey, Footer::Done, Footer::Cancel],
             Self::Video => &[Footer::Apply, Footer::Done, Footer::Cancel],
+            // Mod changes are written as they're made (with their own undo).
+            Self::Mods => &[Footer::Done],
             _ => &[Footer::Done, Footer::Cancel],
         }
     }
@@ -135,6 +147,17 @@ pub enum Setting {
     DevConsole,
     ShowFps,
     ShowPos,
+    // Speedrun
+    SpeedrunTimer,
+    SpeedrunMode,
+    QuickRestart,
+    QuickRestartKey,
+    Practice,
+    SaveCheckpointKey,
+    LoadCheckpointKey,
+    CheckpointSlot,
+    // Mods: the profile, which ui.rs steps through the mod store.
+    ModProfile,
 }
 
 /// Resolution and display mode as picked on the Video page; they take
@@ -212,6 +235,8 @@ pub struct Ctx<'a> {
     /// The key-list row waiting for a key.
     pub capture: Option<usize>,
     pub selected: Option<usize>,
+    /// The Mods page's view of the mod store.
+    pub mods: Option<&'a ModsPage>,
 }
 
 /// One line of a page.
@@ -227,6 +252,12 @@ pub enum Row {
     Link { label: String, page: OptionsPage },
     /// A key-list row: the command's keys; `index` into the key list.
     Key { label: String, keys: String, index: usize, selected: bool },
+    /// An installed mod, on or off; `index` into the Mods page's list.
+    Mod { label: String, value: String, index: usize },
+    /// Undo the last mod change (`value` says what it was).
+    Rollback { value: String },
+    /// A line of text; `error` shows it as a problem.
+    Note { text: String, error: bool },
 }
 
 fn choice(label: &str, value: impl Into<String>, setting: Setting) -> Row {
@@ -366,6 +397,8 @@ pub fn rows(page: OptionsPage, s: &Settings, ctx: &Ctx) -> Vec<Row> {
         OptionsPage::Subtitles => subtitle_rows(s),
         OptionsPage::Video => video_rows(s, ctx),
         OptionsPage::AdvancedVideo => advanced_video_rows(s),
+        OptionsPage::Speedrun => speedrun_rows(s),
+        OptionsPage::Mods => mods_rows(ctx),
     }
 }
 
@@ -376,7 +409,61 @@ fn list_rows() -> Vec<Row> {
         link("CONTROLLER", OptionsPage::Controller),
         link("AUDIO", OptionsPage::Audio),
         link("VIDEO", OptionsPage::Video),
+        link("SPEEDRUN", OptionsPage::Speedrun),
+        link("MODS", OptionsPage::Mods),
     ]
+}
+
+/// `FULL RUN` -> `Full run`.
+fn sentence(s: &str) -> String {
+    let lower = s.to_lowercase();
+    let mut c = lower.chars();
+    c.next().map_or(String::new(), |f| f.to_uppercase().chain(c).collect())
+}
+
+fn speedrun_rows(s: &Settings) -> Vec<Row> {
+    let t = &s.tools;
+    vec![
+        choice("Speedrun timer", on_off(t.speedrun_timer), Setting::SpeedrunTimer),
+        choice("Timer mode", sentence(t.speedrun_mode.label()), Setting::SpeedrunMode),
+        choice("Quick restart", on_off(t.quick_restart), Setting::QuickRestart),
+        choice("Quick restart key", key_name(t.quick_restart_key), Setting::QuickRestartKey),
+        choice("Practice checkpoints", on_off(t.practice), Setting::Practice),
+        choice("Save checkpoint key", key_name(t.checkpoint_save_key), Setting::SaveCheckpointKey),
+        choice("Load checkpoint key", key_name(t.checkpoint_load_key), Setting::LoadCheckpointKey),
+        choice("Checkpoint slot", t.checkpoint_slot.to_string(), Setting::CheckpointSlot),
+        Row::Note {
+            text: "Splits and personal bests are saved in the splits folder next to settings.cfg. Runs with sv_cheats or a loaded checkpoint never count as a personal best.".into(),
+            error: false,
+        },
+    ]
+}
+
+fn mods_rows(ctx: &Ctx) -> Vec<Row> {
+    let default = ModsPage::default();
+    let m = ctx.mods.unwrap_or(&default);
+    let profile = if m.profile.is_empty() { p2_mods::DEFAULT_PROFILE.to_string() } else { m.profile.clone() };
+    let mut rows = vec![choice("Profile", profile, Setting::ModProfile)];
+    if m.mods.is_empty() {
+        rows.push(Row::Note { text: "No mods installed. Add them with the p2mods tool: p2mods install <folder or .zip>".into(), error: false });
+    }
+    for (index, r) in m.mods.iter().enumerate() {
+        rows.push(Row::Mod { label: format!("{} {}", r.name, r.version), value: on_off(r.enabled).into(), index });
+    }
+    if let Some(u) = &m.undo {
+        rows.push(Row::Rollback { value: u.clone() });
+    }
+    for (error, text) in &m.issues {
+        rows.push(Row::Note { text: text.clone(), error: *error });
+    }
+    let mut note = m.note.clone();
+    if m.restart_needed {
+        note = format!("{note}  Restart the game to load the changes.").trim().to_string();
+    }
+    if !note.is_empty() {
+        rows.push(Row::Note { text: note, error: false });
+    }
+    rows
 }
 
 fn keyboard_mouse_rows(s: &Settings) -> Vec<Row> {
@@ -516,6 +603,20 @@ pub fn adjust(s: &mut Settings, video: &mut VideoMode, native: UVec2, setting: S
         Setting::MotionBlur => flip(&mut s.motion_blur),
         Setting::Graphics => flip(&mut s.enhanced_graphics),
         Setting::DevConsole => flip(&mut s.tools.dev_console),
+        Setting::SpeedrunTimer => flip(&mut s.tools.speedrun_timer),
+        Setting::QuickRestart => flip(&mut s.tools.quick_restart),
+        Setting::Practice => flip(&mut s.tools.practice),
+        Setting::SpeedrunMode => s.tools.speedrun_mode = pick(&SpeedrunMode::ALL, s.tools.speedrun_mode, dir, wrap),
+        Setting::QuickRestartKey | Setting::SaveCheckpointKey | Setting::LoadCheckpointKey => {
+            let t = &mut s.tools;
+            let key = match setting {
+                Setting::QuickRestartKey => &mut t.quick_restart_key,
+                Setting::SaveCheckpointKey => &mut t.checkpoint_save_key,
+                _ => &mut t.checkpoint_load_key,
+            };
+            *key = pick(&BIND_KEYS.map(|k| k.0), *key, dir, wrap);
+        }
+        Setting::CheckpointSlot => s.tools.checkpoint_slot = pick(&(1..=CHECKPOINT_SLOTS).collect::<Vec<_>>(), s.tools.checkpoint_slot, dir, wrap),
         Setting::ShowFps => flip(&mut s.tools.show_fps),
         Setting::ShowPos => flip(&mut s.tools.show_pos),
         Setting::DisplayMode => flip(&mut video.fullscreen),
@@ -560,7 +661,7 @@ mod tests {
     const NATIVE: UVec2 = UVec2::new(2560, 1600);
 
     fn ctx<'a>(keys: &'a [KeyAction], binds: &'a BindTable, video: VideoMode) -> Ctx<'a> {
-        Ctx { native: NATIVE, video, keys, binds, capture: None, selected: None }
+        Ctx { native: NATIVE, video, keys, binds, capture: None, selected: None, mods: None }
     }
 
     #[test]
@@ -578,6 +679,8 @@ mod tests {
             OptionsPage::Subtitles,
             OptionsPage::Video,
             OptionsPage::AdvancedVideo,
+            OptionsPage::Speedrun,
+            OptionsPage::Mods,
         ] {
             assert!(!rows(page, &s, &c).is_empty(), "{page:?}");
             assert!(page.footer().iter().any(|f| matches!(f, Footer::Back | Footer::Done)), "{page:?}");
@@ -588,6 +691,62 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn speedrun_page_steps_like_before() {
+        // The values the old Speedrun page's clicks gave.
+        let mut s = Settings::default();
+        let mut v = VideoMode::of(&s);
+        for (setting, dir) in [
+            (Setting::SpeedrunTimer, 1),
+            (Setting::SpeedrunMode, 1),
+            (Setting::QuickRestart, 1),
+            (Setting::QuickRestartKey, 1),
+            (Setting::Practice, 1),
+            (Setting::SaveCheckpointKey, -1),
+            (Setting::LoadCheckpointKey, 1),
+            (Setting::CheckpointSlot, 1),
+        ] {
+            adjust(&mut s, &mut v, NATIVE, setting, dir, false);
+        }
+        let t = &s.tools;
+        assert!(t.speedrun_timer && t.quick_restart && t.practice);
+        assert_eq!(t.speedrun_mode, SpeedrunMode::SingleMap);
+        use bevy::input::keyboard::KeyCode;
+        assert_eq!((t.quick_restart_key, t.checkpoint_save_key, t.checkpoint_load_key, t.checkpoint_slot), (KeyCode::F7, KeyCode::F6, KeyCode::F9, 2));
+        let keys = crate::bindings::builtin_actions();
+        let binds = BindTable::builtin();
+        let c = ctx(&keys, &binds, v);
+        assert!(rows(OptionsPage::Speedrun, &s, &c).contains(&choice("Timer mode", "Single map", Setting::SpeedrunMode)));
+        // The mode wraps when its value is clicked.
+        adjust(&mut s, &mut v, NATIVE, Setting::SpeedrunMode, 1, true);
+        assert_eq!(s.tools.speedrun_mode, SpeedrunMode::FullRun);
+    }
+
+    #[test]
+    fn mods_page_rows() {
+        let s = Settings::default();
+        let keys = crate::bindings::builtin_actions();
+        let binds = BindTable::builtin();
+        let mut page = ModsPage { profile: "speedrun".into(), ..Default::default() };
+        page.mods.push(crate::mods_page::ModRow { id: "cubes".into(), name: "Better Cubes".into(), version: "1.0.0".into(), enabled: true });
+        page.undo = Some("enable cubes 1.0.0".into());
+        page.issues.push((true, "cubes: needs 2.0".into()));
+        page.restart_needed = true;
+        let mut c = ctx(&keys, &binds, VideoMode::of(&s));
+        c.mods = Some(&page);
+        let r = rows(OptionsPage::Mods, &s, &c);
+        assert_eq!(r[0], choice("Profile", "speedrun", Setting::ModProfile));
+        assert_eq!(r[1], Row::Mod { label: "Better Cubes 1.0.0".into(), value: "Enabled".into(), index: 0 });
+        assert_eq!(r[2], Row::Rollback { value: "enable cubes 1.0.0".into() });
+        assert_eq!(r[3], Row::Note { text: "cubes: needs 2.0".into(), error: true });
+        assert_eq!(r[4], Row::Note { text: "Restart the game to load the changes.".into(), error: false });
+        // No mod store: the default profile and how to add mods.
+        c.mods = None;
+        let r = rows(OptionsPage::Mods, &s, &c);
+        assert_eq!(r[0], choice("Profile", p2_mods::DEFAULT_PROFILE, Setting::ModProfile));
+        assert!(matches!(&r[1], Row::Note { text, .. } if text.contains("p2mods install")));
     }
 
     #[test]
