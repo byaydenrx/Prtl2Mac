@@ -23,8 +23,17 @@ input and stay windowed. Screenshots of a covered/background window can come
 out black (macOS stops drawing it) — not a game bug.
 
 Autopilot extras: `input <target> <input> [param]` sends a map input,
-`ray x y z` logs what is below a Source point. `P2_TRACE=1` also logs
-laser legs and catapult launches.
+`ray x y z` logs what is below a Source point, `click <Action>` presses a
+menu button by its action (`click pause`, `click Options`,
+`click Toggle(VSync)`, `click Adjust(Fov,5.0)`; an unknown name logs the
+buttons on screen). The script clock is real time (menus pause the world).
+`P2_TRACE=1` also logs laser legs, catapult launches, trigger_look and gel
+bounces; `RUST_LOG=...,portal2=debug` logs portal shot results and
+no-portal volumes.
+
+Scripted runs never write the player's settings.cfg/save.txt; set
+`P2_DATA_DIR=/some/dir` to give them a test data folder (it also moves the
+normal data folder for any run).
 
 Tools: `cargo run -p source_assets --example ents -- MAP [class|targetname|*N]`,
 `--example ls -- PREFIX` / `-- --cat PATH` / `-- --fmt PREFIX`, `--example pak -- MAP`,
@@ -32,8 +41,10 @@ Tools: `cargo run -p source_assets --example ents -- MAP [class|targetname|*N]`,
 
 ## Works
 
-Menus (main, chapter select, options incl. FOV/sensitivity/invert/smoothing/
-subtitles/fullscreen, pause), autosave/continue, campaign order + chapter
+Menus (main, chapter select, pause, options: volumes, mouse, FOV 75..110,
+fullscreen, resolution, v-sync, frame limit, MSAA, anisotropic filtering,
+Original/Enhanced preset (stored only), and a Subtitles page with size,
+colour and background), autosave/continue, campaign order + chapter
 titles from `sp_transition_list.nut`, level loading/exits, entity I/O
 (relays, counters, branches, cases, timers, proxies, autos), triggers,
 teleports, fades, elevator trains (player locked to the car), doors (incl.
@@ -50,7 +61,13 @@ collision posed by the default sequence, faith plates (`trigger_catapult`:
 playerspeed = ground speed toward launchtarget, vertical solved for 600
 u/s^2), trigger_hurt + death fade + level reload (`health.rs`, also
 `player_loadsaved`), trigger_push, lasers (`lasers.rs`: portals,
-reflection cubes, catchers, relays, burn).
+reflection cubes, catchers, relays, burn), trigger_look (look within
+`fieldofview` of the target for `looktime` while inside; OnTimeout),
+func_noportal_volume (the gun refuses openings reaching into one), gels
+(`paint.rs`: info_paint_sprayer blobs fly under gravity, through portals,
+and paint splats; blue bounces on landing/off walls, orange raises top
+speed, white makes surfaces portalable, water erases; maps that pre-paint
+at spawn do so), personality cores drawn with their sphere model.
 
 Level scripts: `crates/vscript` is our own Squirrel interpreter (lexer,
 parser, tree-walker; parses all 82 shipped `.nut` files). `vscripts.rs`
@@ -58,8 +75,18 @@ loads every entity's `vscripts`, runs Precache/OnPostSpawn, think
 functions, RunScriptCode/CallScriptFunction, ConnectOutput hooks, and
 answers EntFire/CreateSceneEntity/Entities.*/handle methods. Entities whose
 scripts loaded skip the old hand-written runscriptcode stand-ins.
-`P2_NOSCRIPTS=1` turns scripts off. Known gap: video_splitter calls
-GetMapIndexInPlayOrder (defined in the transition script's scope).
+`P2_NOSCRIPTS=1` turns scripts off. Level transitions run the game's own
+`TransitionFromMap()` (TryDLC1InstalledOrCatch throws, so it falls through
+to RealTransitionFromMap like single-player Portal 2). GladosPlayVcd plays
+lines (GetCurrentScene finds an actor's scene by the VCD's actor names).
+
+Entity values: `vbsp` lowercases the whole entity lump, so we read the raw
+lump (`entities::entity_lump`). Values are still lowercased for matching,
+except output parameters and `thinkfunction` (Squirrel is case-sensitive);
+non-script input parameters are lowercased on delivery. A sweep of all 63
+campaign maps (12 s each) shows no script errors except calls the maps
+themselves get wrong (`gladosplayvcd(392)` in sp_a2_bts6 is lowercase in
+the shipped map).
 
 Owner's feature wishlist: docs/ROADMAP.md.
 
@@ -83,50 +110,26 @@ Owner's feature wishlist: docs/ROADMAP.md.
    attachments. Same need as 2 plus carrying the player inside.
 4. Instructor hint icons (`hint_icon_onscreen` -> materials/vgui/hud/…),
    refract/glass shaders (vault window), env_tonemap, sounds on prop events.
-5. Play on through sp_a1_intro2..intro7 with P2_SCRIPT runs, fixing whatever
-   blocks progress (map wiring is mostly standard).
-6. Missing puzzle elements, by how many campaign maps use them:
-   prop_wall_projector (light bridges, 7 maps), prop_tractor_beam (12),
-   npc_portal_turret_floor (16), info_paint_sprayer gels (12),
-   npc_personality_core / npc_wheatley_boss (finale), func_rotating,
-   logic_playerproxy, env_global, trigger_look (currently fires on touch).
+5. Play on through the chapters with P2_SCRIPT runs, fixing whatever blocks
+   progress. Scripts now really run (map RunScriptCode used to reach them
+   lowercased), so watch for new behaviour in GLaDOS/Wheatley sequences.
+6. Gels, next: measure the real bounce/speed tuning, gel on props (cubes
+   with `paintpower`, prop_paint_bomb), splat look (soft edges, lighting),
+   trigger_paint_cleanser, paint_sphere (finale). Blobs through portals and
+   white gel taking portals are written but not yet tried in a map.
+7. trigger_look's line-of-sight flag (128) isn't checked.
+8. Missing: npc_wheatley_boss (finale), func_rotating, logic_playerproxy,
+   env_global, Wheatley's rail animation (item 2).
+9. Settings: with v-sync off and no frame cap, a background test window ran
+   at 60 fps (95-103 with a 120/240 cap); check in a focused window.
+   Enhanced graphics does nothing yet; model textures ignore the AF setting.
 
-## cloud/settings branch (untested in game)
+## Settings (merged from cloud/settings, tested 2026-10-18)
 
-Settings from docs/ROADMAP.md, all inside the existing Options screen (no new
-main/pause menu buttons). Options is now two columns: AUDIO (volumes, a
-SUBTITLES row that opens its own page) + MOUSE, and VIDEO. Defaults equal the
-old behaviour (FOV 75, v-sync on, unlimited frame rate, MSAA 4x, 16x
-anisotropic, native/launch resolution, Original graphics, captions 20px in
-their own colours on a 60% box). Only `cargo check` / `cargo test` were run:
-no game assets or Mac GPU in the cloud. Verify in the real game:
-
-- [ ] Options fits at 1280x720 and fullscreen; every `<`/`>` and toggle
-      changes its value; Esc/BACK from the Subtitles page returns to Options
-      (from the pause menu too, with audio still paused).
-- [ ] FOV goes 75..110 in steps of 5 and the view widens; viewmodel unchanged.
-- [ ] VERTICAL SYNC off uncaps the frame rate live (AutoNoVsync); on is
-      Fifo. No tearing/stutter regressions with it on.
-- [ ] MAX FRAME RATE 30/60/120/144/165/240/UNLIMITED: frame times are even
-      (sleep + spin limiter in `settings.rs`, `Last` schedule); with v-sync
-      on, a limit above the display rate changes nothing; CPU use reasonable.
-- [ ] RESOLUTION: windowed sizes the window (in points, `resolution.set`);
-      DEFAULT goes back to the launch size; the player's own resizing is
-      kept. Fullscreen with a size uses the monitor's exclusive video mode
-      of that size (macOS exclusive fullscreen is the part most likely to
-      misbehave); NATIVE/no matching mode is borderless as before.
-- [ ] ANTI-ALIASING OFF/MSAA 4X switches live on the main and viewmodel
-      cameras; world (valve_render pipelines are keyed by sample count),
-      portals, viewmodel and UI still draw.
-- [ ] TEXTURE FILTERING OFF/4X/8X/16X changes world surfaces live
-      (`source_assets::valve_render::ValveQuality` rebuilds the sampler
-      table). Model textures (`vtf.rs`) still always use 16x: TODO there.
-- [ ] GRAPHICS ORIGINAL/ENHANCED only stores the choice and sets
-      `ValveQuality::enhanced`; nothing renders differently yet.
-- [ ] SUBTITLES page: on/off, text size, colour (ORIGINAL keeps the game's
-      per-speaker colours), background opacity; the sample line and live
-      captions follow them.
-- [ ] settings.cfg now starts with `version 2`; an old file loads with its
-      values; unknown lines are kept. save.txt is now `version 2` + `map X`
-      (an old map-name-only file still works for Continue; a build from
-      before this branch cannot read the new save.txt).
+Tested in the game with scripted menu clicks: Options fits at 1280x720 in
+two columns, every `<`/`>`/toggle changes its value and applies live
+(FOV 110 widens the view, MSAA off, 8x AF, 120 cap, v-sync off), the
+Subtitles page opens and BACK returns to Options then the pause menu, the
+user's old settings.cfg loads, and settings.cfg/save.txt are written as
+`version 2` (old save files still Continue; unit tests cover both). Not
+checked: exclusive fullscreen resolutions, Esc on the Subtitles page.
