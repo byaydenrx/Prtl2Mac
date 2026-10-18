@@ -38,7 +38,7 @@ pub use fs::GameFs;
 pub use map::LoadedMap;
 pub use material::SourceMaterial;
 pub use plugin::{
-    load_map, spawn_loaded_map, spawn_map, LightEnvironment, MapEntity, MapFog, DEFAULT_LIGHT_SCALE, MapEntityKind, MapInfo,
+    load_map, spawn_loaded_map, AnimatedModel, BonePart, spawn_map, LightEnvironment, MapEntity, MapFog, DEFAULT_LIGHT_SCALE, MapEntityKind, MapInfo,
     PortalShotPassthrough, SourceCache, SourceCollider, SourceEntityRef, SourceGame, SourceMapAssets,
     SourceMapPlugin, SourceMapRoot, SourceRenderSettings,
 };

@@ -784,7 +784,8 @@ fn hold_focus(
             }
         }
     } else if *was_open {
-        if console.paused_time && *screen != Screen::Pause {
+        // The pause menu (and Options opened from it) keep the world stopped.
+        if console.paused_time && !matches!(*screen, Screen::Pause | Screen::Options { from_pause: true }) {
             time.unpause();
         }
         console.paused_time = false;

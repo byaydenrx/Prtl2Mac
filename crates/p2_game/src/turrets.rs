@@ -104,7 +104,7 @@ pub fn run_turrets(
     let burned: Vec<usize> = lasers.hit.clone();
     for (body, prop, pos, rot, held) in &props {
         let i = prop.ent;
-        let e = &ents.list[i];
+        let Some(e) = ents.list.get(i) else { continue };
         if e.class != "npc_portal_turret_floor" || e.killed {
             continue;
         }

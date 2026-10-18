@@ -11,6 +11,7 @@ use p2_core::*;
 use source_assets::{SourceMapPlugin, SourceRenderSettings};
 
 mod ai;
+mod anim_props;
 mod audio;
 mod autopilot;
 mod bridges;
@@ -18,6 +19,7 @@ mod campaign;
 mod captions;
 mod community;
 mod console;
+mod exposure;
 mod health;
 mod io;
 mod lasers;
@@ -89,6 +91,7 @@ fn main() {
             scenes::ScenesPlugin,
             ai::AiPlugin,
             viewcontrol::ViewControlPlugin,
+            anim_props::AnimPropsPlugin,
             captions::CaptionsPlugin,
         ))
         .add_plugins((
@@ -98,6 +101,7 @@ fn main() {
             bridges::BridgesPlugin,
             tractor::TractorPlugin,
             vscripts::VScriptPlugin,
+            exposure::ExposurePlugin,
             paint::PaintPlugin,
         ))
         // Developer, speedrun and modding tools (all off until turned on in Options).

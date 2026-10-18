@@ -151,6 +151,18 @@ fn drive(
                 let kind = if a.first().is_some_and(|k| k.starts_with('o')) { PortalKind::Orange } else { PortalKind::Blue };
                 fire.write(FirePortal { gun: player, kind });
             }
+            "propto" => {
+                // propto <name> x y z: move a physics prop there (tests).
+                let key = a.first().map(|k| k.to_ascii_lowercase()).unwrap_or_default();
+                let p = shared::source_to_world(Vec3::new(f(a, 1), f(a, 2), f(a, 3)));
+                if let Some(ents) = ents.as_deref() {
+                    for (pe, prop) in &prop_ents {
+                        if ents.list[prop.ent].name == key {
+                            commands.entity(pe).insert((Transform::from_translation(p), avian3d::prelude::Position(p), avian3d::prelude::LinearVelocity::ZERO));
+                        }
+                    }
+                }
+            }
             "ray" => {
                 // ray x y z: what is straight below a Source point.
                 let from = shared::source_to_world(Vec3::new(f(a, 0), f(a, 1), f(a, 2)));

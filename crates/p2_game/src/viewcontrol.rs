@@ -12,6 +12,7 @@ use p2_assets::GameFsRes;
 use p2_core::*;
 use shared::source_to_world;
 
+use crate::anim_props::Playback;
 use crate::io::{EntInput, Ents, PLAYER};
 use crate::level::LevelLoaded;
 
@@ -22,15 +23,23 @@ impl Plugin for ViewControlPlugin {
         app.init_resource::<PropAnims>()
             .init_resource::<ViewControl>()
             .init_resource::<ViewProxy>()
-            .add_systems(Update, (track_animations, follow_attachments, animation_done, viewcontrol_inputs, viewproxy_inputs).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic))
+            .add_systems(Update, (track_animations, follow_attachments, viewcontrol_inputs, viewproxy_inputs).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic))
             .add_systems(PostUpdate, (drive_camera, apply_viewproxy).chain().after(P2Systems::View).before(bevy::transform::TransformSystems::Propagate));
     }
 }
 
-/// Which sequence each prop is playing and since when (game seconds).
+/// Prop animation state, shared by the attachments and cameras here and
+/// the animated props (`anim_props.rs`, which plays the sequences).
 #[derive(Resource, Default)]
 pub struct PropAnims {
-    playing: HashMap<usize, (String, f32)>,
+    /// The sequence each prop is playing (props that never got one play
+    /// their default from the start, `anim_props::initial_seq`).
+    pub playing: HashMap<usize, Playback>,
+    /// `SetDefaultAnimation` overrides of `DefaultAnim`.
+    pub defaults: HashMap<usize, String>,
+    /// Model of each prop drawn animated (its `.mdl`, also for entities with
+    /// no `model` keyvalue, like the personality cores).
+    pub models: HashMap<usize, String>,
     /// Attachment each entity is parented to: child -> (parent ent, attachment).
     attached: HashMap<usize, (usize, String)>,
     /// Each attached child's pose relative to its attachment.
@@ -42,7 +51,12 @@ pub struct PropAnims {
 }
 
 impl PropAnims {
-    fn animator(&mut self, game: &GameFsRes, model: &str) -> Option<Arc<Animator>> {
+    /// The model a prop draws.
+    pub fn model_of(&self, ent: usize, e: &crate::io::GameEnt) -> Option<String> {
+        self.models.get(&ent).cloned().or_else(|| e.get("model").map(str::to_string))
+    }
+
+    pub fn animator(&mut self, game: &GameFsRes, model: &str) -> Option<Arc<Animator>> {
         let key = model.to_ascii_lowercase().replace('\\', "/");
         self.animators
             .entry(key.clone())
@@ -63,24 +77,13 @@ impl PropAnims {
     /// world basis change).
     pub fn attachment_transform(&mut self, game: &GameFsRes, ents: &Ents, ent: usize, attachment: &str) -> Option<Transform> {
         let e = &ents.list[ent];
-        let model = e.get("model")?.to_string();
+        let model = self.model_of(ent, e)?;
         let anim = self.animator(game, &model)?;
-        let (seq, cycle) = match self.playing.get(&ent) {
-            Some((name, start)) => {
-                let s = anim.find(name)?;
-                (s, (ents.now - start).min(anim.duration(s)))
-            }
+        let (seq, time) = match self.playing.get(&ent) {
+            Some(pb) => (anim.find(&pb.seq)?, pb.time),
             None => (e.get("defaultanim").and_then(|n| anim.find(n)).unwrap_or(0), 0.0),
         };
-        let local = anim.sample(seq, cycle);
-        // Bone -> model, through the parents.
-        let mut to_model: Vec<bevy::math::Affine3A> = Vec::with_capacity(local.len());
-        for (i, (p, q)) in local.iter().enumerate() {
-            let m = bevy::math::Affine3A::from_rotation_translation(*q, *p);
-            let parent = anim.skeleton.bones.get(i).map(|b| b.parent).unwrap_or(-1);
-            let m = if parent >= 0 && (parent as usize) < i { to_model[parent as usize] * m } else { m };
-            to_model.push(m);
-        }
+        let to_model = anim.bone_to_model(&anim.sample(seq, time));
         let (pos, rot) = anim.attachment(attachment, &to_model)?;
         let basis = Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2);
         let r = e.transform.rotation;
@@ -100,19 +103,29 @@ impl PropAnims {
         if t.translation.distance(ents.list[ent].transform.translation) > 20.0 {
             return None;
         }
-        Some((t.translation, t.rotation * Vec3::NEG_X, t.rotation * Vec3::NEG_Z))
+        // A camera on an attachment looks along the attachment's +X with +Z
+        // up (Source's matrix-to-angles convention); in world axes that is
+        // +X and +Y. P2_CAMAXIS="fx,fy,fz,ux,uy,uz" overrides for testing.
+        let (f, u) = std::env::var("P2_CAMAXIS")
+            .ok()
+            .and_then(|v| {
+                let n: Vec<f32> = v.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+                (n.len() == 6).then(|| (Vec3::new(n[0], n[1], n[2]), Vec3::new(n[3], n[4], n[5])))
+            })
+            .unwrap_or((Vec3::X, Vec3::Y));
+        Some((t.translation, t.rotation * f, t.rotation * u))
     }
 }
 
-fn track_animations(
+pub(crate) fn track_animations(
     mut inputs: MessageReader<EntInput>,
     ents: Option<Res<Ents>>,
     game: Res<GameFsRes>,
     mut anims: ResMut<PropAnims>,
     mut loaded: MessageReader<LevelLoaded>,
 ) {
+    // (`anim_props` clears and tracks the sequences.)
     if loaded.read().count() > 0 {
-        anims.playing.clear();
         anims.attached.clear();
         anims.offsets.clear();
         anims.drawn_rel.clear();
@@ -123,9 +136,6 @@ fn track_animations(
     };
     for msg in inputs.read() {
         match msg.input.as_str() {
-            "setanimation" | "setanimationnoreset" => {
-                anims.playing.insert(msg.target, (msg.param.trim().to_string(), ents.now));
-            }
             "setparentattachment" | "setparentattachmentmaintainoffset" => {
                 let parent = ents.list[msg.target].get("parentname").and_then(|p| ents.find(p, msg.target, None).first().copied());
                 if let Some(p) = parent {
@@ -150,25 +160,6 @@ fn track_animations(
                 anims.offsets.remove(&msg.target);
             }
             _ => {}
-        }
-    }
-}
-
-/// Props whose animation finished fire `OnAnimationDone` once.
-fn animation_done(ents: Option<Res<Ents>>, game: Res<GameFsRes>, mut anims: ResMut<PropAnims>, mut fire: MessageWriter<crate::io::FireOutput>, mut done: Local<std::collections::HashSet<(usize, u32)>>) {
-    let Some(ents) = ents else { return };
-    let playing: Vec<(usize, String, f32)> = anims.playing.iter().map(|(k, (s, t))| (*k, s.clone(), *t)).collect();
-    for (i, seq, start) in playing {
-        let key = (i, start.to_bits());
-        if done.contains(&key) {
-            continue;
-        }
-        let Some(model) = ents.list[i].get("model").map(str::to_string) else { continue };
-        let Some(anim) = anims.animator(&game, &model) else { continue };
-        let Some(s) = anim.find(&seq) else { continue };
-        if ents.now - start >= anim.duration(s) {
-            done.insert(key);
-            fire.write(crate::io::FireOutput { ent: i, event: "OnAnimationDone".into(), activator: None });
         }
     }
 }
@@ -256,9 +247,9 @@ fn viewcontrol_inputs(
 /// its own place, facing its target when it has one.
 fn camera_pose(anims: &mut PropAnims, game: &GameFsRes, ents: &Ents, i: usize) -> Option<(Vec3, Vec3, Vec3)> {
     if let Some((parent, att)) = anims.attached.get(&i).cloned() {
-        // Cameras riding animated rigs (the intro's wake-up) aren't matched
-        // to the game yet; P2_CINEMATIC=1 turns them on for testing.
-        if std::env::var_os("P2_CINEMATIC").is_none() {
+        // Cameras riding animated rigs (the intro's wake-up). P2_NOCINEMATIC=1
+        // skips them.
+        if std::env::var_os("P2_NOCINEMATIC").is_some() {
             return None;
         }
         return anims.attachment_world(game, ents, parent, &att);
@@ -363,29 +354,74 @@ fn follow_attachments(
 #[derive(Resource, Default)]
 pub struct ViewProxy {
     active: Option<usize>,
+    /// When the proxy rides an animated attachment of its parent
+    /// (`proxyattachment`, e.g. the container's `vstAttachment`): the parent,
+    /// the attachment, and the proxy's pose relative to it at enable time.
+    follow: Option<(usize, String, Mat4)>,
+    /// The proxy's pose when enabled (`offsettype 2`: the view only moves by
+    /// how far the proxy has moved since).
+    start: Option<Mat4>,
 }
 
 impl ViewProxy {
-    /// The transform from the registration point to the proxy, now.
-    fn mapping(&self, ents: &Ents) -> Option<Mat4> {
+    fn proxy_of(&self, ents: &Ents) -> Option<(usize, usize)> {
         let i = self.active?;
+        let proxy = ents.list[i].get("proxy").and_then(|p| ents.find(p, i, None).first().copied())?;
+        Some((i, proxy))
+    }
+
+    /// Start using registration point `i`; work out what its proxy rides.
+    fn enable(&mut self, i: usize, ents: &Ents, anims: &mut PropAnims, game: &GameFsRes) {
+        self.active = Some(i);
+        self.follow = None;
+        self.start = None;
+        let Some((_, proxy)) = self.proxy_of(ents) else { return };
+        let att = ents.list[i].get("proxyattachment").or(ents.list[proxy].get("proxyattachment")).filter(|a| !a.is_empty());
+        let parent = ents.list[proxy].get("parentname").and_then(|p| ents.find(p, proxy, None).first().copied());
+        if let (Some(att), Some(parent)) = (att, parent) {
+            if let Some(a) = anims.attachment_transform(game, ents, parent, att) {
+                let rel = a.to_matrix().inverse() * ents.list[proxy].transform.to_matrix();
+                self.follow = Some((parent, att.to_string(), rel));
+            }
+        }
+        if ents.list[i].get("offsettype").is_some_and(|v| v.trim() == "2") {
+            self.start = self.proxy_now(proxy, ents, anims, game);
+        }
+    }
+
+    fn proxy_now(&self, proxy: usize, ents: &Ents, anims: &mut PropAnims, game: &GameFsRes) -> Option<Mat4> {
+        Some(match &self.follow {
+            Some((parent, att, rel)) => anims.attachment_transform(game, ents, *parent, att).map(|a| a.to_matrix() * *rel).unwrap_or(ents.list[proxy].transform.to_matrix()),
+            None => ents.list[proxy].transform.to_matrix(),
+        })
+    }
+
+    /// The transform from the registration point to the proxy, now.
+    fn mapping(&self, ents: &Ents, anims: &mut PropAnims, game: &GameFsRes) -> Option<Mat4> {
+        let (i, proxy) = self.proxy_of(ents)?;
+        let to = self.proxy_now(proxy, ents, anims, game)?;
+        if let Some(start) = self.start {
+            return Some(to * start.inverse());
+        }
         let e = &ents.list[i];
-        let proxy = e.get("proxy").and_then(|p| ents.find(p, i, None).first().copied())?;
         let from = Transform::from_translation(e.transform.translation).with_rotation(e.transform.rotation);
-        let to = ents.list[proxy].transform;
-        Some(to.to_matrix() * from.to_matrix().inverse())
+        Some(to * from.to_matrix().inverse())
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn viewproxy_inputs(
     mut inputs: MessageReader<EntInput>,
     ents: Option<Res<Ents>>,
     mut proxy: ResMut<ViewProxy>,
+    mut anims: ResMut<PropAnims>,
+    game: Res<GameFsRes>,
     mut players: Query<(&mut Transform, &mut InterpolatedFeet, &mut ViewAngles, &mut CharacterVelocity), With<Player>>,
     mut loaded: MessageReader<LevelLoaded>,
 ) {
     if loaded.read().count() > 0 {
         proxy.active = None;
+        proxy.follow = None;
     }
     let Some(ents) = ents else {
         inputs.clear();
@@ -396,12 +432,15 @@ fn viewproxy_inputs(
             continue;
         }
         match msg.input.as_str() {
-            "enable" => proxy.active = Some(msg.target),
-            "disable" if proxy.active == Some(msg.target) => proxy.active = None,
+            "enable" => proxy.enable(msg.target, &ents, &mut anims, &game),
+            "disable" if proxy.active == Some(msg.target) => {
+                proxy.active = None;
+                proxy.follow = None;
+            }
             "teleportplayertoproxy" => {
-                let was = proxy.active;
-                proxy.active = Some(msg.target);
-                if let (Some(m), Ok((mut tf, mut feet, mut view, mut vel))) = (proxy.mapping(&ents), players.single_mut()) {
+                let was = (proxy.active, proxy.follow.clone(), proxy.start);
+                proxy.enable(msg.target, &ents, &mut anims, &game);
+                if let (Some(m), Ok((mut tf, mut feet, mut view, mut vel))) = (proxy.mapping(&ents, &mut anims, &game), players.single_mut()) {
                     let at = m.transform_point3(tf.translation);
                     tf.translation = at;
                     *feet = InterpolatedFeet { prev: at, curr: at };
@@ -409,7 +448,14 @@ fn viewproxy_inputs(
                     view.yaw = (-fwd.x).atan2(-fwd.z);
                     vel.0 = Vec3::ZERO;
                 }
-                proxy.active = if was == Some(msg.target) { None } else { was };
+                if was.0 == Some(msg.target) {
+                    proxy.active = None;
+                    proxy.follow = None;
+                } else {
+                    proxy.active = was.0;
+                    proxy.follow = was.1;
+                    proxy.start = was.2;
+                }
             }
             _ => {}
         }
@@ -417,9 +463,15 @@ fn viewproxy_inputs(
 }
 
 /// Moves the main camera through the proxy mapping.
-fn apply_viewproxy(proxy: Res<ViewProxy>, ents: Option<Res<Ents>>, mut cams: Query<&mut Transform, With<MainCamera>>) {
+fn apply_viewproxy(
+    proxy: Res<ViewProxy>,
+    ents: Option<Res<Ents>>,
+    mut anims: ResMut<PropAnims>,
+    game: Res<GameFsRes>,
+    mut cams: Query<&mut Transform, With<MainCamera>>,
+) {
     let (Some(ents), true) = (ents, proxy.active.is_some()) else { return };
-    let Some(m) = proxy.mapping(&ents) else { return };
+    let Some(m) = proxy.mapping(&ents, &mut anims, &game) else { return };
     for mut tf in &mut cams {
         *tf = Transform::from_matrix(m * tf.to_matrix());
     }

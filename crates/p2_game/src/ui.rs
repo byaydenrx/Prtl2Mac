@@ -786,7 +786,8 @@ fn pause_world(
     let scripted = args.automated() || std::env::var_os("P2_SCRIPT").is_some();
     let playing = *screen == Screen::None && map.as_ref().is_some_and(|m| !m.menu);
     let in_menu_map = map.as_ref().is_none_or(|m| m.menu);
-    if *screen == Screen::Pause {
+    // The world stays stopped in every menu opened from the pause menu.
+    if matches!(*screen, Screen::Pause | Screen::Options { from_pause: true }) {
         time.pause();
     } else {
         time.unpause();

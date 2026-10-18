@@ -154,7 +154,7 @@ fn load_level(
 }
 
 /// Despawned with the level (props made dynamic, map portals, sounds...).
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone)]
 pub struct LevelOwned;
 
 /// Every camera (main view, viewmodel, portal views) gets the current map's

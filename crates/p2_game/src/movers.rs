@@ -123,6 +123,21 @@ fn mover_inputs(
         let i = msg.target;
         let class = ents.list[i].class.clone();
         let input = msg.input.as_str();
+        // Re-parenting at run time (Wheatley onto his socket, off his rail).
+        match input {
+            "clearparent" => movers.parented.retain(|p| p.0 != i),
+            "setparent" => {
+                movers.parented.retain(|p| p.0 != i);
+                if let Some(&p) = ents.find(msg.param.trim(), i, msg.activator).first() {
+                    let pt = ents.list[p].transform;
+                    let e = &ents.list[i];
+                    let offset = Transform::from_translation(pt.rotation.inverse() * (e.transform.translation - pt.translation))
+                        .with_rotation(pt.rotation.inverse() * e.transform.rotation);
+                    movers.parented.push((i, p, offset));
+                }
+            }
+            _ => {}
+        }
         match class.as_str() {
             "func_tracktrain" | "func_train" => {
                 let speed = u(ents.list[i].get_f32("startspeed").unwrap_or(100.0).max(1.0));
@@ -215,28 +230,11 @@ fn mover_inputs(
                 _ => {}
             },
             "prop_dynamic" | "prop_dynamic_override" => {
-                let seq = msg.param.to_ascii_lowercase();
-                // Props don't animate yet: a door prop that opens disappears; any
-                // other prop playing an "open" animation (an elevator body
-                // opening its doors) stays drawn but stops blocking.
-                let model = ents.list[i].get("model").unwrap_or("").to_ascii_lowercase();
-                let is_door = model.contains("door") || model.contains("hatch") || model.contains("tube_opener");
-                let opening = seq.contains("open") && !seq.contains("close");
+                // SetAnimation & co. are played by `anim_props.rs` (doors,
+                // hatches and elevator bodies open for real, their per-bone
+                // collision moving with them); they used to hide the door
+                // or turn its collision off here.
                 match input {
-                    "setanimation" | "setanimationnoreset" | "setdefaultanimation" if opening => {
-                        if is_door {
-                            movers.pending_show.push((now + 0.4, i, false));
-                        } else {
-                            set_solid(&mut commands, &ents.list[i], &children, &colliders, false);
-                        }
-                    }
-                    "setanimation" | "setanimationnoreset" | "setdefaultanimation" if seq.contains("close") && !seq.contains("idle") => {
-                        if is_door {
-                            movers.pending_show.push((now, i, true));
-                        } else {
-                            set_solid(&mut commands, &ents.list[i], &children, &colliders, true);
-                        }
-                    }
                     "turnoff" | "disable" => movers.pending_show.push((now, i, false)),
                     "turnon" | "enable" => movers.pending_show.push((now, i, true)),
                     "disablecollision" => set_solid(&mut commands, &ents.list[i], &children, &colliders, false),

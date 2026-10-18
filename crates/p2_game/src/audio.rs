@@ -316,13 +316,24 @@ fn ambient_inputs(
 
 /// The pause menu pauses every sound (voice lines pick up where they left
 /// off on resume); menu music keeps playing.
-fn pause_audio(screen: Res<crate::ui::Screen>, sinks: Query<(&AudioSink, Option<&GameSound>)>, mut paused: Local<bool>) {
-    let want = *screen == crate::ui::Screen::Pause || matches!(*screen, crate::ui::Screen::Options { from_pause: true });
+fn pause_audio(time: Res<Time<Virtual>>, sinks: Query<(Entity, &AudioSink, Option<&GameSound>)>, mut paused: Local<bool>, mut seen: Local<std::collections::HashSet<Entity>>) {
+    // Paused exactly when the game clock is (menus opened from pause too).
+    let want = time.is_paused();
     if want == *paused {
+        // A sound that started while paused waits too.
+        if want {
+            for (e, sink, s) in &sinks {
+                if seen.insert(e) && !s.is_some_and(|s| s.music && s.at.is_none() && s.owner.is_none()) {
+                    sink.pause();
+                }
+            }
+        }
         return;
     }
     *paused = want;
-    for (sink, s) in &sinks {
+    seen.clear();
+    for (e, sink, s) in &sinks {
+        seen.insert(e);
         if s.is_some_and(|s| s.music && s.at.is_none() && s.owner.is_none()) {
             continue;
         }

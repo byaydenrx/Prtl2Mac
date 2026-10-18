@@ -124,6 +124,76 @@ Owner's feature wishlist: docs/ROADMAP.md.
    at 60 fps (95-103 with a 120/240 cap); check in a focused window.
    Enhanced graphics does nothing yet; model textures ignore the AF setting.
 
+## cloud/anim branch (merged 2026-10-18, partly verified)
+
+Verified locally: test chamber doors animate open/closed (intro2 exit
+door); Wheatley is drawn with his handles; chapter 1 exits still hand off.
+Not right yet: Wheatley's eye socket is empty (the eye mesh or its
+`personality_sphere_lights` selfillum part isn't showing); the intro1
+wrecked vault debris (finedebris_part*) looks like cracked concrete
+shells with floating blocks instead of the wrecked motel room, and is
+very dark.
+
+### Original notes from the cloud session
+
+Model animation playback, built without the game (unit tests only; no
+Portal 2 assets or GPU in the cloud). Nothing here has been seen running.
+
+What changed:
+- `source_assets`: entity props of the animating classes
+  (`map::class_animates`: prop_dynamic(_override/_glow/_ornament),
+  prop_testchamber_door, npc_personality_core) whose model has an animation
+  with more than one frame (`ModelData::is_animated`) are drawn as rigid
+  per-bone parts: each triangle goes to its dominant bone
+  (`models::split_by_bone`), vertices in that bone's space, under a
+  `BonePart` child of the prop's `AnimatedModel` entity. The part's
+  Transform is the bone's model-space transform in world axes
+  (`models::bone_transform`), so the Valve shader path and the Bevy-mesh
+  path draw them unchanged. Baked lighting uses the default pose's normals.
+  Per-bone `.phy` solids are colliders under their bone's part; others stay
+  on the prop. Static props, physics props, cubes and turrets are drawn as
+  before. Eye meshes (`EyeRefract`) get the iris projected
+  (`ModelData::iris_uvs`) and use `$iris` as their base texture.
+- `p2_game/src/anim_props.rs`: plays each animated prop's sequence
+  (default `DefaultAnim`; personality cores their `ACT_IDLE`; else
+  sequence 0), handles SetAnimation, SetAnimationNoReset,
+  SetDefaultAnimation, SetPlaybackRate and test chamber door Open/Close
+  (`open` then `idleopen`, `close` then `idleclose`), fires OnAnimationDone
+  when a non-looping sequence it was asked to play ends (no longer for
+  looping ones), then returns to the default (unless `holdanimation 1`).
+  The state is `viewcontrol::PropAnims::playing`, which the attachments and
+  cameras also read, so attached props follow the drawn pose. Parts are
+  only moved when the sampled frame changes.
+- `movers.rs`: prop_dynamic SetAnimation no longer hides door/hatch models
+  or turns elevator-body collision off.
+
+Check in the real game:
+1. **sp_a1_intro1 Wheatley**: the eye is drawn (iris texture, right way
+   round, looking out of the sphere's front) and the handles sit where they
+   should and idle; he follows his rail (`bottom_swivel_1`) as before. If
+   the eye is still missing, see what material/shader the eye mesh uses
+   (it may not be an `EyeRefract` eyeball at all).
+2. **sp_a1_intro2 elevator doors**: the arrival and departure elevators'
+   doors slide open/closed (not vanish), the player can walk out once open
+   and is blocked while closed (per-bone `.phy`; if the elevator body has a
+   single solid, the doorway stays blocked: say so).
+3. **Test chamber doors** (`prop_testchamber_door`): they play `open` and
+   `close`. NOTE movers.rs still hides the door 0.35 s after Open and fires
+   OnFullyOpen/OnFullyClosed from that timer (not changed on this branch):
+   once the animation looks right, remove that hide and fire
+   OnFullyOpen/OnFullyClosed from the animation's end instead.
+4. **sp_a1_intro4 cube dropper**: the dropper iris
+   (`box_dropper-cube_dropper_model`) opens and closes when a cube drops,
+   and still hangs straight down (the `intro4_dropper_points_down` test
+   checks the baked pose; the parts start in the same default pose).
+5. Also look for: parts flying off or turned 90 degrees (a bone-axis or
+   quaternion decode problem, compare with the old baked pose), cracks
+   where a smoothly skinned model (cables, GLaDOS) bends between two bones
+   (rigid parts can't stretch; GPU skinning would be the fix), props that
+   jitter when they should be still, OnAnimationDone chains that now fire
+   later or never (only non-looping, explicitly set sequences fire),
+   GLaDOS's chamber body, and frame time in a map with many animated props.
+
 ## Settings (merged from cloud/settings, tested 2026-10-18)
 
 Tested in the game with scripted menu clicks: Options fits at 1280x720 in
@@ -270,7 +340,3 @@ TODO hooks for the local session (in files this branch didn't touch):
 - `source_assets/src/fs.rs`: loose mounts skip `sound/` folders, so a mod's
   loose sounds are ignored (VPK mods are fine). Indexing `sound/` only for
   mod folders would fix it.
-- Seen while reading `ui.rs`: Options opened from the pause menu unpauses the
-  world (`pause_world` only pauses on `Screen::Pause`). The timer ignores
-  that (it only runs on `Screen::None`), but the level keeps running behind
-  Options.
