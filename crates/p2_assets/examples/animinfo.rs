@@ -26,6 +26,16 @@ fn main() {
     for (i, s) in a.sequences.iter().enumerate().take(40) {
         println!("  seq {i} {} [{}] duration {:.2}", s.label, s.activity, a.duration(i));
     }
+    for (i, p) in a.pose_params.iter().enumerate() {
+        println!("  pose param {i} {} {}..{}", p.name, p.start, p.end);
+    }
+    // Aim matrices and anything auto-layering one (scene lookat aiming).
+    for (i, s) in a.sequences.iter().enumerate() {
+        let grid = a.grid_params(i);
+        if s.label.to_ascii_lowercase().contains("aimmatrix") || !s.autolayers.is_empty() {
+            println!("  seq {i} {} delta {} post {} grid params {grid:?} autolayers {:?}", s.label, s.delta, s.post, s.autolayers);
+        }
+    }
     if let Some(i) = a.find_activity("ACT_IDLE") {
         println!("ACT_IDLE = seq {i} {}", a.sequences[i].label);
     }

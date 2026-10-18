@@ -278,6 +278,66 @@ Check in the real game:
    later or never (only non-looping, explicitly set sequences fire),
    GLaDOS's chamber body, and frame time in a map with many animated props.
 
+## cloud/anim (round 2): scene animation (untested in game)
+
+Built in the cloud with unit tests only (no game files, no GPU).
+
+What changed:
+- `scenes.rs`: VCD `gesture` events are their own kind (no longer sent as
+  `scenesequence`), `lookat` events are read (actor, target `param`,
+  time), and `event_ramp` blocks are kept on every event
+  (`SceneEvent::ramp`, `SceneEvent::weight`: the ramp with an implied 0 at
+  the event's start/end, or a 0.2 s fade in/out when there is no ramp).
+  `Playing::active(now)` lists the events going on; `actor_ents` resolves
+  `!targetN` / `!player` / names. `sequence` events still go through
+  `scenesequence`.
+- `anim_props.rs`, `pose_parts`:
+  - Poses come from `Animator::evaluate` (blend grid by pose parameters,
+    the sequence's auto-layers, extra layers) instead of `sample`.
+  - **Crossfade**: when the sequence changes (or the map restarts one),
+    the parts blend from the last drawn pose over 0.2 s (ease in/out). The
+    default replaying itself (a one-frame idle) doesn't fade.
+  - **Gestures**: each active `gesture` event is laid over the base with
+    `apply_layer` (delta/post/weights honoured) at weight = its ramp, its
+    cycle fitted to the event's length.
+  - **Lookat**: the actor's target (`!player` = the player's eye, else the
+    named entity) is taken into the prop's model space and turned into
+    yaw/pitch (Source convention: yaw positive left of +X, pitch positive
+    up), then into the model's aim pose parameters by name
+    (`aim_axis`: `*yaw*`/`*rightleft*` = +yaw, `*leftright*` = -yaw,
+    `*pitch*` = -pitch (Source pitch is positive down), `*updown*` =
+    +pitch), clamped to each parameter's range, weighted by the event
+    ramp and smoothed (~0.4 s to settle). If the base sequence
+    auto-layers an aim matrix it is driven by those parameters; if not,
+    the delta `*aimmatrix*` sequence sharing most name words with the base
+    (`sphere_idle_neutral` -> `sphere_aimmatrix_neutral...`) is layered.
+  - The drawn pose is stored in `PropAnims::local_pose`; attachments
+    (`attachment_transform`) use it, so things parented to an animated
+    attachment follow crossfades, gestures and aim.
+- `p2_assets` `Animator::grid_params`, `Animator::cycle_at`.
+
+Verify in game (sp_a1_intro1/2/3 with Wheatley):
+1. Wheatley's sequence changes (scene `sequence` events, back to
+   `sphere_idle_neutral`) blend over ~0.2 s instead of snapping.
+2. Gestures (nods, glances) play on top of his idle and fade in/out with
+   the scene instead of replacing it; nothing jumps when one ends.
+3. During `lookat "!player"` events his eye/body turns to the player and
+   follows them as they move, then eases back when the event ends. Check
+   the **direction**: if he looks the opposite way in yaw or pitch, flip
+   the sign for that parameter name in `aim_axis` (anim_props.rs). Run
+   `cargo run -p p2_assets --example animinfo` on
+   `models/npcs/personality_sphere/personality_sphere.mdl` to see his pose
+   parameter names and ranges; if none matches `aim_axis`'s name rules
+   nothing aims (add the name there).
+4. Check which sequence is the aim matrix (`aim_layer`) and that it isn't
+   also auto-layered (applied twice looks like double turning).
+5. Elevator doors, chamber doors, the dropper iris and the rig cameras
+   (sp_a1_intro1 wake-up, sp_a1_wakeup claw) still look as before: they
+   now go through `evaluate` (blend grids at pose 0 = middle of the grid,
+   auto-layers on) and crossfade 0.2 s when their sequence changes.
+6. A still map costs nothing: props only re-pose while their frame, a
+   fade, a gesture or the aim changes.
+
 ## Settings (merged from cloud/settings, tested 2026-10-18)
 
 Tested in the game with scripted menu clicks: Options fits at 1280x720 in

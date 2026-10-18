@@ -40,6 +40,9 @@ pub struct PropAnims {
     /// Model of each prop drawn animated (its `.mdl`, also for entities with
     /// no `model` keyvalue, like the personality cores).
     pub models: HashMap<usize, String>,
+    /// The pose (parent-space bones) last drawn on each animated prop, with
+    /// its crossfades, aim and scene gestures: attachments follow it.
+    pub local_pose: HashMap<usize, Vec<(Vec3, Quat)>>,
     /// Attachment each entity is parented to: child -> (parent ent, attachment).
     attached: HashMap<usize, (usize, String)>,
     /// Each attached child's pose relative to its attachment.
@@ -71,11 +74,16 @@ impl PropAnims {
         let e = &ents.list[ent];
         let model = self.model_of(ent, e)?;
         let anim = self.animator(game, &model)?;
-        let (seq, time) = match self.playing.get(&ent) {
-            Some(pb) => (anim.find(&pb.seq)?, pb.time),
-            None => (e.get("defaultanim").and_then(|n| anim.find(n)).unwrap_or(0), 0.0),
+        let to_model = match self.local_pose.get(&ent) {
+            Some(local) => anim.bone_to_model(local),
+            None => {
+                let (seq, time) = match self.playing.get(&ent) {
+                    Some(pb) => (anim.find(&pb.seq)?, pb.time),
+                    None => (e.get("defaultanim").and_then(|n| anim.find(n)).unwrap_or(0), 0.0),
+                };
+                anim.bone_to_model(&anim.sample(seq, time))
+            }
         };
-        let to_model = anim.bone_to_model(&anim.sample(seq, time));
         let (pos, rot) = anim.attachment(attachment, &to_model)?;
         let basis = Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2);
         let r = e.transform.rotation;
