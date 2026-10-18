@@ -193,7 +193,6 @@ fn click(app: &mut App, action: &str) {
 }
 
 #[test]
-#[ignore = "written for the old Options screen; the Speedrun/Mods pages and Community tab aren't in the Portal 2-style menus yet"]
 fn options_pages_work() {
     let _env = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let root = temp("ui");
@@ -204,7 +203,7 @@ fn options_pages_work() {
         .init_asset::<Image>()
         .add_message::<crate::audio::PlayGameSound>()
         .insert_resource(crate::Launch::default())
-        .add_plugins(crate::ui::UiPlugin)
+        .add_plugins((crate::bindings::BindingsPlugin, crate::ui::UiPlugin))
         .insert_resource(crate::ui::Screen::Main);
     {
         let mut tools = app.world_mut().resource_mut::<Settings>();
@@ -213,13 +212,25 @@ fn options_pages_work() {
     for _ in 0..3 {
         app.update();
     }
+    let screen = |app: &App| *app.world().resource::<crate::ui::Screen>();
+    // The developer console row sits on Keyboard/Mouse, the overlays on Advanced video.
     click(&mut app, "Options");
-    assert!(matches!(*app.world().resource::<crate::ui::Screen>(), crate::ui::Screen::Options { .. }));
+    click(&mut app, "Page(KeyboardMouse)");
+    assert!(matches!(screen(&app), crate::ui::Screen::Options { .. }));
     click(&mut app, "Toggle(DevConsole)");
+    click(&mut app, "Done");
+    assert_eq!(screen(&app), crate::ui::Screen::Main);
+    click(&mut app, "Options");
+    click(&mut app, "Page(Video)");
+    click(&mut app, "Page(AdvancedVideo)");
     click(&mut app, "Toggle(ShowFps)");
     click(&mut app, "Toggle(ShowPos)");
+    click(&mut app, "Done");
+    click(&mut app, "Done");
     let t = app.world().resource::<Settings>().tools.clone();
     assert!(t.dev_console && t.show_fps && t.show_pos);
+    // Speedrun, by its old click name.
+    click(&mut app, "Options");
     click(&mut app, "SpeedrunOptions");
     click(&mut app, "Toggle(SpeedrunTimer)");
     click(&mut app, "Adjust(SpeedrunMode,1.0)");
@@ -233,25 +244,35 @@ fn options_pages_work() {
     assert!(t.speedrun_timer && t.quick_restart && t.practice);
     assert_eq!(t.speedrun_mode, crate::tool_settings::SpeedrunMode::SingleMap);
     assert_eq!((t.quick_restart_key, t.checkpoint_save_key, t.checkpoint_load_key, t.checkpoint_slot), (KeyCode::F7, KeyCode::F6, KeyCode::F9, 2));
-    // BACK from the page saves settings.cfg with the new keys.
-    click(&mut app, "Back");
+    // DONE saves settings.cfg with the new keys.
+    click(&mut app, "Done");
     let cfg = std::fs::read_to_string(root.join("data/settings.cfg")).unwrap();
     assert!(cfg.contains("speedrun_timer 1") && cfg.contains("quick_restart_key F7") && cfg.contains("con_enable 1"), "{cfg}");
-    assert!(matches!(*app.world().resource::<crate::ui::Screen>(), crate::ui::Screen::Options { .. }));
+    assert_eq!(screen(&app), crate::ui::Screen::Main);
+    // CANCEL puts a page back as it was.
+    click(&mut app, "Options");
+    click(&mut app, "Page(Speedrun)");
+    click(&mut app, "Toggle(SpeedrunTimer)");
+    click(&mut app, "Cancel");
+    assert!(app.world().resource::<Settings>().tools.speedrun_timer);
     // The Mods page with no mod folder, and back.
+    click(&mut app, "Options");
     click(&mut app, "ModsOptions");
+    assert!(matches!(screen(&app), crate::ui::Screen::Options { .. }));
     assert!(!root.join("data/mods").exists());
-    click(&mut app, "Back");
-    click(&mut app, "Back");
-    assert_eq!(*app.world().resource::<crate::ui::Screen>(), crate::ui::Screen::Main);
-    // Chapter select with a community map: its tab, then start it.
+    click(&mut app, "Adjust(ModProfile,1.0)");
+    click(&mut app, "Done");
+    assert_eq!(screen(&app), crate::ui::Screen::Main);
+    // New Game with a community map: its tab, then start it.
     std::fs::create_dir_all(root.join("data/maps")).unwrap();
     std::fs::write(root.join("data/maps/my_map.bsp"), b"VBSP").unwrap();
     app.world_mut().resource_mut::<crate::community::CommunityMaps>().folders = vec![root.join("data/maps")];
+    click(&mut app, "SinglePlayer");
     click(&mut app, "Chapters");
+    assert_eq!(screen(&app), crate::ui::Screen::Chapters);
     click(&mut app, "ChapterTab(true)");
     click(&mut app, "CommunityMap(0)");
-    assert_eq!(*app.world().resource::<crate::ui::Screen>(), crate::ui::Screen::None);
+    assert_eq!(screen(&app), crate::ui::Screen::None);
     let loads: Vec<String> = app.world_mut().resource_mut::<Messages<LoadLevel>>().drain().map(|l| l.map).collect();
     assert!(loads.iter().any(|m| m.ends_with("my_map.bsp")), "{loads:?}");
     std::env::remove_var("P2_DATA_DIR");

@@ -18,7 +18,10 @@ use p2_core::*;
 use crate::audio::{GameSound, PlayGameSound};
 use crate::bindings::{DefaultBinds, KeyAction, KeyActions};
 use crate::campaign::Campaign;
+use crate::community::CommunityMaps;
 use crate::level::{CurrentMap, LevelLoaded, LoadLevel};
+use crate::mods_page::ModsPage;
+use crate::mounts::Mounts;
 use crate::options::{self, Ctx, Footer, OptionsPage, Row, Setting, VideoMode};
 use crate::settings::{data_dir, Settings};
 
@@ -41,13 +44,15 @@ impl Plugin for UiPlugin {
             .init_resource::<MenuScroll>()
             .init_resource::<InputEaten>()
             .init_resource::<TitleCard>()
+            .init_resource::<ChapterTab>()
+            .init_resource::<ModsPage>()
             .add_message::<ShowChapterTitle>()
             .add_message::<MenuClick>()
             .add_systems(Startup, (load_fonts, load_menu_art, open_main_menu).chain().after(crate::campaign::load_campaign))
             .add_systems(
                 Update,
                 (
-                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu).chain(),
+                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, hover_rows).chain(),
                     (menu_view, menu_camera, pause_world, menu_music, autosave, title_card).chain(),
                 )
                     .chain()
@@ -96,6 +101,17 @@ struct MenuState {
     capture: Option<usize>,
     selected: Option<usize>,
 }
+
+/// The New Game dialog's tab: the campaign, or the community maps (the
+/// tabs only show when there are community maps), and the page of those.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct ChapterTab {
+    community: bool,
+    page: usize,
+}
+
+/// Community maps per page of the New Game dialog.
+const COMMUNITY_PER_PAGE: usize = 9;
 
 /// How far the key list is scrolled; kept apart from [`MenuState`] so
 /// scrolling doesn't rebuild the menu.
@@ -168,6 +184,14 @@ enum Action {
     Slide(Setting),
     /// A key-list row: wait for a key to bind.
     Bind(usize),
+    /// New Game's tabs: the campaign (false) or the community maps (true).
+    ChapterTab(bool),
+    /// The previous (-1) or next (1) page of community maps.
+    CommunityPage(i32),
+    CommunityMap(usize),
+    /// Options > Mods: a mod on/off, and undo the last change.
+    ModToggle(usize),
+    ModRollback,
 }
 
 impl From<Footer> for Action {
@@ -208,6 +232,13 @@ mod theme {
     pub const BUTTON: Color = Color::srgb(0.24, 0.24, 0.25);
     pub const BUTTON_HOVER: Color = Color::srgb(0.38, 0.38, 0.4);
     pub const BUTTON_TEXT: Color = Color::srgb(0.88, 0.88, 0.89);
+    /// A slider on the hovered (dark) row.
+    pub const TRACK_HOT: Color = Color::srgba(1.0, 1.0, 1.0, 0.25);
+    pub const FILL_HOT: Color = Color::srgb(0.9, 0.9, 0.91);
+    /// A problem line (the Mods page).
+    pub const ERROR: Color = Color::srgb(0.62, 0.12, 0.1);
+    /// The chosen chapter-dialog tab.
+    pub const TAB_ON: Color = Color::srgb(0.12, 0.12, 0.13);
 }
 
 /// A button's colours, idle and hovered.
@@ -420,17 +451,20 @@ fn item_list(p: &mut ChildSpawnerCommands, fonts: &UiFonts, items: &[(&str, Acti
 /// A dialog panel at the left of the screen: title, rule, then the
 /// caller's content. Returns the panel entity.
 fn dialog(commands: &mut Commands, fonts: &UiFonts, title: &str, width: f32) -> Entity {
-    let mut root = commands.spawn((
-        layer(10),
-        BackgroundColor(Color::NONE),
-    ));
+    dialog_on(commands, fonts, title, width, 10, Color::NONE, false)
+}
+
+/// [`dialog`] on layer `z` over `shade`, at the left or `centered`.
+fn dialog_on(commands: &mut Commands, fonts: &UiFonts, title: &str, width: f32, z: i32, shade: Color, centered: bool) -> Entity {
+    let mut root = commands.spawn((layer(z), BackgroundColor(shade)));
     root.insert(Node {
         position_type: PositionType::Absolute,
         width: Val::Percent(100.0),
         height: Val::Percent(100.0),
         flex_direction: FlexDirection::Column,
         justify_content: JustifyContent::Center,
-        padding: UiRect::left(Val::Percent(6.0)),
+        align_items: if centered { AlignItems::Center } else { AlignItems::FlexStart },
+        padding: if centered { UiRect::ZERO } else { UiRect::left(Val::Percent(6.0)) },
         ..default()
     });
     let mut panel = Entity::PLACEHOLDER;
@@ -462,6 +496,12 @@ fn dialog(commands: &mut Commands, fonts: &UiFonts, title: &str, width: f32) -> 
 
 /// The bottom of a dialog: a hint at the left, buttons at the right.
 fn footer(p: &mut ChildSpawnerCommands, fonts: &UiFonts, hint: &str, buttons: &[Footer]) {
+    let buttons: Vec<(&str, Action)> = buttons.iter().map(|&k| (k.label(), k.into())).collect();
+    footer_buttons(p, fonts, hint, &buttons);
+}
+
+/// [`footer`] with any buttons.
+fn footer_buttons(p: &mut ChildSpawnerCommands, fonts: &UiFonts, hint: &str, buttons: &[(&str, Action)]) {
     p.spawn((Node { height: Val::Px(1.0), width: Val::Percent(100.0), margin: UiRect::top(Val::Px(14.0)), ..default() }, BackgroundColor(theme::EDGE)));
     p.spawn(Node {
         flex_direction: FlexDirection::Row,
@@ -474,59 +514,132 @@ fn footer(p: &mut ChildSpawnerCommands, fonts: &UiFonts, hint: &str, buttons: &[
     .with_children(|f| {
         f.spawn(text(&fonts.regular, 14.0, hint, theme::HINT));
         f.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(8.0), ..default() }).with_children(|b| {
-            for &k in buttons {
-                b.spawn(button(&fonts.menu, k.label(), k.into(), 16.0, BUTTON_LOOK));
+            for &(label, action) in buttons {
+                b.spawn(button(&fonts.menu, label, action, 16.0, BUTTON_LOOK));
             }
         });
     });
 }
 
+/// An Options row. As in Portal 2, only the row under the mouse shows its
+/// ◀ ▶ arrows, on a dark bar with white text ([`hover_rows`]).
+#[derive(Component, Default)]
+struct HoverRow {
+    hot: bool,
+}
+
+/// A row's ◀ ▶ arrows, hidden until the row is hovered.
+#[derive(Component)]
+struct RowArrow;
+
+/// A button inside a [`HoverRow`]: the row sets its colours.
+#[derive(Component)]
+struct InRow;
+
+/// A slider's track and fill, which change colour on the dark bar.
+#[derive(Component)]
+struct SliderTrack;
+
+#[derive(Component)]
+struct SliderFill;
+
+/// The row container: hovered via [`RelativeCursorPosition`] so the
+/// buttons on it can still take the clicks.
+fn hover_row() -> impl Bundle {
+    (
+        HoverRow::default(),
+        RelativeCursorPosition::default(),
+        Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, min_height: Val::Px(32.0), column_gap: Val::Px(6.0), padding: UiRect::horizontal(Val::Px(6.0)), ..default() },
+        BackgroundColor(Color::NONE),
+    )
+}
+
+/// A ◀ or ▶ on a row.
+fn arrow(fonts: &UiFonts, left: bool, action: Action) -> impl Bundle {
+    (
+        Button,
+        action,
+        VALUE_LOOK,
+        InRow,
+        RowArrow,
+        Visibility::Hidden,
+        Node { padding: UiRect::axes(Val::Px(6.0), Val::Px(4.0)), align_items: AlignItems::Center, ..default() },
+        BackgroundColor(Color::NONE),
+        children![text(&fonts.bold, 13.0, if left { "\u{25C0}" } else { "\u{25B6}" }, theme::VALUE)],
+    )
+}
+
+/// The value at a row's right; clicking it steps on (wrapping).
+fn row_value(fonts: &UiFonts, value: &str, action: Action) -> impl Bundle {
+    (
+        Button,
+        action,
+        VALUE_LOOK,
+        InRow,
+        Node { width: Val::Px(250.0), justify_content: JustifyContent::FlexEnd, padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(4.0), Val::Px(4.0)), ..default() },
+        BackgroundColor(Color::NONE),
+        children![text(&fonts.regular, 18.0, value.to_string(), theme::VALUE)],
+    )
+}
+
+fn row_label(r: &mut ChildSpawnerCommands, fonts: &UiFonts, s: &str) {
+    r.spawn((Node { flex_grow: 1.0, ..default() }, children![text(&fonts.regular, 18.0, s.to_string(), theme::LABEL)]));
+}
+
+/// `label  ◀ value ▶` with the arrows and value doing `back`, `on`, `click`.
+fn stepper_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, label: &str, value: &str, back: Action, on: Action, click: Action) {
+    p.spawn(hover_row()).with_children(|r| {
+        row_label(r, fonts, label);
+        r.spawn(arrow(fonts, true, back));
+        r.spawn(row_value(fonts, value, click));
+        r.spawn(arrow(fonts, false, on));
+    });
+}
+
 /// One Options row.
 fn option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row) {
-    let line = Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, min_height: Val::Px(32.0), column_gap: Val::Px(6.0), ..default() };
-    let label = |r: &mut ChildSpawnerCommands, s: &str| {
-        r.spawn((Node { flex_grow: 1.0, ..default() }, children![text(&fonts.regular, 18.0, s, theme::LABEL)]));
-    };
     match row {
         Row::Heading(h) => {
-            p.spawn((Node { margin: UiRect::top(Val::Px(12.0)), ..default() }, children![text(&fonts.bold, 13.0, h.to_uppercase(), theme::HEADING)]));
+            p.spawn((Node { margin: UiRect::new(Val::Px(6.0), Val::Px(0.0), Val::Px(12.0), Val::Px(2.0)), ..default() }, children![text(&fonts.bold, 13.0, h.to_uppercase(), theme::HEADING)]));
         }
-        Row::Choice { label: l, value, setting } => {
-            p.spawn(line).with_children(|r| {
-                label(r, l);
-                r.spawn(button(&fonts.bold, "\u{25C0}", Action::Adjust(*setting, -1.0), 13.0, VALUE_LOOK));
-                r.spawn((
-                    Button,
-                    Action::Toggle(*setting),
-                    VALUE_LOOK,
-                    Node { width: Val::Px(250.0), justify_content: JustifyContent::FlexEnd, padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(4.0), Val::Px(4.0)), ..default() },
-                    BackgroundColor(Color::NONE),
-                    children![text(&fonts.regular, 18.0, value.clone(), theme::VALUE)],
-                ));
-                r.spawn(button(&fonts.bold, "\u{25B6}", Action::Adjust(*setting, 1.0), 13.0, VALUE_LOOK));
+        Row::Choice { label, value, setting } => {
+            stepper_row(p, fonts, label, value, Action::Adjust(*setting, -1.0), Action::Adjust(*setting, 1.0), Action::Toggle(*setting));
+        }
+        Row::Mod { label, value, index } => {
+            stepper_row(p, fonts, label, value, Action::ModToggle(*index), Action::ModToggle(*index), Action::ModToggle(*index));
+        }
+        Row::Rollback { value } => {
+            p.spawn(hover_row()).with_children(|r| {
+                row_label(r, fonts, "Undo last change");
+                r.spawn(row_value(fonts, value, Action::ModRollback));
             });
         }
-        Row::Slider { label: l, value, fraction, setting } => {
-            p.spawn(line).with_children(|r| {
-                label(r, l);
-                r.spawn(button(&fonts.bold, "\u{25C0}", Action::Adjust(*setting, -1.0), 13.0, VALUE_LOOK));
+        Row::Note { text: t, error } => {
+            let color = if *error { theme::ERROR } else { theme::HINT };
+            p.spawn((Node { margin: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(6.0), Val::Px(2.0)), ..default() }, children![text(&fonts.regular, 14.0, t.clone(), color)]));
+        }
+        Row::Slider { label, value, fraction, setting } => {
+            p.spawn(hover_row()).with_children(|r| {
+                row_label(r, fonts, label);
+                r.spawn(arrow(fonts, true, Action::Adjust(*setting, -1.0)));
                 r.spawn((Node { width: Val::Px(250.0), flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(10.0), ..default() },))
                     .with_children(|v| {
                         v.spawn((
                             Button,
                             Action::Slide(*setting),
                             Look { text: theme::VALUE, text_hover: theme::ITEM_HOVER, bg: Color::NONE, bg_hover: Color::NONE },
+                            InRow,
                             RelativeCursorPosition::default(),
                             Node { flex_grow: 1.0, height: Val::Px(24.0), align_items: AlignItems::Center, ..default() },
                             BackgroundColor(Color::NONE),
                         ))
                         .with_children(|t| {
-                            t.spawn((Node { width: Val::Percent(100.0), height: Val::Px(6.0), ..default() }, BackgroundColor(theme::TRACK)))
-                                .with_child((Node { width: Val::Percent(fraction * 100.0), height: Val::Percent(100.0), ..default() }, BackgroundColor(theme::FILL)));
+                            t.spawn((SliderTrack, Node { width: Val::Percent(100.0), height: Val::Px(6.0), ..default() }, BackgroundColor(theme::TRACK)))
+                                .with_child((SliderFill, Node { width: Val::Percent(fraction * 100.0), height: Val::Percent(100.0), ..default() }, BackgroundColor(theme::FILL)));
                         });
                         v.spawn((Node { width: Val::Px(52.0), justify_content: JustifyContent::FlexEnd, ..default() }, children![text(&fonts.regular, 16.0, value.clone(), theme::VALUE)]));
                     });
-                r.spawn(button(&fonts.bold, "\u{25B6}", Action::Adjust(*setting, 1.0), 13.0, VALUE_LOOK));
+                r.spawn(arrow(fonts, false, Action::Adjust(*setting, 1.0)));
             });
         }
         Row::Link { label: l, page } => {
@@ -534,28 +647,77 @@ fn option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row) {
                 Button,
                 Action::Page(*page),
                 VALUE_LOOK,
-                Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, min_height: Val::Px(32.0), padding: UiRect::right(Val::Px(8.0)), ..default() },
+                Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, min_height: Val::Px(32.0), padding: UiRect::horizontal(Val::Px(6.0)), ..default() },
                 BackgroundColor(Color::NONE),
             ))
             .with_children(|r| {
-                r.spawn((Node { flex_grow: 1.0, padding: UiRect::left(Val::Px(6.0)), ..default() }, children![text(&fonts.menu, 18.0, l.to_uppercase(), theme::VALUE)]));
+                r.spawn((Node { flex_grow: 1.0, ..default() }, children![text(&fonts.menu, 18.0, l.to_uppercase(), theme::VALUE)]));
             });
         }
         Row::Key { label: l, keys, index, selected } => {
-            let bg = if *selected { theme::SELECTED } else { Color::NONE };
+            let (bg, color) = if *selected { (theme::SELECTED, Color::WHITE) } else { (Color::NONE, theme::VALUE) };
             p.spawn((
                 Button,
                 Action::Bind(*index),
-                Look { text: theme::VALUE, text_hover: theme::ITEM_HOVER, bg, bg_hover: theme::HIGHLIGHT },
+                Look { text: color, text_hover: Color::WHITE, bg, bg_hover: theme::ROW_HOVER },
                 Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, min_height: Val::Px(28.0), padding: UiRect::horizontal(Val::Px(8.0)), ..default() },
                 BackgroundColor(bg),
             ))
             .with_children(|r| {
-                r.spawn((Node { flex_grow: 1.0, ..default() }, children![text(&fonts.regular, 17.0, l.clone(), theme::VALUE)]));
-                r.spawn((Node { width: Val::Px(220.0), ..default() }, children![text(&fonts.bold, 17.0, keys.clone(), theme::VALUE)]));
+                r.spawn((Node { flex_grow: 1.0, ..default() }, children![text(&fonts.regular, 17.0, l.clone(), color)]));
+                r.spawn((Node { width: Val::Px(220.0), ..default() }, children![text(&fonts.bold, 17.0, keys.clone(), color)]));
             });
         }
     }
+}
+
+/// The row under the mouse: dark bar, white text, arrows shown; the
+/// others plain.
+#[allow(clippy::type_complexity)]
+fn hover_rows(
+    mut rows: Query<(Entity, &RelativeCursorPosition, &mut HoverRow, &mut BackgroundColor), Without<SliderTrack>>,
+    children: Query<&Children>,
+    mut texts: Query<&mut TextColor>,
+    mut arrows: Query<&mut Visibility, With<RowArrow>>,
+    mut parts: Query<(&mut BackgroundColor, Has<SliderFill>), (Or<(With<SliderTrack>, With<SliderFill>)>, Without<HoverRow>)>,
+    menu: Res<MenuState>,
+) {
+    for (e, cursor, mut row, mut bg) in &mut rows {
+        // Under a confirmation, nothing is hovered.
+        let hot = cursor.cursor_over() && menu.confirm.is_none();
+        if hot == row.hot {
+            continue;
+        }
+        row.hot = hot;
+        bg.0 = if hot { theme::ROW_HOVER } else { Color::NONE };
+        for c in children.iter_descendants(e) {
+            if let Ok(mut t) = texts.get_mut(c) {
+                t.0 = if hot { Color::WHITE } else { theme::VALUE };
+            }
+            if let Ok(mut v) = arrows.get_mut(c) {
+                *v = if hot { Visibility::Inherited } else { Visibility::Hidden };
+            }
+            if let Ok((mut b, fill)) = parts.get_mut(c) {
+                b.0 = match (fill, hot) {
+                    (true, true) => theme::FILL_HOT,
+                    (true, false) => theme::FILL,
+                    (false, true) => theme::TRACK_HOT,
+                    (false, false) => theme::TRACK,
+                };
+            }
+        }
+    }
+}
+
+/// CAMPAIGN / COMMUNITY MAPS above the New Game grid: small dark buttons,
+/// the chosen one darker.
+fn chapter_tabs(p: &mut ChildSpawnerCommands, fonts: &UiFonts, community: bool) {
+    p.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(6.0), margin: UiRect::bottom(Val::Px(10.0)), ..default() }).with_children(|r| {
+        for (label, c) in [("CAMPAIGN", false), ("COMMUNITY MAPS", true)] {
+            let look = if c == community { Look { bg: theme::TAB_ON, bg_hover: theme::TAB_ON, text: Color::WHITE, text_hover: Color::WHITE } } else { BUTTON_LOOK };
+            r.spawn(button(&fonts.menu, label, Action::ChapterTab(c), 16.0, look));
+        }
+    });
 }
 
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
@@ -565,6 +727,7 @@ fn rebuild_menu(
     menu: Res<MenuState>,
     scroll: Res<MenuScroll>,
     (fonts, art, campaign, settings, actions, defaults): (Option<Res<UiFonts>>, Option<Res<MenuArt>>, Res<Campaign>, Res<Settings>, Res<KeyActions>, Res<DefaultBinds>),
+    (tab, community, mods): (Res<ChapterTab>, Res<CommunityMaps>, Res<ModsPage>),
     roots: Query<Entity, With<MenuRoot>>,
     game: Res<GameFsRes>,
     mut images: ResMut<Assets<Image>>,
@@ -573,8 +736,9 @@ fn rebuild_menu(
     mut backgrounds: Local<std::collections::HashMap<usize, Option<Handle<Image>>>>,
 ) {
     let Some(fonts) = fonts else { return };
-    let options_changed = (settings.is_changed() || actions.is_changed()) && matches!(*screen, Screen::Options { .. });
-    if !screen.is_changed() && !menu.is_changed() && !options_changed && !fonts.is_added() {
+    let options_changed = (settings.is_changed() || actions.is_changed() || mods.is_changed()) && matches!(*screen, Screen::Options { .. });
+    let chapters_changed = (tab.is_changed() || community.is_changed()) && *screen == Screen::Chapters;
+    if !screen.is_changed() && !menu.is_changed() && !options_changed && !chapters_changed && !fonts.is_added() {
         return;
     }
     for r in &roots {
@@ -668,34 +832,54 @@ fn rebuild_menu(
                     })
                     .collect();
             }
+            let show_community = tab.community && !community.maps.is_empty();
             let panel = dialog(&mut commands, &fonts, "NEW GAME", 980.0);
             commands.entity(panel).with_children(|p| {
-                p.spawn(Node {
+                if !community.maps.is_empty() {
+                    chapter_tabs(p, &fonts, show_community);
+                }
+                let grid = Node {
                     display: Display::Grid,
                     grid_template_columns: RepeatedGridTrack::flex(3, 1.0),
                     column_gap: Val::Px(14.0),
                     row_gap: Val::Px(10.0),
                     width: Val::Percent(100.0),
                     ..default()
-                })
-                .with_children(|g| {
-                    for (i, c) in campaign.chapters.iter().enumerate() {
-                        g.spawn((
-                            Button,
-                            Action::Chapter(i),
-                            VALUE_LOOK,
-                            Node { flex_direction: FlexDirection::Column, padding: UiRect::all(Val::Px(6.0)), row_gap: Val::Px(2.0), ..default() },
-                            BackgroundColor(Color::NONE),
-                        ))
-                        .with_children(|b| {
-                            if let Some(Some(img)) = chapter_pics.get(i) {
-                                b.spawn((ImageNode::new(img.clone()), Node { width: Val::Percent(100.0), aspect_ratio: Some(16.0 / 9.0), ..default() }));
-                            }
-                            b.spawn(text(&fonts.regular, 14.0, c.title.to_uppercase(), theme::LABEL));
-                            b.spawn(text(&fonts.menu, 17.0, c.subtitle.to_uppercase(), theme::VALUE));
-                        });
+                };
+                let tile = Node { flex_direction: FlexDirection::Column, padding: UiRect::all(Val::Px(6.0)), row_gap: Val::Px(2.0), overflow: Overflow::clip(), ..default() };
+                if show_community {
+                    let pages = community.maps.len().div_ceil(COMMUNITY_PER_PAGE);
+                    let page = tab.page.min(pages - 1);
+                    p.spawn(grid).with_children(|g| {
+                        for (i, m) in community.maps.iter().enumerate().skip(page * COMMUNITY_PER_PAGE).take(COMMUNITY_PER_PAGE) {
+                            let folder = m.path.parent().map(|f| f.display().to_string()).unwrap_or_default();
+                            g.spawn((Button, Action::CommunityMap(i), VALUE_LOOK, tile.clone(), BackgroundColor(Color::NONE))).with_children(|b| {
+                                b.spawn(text(&fonts.menu, 17.0, m.name.to_uppercase(), theme::VALUE));
+                                b.spawn(text(&fonts.regular, 12.0, folder, theme::LABEL));
+                            });
+                        }
+                    });
+                    if pages > 1 {
+                        p.spawn(Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, justify_content: JustifyContent::Center, column_gap: Val::Px(12.0), margin: UiRect::top(Val::Px(8.0)), ..default() })
+                            .with_children(|r| {
+                                r.spawn(button(&fonts.bold, "\u{25C0}", Action::CommunityPage(-1), 13.0, VALUE_LOOK));
+                                r.spawn(text(&fonts.menu, 16.0, format!("PAGE {} / {pages}", page + 1), theme::VALUE));
+                                r.spawn(button(&fonts.bold, "\u{25B6}", Action::CommunityPage(1), 13.0, VALUE_LOOK));
+                            });
                     }
-                });
+                } else {
+                    p.spawn(grid).with_children(|g| {
+                        for (i, c) in campaign.chapters.iter().enumerate() {
+                            g.spawn((Button, Action::Chapter(i), VALUE_LOOK, tile.clone(), BackgroundColor(Color::NONE))).with_children(|b| {
+                                if let Some(Some(img)) = chapter_pics.get(i) {
+                                    b.spawn((ImageNode::new(img.clone()), Node { width: Val::Percent(100.0), aspect_ratio: Some(16.0 / 9.0), ..default() }));
+                                }
+                                b.spawn(text(&fonts.regular, 14.0, c.title.to_uppercase(), theme::LABEL));
+                                b.spawn(text(&fonts.menu, 17.0, c.subtitle.to_uppercase(), theme::VALUE));
+                            });
+                        }
+                    });
+                }
                 footer(p, &fonts, "", &[Footer::Back]);
             });
         }
@@ -709,6 +893,7 @@ fn rebuild_menu(
                 binds: &binds,
                 capture: menu.capture,
                 selected: menu.selected,
+                mods: Some(&mods),
             };
             let rows = options::rows(page, &settings, &ctx);
             let hint = match (page, menu.capture) {
@@ -725,7 +910,7 @@ fn rebuild_menu(
             };
             let panel = dialog(&mut commands, &fonts, page.title(), if page == OptionsPage::Keys { 760.0 } else { 720.0 });
             commands.entity(panel).with_children(|p| {
-                if page == OptionsPage::Keys {
+                if matches!(page, OptionsPage::Keys | OptionsPage::Mods) {
                     p.spawn((
                         ScrollList,
                         ScrollPosition(Vec2::new(0.0, scroll.0)),
@@ -758,31 +943,11 @@ fn rebuild_menu(
             Confirm::QuitGame => ("QUIT", "Are you sure you want to quit?"),
             Confirm::QuitToMenu => ("QUIT TO MAIN MENU", "Are you sure you want to quit to the main menu? Any progress since the last checkpoint will be lost."),
         };
-        let mut shade = commands.spawn((layer(20), BackgroundColor(theme::SHADE)));
-        shade.insert(Node {
-            position_type: PositionType::Absolute,
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
-            justify_content: JustifyContent::Center,
-            align_items: AlignItems::Center,
-            ..default()
-        });
-        shade.with_children(|s| {
-            s.spawn((
-                Node { flex_direction: FlexDirection::Column, width: Val::Px(520.0), max_width: Val::Percent(90.0), padding: UiRect::axes(Val::Px(28.0), Val::Px(20.0)), border: UiRect::all(Val::Px(1.0)), ..default() },
-                BackgroundColor(theme::PANEL),
-                BorderColor::all(theme::EDGE),
-            ))
-            .with_children(|d| {
-                d.spawn(text(&fonts.menu, 26.0, title, theme::TITLE));
-                d.spawn((Node { margin: UiRect::top(Val::Px(12.0)), ..default() }, children![text(&fonts.regular, 18.0, message, theme::LABEL)]));
-                d.spawn((Node { height: Val::Px(1.0), width: Val::Percent(100.0), margin: UiRect::top(Val::Px(18.0)), ..default() }, BackgroundColor(theme::EDGE)));
-                d.spawn(Node { flex_direction: FlexDirection::Row, justify_content: JustifyContent::FlexEnd, column_gap: Val::Px(8.0), margin: UiRect::top(Val::Px(8.0)), ..default() })
-                    .with_children(|b| {
-                        b.spawn(button(&fonts.menu, "OK", Action::ConfirmOk, 16.0, BUTTON_LOOK));
-                        b.spawn(button(&fonts.menu, "CANCEL", Action::ConfirmCancel, 16.0, BUTTON_LOOK));
-                    });
-            });
+        // Centred, so its tab and panel line up as one block.
+        let panel = dialog_on(&mut commands, &fonts, title, 560.0, 20, theme::SHADE, true);
+        commands.entity(panel).with_children(|d| {
+            d.spawn((Node { margin: UiRect::horizontal(Val::Px(6.0)), ..default() }, children![text(&fonts.regular, 18.0, message, theme::LABEL)]));
+            footer_buttons(d, &fonts, "", &[("OK", Action::ConfirmOk), ("CANCEL", Action::ConfirmCancel)]);
         });
     }
 }
@@ -790,7 +955,7 @@ fn rebuild_menu(
 /// For rows that need no context (the category list).
 fn dummy_ctx() -> Ctx<'static> {
     static BINDS: std::sync::OnceLock<crate::bindings::BindTable> = std::sync::OnceLock::new();
-    Ctx { native: UVec2::new(1920, 1080), video: VideoMode { resolution: None, fullscreen: false }, keys: &[], binds: BINDS.get_or_init(Default::default), capture: None, selected: None }
+    Ctx { native: UVec2::new(1920, 1080), video: VideoMode { resolution: None, fullscreen: false }, keys: &[], binds: BINDS.get_or_init(Default::default), capture: None, selected: None, mods: None }
 }
 
 /// Into an Options page from its parent (or the Options flyout).
@@ -901,9 +1066,13 @@ fn escape_key(
     }
 }
 
+/// Older click names that still work: (old, now).
+const CLICK_ALIASES: [(&str, &str); 4] = [("chapters", "newgame"), ("speedrunoptions", "page(speedrun)"), ("modsoptions", "page(mods)"), ("subtitleoptions", "page(subtitles)")];
+
 fn scripted_clicks(mut clicks: MessageReader<MenuClick>, mut screen: ResMut<Screen>, mut q: Query<(&mut Interaction, &Action)>) {
     for c in clicks.read() {
         let want = c.0.replace(' ', "").to_ascii_lowercase();
+        let want = CLICK_ALIASES.iter().find(|(old, _)| *old == want).map_or(want.clone(), |(_, now)| now.to_string());
         if want == "pause" {
             *screen = Screen::Pause;
             continue;
@@ -933,24 +1102,28 @@ fn scroll_lists(wheel: Option<Res<AccumulatedMouseScroll>>, menu: Res<MenuState>
 
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn buttons(
-    q: Query<(Entity, &Interaction, &Action, &Look), Changed<Interaction>>,
+    q: Query<(Entity, &Interaction, &Action, &Look, Has<InRow>), Changed<Interaction>>,
     (mut texts, mut bgs, children, cursor): (Query<&mut TextColor>, Query<&mut BackgroundColor>, Query<&Children>, Query<&RelativeCursorPosition>),
     (mut screen, mut menu, mut scroll, eaten): (ResMut<Screen>, ResMut<MenuState>, ResMut<MenuScroll>, Res<InputEaten>),
     mut settings: ResMut<Settings>,
     (campaign, defaults, actions): (Res<Campaign>, Res<DefaultBinds>, Res<KeyActions>),
     map: Option<Res<CurrentMap>>,
     (monitors, windows): (Query<&Monitor, With<PrimaryMonitor>>, Query<&Window, With<PrimaryWindow>>),
+    (mut tab, mut community, mut mods, mounts): (ResMut<ChapterTab>, ResMut<CommunityMaps>, ResMut<ModsPage>, Res<Mounts>),
     mut load: MessageWriter<LoadLevel>,
     mut exit: MessageWriter<AppExit>,
 ) {
-    for (e, interaction, action, look) in &q {
+    for (e, interaction, action, look, in_row) in &q {
         let hot = *interaction != Interaction::None;
-        if let Ok(mut bg) = bgs.get_mut(e) {
-            bg.0 = if hot { look.bg_hover } else { look.bg };
-        }
-        for c in children.iter_descendants(e) {
-            if let Ok(mut t) = texts.get_mut(c) {
-                t.0 = if hot { look.text_hover } else { look.text };
+        // A row's own buttons take its colours (see hover_rows).
+        if !in_row {
+            if let Ok(mut bg) = bgs.get_mut(e) {
+                bg.0 = if hot { look.bg_hover } else { look.bg };
+            }
+            for c in children.iter_descendants(e) {
+                if let Ok(mut t) = texts.get_mut(c) {
+                    t.0 = if hot { look.text_hover } else { look.text };
+                }
             }
         }
         // A press while a key is being bound is the key itself.
@@ -972,6 +1145,29 @@ fn buttons(
             Action::NewGame => {
                 menu.flyout = None;
                 *screen = Screen::Chapters;
+                // Maps copied in since the game started show up too.
+                community.rescan();
+                *tab = ChapterTab::default();
+            }
+            Action::ChapterTab(c) => *tab = ChapterTab { community: c, page: 0 },
+            Action::CommunityPage(d) => {
+                let pages = community.maps.len().div_ceil(COMMUNITY_PER_PAGE).max(1);
+                tab.page = (tab.page as i32 + d).clamp(0, pages as i32 - 1) as usize;
+            }
+            Action::CommunityMap(i) => {
+                if let Some(m) = community.maps.get(i) {
+                    load.write(LoadLevel { map: m.launch_name(), menu: false });
+                    *screen = Screen::None;
+                }
+            }
+            Action::ModToggle(i) => mods.toggle(i, &mounts.mods),
+            Action::ModRollback => mods.rollback(&mounts.mods),
+            Action::Adjust(Setting::ModProfile, d) => mods.step_profile(if d < 0.0 { -1 } else { 1 }, &mounts.mods),
+            Action::Toggle(Setting::ModProfile) => {
+                // Clicking the name steps on, round to the first after the last.
+                let last = mods.profiles.last().is_some_and(|p| *p == mods.profile);
+                let d = if last { -(mods.profiles.len() as i32) } else { 1 };
+                mods.step_profile(d, &mounts.mods);
             }
             Action::Chapter(i) => {
                 if let Some(c) = campaign.chapters.get(i) {
@@ -984,6 +1180,10 @@ fn buttons(
                     *screen = Screen::Options { from_pause: *screen == Screen::Pause };
                     menu.flyout = None;
                     menu.undo.clear();
+                }
+                if p == OptionsPage::Mods {
+                    mods.note.clear();
+                    mods.refresh(&mounts.mods);
                 }
                 open_page(&mut menu, &mut scroll, &settings, p);
             }
