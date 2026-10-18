@@ -791,7 +791,7 @@ pub fn spawn_loaded_map(
             if sp.vertex_light.is_some() { vhv_ctx.as_ref() } else { amb_ctx.as_ref() },
         );
         if sp.solid != 0 {
-            spawn_prop_collider(commands, model, e, sp.solid as i32);
+            spawn_prop_collider(commands, model, e, sp.solid as i32, None);
         }
         let idx = entities_out.len();
         commands.entity(e).insert(SourceEntityRef { kind: MapEntityKind::StaticProp, index: idx });
@@ -891,7 +891,8 @@ pub fn spawn_loaded_map(
                 // Entity props collide too unless `solid` is 0 (not solid).
                 let solid = e.get("solid").and_then(|v| v.trim().parse().ok()).unwrap_or(6);
                 if solid != 0 {
-                    spawn_prop_collider(commands, model, ent, solid);
+                    let seq = e.get("defaultanim").filter(|s| !s.is_empty()).or_else(|| map::class_default_sequence(&e.classname));
+                    spawn_prop_collider(commands, model, ent, solid, seq);
                 }
                 spawned = Some(ent);
                 bounds_e = Some(model_bounds(model));
@@ -1021,10 +1022,10 @@ fn spawn_collider(commands: &mut Commands, c: &ColliderData, parent: Entity) {
 /// Prop collision: the model's `.phy` convex pieces; its bounding box only
 /// for `solid 2` (SOLID_BBOX). A `solid 6` (VPhysics) model without a
 /// `.phy` is not solid, as in the engine.
-fn spawn_prop_collider(commands: &mut Commands, model: &ModelData, parent: Entity, solid: i32) {
+fn spawn_prop_collider(commands: &mut Commands, model: &ModelData, parent: Entity, solid: i32, sequence: Option<&str>) {
     let collider = if !model.physics.is_empty() {
         let parts: Vec<(Vec3, Quat, Collider)> = model
-            .physics
+            .posed_physics(sequence)
             .iter()
             .filter_map(|p| Collider::convex_hull(p.clone()).map(|c| (Vec3::ZERO, Quat::IDENTITY, c)))
             .collect();

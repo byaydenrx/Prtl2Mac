@@ -470,7 +470,7 @@ fn ride(
     if movers.moved.is_empty() {
         return;
     }
-    let mut apply = |d: Vec3, tf: &mut Transform, feet: &mut InterpolatedFeet| {
+    let apply = |d: Vec3, tf: &mut Transform, feet: &mut InterpolatedFeet| {
         tf.translation += d;
         feet.prev += d;
         feet.curr += d;

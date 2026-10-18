@@ -220,6 +220,16 @@ impl Ents {
         self.queue.extend(queued);
     }
 
+    /// A new entity (a template's copy); it gets inputs by name from now on.
+    pub fn add(&mut self, e: GameEnt) -> usize {
+        let i = self.list.len();
+        if !e.name.is_empty() {
+            self.by_name.entry(e.name.clone()).or_default().push(i);
+        }
+        self.list.push(e);
+        i
+    }
+
     /// Send an input to entity `i` on the next update (the player using it).
     pub fn input_to(&mut self, i: usize, input: &str) {
         self.direct.push((i, input.to_ascii_lowercase()));

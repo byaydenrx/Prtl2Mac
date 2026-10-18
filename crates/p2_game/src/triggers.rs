@@ -90,7 +90,7 @@ fn touch_triggers(
     }
     let mut now_touching = std::collections::HashSet::new();
     let mut teleport_to: Option<usize> = None;
-    let mut dissolve: Vec<Entity> = Vec::new();
+    let mut dissolve: Vec<(Entity, usize)> = Vec::new();
     for i in 0..ents.list.len() {
         let e = &ents.list[i];
         if e.killed || !e.enabled || !TRIGGER_CLASSES.contains(&e.class.as_str()) {
@@ -111,7 +111,7 @@ fn touch_triggers(
                 if overlaps(lo, hi, pos.0 - prop.half, pos.0 + prop.half) {
                     touchers.push(prop.ent);
                     if class == "trigger_portal_cleanser" {
-                        dissolve.push(pe);
+                        dissolve.push((pe, prop.ent));
                     }
                 }
             }
@@ -144,9 +144,21 @@ fn touch_triggers(
     for (i, t) in touching.0.difference(&now_touching) {
         fire.write(FireOutput { ent: *i, event: "OnEndTouch".into(), activator: Some(*t) });
     }
+    // First thing in / last thing out.
+    let count = |set: &std::collections::HashSet<(usize, usize)>, i: usize| set.iter().filter(|x| x.0 == i).count();
+    let triggers: std::collections::HashSet<usize> = touching.0.iter().chain(now_touching.iter()).map(|x| x.0).collect();
+    for i in triggers {
+        let (was, is) = (count(&touching.0, i), count(&now_touching, i));
+        if was == 0 && is > 0 {
+            fire.write(FireOutput { ent: i, event: "OnStartTouchAll".into(), activator: None });
+        } else if was > 0 && is == 0 {
+            fire.write(FireOutput { ent: i, event: "OnEndTouchAll".into(), activator: None });
+        }
+    }
     touching.0 = now_touching;
-    for d in dissolve {
+    for (d, ent) in dissolve {
         commands.entity(d).despawn();
+        crate::props::dissolved(&mut ents, ent);
     }
     if let Some(dest) = teleport_to {
         let t = ents.list[dest].transform;

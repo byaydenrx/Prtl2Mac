@@ -55,7 +55,7 @@ pub struct Held {
 struct HeldColliders(Vec<Entity>);
 
 /// Map props become dynamic bodies once the level is up.
-fn make_props_dynamic(
+pub fn make_props_dynamic(
     mut commands: Commands,
     mut loaded: MessageReader<LevelLoaded>,
     ents: Option<Res<Ents>>,
@@ -378,24 +378,39 @@ pub fn hook_prop_colliders(mut commands: Commands, props: Query<Entity, Added<Pr
     }
 }
 
-/// Inputs on props: dissolve (fizzle) and wake.
+/// Inputs on props: dissolve (fizzle) and kill.
 fn prop_inputs(
     mut commands: Commands,
     mut inputs: MessageReader<EntInput>,
-    ents: Option<Res<Ents>>,
+    ents: Option<ResMut<Ents>>,
     props: Query<(Entity, &Prop)>,
 ) {
-    let Some(ents) = ents else { return };
+    let Some(mut ents) = ents else {
+        inputs.clear();
+        return;
+    };
     for i in inputs.read() {
         let class = ents.list[i.target].class.as_str();
         if !PICKUP_CLASSES.contains(&class) {
             continue;
         }
-        if matches!(i.input.as_str(), "dissolve" | "kill" | "break") {
+        if matches!(i.input.as_str(), "dissolve" | "kill" | "break" | "silentdissolve") {
             if let Some((e, _)) = props.iter().find(|(_, p)| p.ent == i.target) {
                 commands.entity(e).despawn();
             }
+            if i.input.contains("dissolve") {
+                dissolved(&mut ents, i.target);
+            }
+            ents.list[i.target].killed = true;
         }
+    }
+}
+
+/// A prop fizzled: it fires `OnFizzled` (cube droppers send a new cube) and is gone.
+pub fn dissolved(ents: &mut Ents, ent: usize) {
+    if !ents.list[ent].killed {
+        ents.fire(ent, "onfizzled", None);
+        ents.list[ent].killed = true;
     }
 }
 

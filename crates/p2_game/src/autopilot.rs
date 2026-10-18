@@ -70,6 +70,7 @@ fn drive(
     collider_of: Query<(Option<&avian3d::prelude::ColliderOf>, Has<avian3d::prelude::Collider>, Has<avian3d::prelude::ColliderDisabled>)>,
     bodies: Query<&avian3d::prelude::RigidBody>,
     mut settings: ResMut<crate::settings::Settings>,
+    names: Query<(Option<&Name>, Option<&ChildOf>)>,
 ) {
     if loaded.read().any(|e| !e.menu) {
         pilot.start = Some(time.elapsed_secs());
@@ -94,8 +95,8 @@ fn drive(
                     *view = ViewAngles { yaw: (f(a, 4) - 90.0).to_radians(), pitch: -f(a, 3).to_radians(), roll: 0.0 };
                 }
             }
-            "fire" => {
-                // fire <target> <input> [param]: send an input like the map does.
+            "input" => {
+                // input <target> <input> [param]: send an input like the map does.
                 if let (Some(ents), Some(t), Some(i)) = (ents.as_mut(), a.first(), a.get(1)) {
                     ents.send(t, i, a.get(2).map(String::as_str).unwrap_or(""), 0.0);
                 }
@@ -147,6 +148,23 @@ fn drive(
             "fire" => {
                 let kind = if a.first().is_some_and(|k| k.starts_with('o')) { PortalKind::Orange } else { PortalKind::Blue };
                 fire.write(FirePortal { gun: player, kind });
+            }
+            "ray" => {
+                // ray x y z: what is straight below a Source point.
+                let from = shared::source_to_world(Vec3::new(f(a, 0), f(a, 1), f(a, 2)));
+                let filter = avian3d::prelude::SpatialQueryFilter::from_excluded_entities([player]);
+                if let Some(h) = spatial.cast_ray(from, Dir3::NEG_Y, 100.0, true, &filter) {
+                    let mut chain = Vec::new();
+                    let mut e = Some(h.entity);
+                    while let Some(c) = e {
+                        let (n, p) = names.get(c).unwrap_or((None, None));
+                        chain.push(format!("{c}:{}", n.map(|n| n.as_str()).unwrap_or("-")));
+                        e = p.map(|p| p.parent());
+                    }
+                    info!("autopilot: ray hit at source z {:.0}: {}", (from.y - h.distance) / shared::SOURCE_UNIT, chain.join(" < "));
+                } else {
+                    info!("autopilot: ray hit nothing");
+                }
             }
             "shot" => {
                 if let Some(path) = a.first() {

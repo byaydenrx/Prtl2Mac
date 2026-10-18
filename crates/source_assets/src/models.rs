@@ -61,6 +61,10 @@ pub struct ModelData {
     pub lod0_vertex_order: Vec<Vec<u32>>,
     /// Convex collision pieces from the `.phy` (world axes, metres, model space).
     pub physics: Vec<Vec<Vec3>>,
+    /// For each piece of `physics`, the bone its solid follows when the model
+    /// has one solid per bone (`$collisionjoints`): its points are then in
+    /// that bone's space (see [`ModelData::posed_physics`]).
+    pub physics_bones: Vec<Option<usize>>,
     /// Bones, animations and sequences (None for unreadable headers).
     pub skeleton: Option<std::sync::Arc<crate::skeleton::Skeleton>>,
     /// Compiled with `$staticprop` (bones collapsed; never posed).
@@ -75,6 +79,31 @@ impl ModelData {
     /// Meshes posed at frame 0 of a sequence (`DefaultAnim` name, else
     /// sequence 0), as Portal 2 draws dynamic props. Static-prop models and
     /// models without a skeleton come back unchanged.
+    /// Collision pieces in model space (world axes, metres) at frame 0 of
+    /// `sequence`: per-bone solids are moved by their bone's pose.
+    pub fn posed_physics(&self, sequence: Option<&str>) -> Vec<Vec<Vec3>> {
+        let Some(sk) = self.skeleton.as_ref().filter(|_| self.physics_bones.iter().any(Option::is_some)) else {
+            return self.physics.clone();
+        };
+        let seq = sequence.and_then(|n| sk.sequence_index(n)).or(Some(0));
+        let bones = sk.bone_to_model(seq);
+        self.physics
+            .iter()
+            .zip(&self.physics_bones)
+            .map(|(piece, bone)| {
+                let Some(m) = bone.and_then(|b| bones.get(b)) else { return piece.clone() };
+                piece
+                    .iter()
+                    .map(|w| {
+                        // world metres -> Source units in the bone's frame, posed, back.
+                        let local = Vec3::new(w.x, -w.z, w.y) / shared::SOURCE_UNIT;
+                        source_to_world(m.transform_point3(local))
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
     pub fn posed_meshes(&self, sequence: Option<&str>) -> std::borrow::Cow<'_, [ModelMesh]> {
         let Some(sk) = self.skeleton.as_ref().filter(|_| !self.is_static_prop) else {
             return std::borrow::Cow::Borrowed(&self.meshes);
@@ -315,9 +344,23 @@ fn load_model_inner(
         }
     }
     let (mins, maxs) = model.bounding_box();
-    let physics = read(&format!("{stem}.phy"))
-        .map(|d| crate::phy::parse_phy(&d))
+    let solids = read(&format!("{stem}.phy"))
+        .map(|d| crate::phy::parse_phy_solids(&d))
         .unwrap_or_default();
+    let per_bone = solids.len() > 1;
+    let (mut physics, mut physics_bones) = (Vec::new(), Vec::new());
+    for s in solids {
+        let bone = per_bone
+            .then(|| {
+                let name = s.bone.as_deref()?;
+                skeleton.as_ref()?.bones.iter().position(|b| b.name.eq_ignore_ascii_case(name))
+            })
+            .flatten();
+        for p in s.pieces {
+            physics.push(p);
+            physics_bones.push(bone);
+        }
+    }
     Ok(ModelData {
         path,
         meshes,
@@ -328,6 +371,7 @@ fn load_model_inner(
         vertex_count: verts.len(),
         lod0_vertex_order,
         physics,
+        physics_bones,
         skeleton,
         is_static_prop,
         eyeballs,

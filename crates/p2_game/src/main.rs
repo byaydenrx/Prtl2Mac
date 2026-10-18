@@ -22,6 +22,7 @@ mod portals;
 mod props;
 mod scenes;
 mod settings;
+mod templates;
 mod triggers;
 mod ui;
 mod viewcontrol;
@@ -69,6 +70,7 @@ fn main() {
             ai::AiPlugin,
             viewcontrol::ViewControlPlugin,
             captions::CaptionsPlugin,
+            templates::TemplatesPlugin,
         ))
         .insert_resource(args)
         .add_plugins(p2_room::HarnessPlugin);

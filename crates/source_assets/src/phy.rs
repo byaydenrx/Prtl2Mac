@@ -24,7 +24,22 @@ fn ivp_to_world(x: f32, y: f32, z: f32) -> Vec3 {
 
 /// Convex pieces of every solid, in world axes and metres, model space.
 pub fn parse_phy(data: &[u8]) -> Vec<Vec<Vec3>> {
-    let mut out = Vec::new();
+    parse_phy_solids(data).into_iter().flat_map(|s| s.pieces).collect()
+}
+
+/// One solid of a `.phy`: its convex pieces and the bone it belongs to.
+#[derive(Clone, Debug, Default)]
+pub struct PhySolid {
+    /// World axes, metres; in the bone's space when the model has more than
+    /// one solid (`$collisionjoints`), else in model space.
+    pub pieces: Vec<Vec<Vec3>>,
+    /// Bone name, from the text section (`solid { "index" "n" "name" "bone" }`).
+    pub bone: Option<String>,
+}
+
+/// Every solid with its pieces and bone.
+pub fn parse_phy_solids(data: &[u8]) -> Vec<PhySolid> {
+    let mut out: Vec<PhySolid> = Vec::new();
     let Some(header_size) = i32_at(data, 0) else { return out };
     let Some(solid_count) = i32_at(data, 8) else { return out };
     let mut off = header_size.max(16) as usize;
@@ -32,15 +47,31 @@ pub fn parse_phy(data: &[u8]) -> Vec<Vec<Vec3>> {
         let Some(size) = i32_at(data, off) else { break };
         let start = off + 4;
         let end = (start + size.max(0) as usize).min(data.len());
+        let mut pieces = Vec::new();
         if data.get(start..start + 4) == Some(b"VPHY") {
             // compactsurfaceheader_t is 28 bytes after the size field
-            parse_compact_surface(data, start + 28, end, &mut out);
+            parse_compact_surface(data, start + 28, end, &mut pieces);
         } else {
-            // legacy header: 4-byte size already consumed, 44 more bytes of header? Legacy
-            // surfaces start directly with the IVP compact surface.
-            parse_compact_surface(data, start, end, &mut out);
+            // Legacy surfaces start directly with the IVP compact surface.
+            parse_compact_surface(data, start, end, &mut pieces);
         }
+        out.push(PhySolid { pieces, bone: None });
         off = end;
+    }
+    // The key-value text after the solids names each solid's bone.
+    let text = String::from_utf8_lossy(data.get(off..).unwrap_or(&[]));
+    for block in text.split("solid {").skip(1) {
+        let block = block.split('}').next().unwrap_or("");
+        let field = |k: &str| {
+            let tag = format!("\"{k}\"");
+            let rest = &block[block.find(&tag)? + tag.len()..];
+            Some(rest.split('"').nth(1)?.to_string())
+        };
+        if let (Some(i), Some(name)) = (field("index").and_then(|v| v.parse::<usize>().ok()), field("name")) {
+            if let Some(s) = out.get_mut(i) {
+                s.bone = Some(name);
+            }
+        }
     }
     out
 }
