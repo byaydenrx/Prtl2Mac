@@ -12,6 +12,9 @@ struct SourceMaterialParams {
     flags: u32,
     // StandardMaterialFlags bits (fog, alpha mode) for Bevy's post-lighting step
     pbr_flags: u32,
+    // $basetexturetransform rows (texture proxies scroll and flip it)
+    uv_transform_u: vec4<f32>,
+    uv_transform_v: vec4<f32>,
 };
 
 const FLAG_LIGHTMAP: u32 = 1u;
@@ -37,7 +40,11 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
 #else
     let uv = vec2<f32>(0.0);
 #endif
-    var albedo = textureSample(base_tex, base_samp, uv);
+    let base_uv = vec2<f32>(
+        dot(params.uv_transform_u.xyz, vec3<f32>(uv, 1.0)),
+        dot(params.uv_transform_v.xyz, vec3<f32>(uv, 1.0)),
+    );
+    var albedo = textureSample(base_tex, base_samp, base_uv);
     let albedo2 = textureSample(base2_tex, base2_samp, uv);
     let lm = textureSample(lm_tex, lm_samp,
 #ifdef VERTEX_UVS_B

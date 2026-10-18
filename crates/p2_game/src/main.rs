@@ -41,6 +41,7 @@ mod tool_settings;
 #[cfg(test)]
 mod tools_tests;
 mod templates;
+mod texture_toggle;
 mod tractor;
 mod triggers;
 mod turrets;
@@ -106,6 +107,7 @@ fn main() {
             vscripts::VScriptPlugin,
             exposure::ExposurePlugin,
             paint::PaintPlugin,
+            texture_toggle::TextureTogglePlugin,
         ))
         // Developer, speedrun and modding tools (all off until turned on in Options).
         .add_plugins((console::ConsolePlugin, overlays::OverlaysPlugin, speedrun::SpeedrunPlugin))

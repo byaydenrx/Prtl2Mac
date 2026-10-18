@@ -1,8 +1,9 @@
 //! Choreographed scenes (`logic_choreographed_scene`): the game's `.vcd`
 //! files, read as text from the install. A scene plays its `speak` events
 //! (voice lines) at their times, fires its `OnTrigger<N>` outputs from
-//! `firetrigger` events, and fires `OnCompletion` when its last event ends,
-//! which is what moves most scripted sequences along.
+//! `firetrigger` events, plays its `sequence` / `gesture` events on their
+//! actors (Wheatley's nods, glances, eye pops), and fires `OnCompletion` when
+//! its last event ends, which is what moves most scripted sequences along.
 use bevy::prelude::*;
 use p2_assets::GameFsRes;
 
@@ -15,7 +16,7 @@ pub struct ScenesPlugin;
 impl Plugin for ScenesPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Playing>()
-            .add_systems(Update, (scene_inputs, run_scenes).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic));
+            .add_systems(Update, (scene_inputs, run_scenes, speaking_lights).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic));
     }
 }
 
@@ -23,6 +24,8 @@ impl Plugin for ScenesPlugin {
 pub enum SceneEventKind {
     Speak,
     FireTrigger,
+    /// A `sequence` or `gesture` event: the actor plays that animation.
+    Sequence,
     Other,
 }
 
@@ -32,6 +35,8 @@ pub struct SceneEvent {
     pub start: f32,
     pub end: f32,
     pub param: String,
+    /// The actor it belongs to (lowercase), if any.
+    pub actor: Option<String>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -50,6 +55,7 @@ pub fn parse_vcd(text: &str) -> Scene {
     let mut depth_at_event = 0usize;
     let mut depth = 0usize;
     let mut stop: Option<f32> = None;
+    let mut actor: Option<(String, usize)> = None;
     for line in text.lines() {
         let l = line.trim();
         if l.starts_with("//") {
@@ -60,6 +66,9 @@ pub fn parse_vcd(text: &str) -> Scene {
             continue;
         }
         if l == "}" {
+            if actor.as_ref().is_some_and(|(_, d)| *d == depth) {
+                actor = None;
+            }
             if let Some(ev) = cur.take() {
                 if depth == depth_at_event + 1 {
                     scene.events.push(ev);
@@ -75,13 +84,16 @@ pub fn parse_vcd(text: &str) -> Scene {
             Some("actor") => {
                 let name = l["actor".len()..].trim().trim_matches('"').to_ascii_lowercase();
                 if !name.is_empty() && !scene.actors.contains(&name) {
-                    scene.actors.push(name);
+                    scene.actors.push(name.clone());
                 }
+                // Its block opens on the next line.
+                actor = Some((name, depth + 1));
             }
             Some("event") if cur.is_none() => {
                 let kind = match words.next() {
                     Some("speak") => SceneEventKind::Speak,
                     Some("firetrigger") => SceneEventKind::FireTrigger,
+                    Some("sequence") | Some("gesture") => SceneEventKind::Sequence,
                     Some("stoppoint") | Some("stopplayback") => {
                         // Recorded below once its time is read.
                         SceneEventKind::Other
@@ -89,7 +101,7 @@ pub fn parse_vcd(text: &str) -> Scene {
                     _ => SceneEventKind::Other,
                 };
                 let is_stop = l.contains("stoppoint") || l.contains("stopplayback");
-                cur = Some(SceneEvent { kind, start: 0.0, end: if is_stop { -1.0 } else { 0.0 }, param: String::new() });
+                cur = Some(SceneEvent { kind, start: 0.0, end: if is_stop { -1.0 } else { 0.0 }, param: String::new(), actor: actor.as_ref().map(|a| a.0.clone()) });
                 depth_at_event = depth;
             }
             Some("time") => {
@@ -207,6 +219,7 @@ fn run_scenes(
     ents: Option<Res<Ents>>,
     mut playing: ResMut<Playing>,
     mut fire: MessageWriter<FireOutput>,
+    mut send: MessageWriter<EntInput>,
     mut play: MessageWriter<PlayGameSound>,
     mut caption: MessageWriter<crate::captions::ShowCaption>,
 ) {
@@ -232,6 +245,17 @@ fn run_scenes(
                     let n = ev.param.trim().parse::<u32>().unwrap_or(1);
                     fire.write(FireOutput { ent: r.ent, event: format!("OnTrigger{n}"), activator: None });
                 }
+                SceneEventKind::Sequence => {
+                    let Some(actor) = &ev.actor else { continue };
+                    // `!target3` names the scene's `target3` keyvalue.
+                    let name = match actor.strip_prefix("!target") {
+                        Some(n) => ents.list[r.ent].get(&format!("target{n}")).unwrap_or("").to_string(),
+                        None => actor.clone(),
+                    };
+                    for t in ents.find(&name, r.ent, None) {
+                        send.write(EntInput { target: t, input: "scenesequence".into(), param: ev.param.clone(), activator: None });
+                    }
+                }
                 SceneEventKind::Other => {}
             }
         }
@@ -242,6 +266,32 @@ fn run_scenes(
     }
     for ri in finished.into_iter().rev() {
         playing.0.remove(ri);
+    }
+}
+
+/// Actors' self-illuminated "mouths" (Wheatley's eye: the `LightedMouth`
+/// proxy) flicker while one of their `speak` events plays, and stay fully
+/// lit otherwise.
+fn speaking_lights(ents: Option<Res<Ents>>, playing: Res<Playing>, mut speaking: ResMut<source_assets::SpeakingAmount>) {
+    speaking.0.clear();
+    let Some(ents) = ents else { return };
+    let now = ents.now;
+    for r in playing.0.iter().filter(|r| r.paused_at.is_none()) {
+        let t = now - r.started;
+        for ev in r.scene.events.iter().filter(|e| e.kind == SceneEventKind::Speak && e.start <= t && t < e.end) {
+            let Some(actor) = &ev.actor else { continue };
+            let name = match actor.strip_prefix("!target") {
+                Some(n) => ents.list[r.ent].get(&format!("target{n}")).unwrap_or("").to_string(),
+                None => actor.clone(),
+            };
+            for i in ents.find(&name, r.ent, None) {
+                if let Some(e) = ents.list[i].entity {
+                    // A voice's loudness comes and goes with its syllables.
+                    let k = ((t * 13.0).sin() * (t * 5.3 + 1.0).sin()).abs();
+                    speaking.0.insert(e, 0.55 + 0.45 * k);
+                }
+            }
+        }
     }
 }
 

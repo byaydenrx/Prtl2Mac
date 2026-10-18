@@ -9,7 +9,7 @@ fn main() {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     let fs = source_assets::GameFs::from_env().expect("game");
     let model = &argv[0];
-    let mut a = Animator::parse(Arc::new(fs.read(model).expect("model"))).expect("parse");
+    let mut a = Animator::load(&|p| fs.read(p), model).expect("parse");
     println!("{} bones, {} sequences, ani {:?}", a.skeleton.bones.len(), a.sequences.len(), a.anim_block_file);
     if let Some(f) = a.anim_block_file.clone() {
         match fs.read(&f) {
@@ -24,7 +24,22 @@ fn main() {
         println!("  bone {i} {} parent {} pos {:?} quat {:?}", b.name, b.parent, b.pos, b.quat);
     }
     for (i, s) in a.sequences.iter().enumerate().take(40) {
-        println!("  seq {i} {} duration {:.2}", s.label, a.duration(i));
+        println!("  seq {i} {} [{}] duration {:.2}", s.label, s.activity, a.duration(i));
+    }
+    if let Some(i) = a.find_activity("ACT_IDLE") {
+        println!("ACT_IDLE = seq {i} {}", a.sequences[i].label);
+    }
+    if let Some(b) = std::env::var("BONE").ok().and_then(|n| a.skeleton.bones.iter().position(|b| b.name.eq_ignore_ascii_case(&n))) {
+        for seq in [argv.get(1).and_then(|n| a.find(n)).unwrap_or(0)] {
+            let local = a.sample(seq, 0.0);
+            let m = a.bone_to_model(&local);
+            let skin = m[b] * a.skeleton.bones[b].pose_to_bone;
+            let refp = a.skeleton.reference_pose()[b];
+            println!("disc centre (10,0,0) -> {:.2?} normal X -> {:.2?}; reference pose maps it to {:.2?}", skin.transform_point3(bevy::math::Vec3::X * 10.0), skin.transform_vector3(bevy::math::Vec3::X), refp.transform_point3(bevy::math::Vec3::X * 10.0));
+            let sk = a.skeleton.bone_to_model(Some(0));
+            println!("source_assets seq0: disc -> {:.2?}, root +X {:.2?}", (sk[b] * a.skeleton.bones[b].pose_to_bone).transform_point3(bevy::math::Vec3::X * 10.0), sk[0].matrix3 * bevy::math::Vec3A::X);
+            println!("bone {b} local {:?} model +X {:.2?} +Y {:.2?} +Z {:.2?} at {:.2?}", local[b], m[b].matrix3 * bevy::math::Vec3A::X, m[b].matrix3 * bevy::math::Vec3A::Y, m[b].matrix3 * bevy::math::Vec3A::Z, m[b].translation);
+        }
     }
     let Some(seq) = argv.get(1).and_then(|n| a.find(n)) else { return };
     let att = argv.get(2).cloned();

@@ -162,7 +162,7 @@ fn anim_inputs(
             ("prop_testchamber_door", "close") => ("door", "close"),
             (_, input) => (input, param),
         };
-        if !matches!(input, "setanimation" | "setanimationnoreset" | "setdefaultanimation" | "setplaybackrate" | "door") {
+        if !matches!(input, "setanimation" | "setanimationnoreset" | "setdefaultanimation" | "setplaybackrate" | "door" | "scenesequence") {
             continue;
         }
         let anim = anims.model_of(i, e).and_then(|m| anims.animator(&game, &m));
@@ -175,6 +175,11 @@ fn anim_inputs(
                 if input == "setanimation" || !same {
                     anims.playing.insert(i, Playback::new(param, true));
                 }
+            }
+            // A scene's sequence / gesture event: plays, then back to the
+            // default, without the map's OnAnimationDone.
+            "scenesequence" if known(param) => {
+                anims.playing.insert(i, Playback::new(param, false));
             }
             "setdefaultanimation" if known(param) => {
                 anims.defaults.insert(i, param.to_string());

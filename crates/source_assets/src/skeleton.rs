@@ -44,6 +44,9 @@ pub struct Skeleton {
     pub sequences: Vec<Sequence>,
     anims: Vec<AnimDesc>,
     data: std::sync::Arc<Vec<u8>>,
+    /// How many animation models it includes (`$includemodel`): their
+    /// sequences play on this skeleton too.
+    pub includes: usize,
 }
 
 fn i32_at(d: &[u8], o: usize) -> Option<i32> {
@@ -191,11 +194,13 @@ impl Skeleton {
                 .map(|a| a as usize);
             sequences.push(Sequence { label, anim });
         }
+        let includes = i32_at(d, 336).filter(|n| (1..64).contains(n)).map_or(0, |n| n as usize);
         Some(Skeleton {
             bones,
             sequences,
             anims,
             data,
+            includes,
         })
     }
 
@@ -205,9 +210,10 @@ impl Skeleton {
             .position(|s| s.label.eq_ignore_ascii_case(name))
     }
 
-    /// Whether any animation has more than one frame (the model can move).
+    /// Whether any animation has more than one frame (the model can move),
+    /// or it takes animations from included models.
     pub fn has_motion(&self) -> bool {
-        self.anims.iter().any(|a| a.frames > 1)
+        self.includes > 0 || self.anims.iter().any(|a| a.frames > 1)
     }
 
     /// Local (parent-space) bone transforms at frame 0 of a local animation.

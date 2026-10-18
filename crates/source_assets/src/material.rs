@@ -30,6 +30,9 @@ pub struct SourceMaterialParams {
     pub flags: u32,
     /// `StandardMaterialFlags` bits (fog enable, alpha mode) for Bevy's post-lighting step.
     pub pbr_flags: u32,
+    /// `$basetexturetransform` rows: `u' = dot(u_row.xyz, (u, v, 1))`, same for v.
+    pub uv_transform_u: Vec4,
+    pub uv_transform_v: Vec4,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

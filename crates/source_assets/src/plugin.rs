@@ -54,7 +54,25 @@ impl Plugin for SourceMapPlugin {
         .init_resource::<SourceCache>()
         .init_resource::<SourceRenderSettings>()
         .init_resource::<crate::valve::ValveShaderLibrary>()
-        .add_plugins(crate::valve_render::ValveRenderPlugin);
+        .add_plugins(crate::valve_render::ValveRenderPlugin)
+        .add_plugins(crate::proxy::MaterialProxyPlugin);
+        if std::env::var_os("P2_TRACE_BONE").is_some() {
+            app.add_systems(PostUpdate, trace_bones.after(TransformSystems::Propagate));
+        }
+    }
+}
+
+/// Debug: P2_TRACE_BONE=name logs where matching bone parts are, every 2 s.
+fn trace_bones(time: Res<Time>, mut next: Local<f32>, q: Query<(&Name, &GlobalTransform, &Transform, &InheritedVisibility), With<BonePart>>) {
+    if time.elapsed_secs() < *next {
+        return;
+    }
+    *next = time.elapsed_secs() + 2.0;
+    let key = std::env::var("P2_TRACE_BONE").unwrap_or_default();
+    for (name, g, t, vis) in &q {
+        if name.as_str().contains(&key) {
+            info!("TRACE bone {name}: world {} local {} scale {} visible {}", g.translation(), t.translation, t.scale, vis.get());
+        }
     }
 }
 
@@ -104,6 +122,8 @@ pub struct SourceCache {
     pub fallback_materials: HashMap<String, Vec<(String, String)>>,
     prop_materials: HashMap<(String, bool), Handle<SourceMaterial>>,
     white: Option<Handle<Image>>,
+    /// Every frame of multi-frame textures by (name, srgb), frame 0 first.
+    frame_images: HashMap<(String, bool), Vec<Handle<Image>>>,
 }
 
 /// Everything [`spawn_map`] needs, as one system parameter.
@@ -342,11 +362,53 @@ fn texture_handle(assets: &mut SourceMapAssets, map: &LoadedMap, name: &str) -> 
     if let Some(h) = assets.cache.images.get(name) {
         return Some(h.clone());
     }
-    let tex = map.textures.get(name)?.clone();
+    let tex = map.textures.get(name)?;
     let bc = bc_supported(assets);
-    let h = assets.images.add(tex.into_image(bc, true));
+    let h = assets.images.add(tex.frame(0).into_image(bc, true));
     assets.cache.images.insert(name.to_string(), h.clone());
     Some(h)
+}
+
+/// Every animation frame of a multi-frame texture (frame 0 is `first`, its
+/// existing upload); empty for single-frame textures.
+fn texture_frames(
+    images: &mut Assets<Image>,
+    cache: &mut SourceCache,
+    bc: bool,
+    map: &LoadedMap,
+    name: &str,
+    srgb: bool,
+    first: &Handle<Image>,
+) -> Vec<Handle<Image>> {
+    let Some(tex) = map.textures.get(name).filter(|t| t.frame_count() > 1) else { return Vec::new() };
+    cache
+        .frame_images
+        .entry((name.to_string(), srgb))
+        .or_insert_with(|| {
+            std::iter::once(first.clone())
+                .chain((1..tex.frame_count()).map(|i| images.add(tex.frame(i).into_image(bc, srgb))))
+                .collect()
+        })
+        .clone()
+}
+
+/// Per-mesh state for a proxied material on the fallback path: the
+/// material (its own copy, so proxies can change it per entity) and its
+/// proxies. `None` for materials without proxies we evaluate.
+fn fallback_proxies(assets: &mut SourceMapAssets, map: &LoadedMap, m: &MaterialInfo, mat: &Handle<SourceMaterial>) -> Option<(Handle<SourceMaterial>, crate::proxy::FallbackProxies)> {
+    if m.proxies.is_empty() {
+        return None;
+    }
+    let frames = match (m.base_texture.as_deref(), assets.materials.get(mat).and_then(|x| x.base_texture.clone())) {
+        (Some(name), Some(first)) => {
+            let bc = bc_supported(assets);
+            texture_frames(&mut assets.images, &mut assets.cache, bc, map, name, true, &first)
+        }
+        _ => Vec::new(),
+    };
+    let proxies = crate::proxy::FallbackProxies::new(m, frames)?;
+    let own = assets.materials.get(mat)?.clone();
+    Some((assets.materials.add(own), proxies))
 }
 
 /// Per-map inputs for model surfaces on Valve shaders.
@@ -366,17 +428,21 @@ fn valve_texture(
     map: &LoadedMap,
     name: &str,
     srgb: bool,
-) -> Option<(Handle<Image>, crate::valve::SamplerKey, bool)> {
+) -> Option<crate::valve::EnvTexture> {
     let tex = map.textures.get(name)?;
     let sampler = crate::valve::SamplerKey::from_vtf_flags(tex.flags);
     let cube = tex.faces == 6;
     let table = if srgb { &mut cache.images } else { &mut cache.linear_images };
-    if let Some(h) = table.get(name) {
-        return Some((h.clone(), sampler, cube));
-    }
-    let h = images.add(tex.clone().into_image(bc, srgb));
-    table.insert(name.to_string(), h.clone());
-    Some((h, sampler, cube))
+    let image = match table.get(name) {
+        Some(h) => h.clone(),
+        None => {
+            let h = images.add(tex.frame(0).into_image(bc, srgb));
+            table.insert(name.to_string(), h.clone());
+            h
+        }
+    };
+    let frames = texture_frames(images, cache, bc, map, name, srgb, &image);
+    Some(crate::valve::EnvTexture { image, sampler, cube, frames })
 }
 
 fn fallback_image(images: &mut Assets<Image>, cache: &mut SourceCache, name: &'static str, rgba: [u8; 4], srgb: bool) -> Handle<Image> {
@@ -418,6 +484,7 @@ fn material_params(m: &MaterialInfo, flags: u32, light_scale: f32) -> (SourceMat
         color = Vec4::new(0.6, 0.75, 0.8, 0.15);
         flags |= material::FLAG_IGNORE_TEX_ALPHA;
     }
+    let uv = crate::proxy::MaterialVars::of(&m.params).transform("$basetexturetransform");
     (
         SourceMaterialParams {
             color,
@@ -425,6 +492,8 @@ fn material_params(m: &MaterialInfo, flags: u32, light_scale: f32) -> (SourceMat
             alpha_cutoff: m.alpha_cutoff,
             flags,
             pbr_flags: pbr_flags(alpha_mode),
+            uv_transform_u: Vec4::new(uv[0], uv[1], uv[2], 0.0),
+            uv_transform_v: Vec4::new(uv[3], uv[4], uv[5], 0.0),
         },
         alpha_mode,
     )
@@ -700,13 +769,16 @@ pub fn spawn_loaded_map(
             };
             match built {
                 Ok(draw) => {
-                    commands.spawn((
+                    let mut ec = commands.spawn((
                         Name::new(format!("valve brush {}", m.name)),
                         crate::valve::ValveSurface(Arc::new(draw)),
                         Transform::IDENTITY,
                         Visibility::default(),
                         ChildOf(parent),
                     ));
+                    if let Some(id) = bm.overlay_id {
+                        ec.insert(crate::proxy::SourceOverlay { id });
+                    }
                     valve_done.entry(bm.material).or_insert(Ok(()));
                     continue;
                 }
@@ -727,13 +799,21 @@ pub fn spawn_loaded_map(
                 h
             }
         };
-        commands.spawn((
+        let proxied = fallback_proxies(assets, map, &map.materials[bm.material], &handle);
+        let handle = proxied.as_ref().map_or(handle, |p| p.0.clone());
+        let mut ec = commands.spawn((
             Name::new(format!("brush {}", map.materials[bm.material].name)),
             Mesh3d(assets.meshes.add(mesh_from_brush(&bm.mesh))),
             MeshMaterial3d(handle),
             Transform::IDENTITY,
             ChildOf(parent),
         ));
+        if let Some((_, p)) = proxied {
+            ec.insert(p);
+        }
+        if let Some(id) = bm.overlay_id {
+            ec.insert(crate::proxy::SourceOverlay { id });
+        }
     }
 
     for (mi, r) in &valve_done {
@@ -1188,10 +1268,18 @@ fn spawn_model(
     for (mesh, light_normals, e) in &draws {
         let (mesh, e) = (&**mesh, *e);
         let normals = light_normals.as_deref().unwrap_or(&mesh.source_normals);
+        if std::env::var("P2_TRACE_MESH").is_ok_and(|k| model.path.contains(&k)) {
+            let (lo, hi) = mesh.positions.iter().fold((Vec3::MAX, Vec3::MIN), |(lo, hi), p| (lo.min(Vec3::from(*p)), hi.max(Vec3::from(*p))));
+            info!("TRACE mesh {} skin {skin} idx {} mat {:?} tris {} lo {lo} hi {hi}", model.path, mesh.material_index, model.material_for(skin, mesh.material_index), mesh.indices.len() / 3);
+        }
         let Some(mat_name) = model.material_for(skin, mesh.material_index) else { continue };
         let Some(mi) = map.material_id(mat_name) else { continue };
         let minfo = &map.materials[mi];
         if !minfo.is_drawn() {
+            continue;
+        }
+        // Debug: P2_HIDE_MAT=a,b skips model materials whose name contains one.
+        if std::env::var("P2_HIDE_MAT").is_ok_and(|h| h.split(',').any(|k| !k.is_empty() && minfo.name.contains(k))) {
             continue;
         }
         if let Some(v) = valve {
@@ -1265,12 +1353,17 @@ fn spawn_model(
             .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, mesh.uvs.clone())
             .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colors)
             .with_inserted_indices(Indices::U32(mesh.indices.clone()));
-        commands.spawn((
+        let proxied = fallback_proxies(assets, map, minfo, &mat);
+        let mat = proxied.as_ref().map_or(mat, |p| p.0.clone());
+        let mut ec = commands.spawn((
             Mesh3d(assets.meshes.add(m)),
             MeshMaterial3d(mat),
             Transform::IDENTITY,
             ChildOf(e),
         ));
+        if let Some((_, p)) = proxied {
+            ec.insert(p);
+        }
     }
     (e, parts)
 }

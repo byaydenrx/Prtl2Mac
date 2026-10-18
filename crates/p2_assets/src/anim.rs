@@ -11,7 +11,7 @@
 use std::sync::Arc;
 
 use bevy::math::{Quat, Vec3};
-use source_assets::skeleton::{radian_euler_to_quat, Skeleton};
+use source_assets::skeleton::{radian_euler_to_quat, Bone, Skeleton};
 
 fn i32_at(d: &[u8], o: usize) -> Option<i32> {
     Some(i32::from_le_bytes(d.get(o..o + 4)?.try_into().ok()?))
@@ -214,6 +214,24 @@ struct AnimDesc {
     /// (section frames, offset of the section table).
     sections: Option<(i32, usize)>,
     base: usize,
+    /// Which file the animation is in: 0 = the model itself, k = its
+    /// (k-1)th included model ([`Animator::add_include`]).
+    src: usize,
+}
+
+/// A file animations are read from: the model itself or an included
+/// animation model (`$includemodel`, e.g. Wheatley's 320 sequences live in
+/// `personality_sphere_animation.mdl`), with its own bones mapped onto the
+/// model's by name.
+#[derive(Clone)]
+struct Part {
+    data: Arc<Vec<u8>>,
+    /// (start, end) of each animation block in the `.ani` file.
+    blocks: Vec<(usize, usize)>,
+    ani: Option<Arc<Vec<u8>>>,
+    bones: Vec<Bone>,
+    /// Part bone -> model bone.
+    map: Vec<Option<usize>>,
 }
 
 #[derive(Clone, Debug)]
@@ -259,122 +277,207 @@ pub struct Animator {
     pub pose_params: Vec<PoseParam>,
     /// Path of the external animation file (`.ani`) when the model has one.
     pub anim_block_file: Option<String>,
-    /// (start, end) of each animation block in the `.ani` file.
-    blocks: Vec<(usize, usize)>,
-    ani: Option<Arc<Vec<u8>>>,
+    /// Where animations are read from: [0] the model, then its includes.
+    parts: Vec<Part>,
+}
+
+type Tables = (Vec<AnimDesc>, Vec<SeqInfo>, Vec<PoseParam>, Vec<(usize, usize)>, Option<String>);
+
+/// The animation, sequence, pose parameter and animation block tables of an MDL.
+fn parse_tables(d: &[u8], nbones: usize) -> Option<Tables> {
+    let num_anim = i32_at(d, 180)? as usize;
+    let anim_index = i32_at(d, 184)? as usize;
+    let num_seq = i32_at(d, 188)? as usize;
+    let seq_index = i32_at(d, 192)? as usize;
+    let mut anims = Vec::with_capacity(num_anim);
+    for i in 0..num_anim {
+        let a = anim_index + i * 100;
+        let fps = f32_at(d, a + 8)?;
+        let aflags = i32_at(d, a + 12)?;
+        let frames = i32_at(d, a + 16)?;
+        let block = i32_at(d, a + 52)?;
+        let index = i32_at(d, a + 56)?;
+        let section_index = i32_at(d, a + 80)?;
+        let section_frames = i32_at(d, a + 84)?;
+        let sections = (section_frames != 0 && section_index != 0).then_some((section_frames, a + section_index as usize));
+        anims.push(AnimDesc {
+            fps,
+            frames,
+            delta: aflags & 0x4 != 0,
+            frame_anim: aflags & 0x40 != 0,
+            block,
+            index,
+            sections,
+            base: a,
+            src: 0,
+        });
+    }
+    let mut sequences = Vec::with_capacity(num_seq);
+    for i in 0..num_seq {
+        let s = seq_index + i * 212;
+        let label = cstr(d, s + i32_at(d, s + 4)? as usize);
+        let activity = cstr(d, s + i32_at(d, s + 8)? as usize);
+        let flags = i32_at(d, s + 12)?;
+        let aii = i32_at(d, s + 60)?;
+        let g0 = i32_at(d, s + 68)?.max(1) as usize;
+        let g1 = i32_at(d, s + 72)?.max(1) as usize;
+        let anim_at = |k: usize| i16_at(d, s + aii as usize + 2 * k).filter(|&a| a >= 0 && (a as usize) < num_anim).map(|a| a as usize);
+        let grid_anims: Vec<Option<usize>> = (0..g0 * g1).map(anim_at).collect();
+        let anim = grid_anims.first().copied().flatten();
+        let pidx = |o: usize| i32_at(d, s + o).filter(|&p| p >= 0).map(|p| p as usize);
+        let params = [pidx(76), pidx(80)];
+        let param_start = [f32_at(d, s + 84)?, f32_at(d, s + 88)?];
+        let param_end = [f32_at(d, s + 92)?, f32_at(d, s + 96)?];
+        let nal = i32_at(d, s + 148)?.max(0) as usize;
+        let ali = i32_at(d, s + 152)? as usize;
+        let autolayers = (0..nal).filter_map(|j| i16_at(d, s + ali + j * 24).filter(|&q| q >= 0).map(|q| q as usize)).collect();
+        let wli = i32_at(d, s + 156)?;
+        let weights = if wli > 0 {
+            (0..nbones).map(|b| f32_at(d, s + wli as usize + 4 * b).unwrap_or(1.0)).collect()
+        } else {
+            vec![1.0; nbones]
+        };
+        sequences.push(SeqInfo {
+            label,
+            activity,
+            looping: flags & 1 != 0,
+            delta: flags & 0x4 != 0,
+            post: flags & 0x10 != 0,
+            anim,
+            grid: [g0, g1],
+            grid_anims,
+            params,
+            param_start,
+            param_end,
+            autolayers,
+            weights,
+        });
+    }
+    let npp = i32_at(d, 300)?.max(0) as usize;
+    let ppi = i32_at(d, 304)? as usize;
+    let pose_params = (0..npp)
+        .map(|k| {
+            let o = ppi + k * 20;
+            PoseParam { name: cstr(d, o + i32_at(d, o).unwrap_or(0) as usize), start: f32_at(d, o + 8).unwrap_or(0.0), end: f32_at(d, o + 12).unwrap_or(1.0) }
+        })
+        .collect();
+    let nblocks = i32_at(d, 352).unwrap_or(0).max(0) as usize;
+    let block_index = i32_at(d, 356).unwrap_or(0).max(0) as usize;
+    let blocks = (0..nblocks)
+        .map(|k| {
+            let o = block_index + k * 8;
+            (i32_at(d, o).unwrap_or(0).max(0) as usize, i32_at(d, o + 4).unwrap_or(0).max(0) as usize)
+        })
+        .collect();
+    let anim_block_file = (nblocks > 0)
+        .then(|| i32_at(d, 348).filter(|&o| o > 0).map(|o| cstr(d, o as usize)))
+        .flatten()
+        .filter(|n| !n.is_empty());
+    Some((anims, sequences, pose_params, blocks, anim_block_file))
+}
+
+/// The models an MDL includes for their animations (`$includemodel`).
+pub fn include_models(d: &[u8]) -> Vec<String> {
+    let (Some(n), Some(idx)) = (i32_at(d, 336), i32_at(d, 340)) else { return Vec::new() };
+    if !(0..64).contains(&n) || idx <= 0 {
+        return Vec::new();
+    }
+    (0..n as usize)
+        .filter_map(|k| {
+            let o = idx as usize + k * 8;
+            let name = cstr(d, o + i32_at(d, o + 4)? as usize);
+            (!name.is_empty()).then_some(name)
+        })
+        .collect()
 }
 
 impl Animator {
     pub fn parse(data: Arc<Vec<u8>>) -> Option<Self> {
         let skeleton = Skeleton::parse(data.clone())?;
-        let d = &data[..];
-        let num_anim = i32_at(d, 180)? as usize;
-        let anim_index = i32_at(d, 184)? as usize;
-        let num_seq = i32_at(d, 188)? as usize;
-        let seq_index = i32_at(d, 192)? as usize;
-        let mut anims = Vec::with_capacity(num_anim);
-        for i in 0..num_anim {
-            let a = anim_index + i * 100;
-            let fps = f32_at(d, a + 8)?;
-            let aflags = i32_at(d, a + 12)?;
-            let frames = i32_at(d, a + 16)?;
-            let block = i32_at(d, a + 52)?;
-            let index = i32_at(d, a + 56)?;
-            let section_index = i32_at(d, a + 80)?;
-            let section_frames = i32_at(d, a + 84)?;
-            let sections = (section_frames != 0 && section_index != 0).then_some((section_frames, a + section_index as usize));
-            anims.push(AnimDesc {
-                fps,
-                frames,
-                delta: aflags & 0x4 != 0,
-                frame_anim: aflags & 0x40 != 0,
-                block,
-                index,
-                sections,
-                base: a,
-            });
-        }
         let nbones = skeleton.bones.len();
-        let mut sequences = Vec::with_capacity(num_seq);
-        for i in 0..num_seq {
-            let s = seq_index + i * 212;
-            let label = cstr(d, s + i32_at(d, s + 4)? as usize);
-            let activity = cstr(d, s + i32_at(d, s + 8)? as usize);
-            let flags = i32_at(d, s + 12)?;
-            let aii = i32_at(d, s + 60)?;
-            let g0 = i32_at(d, s + 68)?.max(1) as usize;
-            let g1 = i32_at(d, s + 72)?.max(1) as usize;
-            let anim_at = |k: usize| i16_at(d, s + aii as usize + 2 * k).filter(|&a| a >= 0 && (a as usize) < num_anim).map(|a| a as usize);
-            let grid_anims: Vec<Option<usize>> = (0..g0 * g1).map(anim_at).collect();
-            let anim = grid_anims.first().copied().flatten();
-            let pidx = |o: usize| i32_at(d, s + o).filter(|&p| p >= 0).map(|p| p as usize);
-            let params = [pidx(76), pidx(80)];
-            let param_start = [f32_at(d, s + 84)?, f32_at(d, s + 88)?];
-            let param_end = [f32_at(d, s + 92)?, f32_at(d, s + 96)?];
-            let nal = i32_at(d, s + 148)?.max(0) as usize;
-            let ali = i32_at(d, s + 152)? as usize;
-            let autolayers = (0..nal).filter_map(|j| i16_at(d, s + ali + j * 24).filter(|&q| q >= 0).map(|q| q as usize)).collect();
-            let wli = i32_at(d, s + 156)?;
-            let weights = if wli > 0 {
-                (0..nbones).map(|b| f32_at(d, s + wli as usize + 4 * b).unwrap_or(1.0)).collect()
-            } else {
-                vec![1.0; nbones]
-            };
-            sequences.push(SeqInfo {
-                label,
-                activity,
-                looping: flags & 1 != 0,
-                delta: flags & 0x4 != 0,
-                post: flags & 0x10 != 0,
-                anim,
-                grid: [g0, g1],
-                grid_anims,
-                params,
-                param_start,
-                param_end,
-                autolayers,
-                weights,
-            });
+        let (anims, sequences, pose_params, blocks, anim_block_file) = parse_tables(&data, nbones)?;
+        let own = Part { data: data.clone(), blocks, ani: None, bones: skeleton.bones.clone(), map: (0..nbones).map(Some).collect() };
+        Some(Self { skeleton, sequences, anims, data, pose_params, anim_block_file, parts: vec![own] })
+    }
+
+    /// Loads a model's animator with everything it plays: its `.ani` and the
+    /// animation models it includes (and their `.ani`s). `read` returns a
+    /// game file's bytes.
+    pub fn load(read: &dyn Fn(&str) -> Option<Vec<u8>>, path: &str) -> Option<Self> {
+        let data = Arc::new(read(path)?);
+        let mut a = Self::parse(data.clone())?;
+        if let Some(ani) = a.anim_block_file.clone().and_then(|f| read(&f)) {
+            a.set_anim_blocks(Arc::new(ani));
         }
-        let npp = i32_at(d, 300)?.max(0) as usize;
-        let ppi = i32_at(d, 304)? as usize;
-        let pose_params = (0..npp)
-            .map(|k| {
-                let o = ppi + k * 20;
-                PoseParam { name: cstr(d, o + i32_at(d, o).unwrap_or(0) as usize), start: f32_at(d, o + 8).unwrap_or(0.0), end: f32_at(d, o + 12).unwrap_or(1.0) }
+        for inc in include_models(&data) {
+            let inc = inc.to_ascii_lowercase().replace('\\', "/");
+            if inc == path.to_ascii_lowercase().replace('\\', "/") {
+                continue;
+            }
+            let Some(d) = read(&inc) else { continue };
+            let d = Arc::new(d);
+            let ani = parse_tables(&d, 0).and_then(|t| t.4).and_then(|f| read(&f)).map(Arc::new);
+            a.add_include(d, ani);
+        }
+        Some(a)
+    }
+
+    /// Adds an included animation model's sequences after the model's own
+    /// (the model's own win on a name clash, as in Source). Its bones are
+    /// matched to the model's by name.
+    pub fn add_include(&mut self, data: Arc<Vec<u8>>, ani: Option<Arc<Vec<u8>>>) {
+        let Some(sk) = Skeleton::parse(data.clone()) else { return };
+        let Some((anims, seqs, pps, blocks, _)) = parse_tables(&data, sk.bones.len()) else { return };
+        let map: Vec<Option<usize>> = sk.bones.iter().map(|b| self.skeleton.bones.iter().position(|o| o.name.eq_ignore_ascii_case(&b.name))).collect();
+        let src = self.parts.len();
+        let (aoff, soff) = (self.anims.len(), self.sequences.len());
+        // Pose parameters by name, adding the ones the model lacks.
+        let pp_map: Vec<usize> = pps
+            .into_iter()
+            .map(|p| match self.pose_param(&p.name) {
+                Some(i) => i,
+                None => {
+                    self.pose_params.push(p);
+                    self.pose_params.len() - 1
+                }
             })
             .collect();
-        let nblocks = i32_at(d, 352).unwrap_or(0).max(0) as usize;
-        let block_index = i32_at(d, 356).unwrap_or(0).max(0) as usize;
-        let blocks = (0..nblocks)
-            .map(|k| {
-                let o = block_index + k * 8;
-                (i32_at(d, o).unwrap_or(0).max(0) as usize, i32_at(d, o + 4).unwrap_or(0).max(0) as usize)
-            })
-            .collect();
-        let anim_block_file = (nblocks > 0)
-            .then(|| i32_at(d, 348).filter(|&o| o > 0).map(|o| cstr(d, o as usize)))
-            .flatten()
-            .filter(|n| !n.is_empty());
-        Some(Self { skeleton, sequences, anims, data, pose_params, anim_block_file, blocks, ani: None })
+        self.anims.extend(anims.into_iter().map(|a| AnimDesc { src, ..a }));
+        let nbones = self.skeleton.bones.len();
+        for mut q in seqs {
+            q.anim = q.anim.map(|a| a + aoff);
+            q.grid_anims = q.grid_anims.iter().map(|a| a.map(|a| a + aoff)).collect();
+            q.autolayers = q.autolayers.iter().map(|l| l + soff).collect();
+            q.params = q.params.map(|p| p.and_then(|p| pp_map.get(p).copied()));
+            let mut w = vec![1.0; nbones];
+            for (i, m) in map.iter().enumerate() {
+                if let (Some(j), Some(v)) = (m, q.weights.get(i)) {
+                    w[*j] = *v;
+                }
+            }
+            q.weights = w;
+            self.sequences.push(q);
+        }
+        self.parts.push(Part { data, blocks, ani, bones: sk.bones, map });
     }
 
     /// Gives the animator the bytes of its external animation file
     /// ([`Animator::anim_block_file`]). Until then, animations stored there
     /// sample as the rest pose.
     pub fn set_anim_blocks(&mut self, ani: Arc<Vec<u8>>) {
-        self.ani = Some(ani);
+        self.parts[0].ani = Some(ani);
     }
 
     /// The buffer and absolute offset of animation data at (`block`, `index`):
     /// block 0 is the MDL itself (offset from `base`), any other block lives in
     /// the `.ani` file (offset from the block start).
-    fn locate(&self, block: i32, index: i32, base: usize) -> Option<(&[u8], usize)> {
+    fn locate(&self, src: usize, block: i32, index: i32, base: usize) -> Option<(&[u8], usize)> {
+        let part = self.parts.get(src)?;
         if block == 0 {
-            return (index != 0).then_some((&self.data[..], base + index as usize));
+            return (index != 0).then_some((&part.data[..], base + index as usize));
         }
-        let (start, end) = *self.blocks.get(block as usize)?;
-        let ani = self.ani.as_ref()?;
+        let (start, end) = *part.blocks.get(block as usize)?;
+        let ani = part.ani.as_ref()?;
         let at = start + index.max(0) as usize;
         (at < end && end <= ani.len()).then_some((&ani[..], at))
     }
@@ -382,7 +485,7 @@ impl Animator {
     /// One line about a sequence's animation data (for diagnostics).
     pub fn describe(&self, seq: usize) -> String {
         let Some(desc) = self.sequences.get(seq).and_then(|s| s.anim).and_then(|a| self.anims.get(a)) else { return "no anim".into() };
-        let d = &self.data[..];
+        let d = &self.parts[desc.src].data[..];
         let sections: Vec<(i32, i32)> = desc
             .sections
             .map(|(sf, table)| {
@@ -392,7 +495,7 @@ impl Animator {
             .unwrap_or_default();
         let mut heads = String::new();
         for (k, (b, i)) in sections.iter().enumerate().take(3) {
-            if let Some((buf, p)) = self.locate(*b, *i, desc.base) {
+            if let Some((buf, p)) = self.locate(desc.src, *b, *i, desc.base) {
                 let h: Vec<i32> = (0..6).map(|j| i32_at(buf, p + j * 4).unwrap_or(-1)).collect();
                 let flags: Vec<u8> = buf.get(p + 24..p + 24 + self.skeleton.bones.len()).unwrap_or(&[]).to_vec();
                 heads += &format!(" | section {k} at {p}: head {h:?} flags {flags:02x?}");
@@ -408,7 +511,7 @@ impl Animator {
             desc.index,
             desc.sections.map(|s| s.0),
             sections,
-            self.blocks
+            self.parts[desc.src].blocks
         )
     }
 
@@ -481,7 +584,27 @@ impl Animator {
     }
 
     fn frame(&self, desc: &AnimDesc, frame: i32) -> Vec<(Vec3, Quat)> {
-        let bones = &self.skeleton.bones;
+        if desc.src == 0 {
+            return self.part_frame(desc, frame);
+        }
+        // An included model's animation: decode on its bones, then map.
+        let mut local: Vec<(Vec3, Quat)> = if desc.delta {
+            vec![(Vec3::ZERO, Quat::IDENTITY); self.skeleton.bones.len()]
+        } else {
+            self.skeleton.bones.iter().map(|b| (b.pos, b.quat)).collect()
+        };
+        let part = &self.parts[desc.src];
+        for (i, v) in self.part_frame(desc, frame).into_iter().enumerate() {
+            if let Some(Some(j)) = part.map.get(i) {
+                local[*j] = v;
+            }
+        }
+        local
+    }
+
+    /// One frame of an animation on the bones of the file it is in.
+    fn part_frame(&self, desc: &AnimDesc, frame: i32) -> Vec<(Vec3, Quat)> {
+        let bones = &self.parts[desc.src].bones;
         // A delta animation's untouched bones add nothing (identity / zero).
         let mut local: Vec<(Vec3, Quat)> = if desc.delta {
             vec![(Vec3::ZERO, Quat::IDENTITY); bones.len()]
@@ -490,14 +613,14 @@ impl Animator {
         };
         let (start, frame) = match desc.sections {
             Some((sf, table)) => {
-                let d = &self.data[..];
+                let d = &self.parts[desc.src].data[..];
                 let last_section = ((desc.frames - 1) / sf).max(0);
                 let section = (frame / sf).min(last_section);
                 let block = i32_at(d, table + section as usize * 8).unwrap_or(-1);
                 let index = i32_at(d, table + section as usize * 8 + 4).unwrap_or(0);
-                (self.locate(block, index, desc.base), frame - section * sf)
+                (self.locate(desc.src, block, index, desc.base), frame - section * sf)
             }
-            None => (self.locate(desc.block, desc.index, desc.base), frame),
+            None => (self.locate(desc.src, desc.block, desc.index, desc.base), frame),
         };
         let Some((d, p)) = start else { return local };
         if desc.frame_anim {
@@ -571,10 +694,10 @@ impl Animator {
     /// a sequence's blend grid, from their recorded linear movement: the
     /// speed a movement blend (e.g. the run) plays back at without sliding.
     pub fn ground_speed(&self, seq: usize) -> f32 {
-        let d = &self.data[..];
         let Some(info) = self.sequences.get(seq) else { return 0.0 };
         let mut best = 0.0f32;
         for desc in info.grid_anims.iter().flatten().filter_map(|&a| self.anims.get(a)) {
+            let d = &self.parts[desc.src].data[..];
             let a = desc.base;
             let (Some(n), Some(mi)) = (i32_at(d, a + 20), i32_at(d, a + 24)) else { continue };
             if n <= 0 || mi <= 0 {

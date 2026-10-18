@@ -221,6 +221,8 @@ pub const LUMP_OVERLAYS: usize = 45;
 /// One `doverlay_t` (an `info_overlay` baked into the map).
 #[derive(Clone, Debug)]
 pub struct Overlay {
+    /// The overlay's id (`info_overlay_accessor` keyvalue `overlayid`).
+    pub id: i32,
     pub texinfo: i16,
     pub faces: Vec<usize>,
     pub render_order: u16,
@@ -245,6 +247,7 @@ pub fn parse_overlays(bsp: &RawBsp) -> Vec<Overlay> {
             let faces = (0..count.min(64)).map(|k| i32_at(d, 8 + k * 4).max(0) as usize).collect();
             let pts: Vec<Vec3> = (0..4).map(|k| v3(d, 280 + k * 12)).collect();
             Overlay {
+                id: i32_at(d, 0),
                 texinfo: i16_at(d, 4),
                 faces,
                 render_order: fc >> 14,

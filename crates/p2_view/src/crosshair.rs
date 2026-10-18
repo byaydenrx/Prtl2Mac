@@ -110,7 +110,7 @@ pub(crate) fn spawn_crosshair(
     existing: Query<(), With<CrosshairRoot>>,
     game: Option<Res<PortalGameAssets>>,
 ) {
-    if !cfg.crosshair || added.is_empty() || !existing.is_empty() {
+    if !cfg.crosshair || added.is_empty() || !existing.is_empty() || std::env::var_os("P2_NOCROSSHAIR").is_some() {
         return;
     }
     // Portal 2's own crosshair texture: without the game there is no crosshair.

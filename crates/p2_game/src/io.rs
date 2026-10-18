@@ -547,7 +547,7 @@ impl Ents {
                 true
             }
             "logic_auto" | "logic_script" | "logic_choreographed_scene_disabled" | "info_target" | "info_landmark_entry"
-            | "info_landmark_exit" | "env_texturetoggle" | "logic_autosave" | "info_overlay_accessor" => true,
+            | "info_landmark_exit" | "logic_autosave" | "info_overlay_accessor" => true,
             _ => {
                 let _ = caller;
                 false

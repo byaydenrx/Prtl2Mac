@@ -60,15 +60,7 @@ impl PropAnims {
         let key = model.to_ascii_lowercase().replace('\\', "/");
         self.animators
             .entry(key.clone())
-            .or_insert_with(|| {
-                let mut a = Animator::parse(Arc::new(game.read(&key)?))?;
-                if let Some(ani) = a.anim_block_file.clone() {
-                    if let Some(d) = game.read(&ani) {
-                        a.set_anim_blocks(Arc::new(d));
-                    }
-                }
-                Some(Arc::new(a))
-            })
+            .or_insert_with(|| Animator::load(&|p| game.read(p), &key).map(Arc::new))
             .clone()
     }
 

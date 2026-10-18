@@ -10,6 +10,8 @@
 
 use crate::fs::GameFs;
 use crate::geometry::MeshData;
+use crate::kv::Kv;
+use crate::proxy::{MaterialVars, ProxyProgram};
 use crate::sm::{translate_pass, TranslatedPass, VertexSlot};
 use crate::vcs::VcsFile;
 use crate::vmt::{BlendKind, MaterialInfo};
@@ -143,10 +145,70 @@ impl SamplerKey {
 pub struct TexBinding {
     /// Sampler register (`s0`, `s1`, ...).
     pub register: u16,
+    /// The frame drawn when nothing overrides it (the VMT's `$frame`).
     pub image: Handle<Image>,
     pub cube: bool,
     pub sampler: SamplerKey,
+    /// Every animation frame of a multi-frame texture (empty for one frame);
+    /// [`SurfaceOverrides`] picks one by register.
+    pub frames: Vec<Handle<Image>>,
+    /// The material variable that picks the frame (`$frame`, `$bumpframe`...).
+    pub frame_var: Option<&'static str>,
 }
+
+/// A texture as [`MapShaderEnv::texture`] finds it.
+#[derive(Clone, Debug)]
+pub struct EnvTexture {
+    pub image: Handle<Image>,
+    pub sampler: SamplerKey,
+    pub cube: bool,
+    /// Every animation frame, frame 0 first (empty when it has one).
+    pub frames: Vec<Handle<Image>>,
+}
+
+/// Texture variables and the variables choosing their animation frame.
+pub const FRAME_VARS: [(&str, &str); 8] = [
+    ("$basetexture", "$frame"),
+    ("$basetexture2", "$frame2"),
+    ("$bumpmap", "$bumpframe"),
+    ("$bumpmap2", "$bumpframe2"),
+    ("$detail", "$detailframe"),
+    ("$envmap", "$envmapframe"),
+    ("$envmapmask", "$envmapmaskframe"),
+    ("$selfillummask", "$selfillummaskframe"),
+];
+
+/// How a surface's constant registers follow from its material variables.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConstRecipe {
+    Lightmapped { detail: bool, bump2: bool, mask: bool },
+    VertexLit { simask: bool },
+}
+
+/// What a proxied material needs to be re-evaluated each frame.
+pub struct DynamicMaterial {
+    pub program: ProxyProgram,
+    /// The VMT's variables.
+    pub params: Kv,
+    pub recipe: ConstRecipe,
+    /// Animation frame count of each bound texture variable (`$basetexture` -> 8).
+    pub texture_frames: Vec<(String, u32)>,
+}
+
+/// This frame's constants and texture frames of a proxied surface (later
+/// entries override [`SurfaceDraw`]'s static ones).
+#[derive(Clone, Debug, Default)]
+pub struct OverrideData {
+    pub vs_consts: Vec<(u16, [f32; 4])>,
+    pub ps_consts: Vec<(u16, [f32; 4])>,
+    /// (sampler register, frame index).
+    pub frames: Vec<(u16, u32)>,
+}
+
+/// On [`ValveSurface`]s whose material has proxies; rewritten every frame
+/// by [`crate::proxy::MaterialProxyPlugin`].
+#[derive(Component, Clone, Default)]
+pub struct SurfaceOverrides(pub Arc<OverrideData>);
 
 /// Fat vertex: every attribute our shaders may read, at the locations of
 /// [`VertexSlot::location`]. Colour is BGRA bytes (D3DCOLOR).
@@ -201,6 +263,8 @@ pub struct SurfaceDraw {
     pub eye_w: f32,
     /// Material name, for diagnostics.
     pub material: String,
+    /// Set when the material has proxies we evaluate.
+    pub dynamic: Option<DynamicMaterial>,
 }
 
 /// Draw this entity's mesh with Portal 2's shaders. Vertex positions are in
@@ -214,8 +278,8 @@ pub struct MapShaderEnv<'a> {
     pub fog: [f32; 4],
     pub fog_color: [f32; 3],
     pub lightmap: Handle<Image>,
-    /// Texture lookup: (name, srgb) -> (handle, sampler, is cube).
-    pub texture: &'a mut dyn FnMut(&str, bool) -> Option<(Handle<Image>, SamplerKey, bool)>,
+    /// Texture lookup: (name, srgb) -> the texture.
+    pub texture: &'a mut dyn FnMut(&str, bool) -> Option<EnvTexture>,
     pub white: Handle<Image>,
     pub black: Handle<Image>,
     pub grey: Handle<Image>,
@@ -232,15 +296,170 @@ fn splat(v: f32) -> [f32; 4] {
     [v; 4]
 }
 
-fn param_vec3(m: &MaterialInfo, key: &str, default: [f32; 3]) -> [f32; 3] {
-    m.params
-        .get(key)
-        .and_then(crate::kv::parse_color)
-        .unwrap_or(default)
+fn param_vec3(v: &MaterialVars, key: &str, default: [f32; 3]) -> [f32; 3] {
+    v.vec3(key).unwrap_or(default)
 }
 
-fn param_f32(m: &MaterialInfo, key: &str, default: f32) -> f32 {
-    m.params.get_f32(key).unwrap_or(default)
+fn param_f32(v: &MaterialVars, key: &str, default: f32) -> f32 {
+    v.f32(key).unwrap_or(default)
+}
+
+/// `$color` (or `$color2`) and `$alpha`.
+fn color_alpha(v: &MaterialVars) -> ([f32; 3], f32) {
+    let c = v.vec3("$color").or_else(|| v.vec3("$color2")).unwrap_or([1.0; 3]);
+    (c, v.f32("$alpha").unwrap_or(1.0))
+}
+
+/// The two rows of a texture transform as VS constants.
+fn transform_rows(v: &MaterialVars, key: &str) -> [[f32; 4]; 2] {
+    let m = v.transform(key);
+    [[m[0], m[1], 0.0, m[2]], [m[3], m[4], 0.0, m[5]]]
+}
+
+/// A texture bound to `register`, or `fallback`.
+fn binding(register: u16, t: Option<EnvTexture>, fallback: &Handle<Image>, cube: bool, frame_var: Option<&'static str>, vars: &MaterialVars) -> TexBinding {
+    match t {
+        Some(t) => {
+            // the VMT's own frame choice, wrapped like the proxies do
+            let image = match frame_var.and_then(|f| vars.f32(f)) {
+                Some(f) if !t.frames.is_empty() => t.frames[f.max(0.0) as usize % t.frames.len()].clone(),
+                _ => t.image,
+            };
+            TexBinding { register, image, cube: t.cube, sampler: t.sampler, frames: t.frames, frame_var }
+        }
+        None => TexBinding {
+            register,
+            image: fallback.clone(),
+            cube,
+            sampler: SamplerKey::default(),
+            frames: Vec::new(),
+            frame_var: None,
+        },
+    }
+}
+
+/// The proxy program of a material, with the frame counts of its bound textures.
+fn dynamic_material(m: &MaterialInfo, recipe: ConstRecipe, textures: &[TexBinding]) -> Option<DynamicMaterial> {
+    if m.proxies.is_empty() {
+        return None;
+    }
+    let program = ProxyProgram::compile(&m.proxies);
+    if program.is_empty() {
+        return None;
+    }
+    let texture_frames = textures
+        .iter()
+        .filter_map(|t| {
+            let fv = t.frame_var?;
+            let (tv, _) = FRAME_VARS.iter().find(|(_, f)| *f == fv)?;
+            Some((tv.to_string(), t.frames.len().max(1) as u32))
+        })
+        .collect();
+    Some(DynamicMaterial { program, params: m.params.clone(), recipe, texture_frames })
+}
+
+/// A proxied surface's constants and texture frames (for its `textures`)
+/// for this frame's variables.
+pub fn dynamic_overrides(textures: &[TexBinding], d: &DynamicMaterial, vars: &MaterialVars) -> OverrideData {
+    let (vs_consts, ps_consts) = surface_consts(d.recipe, vars);
+    let frames = textures
+        .iter()
+        .filter(|t| t.frames.len() > 1)
+        .filter_map(|t| {
+            let f = vars.f32(t.frame_var?).unwrap_or(0.0).max(0.0) as usize % t.frames.len();
+            Some((t.register, f as u32))
+        })
+        .collect();
+    OverrideData { vs_consts, ps_consts, frames }
+}
+
+/// Constant registers from material variables.
+pub fn surface_consts(recipe: ConstRecipe, v: &MaterialVars) -> (Vec<(u16, [f32; 4])>, Vec<(u16, [f32; 4])>) {
+    match recipe {
+        ConstRecipe::Lightmapped { detail, bump2, mask } => lightmapped_consts(v, detail, bump2, mask),
+        ConstRecipe::VertexLit { simask } => vertex_lit_consts(v, simask),
+    }
+}
+
+fn lightmapped_consts(v: &MaterialVars, detail: bool, bump2: bool, mask: bool) -> (Vec<(u16, [f32; 4])>, Vec<(u16, [f32; 4])>) {
+    let (color, alpha) = color_alpha(v);
+    let detail_scale = v
+        .get("$detailscale")
+        .map(|s| [s.comp(0), if matches!(s, crate::proxy::Var::Vec(_, 1)) { s.comp(0) } else { s.comp(1) }])
+        .unwrap_or([4.0, 4.0]);
+    let [b0, b1] = transform_rows(v, "$basetexturetransform");
+    let mut vs = vec![
+        (0, [0.0, 1.0, 2.0, 0.5]),
+        (1, [1.0 / 2.2, 2.0, 1.0 / 3.0, 0.5]),
+        (14, [1.0, 0.0, 0.0, 0.0]),
+        (15, [0.0, 1.0, 0.0, 0.0]),
+        (47, [color[0], color[1], color[2], alpha]),
+        (48, b0),
+        (49, b1),
+        (52, [1.0, 0.0, 0.0, 0.0]),
+        (53, [0.0, 1.0, 0.0, 0.0]),
+    ];
+    if detail {
+        vs.push((50, [detail_scale[0], 0.0, 0.0, 0.0]));
+        vs.push((51, [0.0, detail_scale[1], 0.0, 0.0]));
+    } else {
+        vs.push((50, [1.0, 0.0, 0.0, 0.0]));
+        vs.push((51, [0.0, 1.0, 0.0, 0.0]));
+    }
+    if bump2 && !mask {
+        vs.push((52, [1.0, 0.0, 0.0, 0.0]));
+        vs.push((53, [0.0, 1.0, 0.0, 0.0]));
+    }
+    let envtint = param_vec3(v, "$envmaptint", [1.0; 3]);
+    let fresnel = param_f32(v, "$fresnelreflection", 1.0);
+    let selftint = param_vec3(v, "$selfillumtint", [1.0; 3]);
+    let dtint = param_vec3(v, "$detailtint", [1.0; 3]);
+    let dblend = param_f32(v, "$detailblendfactor", 1.0);
+    let ps = vec![
+        (0, [envtint[0], envtint[1], envtint[2], 1.0]),
+        (2, splat(param_f32(v, "$envmapcontrast", 0.0))),
+        (3, splat(param_f32(v, "$envmapsaturation", 1.0))),
+        (4, [0.0, 0.0, 1.0 - fresnel, fresnel]),
+        (7, [selftint[0], selftint[1], selftint[2], 1.0]),
+        (8, [dtint[0], dtint[1], dtint[2], if detail { dblend } else { 0.0 }]),
+        (12, [color[0], color[1], color[2], alpha]),
+        (20, [0.0; 4]),
+        (31, [0.0; 4]),
+    ];
+    (vs, ps)
+}
+
+fn vertex_lit_consts(v: &MaterialVars, simask: bool) -> (Vec<(u16, [f32; 4])>, Vec<(u16, [f32; 4])>) {
+    let (color, alpha) = color_alpha(v);
+    let envtint = param_vec3(v, "$envmaptint", [1.0; 3]);
+    let selftint = param_vec3(v, "$selfillumtint", [1.0; 3]);
+    let dtint = param_vec3(v, "$detailtint", [1.0; 3]);
+    let dscale = param_f32(v, "$detailscale", 4.0);
+    let [b0, b1] = transform_rows(v, "$basetexturetransform");
+    let vs = vec![
+        (0, [0.0, 1.0, 2.0, 0.5]),
+        (13, [0.0; 4]),
+        (48, b0),
+        (49, b1),
+        (50, [1.0, 0.0, 0.0, 0.0]),
+        (52, [dscale, 0.0, 0.0, 0.0]),
+        (53, [0.0, dscale, 0.0, 0.0]),
+    ];
+    let lin = |c: [f32; 3]| [c[0].max(0.0).powf(2.2), c[1].max(0.0).powf(2.2), c[2].max(0.0).powf(2.2)];
+    let ct = lin(color);
+    let et = lin(envtint);
+    let dt = lin(dtint);
+    let ps = vec![
+        (0, [et[0], et[1], et[2], 0.0]),
+        (1, [ct[0], ct[1], ct[2], alpha]),
+        (2, [param_f32(v, "$envmapcontrast", 0.0), 0.0, 0.0, 0.0]),
+        (3, [1.0, 1.0, 1.0, simask as u32 as f32]),
+        (4, [selftint[0], selftint[1], selftint[2], param_f32(v, "$detailblendfactor", 1.0)]),
+        (10, [dt[0], dt[1], dt[2], 1.0]),
+        (11, [1.0, 0.0, 0.0, 0.0]),
+        (12, [0.0; 4]),
+    ];
+    (vs, ps)
 }
 
 /// Build fat vertices from our brush mesh data.
@@ -293,6 +512,7 @@ pub fn lightmapped_generic(
     mesh: &MeshData,
 ) -> Result<SurfaceDraw, String> {
     let p = &m.params;
+    let vars = MaterialVars::of(p);
     let tex = |name: &str, srgb: bool, env: &mut MapShaderEnv| (env.texture)(name, srgb);
     let base = m.base_texture.as_deref().and_then(|t| tex(t, true, env));
     let base2 = m.base_texture2.as_deref().and_then(|t| tex(t, true, env));
@@ -302,7 +522,7 @@ pub fn lightmapped_generic(
     let envmap = crate::vmt::texture_param(p, "$envmap")
         .filter(|e| e != "env_cubemap")
         .and_then(|t| tex(&t, false, env))
-        .filter(|t| t.2);
+        .filter(|t| t.cube);
     let envmask = crate::vmt::texture_param(p, "$envmapmask").and_then(|t| tex(&t, false, env));
     let blendmod = crate::vmt::texture_param(p, "$blendmodulatetexture").and_then(|t| tex(&t, false, env));
     let detail_mode = p.get_f32("$detailblendmode").unwrap_or(0.0) as u32;
@@ -359,97 +579,44 @@ pub fn lightmapped_generic(
     let pass = lib.get(env.fs, shaders, key)?;
 
     // ---- constants ----
-    let color = m.color;
-    let alpha = m.alpha;
-    let detail_scale = p
-        .get("$detailscale")
-        .map(|s| {
-            let v: Vec<f32> = s
-                .trim_matches(|c| c == '[' || c == ']')
-                .split_whitespace()
-                .filter_map(crate::kv::parse_f32)
-                .collect();
-            match v.len() {
-                0 => [4.0, 4.0],
-                1 => [v[0], v[0]],
-                _ => [v[0], v[1]],
-            }
-        })
-        .unwrap_or([4.0, 4.0]);
-    let mut vs = vec![
-        (0, [0.0, 1.0, 2.0, 0.5]),
-        (1, [1.0 / 2.2, 2.0, 1.0 / 3.0, 0.5]),
-        (14, [1.0, 0.0, 0.0, 0.0]),
-        (15, [0.0, 1.0, 0.0, 0.0]),
-        (47, [color[0], color[1], color[2], alpha]),
-        (48, [1.0, 0.0, 0.0, 0.0]),
-        (49, [0.0, 1.0, 0.0, 0.0]),
-        (52, [1.0, 0.0, 0.0, 0.0]),
-        (53, [0.0, 1.0, 0.0, 0.0]),
-    ];
-    if detail.is_some() {
-        vs.push((50, [detail_scale[0], 0.0, 0.0, 0.0]));
-        vs.push((51, [0.0, detail_scale[1], 0.0, 0.0]));
-    } else {
-        vs.push((50, [1.0, 0.0, 0.0, 0.0]));
-        vs.push((51, [0.0, 1.0, 0.0, 0.0]));
-    }
-    if bump2v > 0 && mask == 0 {
-        vs.push((52, [1.0, 0.0, 0.0, 0.0]));
-        vs.push((53, [0.0, 1.0, 0.0, 0.0]));
-    }
-    let envtint = param_vec3(m, "$envmaptint", [1.0; 3]);
-    let fresnel = param_f32(m, "$fresnelreflection", 1.0);
-    let selftint = param_vec3(m, "$selfillumtint", [1.0; 3]);
-    let dtint = param_vec3(m, "$detailtint", [1.0; 3]);
-    let dblend = param_f32(m, "$detailblendfactor", 1.0);
-    let ps = vec![
-        (0, [envtint[0], envtint[1], envtint[2], 1.0]),
-        (2, splat(param_f32(m, "$envmapcontrast", 0.0))),
-        (3, splat(param_f32(m, "$envmapsaturation", 1.0))),
-        (4, [0.0, 0.0, 1.0 - fresnel, fresnel]),
-        (7, [selftint[0], selftint[1], selftint[2], 1.0]),
-        (8, [dtint[0], dtint[1], dtint[2], if detail.is_some() { dblend } else { 0.0 }]),
-        (12, [color[0], color[1], color[2], alpha]),
-        (20, [0.0; 4]),
-        (31, [0.0; 4]),
-    ];
+    let recipe = ConstRecipe::Lightmapped { detail: detail.is_some(), bump2: bump2v > 0, mask: mask > 0 };
+    let (vs, ps) = surface_consts(recipe, &vars);
 
     // ---- samplers ----
-    let default_sampler = SamplerKey::default();
-    let mut textures = Vec::new();
-    let mut bind = |register: u16, t: Option<(Handle<Image>, SamplerKey, bool)>, fallback: &Handle<Image>, cube: bool| {
-        let (image, sampler, is_cube) = t.unwrap_or((fallback.clone(), default_sampler, cube));
-        textures.push(TexBinding {
-            register,
-            image,
-            cube: is_cube,
-            sampler,
-        });
+    let mut textures = vec![TexBinding {
+        register: 1,
+        image: env.lightmap.clone(),
+        cube: false,
+        sampler: SamplerKey { clamp_s: true, clamp_t: true, point: false },
+        frames: Vec::new(),
+        frame_var: None,
+    }];
+    let mut bind = |register: u16, t: Option<EnvTexture>, fallback: &Handle<Image>, cube: bool, frame_var: &'static str| {
+        textures.push(binding(register, t, fallback, cube, Some(frame_var), &vars));
     };
     let base_fallback = if envmap.is_some() { env.black.clone() } else { env.white.clone() };
-    bind(0, base, &base_fallback, false);
-    bind(1, Some((env.lightmap.clone(), SamplerKey { clamp_s: true, clamp_t: true, point: false }, false)), &env.white, false);
+    bind(0, base, &base_fallback, false, "$frame");
     if let Some(e) = envmap {
-        bind(2, Some(e), &env.black, true);
+        bind(2, Some(e), &env.black, true, "$envmapframe");
     }
     if let Some(b) = blendmod {
-        bind(3, Some(b), &env.grey, false);
+        bind(3, Some(b), &env.grey, false, "$blendmodulateframe");
     }
     if bump.is_some() {
-        bind(4, bump, &env.flat_normal, false);
+        bind(4, bump, &env.flat_normal, false, "$bumpframe");
     }
     if bump2v > 0 {
-        bind(5, bump2, &env.flat_normal, false);
+        bind(5, bump2, &env.flat_normal, false, "$bumpframe2");
     } else if mask > 0 {
-        bind(5, envmask, &env.white, false);
+        bind(5, envmask, &env.white, false, "$envmapmaskframe");
     }
     if base2.is_some() {
-        bind(7, base2, &env.white, false);
+        bind(7, base2, &env.white, false, "$frame2");
     }
-    bind(12, detail, &env.grey, false);
+    bind(12, detail, &env.grey, false, "$detailframe");
     // Only keep samplers the pass declares.
     textures.retain(|t| pass.pass.samplers.iter().any(|(r, _)| *r == t.register));
+    let dynamic = dynamic_material(m, recipe, &textures);
 
     Ok(SurfaceDraw {
         pass,
@@ -465,6 +632,7 @@ pub fn lightmapped_generic(
         fog_color: env.fog_color,
         eye_w: 0.0,
         material: m.name.clone(),
+        dynamic,
     })
 }
 
@@ -483,6 +651,85 @@ pub fn source_to_world_matrix() -> bevy::math::Mat4 {
 mod tests {
     use super::*;
     use bevy::math::Vec3;
+
+    fn material(text: &str) -> MaterialInfo {
+        let kv = crate::kv::parse(text);
+        let (shader, body) = kv.root().unwrap();
+        crate::vmt::material_info("test", shader, body)
+    }
+
+    fn tex(register: u16, frames: usize, frame_var: &'static str) -> TexBinding {
+        TexBinding {
+            register,
+            image: Handle::default(),
+            cube: false,
+            sampler: SamplerKey::default(),
+            frames: vec![Handle::default(); frames],
+            frame_var: Some(frame_var),
+        }
+    }
+
+    /// Run a surface's proxies the way `proxy::update_valve_proxies` does.
+    fn overrides(d: &DynamicMaterial, textures: &[TexBinding], time: f32, frame: u32, speaking: f32) -> OverrideData {
+        let count = |var: &str| d.texture_frames.iter().find(|(v, _)| v == var).map_or(1, |(_, n)| *n);
+        let mut ctx = crate::proxy::ProxyContext { time, texture_frame: frame, speaking, entity_random: 0.0, noise: 1, frame_count: &count };
+        let set = d.program.eval(&d.params, &mut ctx);
+        dynamic_overrides(textures, d, &MaterialVars { base: &d.params, set: &set })
+    }
+
+    fn reg(list: &[(u16, [f32; 4])], r: u16) -> [f32; 4] {
+        list.iter().rev().find(|(x, _)| *x == r).unwrap().1
+    }
+
+    #[test]
+    fn toggle_texture_picks_the_sampler_frame() {
+        let m = material(
+            r#""LightmappedGeneric" { "$basetexture" "signage/indicator_lights/indicator_lights_floor"
+                "Proxies" { "ToggleTexture" { "toggleTextureVar" "$basetexture" "toggleTextureFrameNumVar" "$frame" "toggleShouldWrap" "0" } } }"#,
+        );
+        let recipe = ConstRecipe::Lightmapped { detail: false, bump2: false, mask: false };
+        let textures = [tex(0, 2, "$frame"), tex(12, 0, "$detailframe")];
+        let d = dynamic_material(&m, recipe, &textures).expect("proxied");
+        assert_eq!(d.texture_frames[0], ("$basetexture".to_string(), 2));
+        assert_eq!(overrides(&d, &textures, 0.0, 0, 1.0).frames, vec![(0, 0)]);
+        assert_eq!(overrides(&d, &textures, 0.0, 1, 1.0).frames, vec![(0, 1)]);
+        assert_eq!(overrides(&d, &textures, 0.0, 7, 1.0).frames, vec![(0, 1)]);
+        // no proxies: nothing to evaluate per frame
+        assert!(dynamic_material(&material(r#""LightmappedGeneric" { "$basetexture" "x" }"#), recipe, &textures).is_none());
+    }
+
+    #[test]
+    fn lighted_mouth_drives_selfillum_tint() {
+        let m = material(
+            r#""VertexLitGeneric" { "$basetexture" "models/npcs/personality_sphere/personality_sphere_lights" "$selfillum" 1
+                "Proxies" { "LightedMouth" { "resultVar" "$selfillumtint" } } }"#,
+        );
+        let recipe = ConstRecipe::VertexLit { simask: false };
+        let d = dynamic_material(&m, recipe, &[]).unwrap();
+        let o = overrides(&d, &[], 0.0, 0, 1.0);
+        assert_eq!(&reg(&o.ps_consts, 4)[..3], &[1.0, 1.0, 1.0]);
+        let o = overrides(&d, &[], 0.0, 0, 0.25);
+        assert_eq!(&reg(&o.ps_consts, 4)[..3], &[0.25, 0.25, 0.25]);
+    }
+
+    #[test]
+    fn texture_transforms_reach_the_vertex_shader() {
+        // static: the VMT's own transform
+        let m = material(r#""LightmappedGeneric" { "$basetexturetransform" "center 0 0 scale 2 2 rotate 0 translate .5 0" }"#);
+        let (vs, _) = surface_consts(ConstRecipe::Lightmapped { detail: false, bump2: false, mask: false }, &MaterialVars::of(&m.params));
+        assert_eq!(reg(&vs, 48), [2.0, 0.0, 0.0, 0.5]);
+        assert_eq!(reg(&vs, 49), [0.0, 2.0, 0.0, 0.0]);
+        // scrolled by a proxy
+        let m = material(
+            r#""UnlitGeneric" { "$basetexture" "x" "$alpha" ".5"
+                "Proxies" { "TextureScroll" { "texturescrollvar" "$basetexturetransform" "texturescrollrate" .5 "texturescrollangle" 0 } } }"#,
+        );
+        let recipe = ConstRecipe::VertexLit { simask: false };
+        let d = dynamic_material(&m, recipe, &[]).unwrap();
+        let o = overrides(&d, &[], 0.5, 0, 1.0);
+        assert_eq!(reg(&o.vs_consts, 48), [1.0, 0.0, 0.0, 0.25]);
+        assert_eq!(reg(&o.ps_consts, 1)[3], 0.5);
+    }
 
     #[test]
     fn source_matrix_matches_shared_conversion() {
@@ -537,12 +784,13 @@ pub fn vertex_lit_generic(
     indices: Vec<u32>,
 ) -> Result<SurfaceDraw, String> {
     let p = &m.params;
+    let vars = MaterialVars::of(p);
     let tex = |name: &str, srgb: bool, env: &mut MapShaderEnv| (env.texture)(name, srgb);
     let base = m.base_texture.as_deref().and_then(|t| tex(t, true, env));
     let envmap = crate::vmt::texture_param(p, "$envmap")
         .filter(|e| e != "env_cubemap")
         .and_then(|t| tex(&t, false, env))
-        .filter(|t| t.2);
+        .filter(|t| t.cube);
     let envmask = crate::vmt::texture_param(p, "$envmapmask").and_then(|t| tex(&t, false, env));
     let detail_mode = p.get_f32("$detailblendmode").unwrap_or(0.0) as u32;
     let detail = crate::vmt::texture_param(p, "$detail").and_then(|t| tex(&t, detail_mode == 1, env));
@@ -570,51 +818,24 @@ pub fn vertex_lit_generic(
         bevy::log::info!("valve model {}: vs {vs_static} ps {ps_static}", m.name);
     }
     let pass = lib.get(env.fs, shaders, key)?;
-    let color = m.color;
-    let alpha = m.alpha;
-    let envtint = param_vec3(m, "$envmaptint", [1.0; 3]);
-    let selftint = param_vec3(m, "$selfillumtint", [1.0; 3]);
-    let dtint = param_vec3(m, "$detailtint", [1.0; 3]);
-    let dscale = param_f32(m, "$detailscale", 4.0);
-    let vs = vec![
-        (0, [0.0, 1.0, 2.0, 0.5]),
-        (13, [0.0; 4]),
-        (48, [1.0, 0.0, 0.0, 0.0]),
-        (49, [0.0, 1.0, 0.0, 0.0]),
-        (50, [1.0, 0.0, 0.0, 0.0]),
-        (52, [dscale, 0.0, 0.0, 0.0]),
-        (53, [0.0, dscale, 0.0, 0.0]),
-    ];
-    let lin = |c: [f32; 3]| [c[0].powf(2.2), c[1].powf(2.2), c[2].powf(2.2)];
-    let ct = lin(color);
-    let et = lin(envtint);
-    let dt = lin(dtint);
-    let ps = vec![
-        (0, [et[0], et[1], et[2], 0.0]),
-        (1, [ct[0], ct[1], ct[2], alpha]),
-        (2, [param_f32(m, "$envmapcontrast", 0.0), 0.0, 0.0, 0.0]),
-        (3, [1.0, 1.0, 1.0, simask.is_some() as u32 as f32]),
-        (4, [selftint[0], selftint[1], selftint[2], param_f32(m, "$detailblendfactor", 1.0)]),
-        (10, [dt[0], dt[1], dt[2], 1.0]),
-        (11, [1.0, 0.0, 0.0, 0.0]),
-        (12, [0.0; 4]),
-    ];
-    let default_sampler = SamplerKey::default();
+    let recipe = ConstRecipe::VertexLit { simask: simask.is_some() };
+    let (vs, ps) = surface_consts(recipe, &vars);
     let mut textures = Vec::new();
-    let mut bind = |register: u16, t: Option<(Handle<Image>, SamplerKey, bool)>, fallback: &Handle<Image>, cube: bool| {
-        let (image, sampler, is_cube) = t.unwrap_or((fallback.clone(), default_sampler, cube));
-        textures.push(TexBinding { register, image, cube: is_cube, sampler });
+    let mut bind = |register: u16, t: Option<EnvTexture>, fallback: &Handle<Image>, cube: bool, frame_var: &'static str| {
+        textures.push(binding(register, t, fallback, cube, Some(frame_var), &vars));
     };
-    let base_or_white = base.clone();
-    bind(0, base, &env.white, false);
-    if let Some(e) = envmap {
-        bind(1, Some(e), &env.black, true);
-    }
-    bind(2, detail, &env.grey, false);
-    bind(4, envmask, &env.white, false);
     // no mask: Source uses the base texture's alpha
-    bind(11, simask.or(base_or_white), &env.white, false);
+    let simask_frame = if simask.is_some() { "$selfillummaskframe" } else { "$frame" };
+    let simask_or_base = simask.or_else(|| base.clone());
+    bind(0, base, &env.white, false, "$frame");
+    if let Some(e) = envmap {
+        bind(1, Some(e), &env.black, true, "$envmapframe");
+    }
+    bind(2, detail, &env.grey, false, "$detailframe");
+    bind(4, envmask, &env.white, false, "$envmapmaskframe");
+    bind(11, simask_or_base, &env.white, false, simask_frame);
     textures.retain(|t| pass.pass.samplers.iter().any(|(r, _)| *r == t.register));
+    let dynamic = dynamic_material(m, recipe, &textures);
     Ok(SurfaceDraw {
         pass,
         vertices: Arc::new(vertices),
@@ -629,5 +850,6 @@ pub fn vertex_lit_generic(
         fog_color: env.fog_color,
         eye_w: if m.blend == BlendKind::Opaque { 0.0 } else { 1.0 },
         material: m.name.clone(),
+        dynamic,
     })
 }
