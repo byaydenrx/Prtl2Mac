@@ -183,25 +183,31 @@ impl From<Footer> for Action {
     }
 }
 
-/// Portal 2's menu colours: off-white items that go full white over a
-/// faint bar when hovered, dialogs on a dark translucent panel.
+/// Portal 2's menu colours. Main menu items: light grey that goes white
+/// over a grey bar. Dialogs and flyouts: light grey panels (a raised title
+/// tab at the top left) with near-black text; the hovered row is a dark
+/// bar with white text; footer buttons are small dark buttons.
 mod theme {
     use bevy::prelude::Color;
 
-    pub const ITEM: Color = Color::srgba(0.86, 0.88, 0.9, 0.9);
+    pub const ITEM: Color = Color::srgba(0.8, 0.81, 0.82, 0.95);
     pub const ITEM_HOVER: Color = Color::WHITE;
-    pub const HIGHLIGHT: Color = Color::srgba(1.0, 1.0, 1.0, 0.1);
-    pub const SELECTED: Color = Color::srgba(1.0, 1.0, 1.0, 0.18);
-    pub const TITLE: Color = Color::srgb(0.95, 0.96, 0.97);
-    pub const LABEL: Color = Color::srgba(0.76, 0.79, 0.82, 1.0);
-    pub const VALUE: Color = Color::srgb(0.95, 0.96, 0.97);
-    pub const HEADING: Color = Color::srgba(0.55, 0.6, 0.65, 1.0);
-    pub const HINT: Color = Color::srgba(0.6, 0.64, 0.68, 1.0);
-    pub const PANEL: Color = Color::srgba(0.025, 0.03, 0.035, 0.88);
-    pub const EDGE: Color = Color::srgba(1.0, 1.0, 1.0, 0.12);
-    pub const TRACK: Color = Color::srgba(1.0, 1.0, 1.0, 0.16);
-    pub const FILL: Color = Color::srgba(0.86, 0.88, 0.9, 0.9);
+    pub const HIGHLIGHT: Color = Color::srgba(0.55, 0.56, 0.58, 0.55);
+    pub const ROW_HOVER: Color = Color::srgb(0.2, 0.2, 0.21);
+    pub const SELECTED: Color = Color::srgb(0.24, 0.24, 0.25);
+    pub const TITLE: Color = Color::srgb(0.05, 0.05, 0.06);
+    pub const LABEL: Color = Color::srgb(0.12, 0.12, 0.13);
+    pub const VALUE: Color = Color::srgb(0.12, 0.12, 0.13);
+    pub const HEADING: Color = Color::srgb(0.38, 0.39, 0.41);
+    pub const HINT: Color = Color::srgb(0.36, 0.37, 0.39);
+    pub const PANEL: Color = Color::srgba(0.86, 0.86, 0.87, 0.97);
+    pub const EDGE: Color = Color::srgba(0.0, 0.0, 0.0, 0.18);
+    pub const TRACK: Color = Color::srgba(0.0, 0.0, 0.0, 0.18);
+    pub const FILL: Color = Color::srgb(0.22, 0.22, 0.23);
     pub const SHADE: Color = Color::srgba(0.0, 0.0, 0.0, 0.5);
+    pub const BUTTON: Color = Color::srgb(0.24, 0.24, 0.25);
+    pub const BUTTON_HOVER: Color = Color::srgb(0.38, 0.38, 0.4);
+    pub const BUTTON_TEXT: Color = Color::srgb(0.88, 0.88, 0.89);
 }
 
 /// A button's colours, idle and hovered.
@@ -214,7 +220,10 @@ struct Look {
 }
 
 const ITEM_LOOK: Look = Look { text: theme::ITEM, text_hover: theme::ITEM_HOVER, bg: Color::NONE, bg_hover: theme::HIGHLIGHT };
-const VALUE_LOOK: Look = Look { text: theme::VALUE, text_hover: theme::ITEM_HOVER, bg: Color::NONE, bg_hover: theme::HIGHLIGHT };
+/// Rows and items on a light dialog panel.
+const VALUE_LOOK: Look = Look { text: theme::VALUE, text_hover: Color::WHITE, bg: Color::NONE, bg_hover: theme::ROW_HOVER };
+/// BACK / DONE / USE DEFAULTS.
+const BUTTON_LOOK: Look = Look { text: theme::BUTTON_TEXT, text_hover: Color::WHITE, bg: theme::BUTTON, bg_hover: theme::BUTTON_HOVER };
 
 /// Menu item text size; dialogs scale from it.
 const ITEM_SIZE: f32 = 24.0;
@@ -229,6 +238,12 @@ fn load_fonts(mut commands: Commands, game: Res<GameFsRes>, mut fonts: ResMut<As
     info!("portal2: font files in the game: {files:?}");
     let chosen = std::env::var("P2_MENU_FONT").ok().or_else(|| pick_menu_font(&files).cloned());
     let menu = chosen.as_deref().and_then(|p| game.read(p).or_else(|| std::fs::read(p).ok()).map(|b| (p, fonts.add(Font::from_bytes(b)))));
+    // The install has no DIN; macOS ships DIN Alternate, the closest
+    // match to Portal 2's menu face.
+    let menu = menu.or_else(|| {
+        let p = "/System/Library/Fonts/Supplemental/DIN Alternate Bold.ttf";
+        std::fs::read(p).ok().map(|b| (p, fonts.add(Font::from_bytes(b))))
+    });
     let menu = match menu {
         Some((p, h)) => {
             info!("portal2: menu font {p}");
@@ -393,7 +408,7 @@ fn item_list(p: &mut ChildSpawnerCommands, fonts: &UiFonts, items: &[(&str, Acti
                     ))
                     .with_children(|f| {
                         for (label, action) in flyout_items {
-                            f.spawn(button(&fonts.menu, *label, *action, ITEM_SIZE * 0.8, ITEM_LOOK));
+                            f.spawn(button(&fonts.menu, *label, *action, ITEM_SIZE * 0.8, VALUE_LOOK));
                         }
                     });
                 }
@@ -420,25 +435,26 @@ fn dialog(commands: &mut Commands, fonts: &UiFonts, title: &str, width: f32) -> 
     });
     let mut panel = Entity::PLACEHOLDER;
     root.with_children(|r| {
+        // Portal 2's dialog: the title sits on a tab rising from the panel's
+        // top left, the same light grey.
+        r.spawn((
+            Node { align_self: AlignSelf::FlexStart, padding: UiRect::new(Val::Px(16.0), Val::Px(36.0), Val::Px(14.0), Val::Px(10.0)), ..default() },
+            BackgroundColor(theme::PANEL),
+            children![text(&fonts.menu, 36.0, title.to_uppercase(), theme::TITLE)],
+        ));
         panel = r
             .spawn((
                 Node {
                     flex_direction: FlexDirection::Column,
                     width: Val::Px(width),
                     max_width: Val::Percent(88.0),
-                    max_height: Val::Percent(92.0),
-                    padding: UiRect::axes(Val::Px(28.0), Val::Px(20.0)),
-                    border: UiRect::all(Val::Px(1.0)),
-                    row_gap: Val::Px(2.0),
+                    max_height: Val::Percent(86.0),
+                    padding: UiRect::new(Val::Px(16.0), Val::Px(16.0), Val::Px(18.0), Val::Px(16.0)),
+                    row_gap: Val::Px(0.0),
                     ..default()
                 },
                 BackgroundColor(theme::PANEL),
-                BorderColor::all(theme::EDGE),
             ))
-            .with_children(|d| {
-                d.spawn(text(&fonts.menu, 30.0, title, theme::TITLE));
-                d.spawn((Node { height: Val::Px(1.0), width: Val::Percent(100.0), margin: UiRect::vertical(Val::Px(10.0)), ..default() }, BackgroundColor(theme::EDGE)));
-            })
             .id();
     });
     panel
@@ -459,7 +475,7 @@ fn footer(p: &mut ChildSpawnerCommands, fonts: &UiFonts, hint: &str, buttons: &[
         f.spawn(text(&fonts.regular, 14.0, hint, theme::HINT));
         f.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(8.0), ..default() }).with_children(|b| {
             for &k in buttons {
-                b.spawn(button(&fonts.menu, k.label(), k.into(), 18.0, ITEM_LOOK));
+                b.spawn(button(&fonts.menu, k.label(), k.into(), 16.0, BUTTON_LOOK));
             }
         });
     });
@@ -478,22 +494,22 @@ fn option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row) {
         Row::Choice { label: l, value, setting } => {
             p.spawn(line).with_children(|r| {
                 label(r, l);
-                r.spawn(button(&fonts.bold, "<", Action::Adjust(*setting, -1.0), 18.0, ITEM_LOOK));
+                r.spawn(button(&fonts.bold, "\u{25C0}", Action::Adjust(*setting, -1.0), 13.0, VALUE_LOOK));
                 r.spawn((
                     Button,
                     Action::Toggle(*setting),
                     VALUE_LOOK,
-                    Node { width: Val::Px(250.0), justify_content: JustifyContent::Center, padding: UiRect::vertical(Val::Px(4.0)), ..default() },
+                    Node { width: Val::Px(250.0), justify_content: JustifyContent::FlexEnd, padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(4.0), Val::Px(4.0)), ..default() },
                     BackgroundColor(Color::NONE),
                     children![text(&fonts.regular, 18.0, value.clone(), theme::VALUE)],
                 ));
-                r.spawn(button(&fonts.bold, ">", Action::Adjust(*setting, 1.0), 18.0, ITEM_LOOK));
+                r.spawn(button(&fonts.bold, "\u{25B6}", Action::Adjust(*setting, 1.0), 13.0, VALUE_LOOK));
             });
         }
         Row::Slider { label: l, value, fraction, setting } => {
             p.spawn(line).with_children(|r| {
                 label(r, l);
-                r.spawn(button(&fonts.bold, "<", Action::Adjust(*setting, -1.0), 18.0, ITEM_LOOK));
+                r.spawn(button(&fonts.bold, "\u{25C0}", Action::Adjust(*setting, -1.0), 13.0, VALUE_LOOK));
                 r.spawn((Node { width: Val::Px(250.0), flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(10.0), ..default() },))
                     .with_children(|v| {
                         v.spawn((
@@ -510,7 +526,7 @@ fn option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row) {
                         });
                         v.spawn((Node { width: Val::Px(52.0), justify_content: JustifyContent::FlexEnd, ..default() }, children![text(&fonts.regular, 16.0, value.clone(), theme::VALUE)]));
                     });
-                r.spawn(button(&fonts.bold, ">", Action::Adjust(*setting, 1.0), 18.0, ITEM_LOOK));
+                r.spawn(button(&fonts.bold, "\u{25B6}", Action::Adjust(*setting, 1.0), 13.0, VALUE_LOOK));
             });
         }
         Row::Link { label: l, page } => {
@@ -522,8 +538,7 @@ fn option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row) {
                 BackgroundColor(Color::NONE),
             ))
             .with_children(|r| {
-                r.spawn((Node { flex_grow: 1.0, ..default() }, children![text(&fonts.regular, 18.0, l.clone(), theme::VALUE)]));
-                r.spawn(text(&fonts.bold, 18.0, ">", theme::VALUE));
+                r.spawn((Node { flex_grow: 1.0, padding: UiRect::left(Val::Px(6.0)), ..default() }, children![text(&fonts.menu, 18.0, l.to_uppercase(), theme::VALUE)]));
             });
         }
         Row::Key { label: l, keys, index, selected } => {
@@ -764,8 +779,8 @@ fn rebuild_menu(
                 d.spawn((Node { height: Val::Px(1.0), width: Val::Percent(100.0), margin: UiRect::top(Val::Px(18.0)), ..default() }, BackgroundColor(theme::EDGE)));
                 d.spawn(Node { flex_direction: FlexDirection::Row, justify_content: JustifyContent::FlexEnd, column_gap: Val::Px(8.0), margin: UiRect::top(Val::Px(8.0)), ..default() })
                     .with_children(|b| {
-                        b.spawn(button(&fonts.menu, "OK", Action::ConfirmOk, 18.0, ITEM_LOOK));
-                        b.spawn(button(&fonts.menu, "CANCEL", Action::ConfirmCancel, 18.0, ITEM_LOOK));
+                        b.spawn(button(&fonts.menu, "OK", Action::ConfirmOk, 16.0, BUTTON_LOOK));
+                        b.spawn(button(&fonts.menu, "CANCEL", Action::ConfirmCancel, 16.0, BUTTON_LOOK));
                     });
             });
         });
