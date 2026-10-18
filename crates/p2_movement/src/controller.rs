@@ -267,6 +267,7 @@ pub(crate) fn move_players(
             &mut Grounded,
             &mut InterpolatedFeet,
             &mut Duck,
+            Has<p2_core::InFunnel>,
         ),
         (With<Player>, Without<Portal>),
     >,
@@ -286,7 +287,7 @@ pub(crate) fn move_players(
         Vec::new()
     };
 
-    for (entity, mut tf, mut vel, ignore, view, mut input, mut crouch, mut grounded, mut interp, mut duck) in
+    for (entity, mut tf, mut vel, ignore, view, mut input, mut crouch, mut grounded, mut interp, mut duck, in_funnel) in
         &mut players
     {
         let mover = Mover {
@@ -306,8 +307,8 @@ pub(crate) fn move_players(
         let mut v = vel.0 / U;
         let jump_pressed = std::mem::take(&mut input.jump);
 
-        // Ground state at the start of the tick.
-        let mut floor = categorize(&mover, crouch.ducked, &mut feet, v);
+        // Ground state at the start of the tick (a funnel holds you off it).
+        let mut floor = if in_funnel { None } else { categorize(&mover, crouch.ducked, &mut feet, v) };
 
         // Duck. Crouch input is ignored while airborne from a jump. A forced
         // crouch (portal transit §1.6) is not held: like Source, the player
@@ -348,7 +349,7 @@ pub(crate) fn move_players(
             stay_on_ground(&mover, crouch.ducked, &mut feet);
         } else {
             // Air move (§5, §6): split-step gravity, funnel or air lock, air accel, slide.
-            if !jumped_now {
+            if !jumped_now && !in_funnel {
                 v.y -= cfg.gravity * dt * 0.5;
             }
             let mut wish = rules::wish_velocity(input.wish, view.yaw, rules::air_forward_scale(view.pitch), cfg.max_speed);
@@ -383,11 +384,11 @@ pub(crate) fn move_players(
         duck.steep.extend(touched.into_iter().filter(|n| n.y > 0.01 && n.y < cfg.min_walk_normal));
 
         // Land or fall: second half of split-step gravity (§7).
-        floor = categorize(&mover, crouch.ducked, &mut feet, v);
+        floor = if in_funnel { None } else { categorize(&mover, crouch.ducked, &mut feet, v) };
         if floor.is_some() {
             v.y = 0.0;
             duck.jumped = false;
-        } else {
+        } else if !in_funnel {
             v.y -= cfg.gravity * dt * 0.5;
         }
         v = rules::clamp_velocity(v, cfg.max_velocity);

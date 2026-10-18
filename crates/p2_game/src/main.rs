@@ -26,6 +26,7 @@ mod props;
 mod scenes;
 mod settings;
 mod templates;
+mod tractor;
 mod triggers;
 mod turrets;
 mod ui;
@@ -80,6 +81,7 @@ fn main() {
             health::HealthPlugin,
             lasers::LasersPlugin,
             bridges::BridgesPlugin,
+            tractor::TractorPlugin,
         ))
         .insert_resource(args)
         .add_plugins(p2_room::HarnessPlugin);

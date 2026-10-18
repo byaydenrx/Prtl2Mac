@@ -115,6 +115,11 @@ impl Crouch {
     }
 }
 
+/// The player is being carried by an excursion funnel (tractor beam): no
+/// gravity and no ground; the game sets its velocity.
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct InFunnel;
+
 /// Ground state, owned by `p2_movement`.
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct Grounded {
