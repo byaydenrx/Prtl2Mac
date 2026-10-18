@@ -17,6 +17,7 @@ mod campaign;
 mod captions;
 mod health;
 mod io;
+mod lasers;
 mod level;
 mod movers;
 mod portals;
@@ -73,6 +74,7 @@ fn main() {
             captions::CaptionsPlugin,
             templates::TemplatesPlugin,
             health::HealthPlugin,
+            lasers::LasersPlugin,
         ))
         .insert_resource(args)
         .add_plugins(p2_room::HarnessPlugin);

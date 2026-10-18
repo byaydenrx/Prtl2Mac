@@ -198,8 +198,12 @@ fn use_key(
         }
         let (prop_yaw, _, _) = tf.rotation.to_euler(EulerRot::YXZ);
         let radius = prop.half.length();
+        // A held reflection cube turns its lens the way the player looks
+        // (its +X out along the view), so its beam goes where you aim.
+        let reflective = ents.as_deref().is_some_and(|e| crate::lasers::reflective(e, prop.ent));
+        let yaw_offset = if reflective { std::f32::consts::FRAC_PI_2 } else { prop_yaw - view.yaw };
         commands.entity(body).insert((
-            Held { yaw_offset: prop_yaw - view.yaw, distance: radius + 24.0 * shared::SOURCE_UNIT + 16.0 * shared::SOURCE_UNIT },
+            Held { yaw_offset, distance: radius + 24.0 * shared::SOURCE_UNIT + 16.0 * shared::SOURCE_UNIT },
             HeldColliders(cols),
             GravityScale(0.0),
         ));
