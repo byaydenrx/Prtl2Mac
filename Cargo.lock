@@ -4681,6 +4681,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "p2_mods"
+version = "0.1.0"
+dependencies = [
+ "crc32fast",
+ "flate2",
+ "semver",
+ "toml_edit",
+]
+
+[[package]]
 name = "p2_movement"
 version = "0.1.0"
 dependencies = [
