@@ -11,6 +11,8 @@ use crate::audio::{GameSound, PlayGameSound};
 use crate::campaign::Campaign;
 use crate::level::{CurrentMap, LevelLoaded, LoadLevel};
 use crate::settings::{data_dir, frame_limit_rank, resolution_choices, step_in, Settings, SubtitleColor, ANISOTROPY, FOV_RANGE, FRAME_LIMITS, SUBTITLE_SIZES};
+use crate::community::CommunityMaps;
+use crate::tool_settings::{key_name, SpeedrunMode, BIND_KEYS, CHECKPOINT_SLOTS};
 
 pub struct UiPlugin;
 
@@ -27,6 +29,7 @@ impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Screen::Main)
             .init_resource::<OptionsPage>()
+            .init_resource::<ChapterTab>()
             .init_resource::<TitleCard>()
             .add_message::<ShowChapterTitle>()
             .add_message::<MenuClick>()
@@ -48,14 +51,26 @@ pub enum Screen {
     Pause,
 }
 
-/// Which part of Options is up: the main list, or the Subtitles section
-/// clicked into from it.
+/// Which part of Options is up: the main list, or the Subtitles or Speedrun
+/// section clicked into from it.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum OptionsPage {
     #[default]
     Main,
     Subtitles,
+    Speedrun,
 }
+
+/// Chapter select's page: the campaign, or the community maps (the tabs
+/// only show when there are community maps).
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct ChapterTab {
+    community: bool,
+    page: usize,
+}
+
+/// Community maps per chapter-select page.
+const COMMUNITY_PER_PAGE: usize = 12;
 
 #[derive(Resource, Clone)]
 pub struct UiFonts {
@@ -84,6 +99,10 @@ enum Action {
     Chapter(usize),
     Options,
     SubtitleOptions,
+    SpeedrunOptions,
+    ChapterTab(bool),
+    CommunityPage(i32),
+    CommunityMap(usize),
     Back,
     Quit,
     Resume,
@@ -113,6 +132,17 @@ enum Setting {
     SubtitleSize,
     SubtitleColor,
     SubtitleBackground,
+    DevConsole,
+    ShowFps,
+    ShowPos,
+    SpeedrunTimer,
+    SpeedrunMode,
+    QuickRestart,
+    QuickRestartKey,
+    Practice,
+    SaveCheckpointKey,
+    LoadCheckpointKey,
+    CheckpointSlot,
 }
 
 /// The control at the right of an options row.
@@ -212,6 +242,16 @@ fn on_off(on: bool) -> String {
     if on { "ON".into() } else { "OFF".into() }
 }
 
+/// CAMPAIGN / COMMUNITY above chapter select's grid.
+fn chapter_tabs(p: &mut ChildSpawnerCommands, fonts: &UiFonts, community: bool) {
+    p.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(12.0), margin: UiRect::top(Val::Px(8.0)), ..default() }).with_children(|r| {
+        for (label, c) in [("CAMPAIGN", false), ("COMMUNITY", true)] {
+            let bg = if c == community { Color::srgba(1.0, 1.0, 1.0, 0.14) } else { Color::NONE };
+            r.spawn((Button, Action::ChapterTab(c), Node { padding: UiRect::axes(Val::Px(10.0), Val::Px(5.0)), ..default() }, BackgroundColor(bg), children![text(&fonts.bold, 18.0, label, DIM)]));
+        }
+    });
+}
+
 #[allow(clippy::too_many_arguments)]
 fn rebuild_menu(
     mut commands: Commands,
@@ -220,6 +260,7 @@ fn rebuild_menu(
     fonts: Option<Res<UiFonts>>,
     campaign: Res<Campaign>,
     settings: Res<Settings>,
+    (tab, community): (Res<ChapterTab>, Res<CommunityMaps>),
     roots: Query<Entity, With<MenuRoot>>,
     game: Res<GameFsRes>,
     mut images: ResMut<Assets<Image>>,
@@ -228,7 +269,8 @@ fn rebuild_menu(
 ) {
     let Some(fonts) = fonts else { return };
     let options_changed = (settings.is_changed() || page.is_changed()) && matches!(*screen, Screen::Options { .. });
-    if !screen.is_changed() && !options_changed && !fonts.is_added() {
+    let chapters_changed = (tab.is_changed() || community.is_changed()) && *screen == Screen::Chapters;
+    if !screen.is_changed() && !options_changed && !chapters_changed && !fonts.is_added() {
         return;
     }
     for r in &roots {
@@ -287,6 +329,47 @@ fn rebuild_menu(
                 p.spawn(button(&fonts, "QUIT", Action::Quit, 26.0));
             });
         }
+        Screen::Chapters if tab.community && !community.maps.is_empty() => {
+            let pages = community.maps.len().div_ceil(COMMUNITY_PER_PAGE);
+            let page = tab.page.min(pages - 1);
+            let mut root = commands.spawn((MenuRoot, full, BackgroundColor(PANEL), GlobalZIndex(10)));
+            root.with_children(|p| {
+                p.spawn(text(&fonts.bold, 40.0, "CHAPTER SELECT", WHITE));
+                chapter_tabs(p, &fonts, true);
+                p.spawn(Node {
+                    display: Display::Grid,
+                    grid_template_columns: RepeatedGridTrack::flex(3, 1.0),
+                    column_gap: Val::Px(18.0),
+                    row_gap: Val::Px(10.0),
+                    width: Val::Percent(84.0),
+                    margin: UiRect::vertical(Val::Px(18.0)),
+                    ..default()
+                })
+                .with_children(|g| {
+                    for (i, m) in community.maps.iter().enumerate().skip(page * COMMUNITY_PER_PAGE).take(COMMUNITY_PER_PAGE) {
+                        let folder = m.path.parent().map(|f| f.display().to_string()).unwrap_or_default();
+                        g.spawn((
+                            Button,
+                            Action::CommunityMap(i),
+                            Node { flex_direction: FlexDirection::Column, padding: UiRect::all(Val::Px(8.0)), overflow: Overflow::clip(), ..default() },
+                            BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.04)),
+                        ))
+                        .with_children(|b| {
+                            b.spawn(text(&fonts.bold, 18.0, m.name.to_uppercase(), WHITE));
+                            b.spawn(text(&fonts.regular, 12.0, folder, DIM));
+                        });
+                    }
+                });
+                if pages > 1 {
+                    p.spawn(Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(14.0), ..default() }).with_children(|r| {
+                        r.spawn(button(&fonts, "<", Action::CommunityPage(-1), 22.0));
+                        r.spawn(text(&fonts.bold, 18.0, format!("PAGE {} / {pages}", page + 1), WHITE));
+                        r.spawn(button(&fonts, ">", Action::CommunityPage(1), 22.0));
+                    });
+                }
+                p.spawn(button(&fonts, "BACK", Action::Back, 22.0));
+            });
+        }
         Screen::Chapters => {
             if chapter_pics.len() != campaign.chapters.len() {
                 *chapter_pics = campaign
@@ -302,6 +385,9 @@ fn rebuild_menu(
             let mut root = commands.spawn((MenuRoot, full, BackgroundColor(PANEL), GlobalZIndex(10)));
             root.with_children(|p| {
                 p.spawn(text(&fonts.bold, 40.0, "CHAPTER SELECT", WHITE));
+                if !community.maps.is_empty() {
+                    chapter_tabs(p, &fonts, false);
+                }
                 p.spawn(Node {
                     display: Display::Grid,
                     grid_template_columns: RepeatedGridTrack::flex(3, 1.0),
@@ -328,6 +414,28 @@ fn rebuild_menu(
                         });
                     }
                 });
+                p.spawn(button(&fonts, "BACK", Action::Back, 22.0));
+            });
+        }
+        Screen::Options { .. } if *page == OptionsPage::Speedrun => {
+            let t = &settings.tools;
+            let mode = t.speedrun_mode.label().to_string();
+            let mut root = commands.spawn((MenuRoot, full, BackgroundColor(PANEL), GlobalZIndex(10)));
+            root.with_children(|p| {
+                p.spawn(text(&fonts.bold, 40.0, "SPEEDRUN", WHITE));
+                p.spawn(Node { height: Val::Px(16.0), ..default() });
+                option_row(p, &fonts, "SPEEDRUN TIMER", on_off(t.speedrun_timer), Ctl::Press(Action::Toggle(Setting::SpeedrunTimer)));
+                option_row(p, &fonts, "TIMER MODE", mode, Ctl::Step(Setting::SpeedrunMode, 1.0));
+                option_row(p, &fonts, "QUICK RESTART", on_off(t.quick_restart), Ctl::Press(Action::Toggle(Setting::QuickRestart)));
+                option_row(p, &fonts, "QUICK RESTART KEY", key_name(t.quick_restart_key).into(), Ctl::Step(Setting::QuickRestartKey, 1.0));
+                option_row(p, &fonts, "PRACTICE CHECKPOINTS", on_off(t.practice), Ctl::Press(Action::Toggle(Setting::Practice)));
+                option_row(p, &fonts, "SAVE CHECKPOINT KEY", key_name(t.checkpoint_save_key).into(), Ctl::Step(Setting::SaveCheckpointKey, 1.0));
+                option_row(p, &fonts, "LOAD CHECKPOINT KEY", key_name(t.checkpoint_load_key).into(), Ctl::Step(Setting::LoadCheckpointKey, 1.0));
+                option_row(p, &fonts, "CHECKPOINT SLOT", t.checkpoint_slot.to_string(), Ctl::Step(Setting::CheckpointSlot, 1.0));
+                p.spawn((
+                    Node { margin: UiRect::vertical(Val::Px(14.0)), max_width: Val::Px(760.0), ..default() },
+                    children![text(&fonts.regular, 15.0, "Splits and personal bests are saved in the splits folder next to settings.cfg. Runs with sv_cheats or a loaded checkpoint never count as a personal best.", DIM)],
+                ));
                 p.spawn(button(&fonts, "BACK", Action::Back, 22.0));
             });
         }
@@ -377,6 +485,10 @@ fn rebuild_menu(
                         option_row(c, &fonts, "MOUSE SENSITIVITY", format!("{:.1}", settings.mouse_sensitivity), Ctl::Step(Setting::Sensitivity, 0.5));
                         option_row(c, &fonts, "INVERT MOUSE", on_off(settings.invert_mouse), Ctl::Press(Action::Toggle(Setting::Invert)));
                         option_row(c, &fonts, "MOUSE SMOOTHING", on_off(settings.mouse_filter), Ctl::Press(Action::Toggle(Setting::Smoothing)));
+                        heading(c, &fonts, "EXTRAS");
+                        option_row(c, &fonts, "DEVELOPER CONSOLE", on_off(settings.tools.dev_console), Ctl::Press(Action::Toggle(Setting::DevConsole)));
+                        option_row(c, &fonts, "MOVEMENT STATS", on_off(settings.tools.show_pos), Ctl::Press(Action::Toggle(Setting::ShowPos)));
+                        option_row(c, &fonts, "SPEEDRUN", format!("{}  >", on_off(settings.tools.speedrun_timer)), Ctl::Press(Action::SpeedrunOptions));
                     });
                     cols.spawn(column).with_children(|c| {
                         heading(c, &fonts, "VIDEO");
@@ -388,6 +500,7 @@ fn rebuild_menu(
                         option_row(c, &fonts, "ANTI-ALIASING", if settings.msaa { "MSAA 4X".into() } else { "OFF".into() }, Ctl::Press(Action::Toggle(Setting::AntiAliasing)));
                         option_row(c, &fonts, "TEXTURE FILTERING", aniso, Ctl::Step(Setting::Anisotropy, 1.0));
                         option_row(c, &fonts, "GRAPHICS", if settings.enhanced_graphics { "ENHANCED".into() } else { "ORIGINAL".into() }, Ctl::Press(Action::Toggle(Setting::Graphics)));
+                        option_row(c, &fonts, "SHOW FPS", on_off(settings.tools.show_fps), Ctl::Press(Action::Toggle(Setting::ShowFps)));
                     });
                 });
                 p.spawn(Node { height: Val::Px(16.0), ..default() });
@@ -417,7 +530,7 @@ fn escape_key(keys: Res<ButtonInput<KeyCode>>, mut screen: ResMut<Screen>, mut p
     // Leaving Options any way keeps what was changed.
     if matches!(*screen, Screen::Options { .. }) {
         settings.save();
-        if *page == OptionsPage::Subtitles {
+        if *page != OptionsPage::Main {
             *page = OptionsPage::Main;
             return;
         }
@@ -457,6 +570,7 @@ fn buttons(
     map: Option<Res<CurrentMap>>,
     mut load: MessageWriter<LoadLevel>,
     mut exit: MessageWriter<AppExit>,
+    (mut tab, mut community): (ResMut<ChapterTab>, ResMut<CommunityMaps>),
 ) {
     for (interaction, action, children) in &mut q {
         let color = match interaction {
@@ -487,7 +601,23 @@ fn buttons(
                     *screen = Screen::None;
                 }
             }
-            Action::Chapters => *screen = Screen::Chapters,
+            Action::Chapters => {
+                *screen = Screen::Chapters;
+                // Maps copied in since the game started show up too.
+                community.rescan();
+                *tab = ChapterTab::default();
+            }
+            Action::ChapterTab(c) => *tab = ChapterTab { community: c, page: 0 },
+            Action::CommunityPage(d) => {
+                let pages = community.maps.len().div_ceil(COMMUNITY_PER_PAGE).max(1);
+                tab.page = (tab.page as i32 + d).clamp(0, pages as i32 - 1) as usize;
+            }
+            Action::CommunityMap(i) => {
+                if let Some(m) = community.maps.get(i) {
+                    load.write(LoadLevel { map: m.launch_name(), menu: false });
+                    *screen = Screen::None;
+                }
+            }
             Action::Chapter(i) => {
                 if let Some(c) = campaign.chapters.get(i) {
                     load.write(LoadLevel { map: c.map.clone(), menu: false });
@@ -499,7 +629,8 @@ fn buttons(
                 *screen = Screen::Options { from_pause: *screen == Screen::Pause };
             }
             Action::SubtitleOptions => *page = OptionsPage::Subtitles,
-            Action::Back if *page == OptionsPage::Subtitles && matches!(*screen, Screen::Options { .. }) => {
+            Action::SpeedrunOptions => *page = OptionsPage::Speedrun,
+            Action::Back if *page != OptionsPage::Main && matches!(*screen, Screen::Options { .. }) => {
                 *page = OptionsPage::Main;
                 settings.save();
             }
@@ -537,6 +668,23 @@ fn buttons(
             Action::Adjust(Setting::SubtitleColor, d) => {
                 settings.subtitle_color = step_in(&SubtitleColor::ALL, settings.subtitle_color, d.signum() as i32, |c| c as u8 as f32)
             }
+            Action::Adjust(Setting::SpeedrunMode, d) => {
+                settings.tools.speedrun_mode = step_in(&SpeedrunMode::ALL, settings.tools.speedrun_mode, d.signum() as i32, |m| m as u8 as f32)
+            }
+            Action::Adjust(s @ (Setting::QuickRestartKey | Setting::SaveCheckpointKey | Setting::LoadCheckpointKey), d) => {
+                let t = &mut settings.tools;
+                let key = match s {
+                    Setting::QuickRestartKey => &mut t.quick_restart_key,
+                    Setting::SaveCheckpointKey => &mut t.checkpoint_save_key,
+                    _ => &mut t.checkpoint_load_key,
+                };
+                let keys = BIND_KEYS.map(|k| k.0);
+                *key = step_in(&keys, *key, d.signum() as i32, |k| keys.iter().position(|x| *x == k).unwrap_or(0) as f32);
+            }
+            Action::Adjust(Setting::CheckpointSlot, d) => {
+                let slots: Vec<u8> = (1..=CHECKPOINT_SLOTS).collect();
+                settings.tools.checkpoint_slot = step_in(&slots, settings.tools.checkpoint_slot, d.signum() as i32, |n| n as f32);
+            }
             Action::Adjust(s, d) => {
                 let v = match s {
                     Setting::Master => &mut settings.master_volume,
@@ -562,6 +710,12 @@ fn buttons(
                 Setting::AntiAliasing => settings.msaa = !settings.msaa,
                 Setting::Graphics => settings.enhanced_graphics = !settings.enhanced_graphics,
                 Setting::Subtitles => settings.subtitles = !settings.subtitles,
+                Setting::DevConsole => settings.tools.dev_console = !settings.tools.dev_console,
+                Setting::ShowFps => settings.tools.show_fps = !settings.tools.show_fps,
+                Setting::ShowPos => settings.tools.show_pos = !settings.tools.show_pos,
+                Setting::SpeedrunTimer => settings.tools.speedrun_timer = !settings.tools.speedrun_timer,
+                Setting::QuickRestart => settings.tools.quick_restart = !settings.tools.quick_restart,
+                Setting::Practice => settings.tools.practice = !settings.tools.practice,
                 _ => {}
             },
         }
