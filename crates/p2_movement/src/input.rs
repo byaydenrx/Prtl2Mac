@@ -75,6 +75,7 @@ fn mouse_look(
 }
 
 /// Keyboard (as bound in [`InputBindings`]) into [`MoveInput`].
+#[allow(clippy::type_complexity)]
 fn read_keys(
     locked: Res<InputLocked>,
     keys: Option<Res<ButtonInput<KeyCode>>>,
