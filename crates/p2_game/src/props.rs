@@ -119,7 +119,7 @@ fn use_key(
     children: Query<&Children>,
     colliders: Query<(), With<Collider>>,
     spatial: SpatialQuery,
-    ents: Option<ResMut<Ents>>,
+    mut ents: Option<ResMut<Ents>>,
     mut fire: MessageWriter<FireOutput>,
 ) {
     let Ok((player, mut input, feet, crouch, view, mut ignore)) = players.single_mut() else { return };
@@ -141,11 +141,12 @@ fn use_key(
     // Like Source's FindUseEntity: a usable button in front of the player
     // wins over whatever surface the ray happens to hit first (the bed's
     // mattress covers the bed's button).
-    if let Some(ents) = &ents {
+    if let Some(ents) = ents.as_mut() {
         let hit_dist = hit.map_or(f32::MAX, |h| h.distance);
         let mut best: Option<(usize, f32)> = None;
         for (i, e) in ents.list.iter().enumerate() {
-            if e.killed || !matches!(e.class.as_str(), "func_button" | "func_rot_button" | "prop_button" | "prop_under_button") {
+            let usable_door = matches!(e.class.as_str(), "func_door" | "func_door_rotating" | "prop_door_rotating") && e.spawnflags & 256 != 0;
+            if e.killed || !(usable_door || matches!(e.class.as_str(), "func_button" | "func_rot_button" | "prop_button" | "prop_under_button")) {
                 continue;
             }
             let (lo, hi) = e.bounds.unwrap_or((e.transform.translation - Vec3::splat(0.3), e.transform.translation + Vec3::splat(0.3)));
@@ -158,7 +159,15 @@ fn use_key(
         }
         if let Some((i, _)) = best {
             let class = ents.list[i].class.clone();
-            if ents.list[i].value == 0.0 {
+            let locked = ents.list[i].value == 0.0;
+            if class.contains("door") {
+                // "Use opens" doors: a locked one says so, else it opens.
+                if locked {
+                    fire.write(FireOutput { ent: i, event: "OnLockedUse".into(), activator: Some(PLAYER) });
+                } else {
+                    ents.input_to(i, "open");
+                }
+            } else if locked {
                 fire.write(FireOutput { ent: i, event: "OnUseLocked".into(), activator: Some(PLAYER) });
             } else {
                 fire.write(FireOutput { ent: i, event: "OnPressed".into(), activator: Some(PLAYER) });

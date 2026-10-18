@@ -90,6 +90,8 @@ pub struct Ents {
     pub list: Vec<GameEnt>,
     by_name: HashMap<String, Vec<usize>>,
     queue: Vec<Pending>,
+    /// Inputs sent straight to an entity by index (the player using it).
+    direct: Vec<(usize, String)>,
     /// Seconds since the map spawned (game time: stops while paused).
     pub now: f32,
     started: bool,
@@ -119,7 +121,10 @@ impl Ents {
             let start_disabled = get("startdisabled").is_some_and(|v| v.trim() == "1");
             let mut value = get("startvalue").or(get("initialvalue")).and_then(source_assets::kv::parse_f32).unwrap_or(0.0);
             // Buttons: value 1 = unlocked (spawnflag 2048 starts them locked).
-            if matches!(e.classname.as_str(), "func_button" | "func_rot_button" | "prop_button" | "prop_under_button") {
+            if matches!(
+                e.classname.as_str(),
+                "func_button" | "func_rot_button" | "prop_button" | "prop_under_button" | "func_door" | "func_door_rotating" | "prop_door_rotating"
+            ) {
                 let flags: u32 = get("spawnflags").and_then(|v| v.trim().parse().ok()).unwrap_or(0);
                 value = if flags & 2048 != 0 { 0.0 } else { 1.0 };
             }
@@ -156,7 +161,7 @@ impl Ents {
                 info!("TRACE trigger {} {:?} flags {} enabled {} bounds {:.2?}", e.class, e.name, e.spawnflags, e.enabled, e.bounds);
             }
         }
-        Ents { list, by_name, queue: Vec::new(), now: 0.0, started: false, rng: 0x2545_f491 }
+        Ents { list, by_name, queue: Vec::new(), direct: Vec::new(), now: 0.0, started: false, rng: 0x2545_f491 }
     }
 
     /// Entities named `target` (wildcard `*` suffix, `!player`/`!activator`/`!self`/`!caller`).
@@ -213,6 +218,11 @@ impl Ents {
             debug!("io: {} {:?} fires {event} ({} targets)", e.class, e.name, queued.len());
         }
         self.queue.extend(queued);
+    }
+
+    /// Send an input to entity `i` on the next update (the player using it).
+    pub fn input_to(&mut self, i: usize, input: &str) {
+        self.direct.push((i, input.to_ascii_lowercase()));
     }
 
     /// Queue an input directly (scripts, the console).
@@ -406,6 +416,10 @@ impl Ents {
                 }
                 true
             }
+            "func_door" | "func_door_rotating" | "prop_door_rotating" if matches!(input, "lock" | "unlock") => {
+                self.list[i].value = if input == "unlock" { 1.0 } else { 0.0 };
+                true
+            }
             "func_button" | "func_rot_button" | "prop_button" | "prop_under_button" => {
                 match input {
                     "lock" => self.list[i].value = 0.0,
@@ -542,6 +556,11 @@ pub fn run_io(
     }
     for f in fired.read() {
         ents.fire(f.ent, &f.event, f.activator);
+    }
+    for (i, input) in std::mem::take(&mut ents.direct) {
+        if !ents.apply(i, &input, "", PLAYER, Some(PLAYER)) {
+            out.write(EntInput { target: i, input, param: String::new(), activator: Some(PLAYER) });
+        }
     }
     // Timers.
     let now = ents.now;

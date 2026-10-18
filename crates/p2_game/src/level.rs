@@ -200,10 +200,17 @@ fn gun_visibility(
     mut vis: Query<&mut Visibility, Without<p2_view::crosshair::CrosshairRoot>>,
     mut crosshair: Query<&mut Visibility, With<p2_view::crosshair::CrosshairRoot>>,
     mut fx: ResMut<p2_fx::FxSettings>,
+    cinematic: Res<crate::viewcontrol::ViewControl>,
+    screen: Res<crate::ui::Screen>,
 ) {
     let has_gun = guns.single().is_ok_and(|g| g.can_fire.iter().any(|c| *c));
-    let show = has_gun && !menu.is_some_and(|m| m.menu);
+    let in_menu = menu.is_some_and(|m| m.menu);
+    let show = has_gun && !in_menu;
     let want = if show { Visibility::Inherited } else { Visibility::Hidden };
+    // The dot crosshair shows from the start (the brackets only with a gun),
+    // except in menus and cutscene cameras.
+    let dots = !in_menu && !cinematic.is_active() && *screen == crate::ui::Screen::None;
+    let want_dots = if dots { Visibility::Inherited } else { Visibility::Hidden };
     for children in &vm {
         for c in children.iter() {
             if let Ok(mut v) = vis.get_mut(c) {
@@ -214,8 +221,8 @@ fn gun_visibility(
         }
     }
     for mut v in &mut crosshair {
-        if *v != want {
-            *v = want;
+        if *v != want_dots {
+            *v = want_dots;
         }
     }
     if fx.top_light != show {

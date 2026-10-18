@@ -121,11 +121,13 @@ fn track_animations(mut inputs: MessageReader<EntInput>, ents: Option<Res<Ents>>
 #[derive(Resource, Default)]
 pub struct ViewControl {
     active: Vec<usize>,
+    /// A camera is actually driving the view this frame.
+    driving: bool,
 }
 
 impl ViewControl {
     pub fn is_active(&self) -> bool {
-        !self.active.is_empty()
+        self.driving
     }
 }
 
@@ -198,7 +200,7 @@ fn camera_pose(anims: &mut PropAnims, game: &GameFsRes, ents: &Ents, i: usize) -
 /// While a view controller is on, the main camera is its camera and the
 /// player can't move or look.
 fn drive_camera(
-    vc: Res<ViewControl>,
+    mut vc: ResMut<ViewControl>,
     ents: Option<Res<Ents>>,
     game: Res<GameFsRes>,
     mut anims: ResMut<PropAnims>,
@@ -212,6 +214,9 @@ fn drive_camera(
         _ => None,
     };
     let on = pose.is_some();
+    if vc.driving != on {
+        vc.driving = on;
+    }
     if on != *was_on {
         *was_on = on;
         if std::env::var_os("P2_SCRIPT").is_none() {
