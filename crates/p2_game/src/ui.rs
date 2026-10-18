@@ -14,6 +14,11 @@ use crate::settings::{data_dir, frame_limit_rank, resolution_choices, step_in, S
 
 pub struct UiPlugin;
 
+/// Scripted tests press a menu button by its action (`Options`,
+/// `Toggle(VSync)`, `Adjust(Fov,5.0)`, spaces ignored), or `pause`.
+#[derive(Message, Clone, Debug)]
+pub struct MenuClick(pub String);
+
 /// Show the current chapter's title card (the map's `DisplayChapterTitle()`).
 #[derive(Message, Clone, Copy, Debug)]
 pub struct ShowChapterTitle;
@@ -24,10 +29,11 @@ impl Plugin for UiPlugin {
             .init_resource::<OptionsPage>()
             .init_resource::<TitleCard>()
             .add_message::<ShowChapterTitle>()
+            .add_message::<MenuClick>()
             .add_systems(Startup, (load_fonts, open_main_menu).chain().after(crate::campaign::load_campaign))
             .add_systems(
                 Update,
-                (escape_key, buttons, rebuild_menu, menu_view, menu_camera, pause_world, menu_music, autosave, title_card).chain().in_set(crate::level::GameSet::Logic),
+                (escape_key, scripted_clicks, buttons, rebuild_menu, menu_view, menu_camera, pause_world, menu_music, autosave, title_card).chain().in_set(crate::level::GameSet::Logic),
             );
     }
 }
@@ -424,6 +430,20 @@ fn escape_key(keys: Res<ButtonInput<KeyCode>>, mut screen: ResMut<Screen>, mut p
         Screen::Options { from_pause: false } | Screen::Chapters => Screen::Main,
         s => s,
     };
+}
+
+fn scripted_clicks(mut clicks: MessageReader<MenuClick>, mut screen: ResMut<Screen>, mut q: Query<(&mut Interaction, &Action)>) {
+    for c in clicks.read() {
+        let want = c.0.replace(' ', "").to_ascii_lowercase();
+        if want == "pause" {
+            *screen = Screen::Pause;
+            continue;
+        }
+        match q.iter_mut().find(|(_, a)| format!("{a:?}").replace(' ', "").to_ascii_lowercase() == want) {
+            Some((mut i, _)) => *i = Interaction::Pressed,
+            None => warn!("portal2: no menu button {:?}; have {:?}", c.0, q.iter().map(|(_, a)| format!("{a:?}")).collect::<Vec<_>>()),
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
