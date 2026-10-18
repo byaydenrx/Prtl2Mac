@@ -13,6 +13,7 @@ use source_assets::{SourceMapPlugin, SourceRenderSettings};
 mod ai;
 mod audio;
 mod autopilot;
+mod bindings;
 mod bridges;
 mod campaign;
 mod captions;
@@ -21,6 +22,7 @@ mod io;
 mod lasers;
 mod level;
 mod movers;
+mod options;
 mod paint;
 mod portals;
 mod props;
@@ -78,6 +80,7 @@ fn main() {
             viewcontrol::ViewControlPlugin,
             captions::CaptionsPlugin,
         ))
+        .add_plugins(bindings::BindingsPlugin)
         .add_plugins((
             templates::TemplatesPlugin,
             health::HealthPlugin,

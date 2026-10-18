@@ -1,21 +1,32 @@
-//! Menus and HUD text: the main menu over a slowly turning view of a test
-//! chamber with the game's menu music, chapter select with the game's own
-//! chapter pictures and titles, options, the pause menu, chapter title cards
-//! and the autosave that "Continue" picks up.
+//! Menus and HUD text, laid out like Portal 2's PC menus: the main menu
+//! (logo at the top left, items stacked at the lower left, Play Single
+//! Player and Options opening flyouts beside them) over the game's own
+//! background still and menu music, the New Game chapter dialog with the
+//! game's chapter pictures and titles, the pause menu, the Options dialogs
+//! (rows and footer buttons; content in options.rs), quit confirmations,
+//! chapter title cards and the autosave that "Continue" picks up.
+//!
+//! Fonts and the logo come from the player's install when it has them (see
+//! [`load_menu_art`]); otherwise DejaVu Sans and a text logo.
+use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::prelude::*;
-use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
+use bevy::ui::RelativeCursorPosition;
+use bevy::window::{CursorGrabMode, CursorOptions, Monitor, PrimaryMonitor, PrimaryWindow};
 use p2_assets::GameFsRes;
 use p2_core::*;
 
 use crate::audio::{GameSound, PlayGameSound};
+use crate::bindings::{DefaultBinds, KeyAction, KeyActions};
 use crate::campaign::Campaign;
 use crate::level::{CurrentMap, LevelLoaded, LoadLevel};
-use crate::settings::{data_dir, frame_limit_rank, resolution_choices, step_in, Settings, SubtitleColor, ANISOTROPY, FOV_RANGE, FRAME_LIMITS, SUBTITLE_SIZES};
+use crate::options::{self, Ctx, Footer, OptionsPage, Row, Setting, VideoMode};
+use crate::settings::{data_dir, Settings};
 
 pub struct UiPlugin;
 
-/// Scripted tests press a menu button by its action (`Options`,
-/// `Toggle(VSync)`, `Adjust(Fov,5.0)`, spaces ignored), or `pause`.
+/// Scripted tests press a menu button by its action (`SinglePlayer`,
+/// `Page(Video)`, `Toggle(VSync)`, `Adjust(Fov,1.0)`, `Done`, spaces
+/// ignored), or `pause`.
 #[derive(Message, Clone, Debug)]
 pub struct MenuClick(pub String);
 
@@ -26,14 +37,21 @@ pub struct ShowChapterTitle;
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Screen::Main)
-            .init_resource::<OptionsPage>()
+            .init_resource::<MenuState>()
+            .init_resource::<MenuScroll>()
+            .init_resource::<InputEaten>()
             .init_resource::<TitleCard>()
             .add_message::<ShowChapterTitle>()
             .add_message::<MenuClick>()
-            .add_systems(Startup, (load_fonts, open_main_menu).chain().after(crate::campaign::load_campaign))
+            .add_systems(Startup, (load_fonts, load_menu_art, open_main_menu).chain().after(crate::campaign::load_campaign))
             .add_systems(
                 Update,
-                (escape_key, scripted_clicks, buttons, rebuild_menu, menu_view, menu_camera, pause_world, menu_music, autosave, title_card).chain().in_set(crate::level::GameSet::Logic),
+                (
+                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu).chain(),
+                    (menu_view, menu_camera, pause_world, menu_music, autosave, title_card).chain(),
+                )
+                    .chain()
+                    .in_set(crate::level::GameSet::Logic),
             );
     }
 }
@@ -43,24 +61,64 @@ impl Plugin for UiPlugin {
 pub enum Screen {
     None,
     Main,
+    /// New Game: the chapter list.
     Chapters,
     Options { from_pause: bool },
     Pause,
 }
 
-/// Which part of Options is up: the main list, or the Subtitles section
-/// clicked into from it.
-#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum OptionsPage {
-    #[default]
-    Main,
-    Subtitles,
+/// The flyouts beside the main and pause menu items.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Flyout {
+    SinglePlayer,
+    Options,
 }
+
+/// "Are you sure?" before quitting.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Confirm {
+    QuitGame,
+    QuitToMenu,
+}
+
+/// Where the menus are within a screen.
+#[derive(Resource, Default)]
+struct MenuState {
+    flyout: Option<Flyout>,
+    confirm: Option<Confirm>,
+    /// The Options page shown on [`Screen::Options`].
+    page: OptionsPage,
+    /// Settings as they were when each open page was entered, for Cancel.
+    undo: Vec<Settings>,
+    /// The Video page's unapplied resolution and display mode.
+    video: Option<VideoMode>,
+    /// Key-list row waiting for a key, and the row last clicked.
+    capture: Option<usize>,
+    selected: Option<usize>,
+}
+
+/// How far the key list is scrolled; kept apart from [`MenuState`] so
+/// scrolling doesn't rebuild the menu.
+#[derive(Resource, Default)]
+struct MenuScroll(f32);
+
+/// Set for the frame in which a key was taken for a binding (or Esc
+/// cancelled one), so it doesn't also act as a menu key or click.
+#[derive(Resource, Default)]
+struct InputEaten(bool);
 
 #[derive(Resource, Clone)]
 pub struct UiFonts {
     pub bold: Handle<Font>,
     pub regular: Handle<Font>,
+    /// Menu items and titles: the game's own menu font when found, else `bold`.
+    pub menu: Handle<Font>,
+}
+
+/// The game's menu art.
+#[derive(Resource, Default)]
+struct MenuArt {
+    logo: Option<Handle<Image>>,
 }
 
 /// The chapter title card shown when a chapter starts.
@@ -76,65 +134,155 @@ struct MenuRoot;
 #[derive(Component)]
 struct TitleCardRoot;
 
-#[derive(Component, Clone, Copy, Debug)]
+/// The scrolling key list.
+#[derive(Component)]
+struct ScrollList;
+
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
 enum Action {
+    SinglePlayer,
     Continue,
+    /// Opens the chapter list, as in Portal 2.
     NewGame,
-    Chapters,
     Chapter(usize),
     Options,
-    SubtitleOptions,
+    /// An Options page, from the Options flyout or a link row.
+    Page(OptionsPage),
     Back,
+    Done,
+    Cancel,
+    Apply,
+    UseDefaults,
+    ClearKey,
     Quit,
     Resume,
     Restart,
     MainMenu,
+    ConfirmOk,
+    ConfirmCancel,
+    /// The arrows beside a value: one step back (-1) or on (+1).
     Adjust(Setting, f32),
+    /// A click on the value itself: one step on, wrapping round.
     Toggle(Setting),
+    /// A click on a slider's track: jump to that point.
+    Slide(Setting),
+    /// A key-list row: wait for a key to bind.
+    Bind(usize),
 }
 
-#[derive(Clone, Copy, Debug)]
-enum Setting {
-    Master,
-    Music,
-    Effects,
-    Sensitivity,
-    Fov,
-    Invert,
-    Smoothing,
-    Fullscreen,
-    Resolution,
-    VSync,
-    FrameLimit,
-    AntiAliasing,
-    Anisotropy,
-    Graphics,
-    Subtitles,
-    SubtitleSize,
-    SubtitleColor,
-    SubtitleBackground,
+impl From<Footer> for Action {
+    fn from(f: Footer) -> Self {
+        match f {
+            Footer::Back => Action::Back,
+            Footer::Done => Action::Done,
+            Footer::Cancel => Action::Cancel,
+            Footer::Apply => Action::Apply,
+            Footer::UseDefaults => Action::UseDefaults,
+            Footer::ClearKey => Action::ClearKey,
+        }
+    }
 }
 
-/// The control at the right of an options row.
-enum Ctl {
-    /// `<` value `>`; the step is the change per click (its sign for list settings).
-    Step(Setting, f32),
-    /// The value is the button.
-    Press(Action),
+/// Portal 2's menu colours: off-white items that go full white over a
+/// faint bar when hovered, dialogs on a dark translucent panel.
+mod theme {
+    use bevy::prelude::Color;
+
+    pub const ITEM: Color = Color::srgba(0.86, 0.88, 0.9, 0.9);
+    pub const ITEM_HOVER: Color = Color::WHITE;
+    pub const HIGHLIGHT: Color = Color::srgba(1.0, 1.0, 1.0, 0.1);
+    pub const SELECTED: Color = Color::srgba(1.0, 1.0, 1.0, 0.18);
+    pub const TITLE: Color = Color::srgb(0.95, 0.96, 0.97);
+    pub const LABEL: Color = Color::srgba(0.76, 0.79, 0.82, 1.0);
+    pub const VALUE: Color = Color::srgb(0.95, 0.96, 0.97);
+    pub const HEADING: Color = Color::srgba(0.55, 0.6, 0.65, 1.0);
+    pub const HINT: Color = Color::srgba(0.6, 0.64, 0.68, 1.0);
+    pub const PANEL: Color = Color::srgba(0.025, 0.03, 0.035, 0.88);
+    pub const EDGE: Color = Color::srgba(1.0, 1.0, 1.0, 0.12);
+    pub const TRACK: Color = Color::srgba(1.0, 1.0, 1.0, 0.16);
+    pub const FILL: Color = Color::srgba(0.86, 0.88, 0.9, 0.9);
+    pub const SHADE: Color = Color::srgba(0.0, 0.0, 0.0, 0.5);
 }
 
-const WHITE: Color = Color::srgb(0.92, 0.94, 0.95);
-const DIM: Color = Color::srgba(0.75, 0.78, 0.8, 0.85);
-const HOVER: Color = Color::srgb(1.0, 1.0, 1.0);
-const PANEL: Color = Color::srgba(0.02, 0.03, 0.04, 0.72);
+/// A button's colours, idle and hovered.
+#[derive(Component, Clone, Copy)]
+struct Look {
+    text: Color,
+    text_hover: Color,
+    bg: Color,
+    bg_hover: Color,
+}
+
+const ITEM_LOOK: Look = Look { text: theme::ITEM, text_hover: theme::ITEM_HOVER, bg: Color::NONE, bg_hover: theme::HIGHLIGHT };
+const VALUE_LOOK: Look = Look { text: theme::VALUE, text_hover: theme::ITEM_HOVER, bg: Color::NONE, bg_hover: theme::HIGHLIGHT };
+
+/// Menu item text size; dialogs scale from it.
+const ITEM_SIZE: f32 = 24.0;
 
 fn load_fonts(mut commands: Commands, game: Res<GameFsRes>, mut fonts: ResMut<Assets<Font>>) {
-    let load = |fonts: &mut Assets<Font>, paths: &[&str]| -> Handle<Font> {
-        paths.iter().find_map(|p| game.read(p)).map(|b| fonts.add(Font::from_bytes(b))).unwrap_or_default()
+    let load = |fonts: &mut Assets<Font>, paths: &[&str]| -> Option<Handle<Font>> { paths.iter().find_map(|p| game.read(p)).map(|b| fonts.add(Font::from_bytes(b))) };
+    let bold = load(&mut fonts, &["resource/linux_fonts/dejavusans-bold.ttf", "resource/linux_fonts/liberationsans-bold.ttf"]).unwrap_or_default();
+    let regular = load(&mut fonts, &["resource/linux_fonts/dejavusans.ttf", "resource/linux_fonts/liberationsans-regular.ttf"]).unwrap_or_default();
+    // The menu font: P2_MENU_FONT (a game path or a file), else the best
+    // match among the install's own font files.
+    let files: Vec<String> = game.0.list("resource").into_iter().filter(|f| f.ends_with(".ttf") || f.ends_with(".otf")).collect();
+    info!("portal2: font files in the game: {files:?}");
+    let chosen = std::env::var("P2_MENU_FONT").ok().or_else(|| pick_menu_font(&files).cloned());
+    let menu = chosen.as_deref().and_then(|p| game.read(p).or_else(|| std::fs::read(p).ok()).map(|b| (p, fonts.add(Font::from_bytes(b)))));
+    let menu = match menu {
+        Some((p, h)) => {
+            info!("portal2: menu font {p}");
+            h
+        }
+        None => bold.clone(),
     };
-    let bold = load(&mut fonts, &["resource/linux_fonts/dejavusans-bold.ttf", "resource/linux_fonts/liberationsans-bold.ttf"]);
-    let regular = load(&mut fonts, &["resource/linux_fonts/dejavusans.ttf", "resource/linux_fonts/liberationsans-regular.ttf"]);
-    commands.insert_resource(UiFonts { bold, regular });
+    commands.insert_resource(UiFonts { bold, regular, menu });
+}
+
+/// The menu font among the game's font files: Portal 2's menus use a
+/// clean grotesque (Univers / DIN-like), so prefer those names; never an
+/// icon font. `None` keeps DejaVu Sans Bold.
+fn pick_menu_font(files: &[String]) -> Option<&String> {
+    let score = |f: &String| -> i32 {
+        let name = f.rsplit('/').next().unwrap_or(f).to_ascii_lowercase();
+        if ["halflife", "marlett", "icon", "symbol", "dings", "dingbat", "glyph", "button", "controller", "xbox", "ps3"].iter().any(|k| name.contains(k)) {
+            return 0;
+        }
+        let family = [("univers", 10), ("din", 8), ("frutiger", 7), ("helvetica", 6), ("trade", 5)].iter().find(|(k, _)| name.contains(k)).map_or(0, |(_, s)| *s);
+        if family == 0 {
+            return 0;
+        }
+        let weight = if name.contains("bold") || name.contains("67") || name.contains("bd") { 1 } else { 0 };
+        let cond = if name.contains("cond") || name.contains("cn") { 1 } else { 0 };
+        family * 4 + weight * 2 + cond
+    };
+    files.iter().filter(|f| score(f) > 0).max_by_key(|f| (score(f), std::cmp::Reverse(f.len())))
+}
+
+/// The Portal 2 logo from the game's vgui materials (`P2_MENU_LOGO`
+/// overrides the path): a `logo` texture under materials/vgui naming the
+/// game, not a co-op/DLC one.
+fn load_menu_art(mut commands: Commands, game: Res<GameFsRes>, mut images: ResMut<Assets<Image>>) {
+    let files = game.0.list("materials/vgui");
+    let logos: Vec<&String> = files.iter().filter(|f| f.ends_with(".vtf") && f.contains("logo")).collect();
+    info!("portal2: logo textures in the game: {logos:?}");
+    let chosen = std::env::var("P2_MENU_LOGO").ok().or_else(|| pick_logo(&files).cloned());
+    let logo = chosen.and_then(|p| {
+        let vtf = source_assets::vtf::VtfTexture::parse(&game.read(&p)?).ok()?;
+        info!("portal2: menu logo {p}");
+        Some(images.add(vtf.into_image(false, true)))
+    });
+    commands.insert_resource(MenuArt { logo });
+}
+
+fn pick_logo(files: &[String]) -> Option<&String> {
+    files
+        .iter()
+        .filter(|f| {
+            let n = f.rsplit('/').next().unwrap_or(f);
+            f.ends_with(".vtf") && n.contains("logo") && (n.contains("portal2") || n.contains("portal_2")) && !["coop", "dlc", "community", "puzzlemaker", "steam", "valve"].iter().any(|k| n.contains(k))
+        })
+        .min_by_key(|f| (!f.contains("english"), f.len()))
 }
 
 /// The map the menu shows behind it: the chapter of the save, else chapter 2's chamber.
@@ -176,76 +324,250 @@ fn text(font: &Handle<Font>, size: f32, s: impl Into<String>, color: Color) -> i
     (Text::new(s), TextFont { font: font.into(), font_size: bevy::text::FontSize::Px(size), ..default() }, TextColor(color))
 }
 
-fn button(fonts: &UiFonts, label: impl Into<String>, action: Action, size: f32) -> impl Bundle {
+/// A button showing `label`.
+fn button(font: &Handle<Font>, label: impl Into<String>, action: Action, size: f32, look: Look) -> impl Bundle {
     (
         Button,
         action,
-        Node { padding: UiRect::axes(Val::Px(4.0), Val::Px(6.0)), ..default() },
-        BackgroundColor(Color::NONE),
-        children![text(&fonts.bold, size, label, DIM)],
+        look,
+        Node { padding: UiRect::axes(Val::Px(8.0), Val::Px(4.0)), align_items: AlignItems::Center, ..default() },
+        BackgroundColor(look.bg),
+        children![text(font, size, label, look.text)],
     )
 }
 
-/// One options row: label, then its control.
-fn option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, label: &str, value: String, ctl: Ctl) {
-    p.spawn(Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(14.0), ..default() })
-        .with_children(|r| {
-            r.spawn((Node { width: Val::Px(280.0), ..default() }, children![text(&fonts.regular, 20.0, label, DIM)]));
-            match ctl {
-                Ctl::Step(setting, s) => {
-                    r.spawn(button(fonts, "<", Action::Adjust(setting, -s), 22.0));
-                    r.spawn((Node { width: Val::Px(130.0), justify_content: JustifyContent::Center, ..default() }, children![text(&fonts.bold, 20.0, value, WHITE)]));
-                    r.spawn(button(fonts, ">", Action::Adjust(setting, s), 22.0));
+/// A main/pause menu item.
+fn item(fonts: &UiFonts, label: &str, action: Action) -> impl Bundle + use<> {
+    button(&fonts.menu, label.to_string(), action, ITEM_SIZE, ITEM_LOOK)
+}
+
+/// The native size: the primary monitor's, else the window's.
+fn native_size(monitors: &Query<&Monitor, With<PrimaryMonitor>>, windows: &Query<&Window, With<PrimaryWindow>>) -> UVec2 {
+    monitors
+        .iter()
+        .next()
+        .map(|m| m.physical_size())
+        .or_else(|| windows.single().ok().map(|w| w.physical_size()))
+        .filter(|s| s.x > 0 && s.y > 0)
+        .unwrap_or(UVec2::new(1920, 1080))
+}
+
+/// A full-screen layer of the menu.
+fn layer(z: i32) -> impl Bundle {
+    (
+        MenuRoot,
+        Node { position_type: PositionType::Absolute, width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
+        GlobalZIndex(z),
+    )
+}
+
+/// The lower-left item column with an optional flyout beside one item.
+fn item_list(p: &mut ChildSpawnerCommands, fonts: &UiFonts, items: &[(&str, Action, Option<Flyout>)], open: Option<Flyout>, flyout_items: &[(&str, Action)]) {
+    p.spawn(Node {
+        position_type: PositionType::Absolute,
+        left: Val::Percent(6.0),
+        bottom: Val::Percent(12.0),
+        flex_direction: FlexDirection::Column,
+        row_gap: Val::Px(2.0),
+        ..default()
+    })
+    .with_children(|col| {
+        for (label, action, fly) in items {
+            col.spawn(Node { flex_direction: FlexDirection::Row, ..default() }).with_children(|row| {
+                row.spawn(item(fonts, label, *action));
+                if fly.is_some() && *fly == open {
+                    row.spawn((
+                        Node {
+                            position_type: PositionType::Absolute,
+                            left: Val::Percent(100.0),
+                            top: Val::Px(0.0),
+                            margin: UiRect::left(Val::Px(16.0)),
+                            flex_direction: FlexDirection::Column,
+                            padding: UiRect::all(Val::Px(6.0)),
+                            border: UiRect::all(Val::Px(1.0)),
+                            min_width: Val::Px(240.0),
+                            ..default()
+                        },
+                        BackgroundColor(theme::PANEL),
+                        BorderColor::all(theme::EDGE),
+                    ))
+                    .with_children(|f| {
+                        for (label, action) in flyout_items {
+                            f.spawn(button(&fonts.menu, *label, *action, ITEM_SIZE * 0.8, ITEM_LOOK));
+                        }
+                    });
                 }
-                Ctl::Press(action) => {
-                    r.spawn(button(fonts, value, action, 20.0));
-                }
-            }
-        });
+            });
+        }
+    });
 }
 
-fn heading(p: &mut ChildSpawnerCommands, fonts: &UiFonts, label: &str) {
-    p.spawn((Node { margin: UiRect::top(Val::Px(10.0)), ..default() }, children![text(&fonts.bold, 16.0, label, WHITE)]));
-}
-
-fn on_off(on: bool) -> String {
-    if on { "ON".into() } else { "OFF".into() }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn rebuild_menu(
-    mut commands: Commands,
-    screen: Res<Screen>,
-    page: Res<OptionsPage>,
-    fonts: Option<Res<UiFonts>>,
-    campaign: Res<Campaign>,
-    settings: Res<Settings>,
-    roots: Query<Entity, With<MenuRoot>>,
-    game: Res<GameFsRes>,
-    mut images: ResMut<Assets<Image>>,
-    mut chapter_pics: Local<Vec<Option<Handle<Image>>>>,
-    mut backgrounds: Local<std::collections::HashMap<usize, Option<Handle<Image>>>>,
-) {
-    let Some(fonts) = fonts else { return };
-    let options_changed = (settings.is_changed() || page.is_changed()) && matches!(*screen, Screen::Options { .. });
-    if !screen.is_changed() && !options_changed && !fonts.is_added() {
-        return;
-    }
-    for r in &roots {
-        commands.entity(r).despawn();
-    }
-    let full = Node {
+/// A dialog panel at the left of the screen: title, rule, then the
+/// caller's content. Returns the panel entity.
+fn dialog(commands: &mut Commands, fonts: &UiFonts, title: &str, width: f32) -> Entity {
+    let mut root = commands.spawn((
+        layer(10),
+        BackgroundColor(Color::NONE),
+    ));
+    root.insert(Node {
         position_type: PositionType::Absolute,
         width: Val::Percent(100.0),
         height: Val::Percent(100.0),
         flex_direction: FlexDirection::Column,
         justify_content: JustifyContent::Center,
-        padding: UiRect::left(Val::Percent(8.0)),
-        row_gap: Val::Px(6.0),
+        padding: UiRect::left(Val::Percent(6.0)),
         ..default()
+    });
+    let mut panel = Entity::PLACEHOLDER;
+    root.with_children(|r| {
+        panel = r
+            .spawn((
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    width: Val::Px(width),
+                    max_width: Val::Percent(88.0),
+                    max_height: Val::Percent(92.0),
+                    padding: UiRect::axes(Val::Px(28.0), Val::Px(20.0)),
+                    border: UiRect::all(Val::Px(1.0)),
+                    row_gap: Val::Px(2.0),
+                    ..default()
+                },
+                BackgroundColor(theme::PANEL),
+                BorderColor::all(theme::EDGE),
+            ))
+            .with_children(|d| {
+                d.spawn(text(&fonts.menu, 30.0, title, theme::TITLE));
+                d.spawn((Node { height: Val::Px(1.0), width: Val::Percent(100.0), margin: UiRect::vertical(Val::Px(10.0)), ..default() }, BackgroundColor(theme::EDGE)));
+            })
+            .id();
+    });
+    panel
+}
+
+/// The bottom of a dialog: a hint at the left, buttons at the right.
+fn footer(p: &mut ChildSpawnerCommands, fonts: &UiFonts, hint: &str, buttons: &[Footer]) {
+    p.spawn((Node { height: Val::Px(1.0), width: Val::Percent(100.0), margin: UiRect::top(Val::Px(14.0)), ..default() }, BackgroundColor(theme::EDGE)));
+    p.spawn(Node {
+        flex_direction: FlexDirection::Row,
+        justify_content: JustifyContent::SpaceBetween,
+        align_items: AlignItems::Center,
+        margin: UiRect::top(Val::Px(8.0)),
+        column_gap: Val::Px(16.0),
+        ..default()
+    })
+    .with_children(|f| {
+        f.spawn(text(&fonts.regular, 14.0, hint, theme::HINT));
+        f.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(8.0), ..default() }).with_children(|b| {
+            for &k in buttons {
+                b.spawn(button(&fonts.menu, k.label(), k.into(), 18.0, ITEM_LOOK));
+            }
+        });
+    });
+}
+
+/// One Options row.
+fn option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row) {
+    let line = Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, min_height: Val::Px(32.0), column_gap: Val::Px(6.0), ..default() };
+    let label = |r: &mut ChildSpawnerCommands, s: &str| {
+        r.spawn((Node { flex_grow: 1.0, ..default() }, children![text(&fonts.regular, 18.0, s, theme::LABEL)]));
     };
+    match row {
+        Row::Heading(h) => {
+            p.spawn((Node { margin: UiRect::top(Val::Px(12.0)), ..default() }, children![text(&fonts.bold, 13.0, h.to_uppercase(), theme::HEADING)]));
+        }
+        Row::Choice { label: l, value, setting } => {
+            p.spawn(line).with_children(|r| {
+                label(r, l);
+                r.spawn(button(&fonts.bold, "<", Action::Adjust(*setting, -1.0), 18.0, ITEM_LOOK));
+                r.spawn((
+                    Button,
+                    Action::Toggle(*setting),
+                    VALUE_LOOK,
+                    Node { width: Val::Px(250.0), justify_content: JustifyContent::Center, padding: UiRect::vertical(Val::Px(4.0)), ..default() },
+                    BackgroundColor(Color::NONE),
+                    children![text(&fonts.regular, 18.0, value.clone(), theme::VALUE)],
+                ));
+                r.spawn(button(&fonts.bold, ">", Action::Adjust(*setting, 1.0), 18.0, ITEM_LOOK));
+            });
+        }
+        Row::Slider { label: l, value, fraction, setting } => {
+            p.spawn(line).with_children(|r| {
+                label(r, l);
+                r.spawn(button(&fonts.bold, "<", Action::Adjust(*setting, -1.0), 18.0, ITEM_LOOK));
+                r.spawn((Node { width: Val::Px(250.0), flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(10.0), ..default() },))
+                    .with_children(|v| {
+                        v.spawn((
+                            Button,
+                            Action::Slide(*setting),
+                            Look { text: theme::VALUE, text_hover: theme::ITEM_HOVER, bg: Color::NONE, bg_hover: Color::NONE },
+                            RelativeCursorPosition::default(),
+                            Node { flex_grow: 1.0, height: Val::Px(24.0), align_items: AlignItems::Center, ..default() },
+                            BackgroundColor(Color::NONE),
+                        ))
+                        .with_children(|t| {
+                            t.spawn((Node { width: Val::Percent(100.0), height: Val::Px(6.0), ..default() }, BackgroundColor(theme::TRACK)))
+                                .with_child((Node { width: Val::Percent(fraction * 100.0), height: Val::Percent(100.0), ..default() }, BackgroundColor(theme::FILL)));
+                        });
+                        v.spawn((Node { width: Val::Px(52.0), justify_content: JustifyContent::FlexEnd, ..default() }, children![text(&fonts.regular, 16.0, value.clone(), theme::VALUE)]));
+                    });
+                r.spawn(button(&fonts.bold, ">", Action::Adjust(*setting, 1.0), 18.0, ITEM_LOOK));
+            });
+        }
+        Row::Link { label: l, page } => {
+            p.spawn((
+                Button,
+                Action::Page(*page),
+                VALUE_LOOK,
+                Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, min_height: Val::Px(32.0), padding: UiRect::right(Val::Px(8.0)), ..default() },
+                BackgroundColor(Color::NONE),
+            ))
+            .with_children(|r| {
+                r.spawn((Node { flex_grow: 1.0, ..default() }, children![text(&fonts.regular, 18.0, l.clone(), theme::VALUE)]));
+                r.spawn(text(&fonts.bold, 18.0, ">", theme::VALUE));
+            });
+        }
+        Row::Key { label: l, keys, index, selected } => {
+            let bg = if *selected { theme::SELECTED } else { Color::NONE };
+            p.spawn((
+                Button,
+                Action::Bind(*index),
+                Look { text: theme::VALUE, text_hover: theme::ITEM_HOVER, bg, bg_hover: theme::HIGHLIGHT },
+                Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, min_height: Val::Px(28.0), padding: UiRect::horizontal(Val::Px(8.0)), ..default() },
+                BackgroundColor(bg),
+            ))
+            .with_children(|r| {
+                r.spawn((Node { flex_grow: 1.0, ..default() }, children![text(&fonts.regular, 17.0, l.clone(), theme::VALUE)]));
+                r.spawn((Node { width: Val::Px(220.0), ..default() }, children![text(&fonts.bold, 17.0, keys.clone(), theme::VALUE)]));
+            });
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn rebuild_menu(
+    mut commands: Commands,
+    screen: Res<Screen>,
+    menu: Res<MenuState>,
+    scroll: Res<MenuScroll>,
+    (fonts, art, campaign, settings, actions, defaults): (Option<Res<UiFonts>>, Option<Res<MenuArt>>, Res<Campaign>, Res<Settings>, Res<KeyActions>, Res<DefaultBinds>),
+    roots: Query<Entity, With<MenuRoot>>,
+    game: Res<GameFsRes>,
+    mut images: ResMut<Assets<Image>>,
+    (monitors, windows): (Query<&Monitor, With<PrimaryMonitor>>, Query<&Window, With<PrimaryWindow>>),
+    mut chapter_pics: Local<Vec<Option<Handle<Image>>>>,
+    mut backgrounds: Local<std::collections::HashMap<usize, Option<Handle<Image>>>>,
+) {
+    let Some(fonts) = fonts else { return };
+    let options_changed = (settings.is_changed() || actions.is_changed()) && matches!(*screen, Screen::Options { .. });
+    if !screen.is_changed() && !menu.is_changed() && !options_changed && !fonts.is_added() {
+        return;
+    }
+    for r in &roots {
+        commands.entity(r).despawn();
+    }
     // Out of the game, the menu sits on the game's own menu still for the
-    // act of the saved chapter.
+    // act of the saved chapter; in the game, the view shows through dimmed.
+    let in_game = matches!(*screen, Screen::Pause | Screen::Options { from_pause: true });
     if matches!(*screen, Screen::Main | Screen::Chapters | Screen::Options { from_pause: false }) {
         let chapter = read_save().and_then(|m| campaign.chapter_of(&m)).unwrap_or(0);
         let act = [1, 2, 2, 2, 3, 4, 4, 5, 5].get(chapter).copied().unwrap_or(1);
@@ -257,34 +579,66 @@ fn rebuild_menu(
                 Some(images.add(vtf.into_image(false, true)))
             })
             .clone();
-        let mut bg = commands.spawn((
-            MenuRoot,
-            Node { position_type: PositionType::Absolute, width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
-            BackgroundColor(Color::BLACK),
-            GlobalZIndex(9),
-        ));
+        let mut bg = commands.spawn((layer(9), BackgroundColor(Color::BLACK)));
         if let Some(img) = img {
             bg.with_child((
                 ImageNode { image: img, image_mode: bevy::ui::widget::NodeImageMode::Stretch, ..default() },
                 Node { position_type: PositionType::Absolute, width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
             ));
         }
+    } else if in_game {
+        commands.spawn((layer(9), BackgroundColor(theme::SHADE)));
     }
+    let options_flyout: Vec<(&str, Action)> = options::rows(OptionsPage::List, &settings, &dummy_ctx())
+        .into_iter()
+        .filter_map(|r| match r {
+            Row::Link { page, .. } => Some((page.title(), Action::Page(page))),
+            _ => None,
+        })
+        .collect();
     match *screen {
         Screen::None => {}
         Screen::Main => {
-            let has_save = read_save().is_some();
-            let mut root = commands.spawn((MenuRoot, full, GlobalZIndex(10)));
+            let mut root = commands.spawn(layer(10));
             root.with_children(|p| {
-                p.spawn(text(&fonts.bold, 72.0, "PORTAL 2", WHITE));
-                p.spawn((Node { height: Val::Px(36.0), ..default() },));
-                if has_save {
-                    p.spawn(button(&fonts, "CONTINUE GAME", Action::Continue, 26.0));
+                // The logo, top left.
+                let logo_node = Node { position_type: PositionType::Absolute, left: Val::Percent(6.0), top: Val::Percent(9.0), width: Val::Percent(34.0), ..default() };
+                match art.as_ref().and_then(|a| a.logo.clone()) {
+                    Some(img) => {
+                        p.spawn((ImageNode::new(img), logo_node));
+                    }
+                    None => {
+                        p.spawn((logo_node, children![text(&fonts.menu, 72.0, "PORTAL 2", theme::TITLE)]));
+                    }
                 }
-                p.spawn(button(&fonts, "NEW GAME", Action::NewGame, 26.0));
-                p.spawn(button(&fonts, "CHAPTER SELECT", Action::Chapters, 26.0));
-                p.spawn(button(&fonts, "OPTIONS", Action::Options, 26.0));
-                p.spawn(button(&fonts, "QUIT", Action::Quit, 26.0));
+                let sp: Vec<(&str, Action)> =
+                    if read_save().is_some() { vec![("CONTINUE GAME", Action::Continue), ("NEW GAME", Action::NewGame)] } else { vec![("NEW GAME", Action::NewGame)] };
+                let fly = if menu.flyout == Some(Flyout::Options) { &options_flyout } else { &sp };
+                item_list(
+                    p,
+                    &fonts,
+                    &[("PLAY SINGLE PLAYER", Action::SinglePlayer, Some(Flyout::SinglePlayer)), ("OPTIONS", Action::Options, Some(Flyout::Options)), ("QUIT", Action::Quit, None)],
+                    menu.flyout,
+                    fly,
+                );
+            });
+        }
+        Screen::Pause => {
+            let mut root = commands.spawn(layer(10));
+            root.with_children(|p| {
+                item_list(
+                    p,
+                    &fonts,
+                    &[
+                        ("RESUME GAME", Action::Resume, None),
+                        ("RESTART LEVEL", Action::Restart, None),
+                        ("OPTIONS", Action::Options, Some(Flyout::Options)),
+                        ("QUIT TO MAIN MENU", Action::MainMenu, None),
+                        ("QUIT GAME", Action::Quit, None),
+                    ],
+                    menu.flyout,
+                    &options_flyout,
+                );
             });
         }
         Screen::Chapters => {
@@ -299,16 +653,14 @@ fn rebuild_menu(
                     })
                     .collect();
             }
-            let mut root = commands.spawn((MenuRoot, full, BackgroundColor(PANEL), GlobalZIndex(10)));
-            root.with_children(|p| {
-                p.spawn(text(&fonts.bold, 40.0, "CHAPTER SELECT", WHITE));
+            let panel = dialog(&mut commands, &fonts, "NEW GAME", 980.0);
+            commands.entity(panel).with_children(|p| {
                 p.spawn(Node {
                     display: Display::Grid,
                     grid_template_columns: RepeatedGridTrack::flex(3, 1.0),
-                    column_gap: Val::Px(18.0),
-                    row_gap: Val::Px(14.0),
-                    width: Val::Percent(84.0),
-                    margin: UiRect::vertical(Val::Px(18.0)),
+                    column_gap: Val::Px(14.0),
+                    row_gap: Val::Px(10.0),
+                    width: Val::Percent(100.0),
                     ..default()
                 })
                 .with_children(|g| {
@@ -316,120 +668,222 @@ fn rebuild_menu(
                         g.spawn((
                             Button,
                             Action::Chapter(i),
-                            Node { flex_direction: FlexDirection::Column, padding: UiRect::all(Val::Px(6.0)), ..default() },
-                            BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.04)),
+                            VALUE_LOOK,
+                            Node { flex_direction: FlexDirection::Column, padding: UiRect::all(Val::Px(6.0)), row_gap: Val::Px(2.0), ..default() },
+                            BackgroundColor(Color::NONE),
                         ))
                         .with_children(|b| {
                             if let Some(Some(img)) = chapter_pics.get(i) {
                                 b.spawn((ImageNode::new(img.clone()), Node { width: Val::Percent(100.0), aspect_ratio: Some(16.0 / 9.0), ..default() }));
                             }
-                            b.spawn(text(&fonts.regular, 15.0, c.title.to_uppercase(), DIM));
-                            b.spawn(text(&fonts.bold, 18.0, c.subtitle.to_uppercase(), WHITE));
+                            b.spawn(text(&fonts.regular, 14.0, c.title.to_uppercase(), theme::LABEL));
+                            b.spawn(text(&fonts.menu, 17.0, c.subtitle.to_uppercase(), theme::VALUE));
                         });
                     }
                 });
-                p.spawn(button(&fonts, "BACK", Action::Back, 22.0));
-            });
-        }
-        Screen::Options { .. } if *page == OptionsPage::Subtitles => {
-            let size = SUBTITLE_SIZES.iter().find(|z| z.0 == settings.subtitle_size).map_or(format!("{:.0}", settings.subtitle_size), |z| z.1.to_string());
-            let color = format!("{:?}", settings.subtitle_color).to_uppercase();
-            let mut root = commands.spawn((MenuRoot, full, BackgroundColor(PANEL), GlobalZIndex(10)));
-            root.with_children(|p| {
-                p.spawn(text(&fonts.bold, 40.0, "SUBTITLES", WHITE));
-                p.spawn(Node { height: Val::Px(16.0), ..default() });
-                option_row(p, &fonts, "SUBTITLES", on_off(settings.subtitles), Ctl::Press(Action::Toggle(Setting::Subtitles)));
-                option_row(p, &fonts, "TEXT SIZE", size, Ctl::Step(Setting::SubtitleSize, 1.0));
-                option_row(p, &fonts, "TEXT COLOUR", color, Ctl::Step(Setting::SubtitleColor, 1.0));
-                option_row(p, &fonts, "BACKGROUND", format!("{:.0}%", settings.subtitle_background * 100.0), Ctl::Step(Setting::SubtitleBackground, 0.1));
-                // A sample caption in the chosen style.
-                p.spawn((
-                    Node { margin: UiRect::vertical(Val::Px(18.0)), padding: UiRect::axes(Val::Px(16.0), Val::Px(10.0)), align_self: AlignSelf::FlexStart, ..default() },
-                    BackgroundColor(Color::srgba(0.0, 0.0, 0.0, settings.subtitle_background)),
-                    children![text(&fonts.regular, settings.subtitle_size, "Subtitles will look like this.", settings.subtitle_color.color().unwrap_or(WHITE))],
-                ));
-                p.spawn(button(&fonts, "BACK", Action::Back, 22.0));
+                footer(p, &fonts, "", &[Footer::Back]);
             });
         }
         Screen::Options { .. } => {
-            let pct = |v: f32| format!("{:.0}%", v * 100.0);
-            let resolution = match settings.resolution {
-                Some(r) => format!("{} x {}", r.x, r.y),
-                // In a window, native is the size the game opened at.
-                None if settings.fullscreen => "NATIVE".into(),
-                None => "DEFAULT".into(),
+            let page = menu.page;
+            let binds = settings.binds.clone().unwrap_or_else(|| defaults.0.clone());
+            let ctx = Ctx {
+                native: native_size(&monitors, &windows),
+                video: menu.video.unwrap_or_else(|| VideoMode::of(&settings)),
+                keys: &actions.0,
+                binds: &binds,
+                capture: menu.capture,
+                selected: menu.selected,
             };
-            let frame_limit = if settings.frame_limit == 0 { "UNLIMITED".into() } else { settings.frame_limit.to_string() };
-            let aniso = if settings.anisotropy <= 1 { "OFF".into() } else { format!("{}X", settings.anisotropy) };
-            let column = Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(6.0), ..default() };
-            let mut root = commands.spawn((MenuRoot, full, BackgroundColor(PANEL), GlobalZIndex(10)));
-            root.with_children(|p| {
-                p.spawn(text(&fonts.bold, 40.0, "OPTIONS", WHITE));
-                p.spawn(Node { height: Val::Px(6.0), ..default() });
-                p.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(48.0), ..default() }).with_children(|cols| {
-                    cols.spawn(column.clone()).with_children(|c| {
-                        heading(c, &fonts, "AUDIO");
-                        option_row(c, &fonts, "MASTER VOLUME", pct(settings.master_volume), Ctl::Step(Setting::Master, 0.1));
-                        option_row(c, &fonts, "MUSIC VOLUME", pct(settings.music_volume), Ctl::Step(Setting::Music, 0.1));
-                        option_row(c, &fonts, "EFFECTS VOLUME", pct(settings.effects_volume), Ctl::Step(Setting::Effects, 0.1));
-                        option_row(c, &fonts, "SUBTITLES", format!("{}  >", on_off(settings.subtitles)), Ctl::Press(Action::SubtitleOptions));
-                        heading(c, &fonts, "MOUSE");
-                        option_row(c, &fonts, "MOUSE SENSITIVITY", format!("{:.1}", settings.mouse_sensitivity), Ctl::Step(Setting::Sensitivity, 0.5));
-                        option_row(c, &fonts, "INVERT MOUSE", on_off(settings.invert_mouse), Ctl::Press(Action::Toggle(Setting::Invert)));
-                        option_row(c, &fonts, "MOUSE SMOOTHING", on_off(settings.mouse_filter), Ctl::Press(Action::Toggle(Setting::Smoothing)));
+            let rows = options::rows(page, &settings, &ctx);
+            let hint = match (page, menu.capture) {
+                (OptionsPage::Keys, Some(i)) => {
+                    let name = match actions.0.get(i) {
+                        Some(KeyAction::Command { label, .. }) => label.as_str(),
+                        _ => "",
+                    };
+                    format!("Press a key for \"{name}\".  ESC cancels.")
+                }
+                (OptionsPage::Keys, None) => "Click an action, then press its new key.".to_string(),
+                (OptionsPage::Video, _) if menu.video.is_some_and(|v| v != VideoMode::of(&settings)) => "APPLY to use the new display settings.".to_string(),
+                _ => String::new(),
+            };
+            let panel = dialog(&mut commands, &fonts, page.title(), if page == OptionsPage::Keys { 760.0 } else { 720.0 });
+            commands.entity(panel).with_children(|p| {
+                if page == OptionsPage::Keys {
+                    p.spawn((
+                        ScrollList,
+                        ScrollPosition(Vec2::new(0.0, scroll.0)),
+                        Node { flex_direction: FlexDirection::Column, overflow: Overflow::scroll_y(), max_height: Val::Vh(56.0), ..default() },
+                    ))
+                    .with_children(|l| {
+                        for r in &rows {
+                            option_row(l, &fonts, r);
+                        }
                     });
-                    cols.spawn(column).with_children(|c| {
-                        heading(c, &fonts, "VIDEO");
-                        option_row(c, &fonts, "FIELD OF VIEW", format!("{:.0}", settings.fov), Ctl::Step(Setting::Fov, 5.0));
-                        option_row(c, &fonts, "FULLSCREEN", on_off(settings.fullscreen), Ctl::Press(Action::Toggle(Setting::Fullscreen)));
-                        option_row(c, &fonts, "RESOLUTION", resolution, Ctl::Step(Setting::Resolution, 1.0));
-                        option_row(c, &fonts, "VERTICAL SYNC", on_off(settings.vsync), Ctl::Press(Action::Toggle(Setting::VSync)));
-                        option_row(c, &fonts, "MAX FRAME RATE", frame_limit, Ctl::Step(Setting::FrameLimit, 1.0));
-                        option_row(c, &fonts, "ANTI-ALIASING", if settings.msaa { "MSAA 4X".into() } else { "OFF".into() }, Ctl::Press(Action::Toggle(Setting::AntiAliasing)));
-                        option_row(c, &fonts, "TEXTURE FILTERING", aniso, Ctl::Step(Setting::Anisotropy, 1.0));
-                        option_row(c, &fonts, "GRAPHICS", if settings.enhanced_graphics { "ENHANCED".into() } else { "ORIGINAL".into() }, Ctl::Press(Action::Toggle(Setting::Graphics)));
-                    });
-                });
-                p.spawn(Node { height: Val::Px(16.0), ..default() });
-                p.spawn(button(&fonts, "BACK", Action::Back, 22.0));
+                } else {
+                    for r in &rows {
+                        option_row(p, &fonts, r);
+                    }
+                }
+                if page == OptionsPage::Subtitles {
+                    // A sample caption in the chosen style.
+                    p.spawn((
+                        Node { margin: UiRect::top(Val::Px(16.0)), padding: UiRect::axes(Val::Px(16.0), Val::Px(10.0)), align_self: AlignSelf::Center, ..default() },
+                        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, settings.subtitle_background)),
+                        children![text(&fonts.regular, settings.subtitle_size, "Subtitles will look like this.", settings.subtitle_color.color().unwrap_or(theme::VALUE))],
+                    ));
+                }
+                footer(p, &fonts, &hint, page.footer());
             });
         }
-        Screen::Pause => {
-            let mut root = commands.spawn((MenuRoot, full, BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)), GlobalZIndex(10)));
-            root.with_children(|p| {
-                p.spawn(text(&fonts.bold, 56.0, "PAUSED", WHITE));
-                p.spawn(Node { height: Val::Px(24.0), ..default() });
-                p.spawn(button(&fonts, "RESUME GAME", Action::Resume, 26.0));
-                p.spawn(button(&fonts, "RESTART LEVEL", Action::Restart, 26.0));
-                p.spawn(button(&fonts, "OPTIONS", Action::Options, 26.0));
-                p.spawn(button(&fonts, "QUIT TO MAIN MENU", Action::MainMenu, 26.0));
-                p.spawn(button(&fonts, "QUIT GAME", Action::Quit, 26.0));
+    }
+    if let Some(c) = menu.confirm {
+        let (title, message) = match c {
+            Confirm::QuitGame => ("QUIT", "Are you sure you want to quit?"),
+            Confirm::QuitToMenu => ("QUIT TO MAIN MENU", "Are you sure you want to quit to the main menu? Any progress since the last checkpoint will be lost."),
+        };
+        let mut shade = commands.spawn((layer(20), BackgroundColor(theme::SHADE)));
+        shade.insert(Node {
+            position_type: PositionType::Absolute,
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            ..default()
+        });
+        shade.with_children(|s| {
+            s.spawn((
+                Node { flex_direction: FlexDirection::Column, width: Val::Px(520.0), max_width: Val::Percent(90.0), padding: UiRect::axes(Val::Px(28.0), Val::Px(20.0)), border: UiRect::all(Val::Px(1.0)), ..default() },
+                BackgroundColor(theme::PANEL),
+                BorderColor::all(theme::EDGE),
+            ))
+            .with_children(|d| {
+                d.spawn(text(&fonts.menu, 26.0, title, theme::TITLE));
+                d.spawn((Node { margin: UiRect::top(Val::Px(12.0)), ..default() }, children![text(&fonts.regular, 18.0, message, theme::LABEL)]));
+                d.spawn((Node { height: Val::Px(1.0), width: Val::Percent(100.0), margin: UiRect::top(Val::Px(18.0)), ..default() }, BackgroundColor(theme::EDGE)));
+                d.spawn(Node { flex_direction: FlexDirection::Row, justify_content: JustifyContent::FlexEnd, column_gap: Val::Px(8.0), margin: UiRect::top(Val::Px(8.0)), ..default() })
+                    .with_children(|b| {
+                        b.spawn(button(&fonts.menu, "OK", Action::ConfirmOk, 18.0, ITEM_LOOK));
+                        b.spawn(button(&fonts.menu, "CANCEL", Action::ConfirmCancel, 18.0, ITEM_LOOK));
+                    });
             });
+        });
+    }
+}
+
+/// For rows that need no context (the category list).
+fn dummy_ctx() -> Ctx<'static> {
+    static BINDS: std::sync::OnceLock<crate::bindings::BindTable> = std::sync::OnceLock::new();
+    Ctx { native: UVec2::new(1920, 1080), video: VideoMode { resolution: None, fullscreen: false }, keys: &[], binds: BINDS.get_or_init(Default::default), capture: None, selected: None }
+}
+
+/// Into an Options page from its parent (or the Options flyout).
+fn open_page(menu: &mut MenuState, scroll: &mut MenuScroll, settings: &Settings, page: OptionsPage) {
+    menu.undo.push(settings.clone());
+    menu.page = page;
+    menu.capture = None;
+    menu.selected = None;
+    if page == OptionsPage::Video {
+        menu.video = None;
+    }
+    scroll.0 = 0.0;
+}
+
+/// Out of the current Options page to its parent, keeping its changes
+/// (Done, Esc) or putting them back (Cancel). Out of a top page leaves
+/// Options for the menu it came from. Settings are saved either way.
+fn close_page(screen: &mut Screen, menu: &mut MenuState, scroll: &mut MenuScroll, settings: &mut Settings, keep: bool) {
+    let video = menu.video.take();
+    let before = menu.undo.pop();
+    if keep {
+        if menu.page == OptionsPage::Video {
+            if let Some(v) = video {
+                v.apply(settings);
+            }
+        }
+    } else if let Some(b) = before {
+        *settings = b;
+    }
+    settings.save();
+    menu.capture = None;
+    menu.selected = None;
+    scroll.0 = 0.0;
+    match menu.page.parent() {
+        Some(p) if p != OptionsPage::List => menu.page = p,
+        _ => {
+            menu.page = OptionsPage::List;
+            menu.undo.clear();
+            *screen = match *screen {
+                Screen::Options { from_pause: true } => Screen::Pause,
+                _ => Screen::Main,
+            };
         }
     }
 }
 
-/// Esc pauses and resumes, and backs out of sub-menus.
-fn escape_key(keys: Res<ButtonInput<KeyCode>>, mut screen: ResMut<Screen>, mut page: ResMut<OptionsPage>, map: Option<Res<CurrentMap>>, settings: Res<Settings>) {
-    if !keys.just_pressed(KeyCode::Escape) {
+/// While a key-list row waits, the next key, mouse button or wheel notch
+/// becomes its binding; Esc gives up.
+#[allow(clippy::too_many_arguments)]
+fn capture_key(
+    keys: Res<ButtonInput<KeyCode>>,
+    mouse: Option<Res<ButtonInput<MouseButton>>>,
+    wheel: Option<Res<AccumulatedMouseScroll>>,
+    mut menu: ResMut<MenuState>,
+    mut eaten: ResMut<InputEaten>,
+    mut settings: ResMut<Settings>,
+    defaults: Res<DefaultBinds>,
+    actions: Res<KeyActions>,
+) {
+    eaten.0 = false;
+    let Some(i) = menu.capture else { return };
+    if keys.just_pressed(KeyCode::Escape) {
+        menu.capture = None;
+        eaten.0 = true;
         return;
     }
-    // Leaving Options any way keeps what was changed.
-    if matches!(*screen, Screen::Options { .. }) {
-        settings.save();
-        if *page == OptionsPage::Subtitles {
-            *page = OptionsPage::Main;
-            return;
-        }
+    let input = InputState { keys: Some(&keys), mouse: mouse.as_deref(), scroll: wheel.as_deref() };
+    let Some(name) = InputButton::all().find(|b| input.just_pressed(*b)).and_then(InputButton::name) else { return };
+    if let Some(KeyAction::Command { command, .. }) = actions.0.get(i) {
+        let mut table = settings.binds.clone().unwrap_or_else(|| defaults.0.clone());
+        table.rebind(command, name);
+        info!("portal2: bound {name} to {command}");
+        settings.binds = Some(table);
+    }
+    menu.capture = None;
+    eaten.0 = true;
+}
+
+/// Esc: closes a confirmation or flyout, backs out of an Options page
+/// (keeping its changes), pauses and resumes.
+fn escape_key(
+    keys: Res<ButtonInput<KeyCode>>,
+    eaten: Res<InputEaten>,
+    mut screen: ResMut<Screen>,
+    mut menu: ResMut<MenuState>,
+    mut scroll: ResMut<MenuScroll>,
+    map: Option<Res<CurrentMap>>,
+    mut settings: ResMut<Settings>,
+) {
+    if eaten.0 || !keys.just_pressed(KeyCode::Escape) {
+        return;
+    }
+    if menu.confirm.is_some() {
+        menu.confirm = None;
+        return;
     }
     let in_game = map.as_ref().is_some_and(|m| !m.menu);
-    *screen = match *screen {
-        Screen::None if in_game => Screen::Pause,
-        Screen::Pause => Screen::None,
-        Screen::Options { from_pause: true } => Screen::Pause,
-        Screen::Options { from_pause: false } | Screen::Chapters => Screen::Main,
-        s => s,
-    };
+    match *screen {
+        Screen::Options { .. } => close_page(&mut screen, &mut menu, &mut scroll, &mut settings, true),
+        Screen::Main | Screen::Pause if menu.flyout.is_some() => menu.flyout = None,
+        Screen::Chapters => *screen = Screen::Main,
+        Screen::None if in_game => {
+            menu.flyout = None;
+            *screen = Screen::Pause;
+        }
+        Screen::Pause => *screen = Screen::None,
+        _ => {}
+    }
 }
 
 fn scripted_clicks(mut clicks: MessageReader<MenuClick>, mut screen: ResMut<Screen>, mut q: Query<(&mut Interaction, &Action)>) {
@@ -446,74 +900,117 @@ fn scripted_clicks(mut clicks: MessageReader<MenuClick>, mut screen: ResMut<Scre
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Mouse wheel over the key list scrolls it.
+fn scroll_lists(wheel: Option<Res<AccumulatedMouseScroll>>, menu: Res<MenuState>, mut lists: Query<&mut ScrollPosition, With<ScrollList>>, mut saved: ResMut<MenuScroll>) {
+    let Some(wheel) = wheel else { return };
+    if wheel.delta.y == 0.0 || menu.capture.is_some() {
+        return;
+    }
+    let dy = match wheel.unit {
+        MouseScrollUnit::Line => wheel.delta.y * 32.0,
+        MouseScrollUnit::Pixel => wheel.delta.y,
+    };
+    for mut pos in &mut lists {
+        pos.0.y = (pos.0.y - dy).max(0.0);
+        saved.0 = pos.0.y;
+    }
+}
+
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn buttons(
-    mut q: Query<(&Interaction, &Action, &Children), Changed<Interaction>>,
-    mut texts: Query<&mut TextColor>,
-    mut screen: ResMut<Screen>,
-    mut page: ResMut<OptionsPage>,
+    q: Query<(Entity, &Interaction, &Action, &Look), Changed<Interaction>>,
+    (mut texts, mut bgs, children, cursor): (Query<&mut TextColor>, Query<&mut BackgroundColor>, Query<&Children>, Query<&RelativeCursorPosition>),
+    (mut screen, mut menu, mut scroll, eaten): (ResMut<Screen>, ResMut<MenuState>, ResMut<MenuScroll>, Res<InputEaten>),
     mut settings: ResMut<Settings>,
-    campaign: Res<Campaign>,
+    (campaign, defaults, actions): (Res<Campaign>, Res<DefaultBinds>, Res<KeyActions>),
     map: Option<Res<CurrentMap>>,
+    (monitors, windows): (Query<&Monitor, With<PrimaryMonitor>>, Query<&Window, With<PrimaryWindow>>),
     mut load: MessageWriter<LoadLevel>,
     mut exit: MessageWriter<AppExit>,
 ) {
-    for (interaction, action, children) in &mut q {
-        let color = match interaction {
-            Interaction::Hovered | Interaction::Pressed => HOVER,
-            Interaction::None => DIM,
-        };
-        for c in children.iter() {
+    for (e, interaction, action, look) in &q {
+        let hot = *interaction != Interaction::None;
+        if let Ok(mut bg) = bgs.get_mut(e) {
+            bg.0 = if hot { look.bg_hover } else { look.bg };
+        }
+        for c in children.iter_descendants(e) {
             if let Ok(mut t) = texts.get_mut(c) {
-                if t.0 != WHITE || matches!(interaction, Interaction::None) {
-                    t.0 = color;
-                }
+                t.0 = if hot { look.text_hover } else { look.text };
             }
         }
-        if *interaction != Interaction::Pressed {
+        // A press while a key is being bound is the key itself.
+        if *interaction != Interaction::Pressed || eaten.0 || menu.capture.is_some() {
             continue;
         }
         info!("portal2: menu {:?}", action);
+        let native = native_size(&monitors, &windows);
         match *action {
+            Action::SinglePlayer => menu.flyout = if menu.flyout == Some(Flyout::SinglePlayer) { None } else { Some(Flyout::SinglePlayer) },
+            Action::Options => menu.flyout = if menu.flyout == Some(Flyout::Options) { None } else { Some(Flyout::Options) },
             Action::Continue => {
                 if let Some(m) = read_save() {
                     load.write(LoadLevel { map: m, menu: false });
+                    menu.flyout = None;
                     *screen = Screen::None;
                 }
             }
             Action::NewGame => {
-                if let Some(first) = campaign.maps.first() {
-                    load.write(LoadLevel { map: first.clone(), menu: false });
-                    *screen = Screen::None;
-                }
+                menu.flyout = None;
+                *screen = Screen::Chapters;
             }
-            Action::Chapters => *screen = Screen::Chapters,
             Action::Chapter(i) => {
                 if let Some(c) = campaign.chapters.get(i) {
                     load.write(LoadLevel { map: c.map.clone(), menu: false });
                     *screen = Screen::None;
                 }
             }
-            Action::Options => {
-                *page = OptionsPage::Main;
-                *screen = Screen::Options { from_pause: *screen == Screen::Pause };
+            Action::Page(p) => {
+                if !matches!(*screen, Screen::Options { .. }) {
+                    *screen = Screen::Options { from_pause: *screen == Screen::Pause };
+                    menu.flyout = None;
+                    menu.undo.clear();
+                }
+                open_page(&mut menu, &mut scroll, &settings, p);
             }
-            Action::SubtitleOptions => *page = OptionsPage::Subtitles,
-            Action::Back if *page == OptionsPage::Subtitles && matches!(*screen, Screen::Options { .. }) => {
-                *page = OptionsPage::Main;
-                settings.save();
+            Action::Back | Action::Done if matches!(*screen, Screen::Options { .. }) => close_page(&mut screen, &mut menu, &mut scroll, &mut settings, true),
+            Action::Cancel => close_page(&mut screen, &mut menu, &mut scroll, &mut settings, false),
+            Action::Back | Action::Done => *screen = Screen::Main,
+            Action::Apply => {
+                if let Some(v) = menu.video.take() {
+                    v.apply(&mut settings);
+                    settings.save();
+                }
             }
-            Action::Back => {
-                *screen = match *screen {
-                    Screen::Options { from_pause: true } => Screen::Pause,
-                    _ => Screen::Main,
-                };
-                settings.save();
+            Action::UseDefaults => {
+                settings.binds = None;
+                menu.selected = None;
             }
-            Action::Quit => {
-                settings.save();
-                exit.write(AppExit::Success);
+            Action::ClearKey => {
+                if let Some(KeyAction::Command { command, .. }) = menu.selected.and_then(|i| actions.0.get(i)) {
+                    let mut table = settings.binds.clone().unwrap_or_else(|| defaults.0.clone());
+                    table.clear(command);
+                    settings.binds = Some(table);
+                }
             }
+            Action::Bind(i) => {
+                menu.selected = Some(i);
+                menu.capture = Some(i);
+            }
+            Action::Quit => menu.confirm = Some(Confirm::QuitGame),
+            Action::MainMenu => menu.confirm = Some(Confirm::QuitToMenu),
+            Action::ConfirmCancel => menu.confirm = None,
+            Action::ConfirmOk => match menu.confirm.take() {
+                Some(Confirm::QuitGame) => {
+                    settings.save();
+                    exit.write(AppExit::Success);
+                }
+                Some(Confirm::QuitToMenu) => {
+                    load.write(LoadLevel { map: menu_background(&campaign), menu: true });
+                    menu.flyout = None;
+                    *screen = Screen::Main;
+                }
+                None => {}
+            },
             Action::Resume => *screen = Screen::None,
             Action::Restart => {
                 if let Some(m) = &map {
@@ -521,50 +1018,24 @@ fn buttons(
                 }
                 *screen = Screen::None;
             }
-            Action::MainMenu => {
-                load.write(LoadLevel { map: menu_background(&campaign), menu: true });
-                *screen = Screen::Main;
-            }
-            // Settings picked from a list step through it.
-            Action::Adjust(Setting::Resolution, d) => {
-                settings.resolution = step_in(&resolution_choices(), settings.resolution, d.signum() as i32, |r| r.map_or(f32::MAX, |r| (r.x * r.y) as f32))
-            }
-            Action::Adjust(Setting::FrameLimit, d) => settings.frame_limit = step_in(&FRAME_LIMITS, settings.frame_limit, d.signum() as i32, frame_limit_rank),
-            Action::Adjust(Setting::Anisotropy, d) => settings.anisotropy = step_in(&ANISOTROPY, settings.anisotropy, d.signum() as i32, |a| a as f32),
-            Action::Adjust(Setting::SubtitleSize, d) => {
-                settings.subtitle_size = step_in(&SUBTITLE_SIZES.map(|z| z.0), settings.subtitle_size, d.signum() as i32, |z| z)
-            }
-            Action::Adjust(Setting::SubtitleColor, d) => {
-                settings.subtitle_color = step_in(&SubtitleColor::ALL, settings.subtitle_color, d.signum() as i32, |c| c as u8 as f32)
-            }
-            Action::Adjust(s, d) => {
-                let v = match s {
-                    Setting::Master => &mut settings.master_volume,
-                    Setting::Music => &mut settings.music_volume,
-                    Setting::Effects => &mut settings.effects_volume,
-                    Setting::Sensitivity => &mut settings.mouse_sensitivity,
-                    Setting::Fov => &mut settings.fov,
-                    Setting::SubtitleBackground => &mut settings.subtitle_background,
-                    _ => continue,
-                };
-                *v += d;
-                match s {
-                    Setting::Sensitivity => *v = v.clamp(0.5, 20.0),
-                    Setting::Fov => *v = v.clamp(FOV_RANGE.0, FOV_RANGE.1),
-                    _ => *v = (v.clamp(0.0, 1.0) * 10.0).round() / 10.0,
+            Action::Adjust(s, d) => step_setting(&mut menu, &mut settings, native, s, if d < 0.0 { -1 } else { 1 }, false),
+            Action::Toggle(s) => step_setting(&mut menu, &mut settings, native, s, 1, true),
+            Action::Slide(s) => {
+                if let (Some((lo, hi, _)), Some(n)) = (options::slider_range(s), cursor.get(e).ok().and_then(|c| c.normalized)) {
+                    options::set_slider(&mut settings, s, lo + (n.x + 0.5).clamp(0.0, 1.0) * (hi - lo));
                 }
             }
-            Action::Toggle(s) => match s {
-                Setting::Invert => settings.invert_mouse = !settings.invert_mouse,
-                Setting::Smoothing => settings.mouse_filter = !settings.mouse_filter,
-                Setting::Fullscreen => settings.fullscreen = !settings.fullscreen,
-                Setting::VSync => settings.vsync = !settings.vsync,
-                Setting::AntiAliasing => settings.msaa = !settings.msaa,
-                Setting::Graphics => settings.enhanced_graphics = !settings.enhanced_graphics,
-                Setting::Subtitles => settings.subtitles = !settings.subtitles,
-                _ => {}
-            },
         }
+    }
+}
+
+/// One step of an Options value. The Video page's resolution, aspect and
+/// display mode collect in [`MenuState::video`] until Apply/Done.
+fn step_setting(menu: &mut MenuState, settings: &mut Settings, native: UVec2, s: Setting, dir: i32, wrap: bool) {
+    let mut video = menu.video.unwrap_or_else(|| VideoMode::of(settings));
+    options::adjust(settings, &mut video, native, s, dir, wrap);
+    if matches!(s, Setting::Resolution | Setting::Aspect | Setting::DisplayMode) {
+        menu.video = Some(video);
     }
 }
 
@@ -795,6 +1266,20 @@ fn title_card(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn menu_font_and_logo_choice() {
+        let fonts: Vec<String> = ["resource/halflife2.ttf", "resource/linux_fonts/dejavusans.ttf", "resource/universlt57cn.ttf", "resource/universlt67boldcn.ttf", "resource/dinpro.otf"]
+            .map(String::from)
+            .to_vec();
+        assert_eq!(pick_menu_font(&fonts).map(String::as_str), Some("resource/universlt67boldcn.ttf"));
+        assert_eq!(pick_menu_font(&fonts[..2]), None);
+        let vgui: Vec<String> = ["materials/vgui/portal2logo_coop.vtf", "materials/vgui/portal2logo.vtf", "materials/vgui/portal2logo_english.vtf", "materials/vgui/steamlogo.vtf"]
+            .map(String::from)
+            .to_vec();
+        assert_eq!(pick_logo(&vgui).map(String::as_str), Some("materials/vgui/portal2logo_english.vtf"));
+        assert_eq!(pick_logo(&vgui[3..]), None);
+    }
 
     #[test]
     fn autosave_round_trip() {
