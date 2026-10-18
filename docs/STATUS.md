@@ -213,6 +213,15 @@ What's in it:
   community maps the game mounts exactly what it did before). `mods` in the
   console shows what loaded and why anything was left out.
 
+Tests: `cargo test -p p2_mods` (store, manifests, resolution, profiles,
+rollback, zip) and `cargo test -p p2_game` (console parsing/completion/
+history, splits and PB/golds, checkpoints, settings, community discovery,
+plus `tools_tests.rs`: the console/overlay/speedrun plugins and the real
+`UiPlugin` run headless for a few frames with a panicking error handler,
+clicking through the new Options rows, Speedrun and Mods pages and the
+Community tab). They prove the systems fit together and the logic; they
+don't show anything on screen.
+
 Verify in the real game (`P2_SCRIPT` steps can run console lines with
 `con ...`; `click` names: `Toggle(DevConsole)`, `Toggle(ShowFps)`,
 `Toggle(ShowPos)`, `SpeedrunOptions`, `Toggle(SpeedrunTimer)`, `ModsOptions`,
