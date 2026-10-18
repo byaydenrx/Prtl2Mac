@@ -735,6 +735,12 @@ pub fn spawn_loaded_map(
             }
         }
         let m = &map.materials[bm.material];
+        if std::env::var("P2_HIDE_MAT").is_ok_and(|h| h.split(',').any(|k| !k.is_empty() && m.name.contains(k))) {
+            continue;
+        }
+        if std::env::var_os("P2_LIST_MATS").is_some() {
+            info!("TRACE brush material {} ({}) model {}", m.name, m.shader, bm.model);
+        }
         if use_valve && matches!(m.shader.as_str(), "lightmappedgeneric" | "worldvertextransition" | "unlitgeneric") && !m.is_glassy {
             let fs = assets.game.fs.clone().unwrap();
             let white = fallback_image(&mut assets.images, &mut assets.cache, "white", [255; 4], true);

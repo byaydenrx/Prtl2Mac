@@ -21,6 +21,7 @@ mod captions;
 mod community;
 mod console;
 mod exposure;
+mod movies;
 mod health;
 mod io;
 mod lasers;
@@ -108,6 +109,7 @@ fn main() {
             exposure::ExposurePlugin,
             paint::PaintPlugin,
             texture_toggle::TextureTogglePlugin,
+            movies::MoviesPlugin,
         ))
         // Developer, speedrun and modding tools (all off until turned on in Options).
         .add_plugins((console::ConsolePlugin, overlays::OverlaysPlugin, speedrun::SpeedrunPlugin))
