@@ -100,7 +100,10 @@ impl PropAnims {
     /// (the intro's ghostanim) look down the bone's -X with +Y up.
     pub fn attachment_world(&mut self, game: &GameFsRes, ents: &Ents, ent: usize, attachment: &str) -> Option<(Vec3, Vec3, Vec3)> {
         let t = self.attachment_transform(game, ents, ent, attachment)?;
-        if t.translation.distance(ents.list[ent].transform.translation) > 20.0 {
+        // Sanity limit against a bad decode. Rig cameras travel far from
+        // their prop: sp_a1_wakeup's claw camera ends ~40 m away, over the
+        // incinerator.
+        if !t.translation.is_finite() || t.translation.distance(ents.list[ent].transform.translation) > 120.0 {
             return None;
         }
         // A camera on an attachment looks along the attachment's +X with +Z
