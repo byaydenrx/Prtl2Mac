@@ -582,7 +582,8 @@ fn floor_buttons(
             Vec2::new(l.x, l.z).length() < 40.0 * u && l.y > -8.0 * u && l.y < lift
         };
         let mut down = props.iter().any(|(pr, pos)| {
-            let class = ents.list[pr.ent].class.as_str();
+            let Some(pe) = ents.list.get(pr.ent) else { return false };
+            let class = pe.class.as_str();
             (class == "prop_weighted_cube" || class == "prop_monster_box" || !is_cube_button) && on(pos.0, pr.half.y + 24.0 * u)
         });
         if !is_cube_button {

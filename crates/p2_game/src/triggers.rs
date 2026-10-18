@@ -125,7 +125,8 @@ fn touch_triggers(
         }
         if wants_props || wants_npcs {
             for (pe, prop, pos, _, _) in &props {
-                let is_npc = ents.list[prop.ent].class.starts_with("npc_");
+                let Some(pent) = ents.list.get(prop.ent) else { continue };
+                let is_npc = pent.class.starts_with("npc_");
                 if !(if is_npc { wants_npcs || wants_props } else { wants_props }) {
                     continue;
                 }

@@ -124,7 +124,17 @@ Owner's feature wishlist: docs/ROADMAP.md.
    at 60 fps (95-103 with a 120/240 cap); check in a focused window.
    Enhanced graphics does nothing yet; model textures ignore the AF setting.
 
-## cloud/anim branch (untested in game)
+## cloud/anim branch (merged 2026-10-18, partly verified)
+
+Verified locally: test chamber doors animate open/closed (intro2 exit
+door); Wheatley is drawn with his handles; chapter 1 exits still hand off.
+Not right yet: Wheatley's eye socket is empty (the eye mesh or its
+`personality_sphere_lights` selfillum part isn't showing); the intro1
+wrecked vault debris (finedebris_part*) looks like cracked concrete
+shells with floating blocks instead of the wrecked motel room, and is
+very dark.
+
+### Original notes from the cloud session
 
 Model animation playback, built without the game (unit tests only; no
 Portal 2 assets or GPU in the cloud). Nothing here has been seen running.

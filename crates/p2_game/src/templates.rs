@@ -139,7 +139,7 @@ fn spawn_inputs(
                         b.linked_cloning(true).deny::<(RigidBodyDisabled, ColliderDisabled, ColliderOf, RigidBodyColliders)>();
                     })
                     .id();
-                commands.entity(copy).insert((tf, Visibility::Inherited));
+                commands.entity(copy).insert((tf, Visibility::Inherited, crate::level::LevelOwned));
                 if let Ok(p) = props.get(e) {
                     commands.entity(copy).insert((
                         Prop { ent: idx, half: p.half },
