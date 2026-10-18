@@ -170,7 +170,8 @@ fn map_look_on_cameras(
     for e in cams {
         let mut ec = commands.entity(e);
         ec.remove::<(DistanceFog, bevy::core_pipeline::Skybox)>();
-        match (&map.info.fog, &map.info.skybox) {
+        let fog = map.info.fog.as_ref().filter(|_| std::env::var_os("P2_NOFOG").is_none());
+        match (fog, &map.info.skybox) {
             (Some(fog), _) => {
                 ec.insert(fog.distance_fog());
             }
