@@ -86,6 +86,7 @@ enum Setting {
     Invert,
     Smoothing,
     Fullscreen,
+    Subtitles,
 }
 
 const WHITE: Color = Color::srgb(0.92, 0.94, 0.95);
@@ -263,6 +264,7 @@ fn rebuild_menu(
                 row("INVERT MOUSE", if settings.invert_mouse { "ON".into() } else { "OFF".into() }, Setting::Invert, None),
                 row("MOUSE SMOOTHING", if settings.mouse_filter { "ON".into() } else { "OFF".into() }, Setting::Smoothing, None),
                 row("FULLSCREEN", if settings.fullscreen { "ON".into() } else { "OFF".into() }, Setting::Fullscreen, None),
+                row("SUBTITLES", if settings.subtitles { "ON".into() } else { "OFF".into() }, Setting::Subtitles, None),
             ];
             let mut root = commands.spawn((MenuRoot, full, BackgroundColor(PANEL), GlobalZIndex(10)));
             root.with_children(|p| {
@@ -412,6 +414,7 @@ fn buttons(
                 Setting::Invert => settings.invert_mouse = !settings.invert_mouse,
                 Setting::Smoothing => settings.mouse_filter = !settings.mouse_filter,
                 Setting::Fullscreen => settings.fullscreen = !settings.fullscreen,
+                Setting::Subtitles => settings.subtitles = !settings.subtitles,
                 _ => {}
             },
         }

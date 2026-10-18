@@ -21,7 +21,7 @@ impl Plugin for ViewControlPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PropAnims>()
             .init_resource::<ViewControl>()
-            .add_systems(Update, (track_animations, viewcontrol_inputs).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic))
+            .add_systems(Update, (track_animations, animation_done, viewcontrol_inputs).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic))
             .add_systems(PostUpdate, drive_camera.after(P2Systems::View).before(bevy::transform::TransformSystems::Propagate));
     }
 }
@@ -85,7 +85,8 @@ impl PropAnims {
         if !p.is_finite() || p.distance(e.transform.translation) > 20.0 {
             return None;
         }
-        Some((p, world(rot * Vec3::X), world(rot * Vec3::Z)))
+        // Camera rigs (the intro's ghostanim) look down the bone's -X with +Y up.
+        Some((p, world(rot * Vec3::NEG_X), world(rot * Vec3::Y)))
     }
 }
 
@@ -117,10 +118,31 @@ fn track_animations(mut inputs: MessageReader<EntInput>, ents: Option<Res<Ents>>
     }
 }
 
+/// Props whose animation finished fire `OnAnimationDone` once.
+fn animation_done(ents: Option<Res<Ents>>, game: Res<GameFsRes>, mut anims: ResMut<PropAnims>, mut fire: MessageWriter<crate::io::FireOutput>, mut done: Local<std::collections::HashSet<(usize, u32)>>) {
+    let Some(ents) = ents else { return };
+    let playing: Vec<(usize, String, f32)> = anims.playing.iter().map(|(k, (s, t))| (*k, s.clone(), *t)).collect();
+    for (i, seq, start) in playing {
+        let key = (i, start.to_bits());
+        if done.contains(&key) {
+            continue;
+        }
+        let Some(model) = ents.list[i].get("model").map(str::to_string) else { continue };
+        let Some(anim) = anims.animator(&game, &model) else { continue };
+        let Some(s) = anim.find(&seq) else { continue };
+        if ents.now - start >= anim.duration(s) {
+            done.insert(key);
+            fire.write(crate::io::FireOutput { ent: i, event: "OnAnimationDone".into(), activator: None });
+        }
+    }
+}
+
 /// The cinematic cameras switched on, most recent last.
 #[derive(Resource, Default)]
 pub struct ViewControl {
     active: Vec<usize>,
+    /// When each active camera lets go (hold time), game seconds.
+    until: HashMap<usize, f32>,
     /// A camera is actually driving the view this frame.
     driving: bool,
 }
@@ -148,6 +170,12 @@ fn viewcontrol_inputs(
         inputs.clear();
         return;
     };
+    let now = ents.now;
+    let expired: Vec<usize> = vc.until.iter().filter(|(_, t)| **t <= now).map(|(k, _)| *k).collect();
+    for k in expired {
+        vc.until.remove(&k);
+        vc.active.retain(|a| *a != k);
+    }
     for msg in inputs.read() {
         if ents.list[msg.target].class != "point_viewcontrol" {
             continue;
@@ -161,6 +189,14 @@ fn viewcontrol_inputs(
                 }
                 vc.active.retain(|a| *a != msg.target);
                 vc.active.push(msg.target);
+                // Hold time ("wait"), unless flagged to hold forever (8).
+                let e = &ents.list[msg.target];
+                let wait = e.get_f32("wait").unwrap_or(10.0);
+                if e.spawnflags & 8 == 0 && wait > 0.0 {
+                    vc.until.insert(msg.target, ents.now + wait);
+                } else {
+                    vc.until.remove(&msg.target);
+                }
             }
             "disable" | "kill" => vc.active.retain(|a| *a != msg.target),
             "teleporttoview" | "teleportplayertoproxy" => {
@@ -184,7 +220,11 @@ fn viewcontrol_inputs(
 /// its own place, facing its target when it has one.
 fn camera_pose(anims: &mut PropAnims, game: &GameFsRes, ents: &Ents, i: usize) -> Option<(Vec3, Vec3, Vec3)> {
     if let Some((parent, att)) = anims.attached.get(&i).cloned() {
-        // Parented to an animation that can't be played yet: no camera.
+        // Cameras riding animated rigs (the intro's wake-up) aren't matched
+        // to the game yet; P2_CINEMATIC=1 turns them on for testing.
+        if std::env::var_os("P2_CINEMATIC").is_none() {
+            return None;
+        }
         return anims.attachment_world(game, ents, parent, &att);
     }
     let e = &ents.list[i];

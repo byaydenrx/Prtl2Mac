@@ -26,11 +26,13 @@ pub struct Settings {
     /// `fov_desired`, 75..90.
     pub fov: f32,
     pub fullscreen: bool,
+    /// Voice-line captions.
+    pub subtitles: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { master_volume: 0.8, music_volume: 0.6, effects_volume: 1.0, mouse_sensitivity: 3.0, invert_mouse: false, mouse_filter: false, fov: 75.0, fullscreen: false }
+        Self { master_volume: 0.8, music_volume: 0.6, effects_volume: 1.0, mouse_sensitivity: 3.0, invert_mouse: false, mouse_filter: false, fov: 75.0, fullscreen: false, subtitles: true }
     }
 }
 
@@ -62,6 +64,7 @@ impl Settings {
                 ("m_filter", Some(f)) => s.mouse_filter = f != 0.0,
                 ("fov_desired", Some(f)) => s.fov = f.clamp(75.0, 90.0),
                 ("fullscreen", Some(f)) => s.fullscreen = f != 0.0,
+                ("cc_subtitles", Some(f)) => s.subtitles = f != 0.0,
                 _ => {}
             }
         }
@@ -70,8 +73,8 @@ impl Settings {
 
     pub fn save(&self) {
         let text = format!(
-            "volume {}\nsnd_musicvolume {}\nsnd_effectsvolume {}\nsensitivity {}\nm_invert {}\nm_filter {}\nfov_desired {}\nfullscreen {}\n",
-            self.master_volume, self.music_volume, self.effects_volume, self.mouse_sensitivity, self.invert_mouse as u8, self.mouse_filter as u8, self.fov, self.fullscreen as u8
+            "volume {}\nsnd_musicvolume {}\nsnd_effectsvolume {}\nsensitivity {}\nm_invert {}\nm_filter {}\nfov_desired {}\nfullscreen {}\ncc_subtitles {}\n",
+            self.master_volume, self.music_volume, self.effects_volume, self.mouse_sensitivity, self.invert_mouse as u8, self.mouse_filter as u8, self.fov, self.fullscreen as u8, self.subtitles as u8
         );
         if let Err(e) = std::fs::write(data_dir().join("settings.cfg"), text) {
             warn!("portal2: can't save settings: {e}");

@@ -56,6 +56,32 @@ fn quat48(d: &[u8], o: usize) -> Option<Quat> {
     Some(Quat::from_xyzw(x, y, z, w))
 }
 
+/// Quaternion48S: three 15-bit components (the fourth, largest one rebuilt),
+/// with the top bits of the first two words giving the rebuilt component's
+/// index and the third word's top bit its sign.
+fn quat48s(d: &[u8], o: usize) -> Option<Quat> {
+    const SCALE: f32 = 23168.0;
+    const SHIFT: i32 = 16384;
+    let w0 = u16_at(d, o)?;
+    let w1 = u16_at(d, o + 2)?;
+    let w2 = u16_at(d, o + 4)?;
+    let a = ((w0 & 0x7fff) as i32 - SHIFT) as f32 / SCALE;
+    let b = ((w1 & 0x7fff) as i32 - SHIFT) as f32 / SCALE;
+    let c = ((w2 & 0x7fff) as i32 - SHIFT) as f32 / SCALE;
+    let id = ((w0 >> 15) | ((w1 >> 15) << 1)) as usize;
+    let mut m = (1.0 - a * a - b * b - c * c).max(0.0).sqrt();
+    if w2 >> 15 != 0 {
+        m = -m;
+    }
+    // The stored three fill the other slots in order, skipping the rebuilt one.
+    let mut q = [0.0f32; 4];
+    let mut vals = [a, b, c].into_iter();
+    for (k, slot) in q.iter_mut().enumerate() {
+        *slot = if k == id { m } else { vals.next().unwrap_or(0.0) };
+    }
+    Some(Quat::from_xyzw(q[0], q[1], q[2], q[3]))
+}
+
 fn quat64(d: &[u8], o: usize) -> Option<Quat> {
     let v = u64::from_le_bytes(d.get(o..o + 8)?.try_into().ok()?);
     let f = |bits: u64| (bits as f64 - 1048576.0) / 1048576.5;
@@ -101,20 +127,32 @@ fn anim_value(d: &[u8], mut o: usize, frame: i32) -> Option<f32> {
 /// the full-precision flag, three floats). Bones with no rotation or
 /// position data keep the value `local` was initialised with.
 fn frame_anim(d: &[u8], p: usize, frames: i32, frame: i32, local: &mut [(Vec3, Quat)]) {
-    const CONST_POS: u8 = 0x01;
-    const CONST_ROT: u8 = 0x02;
-    const ANIM_POS: u8 = 0x04;
-    const ANIM_ROT: u8 = 0x08;
-    const FULL_POS: u8 = 0x10;
+    // Per-bone flags. Constants and per-frame data are two streams; within
+    // each, a bone's rotation comes before its position.
+    const CONST_POS: u8 = 0x01; // Vector48 constant
+    const CONST_ROT: u8 = 0x02; // Quaternion48 constant
+    const ANIM_POS: u8 = 0x04; // Vector48 per frame
+    const ANIM_ROT: u8 = 0x08; // Quaternion48 per frame
+    const ANIM_POS2: u8 = 0x10; // full Vector per frame
+    const CONST_POS2: u8 = 0x20; // full Vector constant
+    const CONST_ROT2: u8 = 0x40; // Quaternion48S constant
+    const ANIM_ROT2: u8 = 0x80; // Quaternion48S per frame
     let (Some(co), Some(fo), Some(len)) = (i32_at(d, p), i32_at(d, p + 4), i32_at(d, p + 8)) else { return };
     let n = local.len();
     let Some(flags) = d.get(p + 24..p + 24 + n) else { return };
     let frame = frame.clamp(0, (frames - 1).max(0)) as usize;
     let mut c = p + co.max(0) as usize;
     let mut f = p + fo.max(0) as usize + frame * len.max(0) as usize;
+    let vec3 = |o: usize| Some(Vec3::new(f32_at(d, o)?, f32_at(d, o + 4)?, f32_at(d, o + 8)?));
     for (b, &x) in flags.iter().enumerate() {
         if x & CONST_ROT != 0 {
             if let Some(q) = quat48(d, c) {
+                local[b].1 = q;
+            }
+            c += 6;
+        }
+        if x & CONST_ROT2 != 0 {
+            if let Some(q) = quat48s(d, c) {
                 local[b].1 = q;
             }
             c += 6;
@@ -125,8 +163,20 @@ fn frame_anim(d: &[u8], p: usize, frames: i32, frame: i32, local: &mut [(Vec3, Q
             }
             c += 6;
         }
+        if x & CONST_POS2 != 0 {
+            if let Some(v) = vec3(c) {
+                local[b].0 = v;
+            }
+            c += 12;
+        }
         if x & ANIM_ROT != 0 {
             if let Some(q) = quat48(d, f) {
+                local[b].1 = q;
+            }
+            f += 6;
+        }
+        if x & ANIM_ROT2 != 0 {
+            if let Some(q) = quat48s(d, f) {
                 local[b].1 = q;
             }
             f += 6;
@@ -137,9 +187,9 @@ fn frame_anim(d: &[u8], p: usize, frames: i32, frame: i32, local: &mut [(Vec3, Q
             }
             f += 6;
         }
-        if x & FULL_POS != 0 {
-            if let (Some(vx), Some(vy), Some(vz)) = (f32_at(d, f), f32_at(d, f + 4), f32_at(d, f + 8)) {
-                local[b].0 = Vec3::new(vx, vy, vz);
+        if x & ANIM_POS2 != 0 {
+            if let Some(v) = vec3(f) {
+                local[b].0 = v;
             }
             f += 12;
         }
@@ -327,6 +377,39 @@ impl Animator {
         let ani = self.ani.as_ref()?;
         let at = start + index.max(0) as usize;
         (at < end && end <= ani.len()).then_some((&ani[..], at))
+    }
+
+    /// One line about a sequence's animation data (for diagnostics).
+    pub fn describe(&self, seq: usize) -> String {
+        let Some(desc) = self.sequences.get(seq).and_then(|s| s.anim).and_then(|a| self.anims.get(a)) else { return "no anim".into() };
+        let d = &self.data[..];
+        let sections: Vec<(i32, i32)> = desc
+            .sections
+            .map(|(sf, table)| {
+                let n = ((desc.frames - 1) / sf + 2).max(1) as usize;
+                (0..n).map(|k| (i32_at(d, table + k * 8).unwrap_or(-9), i32_at(d, table + k * 8 + 4).unwrap_or(-9))).collect()
+            })
+            .unwrap_or_default();
+        let mut heads = String::new();
+        for (k, (b, i)) in sections.iter().enumerate().take(3) {
+            if let Some((buf, p)) = self.locate(*b, *i, desc.base) {
+                let h: Vec<i32> = (0..6).map(|j| i32_at(buf, p + j * 4).unwrap_or(-1)).collect();
+                let flags: Vec<u8> = buf.get(p + 24..p + 24 + self.skeleton.bones.len()).unwrap_or(&[]).to_vec();
+                heads += &format!(" | section {k} at {p}: head {h:?} flags {flags:02x?}");
+            }
+        }
+        format!(
+            "fps {} frames {} delta {} frame_anim {} block {} index {} section_frames {:?} sections {:?} blocks {:?}{heads}",
+            desc.fps,
+            desc.frames,
+            desc.delta,
+            desc.frame_anim,
+            desc.block,
+            desc.index,
+            desc.sections.map(|s| s.0),
+            sections,
+            self.blocks
+        )
     }
 
     pub fn find(&self, name: &str) -> Option<usize> {

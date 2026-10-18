@@ -14,6 +14,7 @@ mod ai;
 mod audio;
 mod autopilot;
 mod campaign;
+mod captions;
 mod io;
 mod level;
 mod movers;
@@ -67,6 +68,7 @@ fn main() {
             scenes::ScenesPlugin,
             ai::AiPlugin,
             viewcontrol::ViewControlPlugin,
+            captions::CaptionsPlugin,
         ))
         .insert_resource(args)
         .add_plugins(p2_room::HarnessPlugin);

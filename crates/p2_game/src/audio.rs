@@ -21,7 +21,8 @@ impl Plugin for GameAudioPlugin {
         app.init_resource::<SoundScripts>()
             .add_message::<PlayGameSound>()
             .add_systems(Startup, load_soundscripts)
-            .add_systems(Update, (ambient_on_load, ambient_inputs, play_sounds, attenuate).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic));
+            .add_systems(Update, (ambient_on_load, ambient_inputs, play_sounds, attenuate).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic))
+            .add_systems(Update, pause_audio);
     }
 }
 
@@ -309,6 +310,26 @@ fn ambient_inputs(
                 }
             }
             _ => {}
+        }
+    }
+}
+
+/// The pause menu pauses every sound (voice lines pick up where they left
+/// off on resume); menu music keeps playing.
+fn pause_audio(screen: Res<crate::ui::Screen>, sinks: Query<(&AudioSink, Option<&GameSound>)>, mut paused: Local<bool>) {
+    let want = *screen == crate::ui::Screen::Pause || matches!(*screen, crate::ui::Screen::Options { from_pause: true });
+    if want == *paused {
+        return;
+    }
+    *paused = want;
+    for (sink, s) in &sinks {
+        if s.is_some_and(|s| s.music && s.at.is_none() && s.owner.is_none()) {
+            continue;
+        }
+        if want {
+            sink.pause();
+        } else {
+            sink.play();
         }
     }
 }

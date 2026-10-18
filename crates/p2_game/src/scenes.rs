@@ -179,7 +179,13 @@ fn scene_inputs(
     }
 }
 
-fn run_scenes(ents: Option<Res<Ents>>, mut playing: ResMut<Playing>, mut fire: MessageWriter<FireOutput>, mut play: MessageWriter<PlayGameSound>) {
+fn run_scenes(
+    ents: Option<Res<Ents>>,
+    mut playing: ResMut<Playing>,
+    mut fire: MessageWriter<FireOutput>,
+    mut play: MessageWriter<PlayGameSound>,
+    mut caption: MessageWriter<crate::captions::ShowCaption>,
+) {
     let Some(ents) = ents else { return };
     let now = ents.now;
     let mut finished = Vec::new();
@@ -196,6 +202,7 @@ fn run_scenes(ents: Option<Res<Ents>>, mut playing: ResMut<Playing>, mut fire: M
             match ev.kind {
                 SceneEventKind::Speak => {
                     play.write(PlayGameSound { sound: ev.param.clone(), at: None, looped: false, owner: None, music: false, volume: 1.0 });
+                    caption.write(crate::captions::ShowCaption { sound: ev.param.clone(), seconds: ev.end - ev.start });
                 }
                 SceneEventKind::FireTrigger => {
                     let n = ev.param.trim().parse::<u32>().unwrap_or(1);
