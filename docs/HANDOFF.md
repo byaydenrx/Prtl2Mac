@@ -38,6 +38,10 @@ possible. New options only inside Settings (no extra main/pause menu buttons).
    sphere_peek `3 setpos -544 1176 500; 9 setpos -544 562 316`,
    laser_relays `3 setpos -320 -1192 52; 9 setpos -320 -1806 -132`,
    turret_intro `3 setpos -336 392 -250`.
+   Faith plates checked with scripts/check_faith_plates.py: catapult_intro,
+   trust_fling and pit_flings plates land within 6-60 units of their targets;
+   plates with usethresholdcheck=1 (pit_flings catapult_1/2, trust_fling
+   cube_button_*, wallpad_2) correctly only redirect things arriving at speed.
    NEXT: verify each chamber can actually be SOLVED (exit doors open from the
    puzzle: lasers into catchers, buttons, catapults, fizzlers), map by map in
    play order: sp_a2_intro, laser_intro, laser_stairs, dual_lasers,
