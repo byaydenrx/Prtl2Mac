@@ -532,6 +532,18 @@ impl Animator {
         self.sequences.iter().position(|s| s.activity.eq_ignore_ascii_case(activity))
     }
 
+    /// The pose parameters driving a sequence's blend grid axes.
+    pub fn grid_params(&self, seq: usize) -> [Option<usize>; 2] {
+        self.sequences.get(seq).map_or([None; 2], |s| [0, 1].map(|k| s.params[k].filter(|_| s.grid[k] > 1)))
+    }
+
+    /// `time` seconds into a sequence as a cycle (0..1 of its length), as
+    /// [`Animator::evaluate`] takes it.
+    pub fn cycle_at(&self, seq: usize, time: f32) -> f32 {
+        let d = self.duration(seq);
+        if d > 0.0 { time / d } else { 0.0 }
+    }
+
     /// Whether a sequence loops (`STUDIO_LOOPING`).
     pub fn looping(&self, seq: usize) -> bool {
         self.sequences.get(seq).is_some_and(|s| s.looping)
