@@ -26,6 +26,7 @@ mod portals;
 mod props;
 mod scenes;
 mod settings;
+mod tool_settings;
 mod templates;
 mod tractor;
 mod triggers;

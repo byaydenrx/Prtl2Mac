@@ -114,6 +114,8 @@ pub struct Settings {
     pub subtitle_color: SubtitleColor,
     /// Opacity of the box behind captions, 0..1.
     pub subtitle_background: f32,
+    /// Developer console, overlays, speedrun and practice options (all off by default).
+    pub tools: crate::tool_settings::ToolSettings,
     /// Lines this build doesn't know (from a newer one), written back as they were.
     pub unknown: Vec<String>,
 }
@@ -139,6 +141,7 @@ impl Default for Settings {
             subtitle_size: 20.0,
             subtitle_color: SubtitleColor::Original,
             subtitle_background: 0.6,
+            tools: Default::default(),
             unknown: Vec::new(),
         }
     }
@@ -261,6 +264,7 @@ impl Settings {
                 ("cc_bg_opacity", Some(f)) => s.subtitle_background = f.clamp(0.0, 1.0),
                 // Ours, with a value that doesn't read: keep the default.
                 _ if KEYS.contains(&k) => {}
+                _ if s.tools.parse(k, v) => {}
                 _ => s.unknown.push(line.to_string()),
             }
         }
@@ -296,6 +300,7 @@ impl Settings {
             self.subtitle_color.key(),
             self.subtitle_background,
         );
+        text.push_str(&self.tools.to_text());
         for l in &self.unknown {
             text.push_str(l);
             text.push('\n');
