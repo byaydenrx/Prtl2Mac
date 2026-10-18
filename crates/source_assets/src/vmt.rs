@@ -5,7 +5,7 @@
 //! not know and drops the `%` compile keys (`%noportal`, `%compileclip`...)
 //! that portalability and tool detection depend on.
 
-use crate::kv::{self, Kv};
+use crate::kv::{self, Kv, KvValue};
 
 /// What a material is for, as far as rendering and collision care.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -60,6 +60,62 @@ pub struct MaterialInfo {
     pub is_glassy: bool,
     /// Every resolved `$param` (keys lowercased), for the Valve-shader path.
     pub params: Kv,
+    /// The `Proxies { ... }` block, in order. Empty for static materials.
+    pub proxies: Vec<MaterialProxy>,
+}
+
+/// One proxy of a material's `Proxies` block, e.g.
+/// `"Sine" { "sineperiod" 2 "resultVar" "$selfillumtint" }`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MaterialProxy {
+    /// Lowercased proxy name (`animatedtexture`, `sine`, `toggletexture`...).
+    pub name: String,
+    /// Its keys and values, lowercased (material variable names are not
+    /// case-sensitive), in file order.
+    pub keys: Vec<(String, String)>,
+}
+
+impl MaterialProxy {
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.keys.iter().rev().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
+    }
+
+    /// The material variable this proxy writes: `resultvar`, or for the
+    /// texture proxies the frame / transform variable they drive.
+    pub fn result_var(&self) -> Option<&str> {
+        let key = match self.name.as_str() {
+            "animatedtexture" => "animatedtextureframenumvar",
+            "texturescroll" => "texturescrollvar",
+            "toggletexture" => {
+                return self.get("toggletextureframenumvar").or_else(|| self.get("toggleframe"));
+            }
+            _ => "resultvar",
+        };
+        self.get(key)
+    }
+}
+
+/// The `Proxies` block of a resolved VMT (`proxies` key, any case).
+pub fn parse_proxies(p: &Kv) -> Vec<MaterialProxy> {
+    let Some(block) = p.block("proxies") else { return Vec::new() };
+    block
+        .entries
+        .iter()
+        .filter_map(|(name, v)| match v {
+            KvValue::Block(b) => Some(MaterialProxy {
+                name: name.clone(),
+                keys: b
+                    .entries
+                    .iter()
+                    .filter_map(|(k, v)| match v {
+                        KvValue::Str(s) => Some((k.clone(), s.trim().to_ascii_lowercase())),
+                        KvValue::Block(_) => None,
+                    })
+                    .collect(),
+            }),
+            KvValue::Str(_) => None,
+        })
+        .collect()
 }
 
 impl MaterialInfo {
@@ -81,6 +137,7 @@ impl MaterialInfo {
             decal: false,
             is_glassy: false,
             params: Kv::default(),
+            proxies: Vec::new(),
         };
         m.tool = tool_from_name(name);
         m
@@ -179,6 +236,7 @@ pub fn material_info(name: &str, shader: &str, p: &Kv) -> MaterialInfo {
     let mut m = MaterialInfo::missing(name);
     m.shader = shader.to_string();
     m.params = p.clone();
+    m.proxies = parse_proxies(p);
     m.base_texture = texture_param(p, "$basetexture");
     if m.base_texture.is_none() && matches!(shader, "eyerefract" | "eyes" | "eyeball") {
         // Eyes have no base texture: the iris is projected onto them (the
@@ -280,6 +338,112 @@ mod tests {
         assert!(m.no_portal);
         assert_eq!(m.blend, BlendKind::Mask);
         assert_eq!(m.surface_prop.as_deref(), Some("metal"));
+    }
+
+    fn info(text: &str) -> MaterialInfo {
+        let kv = kv::parse(text);
+        let (shader, body) = kv.root().unwrap();
+        material_info("test", shader, body)
+    }
+
+    #[test]
+    fn parses_proxies() {
+        // a personality core's eye light
+        let m = info(
+            r#""VertexLitGeneric"
+            {
+                "$basetexture" "models/npcs/personality_sphere/personality_sphere_lights"
+                "$selfillum" 1
+                "$selfillumtint" "[1 1 1]"
+                "Proxies"
+                {
+                    "LightedMouth"
+                    {
+                        "resultVar" "$selfIllumTint"
+                    }
+                }
+            }"#,
+        );
+        assert_eq!(m.proxies.len(), 1);
+        assert_eq!(m.proxies[0].name, "lightedmouth");
+        assert_eq!(m.proxies[0].result_var(), Some("$selfillumtint"));
+
+        // water: an animated normal map scrolling, then a Sine on the tint
+        let m = info(
+            r#""Water"
+            {
+                "$normalmap" "liquids/water_river_normal_sharp"
+                "$bumpframe" "0"
+                "%compilewater" 1
+                "Proxies"
+                {
+                    "AnimatedTexture"
+                    {
+                        "animatedtexturevar" "$normalmap"
+                        "animatedtextureframenumvar" "$bumpframe"
+                        "animatedtextureframerate" 30.00
+                    }
+                    "TextureScroll"
+                    {
+                        "texturescrollvar" "$bumptransform"
+                        "texturescrollrate" .05
+                        "texturescrollangle" 45.00
+                    }
+                    Sine // unquoted, with a comment
+                    {
+                        sineperiod 8
+                        sinemin .5
+                        sinemax 1
+                        resultVar "$fogcolor[1]"
+                    }
+                }
+            }"#,
+        );
+        let names: Vec<_> = m.proxies.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, ["animatedtexture", "texturescroll", "sine"]);
+        assert_eq!(m.proxies[0].get("animatedtextureframerate"), Some("30.00"));
+        assert_eq!(m.proxies[0].result_var(), Some("$bumpframe"));
+        assert_eq!(m.proxies[1].result_var(), Some("$bumptransform"));
+        assert_eq!(m.proxies[2].result_var(), Some("$fogcolor[1]"));
+        assert_eq!(m.proxies[2].get("sineperiod"), Some("8"));
+
+        // a static material has none
+        assert!(info(r#""LightmappedGeneric" { "$basetexture" "x" }"#).proxies.is_empty());
+    }
+
+    #[test]
+    fn patch_materials_keep_inserted_proxies() {
+        let files = HashMap::from([
+            (
+                "materials/maps/sp_a1_intro2/signage/indicator_lights/indicator_lights_floor_1_2_3.vmt",
+                r#""patch" { "include" "materials/signage/indicator_lights/indicator_lights_floor.vmt" "insert" { "$envmap" "maps/x/c1" } }"#,
+            ),
+            (
+                "materials/signage/indicator_lights/indicator_lights_floor.vmt",
+                r#""LightmappedGeneric"
+                {
+                    "$basetexture" "signage/indicator_lights/indicator_lights_floor"
+                    "$decal" "1"
+                    "$translucent" "1"
+                    "Proxies"
+                    {
+                        "ToggleTexture"
+                        {
+                            "toggleTextureVar" "$basetexture"
+                            "toggleTextureFrameNumVar" "$frame"
+                            "toggleShouldWrap" "0"
+                        }
+                    }
+                }"#,
+            ),
+        ]);
+        let m = resolve(&reader(files), "maps/sp_a1_intro2/signage/indicator_lights/indicator_lights_floor_1_2_3");
+        assert_eq!(m.proxies.len(), 1);
+        let p = &m.proxies[0];
+        assert_eq!(p.name, "toggletexture");
+        assert_eq!(p.get("toggletexturevar"), Some("$basetexture"));
+        assert_eq!(p.get("toggleshouldwrap"), Some("0"));
+        assert_eq!(p.result_var(), Some("$frame"));
     }
 
     #[test]

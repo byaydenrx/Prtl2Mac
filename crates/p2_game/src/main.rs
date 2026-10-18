@@ -29,6 +29,7 @@ mod props;
 mod scenes;
 mod settings;
 mod templates;
+mod texture_toggle;
 mod tractor;
 mod triggers;
 mod turrets;
@@ -90,6 +91,7 @@ fn main() {
             vscripts::VScriptPlugin,
             exposure::ExposurePlugin,
             paint::PaintPlugin,
+            texture_toggle::TextureTogglePlugin,
         ))
         .insert_resource(args)
         .add_plugins(p2_room::HarnessPlugin);

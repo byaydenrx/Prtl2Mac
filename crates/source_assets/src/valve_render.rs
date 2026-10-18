@@ -7,7 +7,7 @@
 //! `instance_index` = first instance), group 1 holds binding arrays of 2D
 //! and cube textures plus a small sampler table.
 
-use crate::valve::{FatVertex, SamplerKey, SurfaceDraw, ValveSurface};
+use crate::valve::{FatVertex, OverrideData, SamplerKey, SurfaceDraw, SurfaceOverrides, ValveSurface};
 use crate::vmt::BlendKind;
 use bevy::core_pipeline::core_3d::{main_opaque_pass_3d, main_transparent_pass_3d, CORE_3D_DEPTH_FORMAT};
 use bevy::core_pipeline::schedule::Core3d;
@@ -77,21 +77,23 @@ impl Plugin for ValveRenderPlugin {
 
 #[derive(Resource, Default)]
 struct ExtractedSurfaces {
-    draws: Vec<(Arc<SurfaceDraw>, Mat4)>,
+    /// Each visible surface, its transform and (proxied materials) this
+    /// frame's constants and texture frames.
+    draws: Vec<(Arc<SurfaceDraw>, Mat4, Option<Arc<OverrideData>>)>,
     exposure: f32,
     quality: ValveQuality,
 }
 
 fn extract_surfaces(
     mut out: ResMut<ExtractedSurfaces>,
-    q: Extract<Query<(&ValveSurface, &GlobalTransform, &InheritedVisibility)>>,
+    q: Extract<Query<(&ValveSurface, &GlobalTransform, &InheritedVisibility, Option<&SurfaceOverrides>)>>,
     exposure: Extract<Option<Res<ValveExposure>>>,
     quality: Extract<Option<Res<ValveQuality>>>,
 ) {
     out.draws.clear();
-    for (s, t, v) in &q {
+    for (s, t, v, o) in &q {
         if v.get() {
-            out.draws.push((s.0.clone(), t.to_matrix()));
+            out.draws.push((s.0.clone(), t.to_matrix(), o.map(|o| o.0.clone())));
         }
     }
     out.exposure = exposure.as_ref().map(|e| e.0).unwrap_or(crate::plugin::DEFAULT_LIGHT_SCALE);
@@ -392,9 +394,11 @@ fn prepare_surfaces(
     let mut table2d: Vec<AssetId<Image>> = Vec::new();
     let mut tablecube: Vec<AssetId<Image>> = Vec::new();
     let mut slot_of: HashMap<AssetId<Image>, u16> = HashMap::new();
-    for (d, _) in &extracted.draws {
-        for t in &d.textures {
-            let id = t.image.id();
+    for (d, _, _) in &extracted.draws {
+        // every animation frame stays in the table, so flipping frames
+        // only changes a slot word, never the bind group
+        for (t, image) in d.textures.iter().flat_map(|t| std::iter::once(&t.image).chain(&t.frames).map(move |i| (t, i))) {
+            let id = image.id();
             if slot_of.contains_key(&id) || images.get(id).is_none() {
                 continue;
             }
@@ -430,7 +434,7 @@ fn prepare_surfaces(
     }
 
     // ---- meshes ----
-    for (d, _) in &extracted.draws {
+    for (d, _, _) in &extracted.draws {
         let key = (Arc::as_ptr(&d.vertices) as usize, Arc::as_ptr(&d.indices) as usize);
         if prepared.mesh_index.contains_key(&key) {
             continue;
@@ -470,7 +474,7 @@ fn prepare_surfaces(
         let eye = w2s.transform_point3(view.world_from_view.translation());
         let mut vd = ViewDraws::default();
         let mut translucent: Vec<(f32, PreparedDraw)> = Vec::new();
-        for (d, model) in &extracted.draws {
+        for (d, model, over) in &extracted.draws {
             let pass = &d.pass.pass;
             let key = PipelineKey {
                 pass: d.pass.id,
@@ -495,7 +499,7 @@ fn prepare_surfaces(
                     arena[b + r] = v;
                 }
             };
-            for &(r, v) in &d.vs_consts {
+            for &(r, v) in d.vs_consts.iter().chain(over.iter().flat_map(|o| &o.vs_consts)) {
                 setv(r as usize, v, &mut arena);
             }
             // cModel: Source local -> Source world, as three rows
@@ -519,7 +523,7 @@ fn prepare_surfaces(
                     arena[pbase + r] = v;
                 }
             };
-            for &(r, v) in &d.ps_consts {
+            for &(r, v) in d.ps_consts.iter().chain(over.iter().flat_map(|o| &o.ps_consts)) {
                 setp(r as usize, v, &mut arena);
             }
             let e = extracted.exposure;
@@ -535,10 +539,14 @@ fn prepare_surfaces(
             for (i, (reg, dim)) in pass.samplers.iter().enumerate() {
                 let bound = d.textures.iter().find(|t| t.register == *reg);
                 let (tex, samp) = match bound {
-                    Some(t) => (
-                        slot_of.get(&t.image.id()).copied().unwrap_or(0),
-                        t.sampler.index(),
-                    ),
+                    Some(t) => {
+                        let frame = over
+                            .as_ref()
+                            .and_then(|o| o.frames.iter().find(|(r, _)| *r == t.register))
+                            .and_then(|(_, f)| t.frames.get(*f as usize));
+                        let image = frame.unwrap_or(&t.image);
+                        (slot_of.get(&image.id()).copied().unwrap_or(0), t.sampler.index())
+                    }
                     None => (0, 0),
                 };
                 let _ = dim;

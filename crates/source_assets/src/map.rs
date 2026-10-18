@@ -24,6 +24,9 @@ pub struct BrushMesh {
     /// Index into [`LoadedMap::materials`].
     pub material: usize,
     pub mesh: MeshData,
+    /// For `info_overlay` quads: the overlay's id (what an
+    /// `info_overlay_accessor`'s `overlayid` names).
+    pub overlay_id: Option<i32>,
 }
 
 /// A `prop_static` from the static prop game lump.
@@ -601,7 +604,7 @@ pub fn load_map(fs: &GameFs, surfprops: &SurfaceProps, name: &str) -> anyhow::Re
             by_mat
                 .into_iter()
                 .filter(|(_, mesh)| !mesh.indices.is_empty())
-                .map(|(material, mesh)| BrushMesh { model: *m, material, mesh })
+                .map(|(material, mesh)| BrushMesh { model: *m, material, mesh, overlay_id: None })
                 .collect::<Vec<_>>()
         })
         .collect();
@@ -622,7 +625,7 @@ pub fn load_map(fs: &GameFs, surfprops: &SurfaceProps, name: &str) -> anyhow::Re
         let Some(t) = bsp.textures_info.get(ti) else { continue };
         let td = t.texture_data_index as usize;
         if materials.get(td).is_some_and(|m| m.is_drawn()) {
-            overlays.push(BrushMesh { model: 0, material: td, mesh });
+            overlays.push(BrushMesh { model: 0, material: td, mesh, overlay_id: Some(ov.id) });
         }
     }
     let lightmap = fb.atlas.clone();
@@ -889,7 +892,7 @@ pub fn load_map(fs: &GameFs, surfprops: &SurfaceProps, name: &str) -> anyhow::Re
             tex_names.extend(m.base_texture.iter().cloned());
             tex_names.extend(m.base_texture2.iter().cloned());
             // textures the Valve shaders sample too
-            for key in ["$bumpmap", "$bumpmap2", "$envmapmask", "$detail", "$blendmodulatetexture", "$envmap"] {
+            for key in ["$bumpmap", "$bumpmap2", "$envmapmask", "$detail", "$blendmodulatetexture", "$envmap", "$selfillummask"] {
                 if let Some(t) = vmt::texture_param(&m.params, key) {
                     if t != "env_cubemap" {
                         tex_names.insert(t);

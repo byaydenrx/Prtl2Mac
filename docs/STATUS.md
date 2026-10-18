@@ -124,6 +124,90 @@ Owner's feature wishlist: docs/ROADMAP.md.
    at 60 fps (95-103 with a 120/240 cap); check in a focused window.
    Enhanced graphics does nothing yet; model textures ignore the AF setting.
 
+## cloud/proxies branch (untested in game)
+
+Source material proxies, built without the game (unit tests only; no
+Portal 2 assets or GPU in the cloud). Nothing here has been seen running.
+
+**Before testing: one line in `io.rs` (not changed on this branch, the
+local session owns it).** `Ents::apply` swallows every input to
+`env_texturetoggle` (it is in the `"logic_auto" | "logic_script" | ... => true`
+list near the end), so `SetTextureIndex` never reaches
+`texture_toggle.rs`. Remove `| "env_texturetoggle"` from that list (keep
+`info_overlay_accessor`). `prop_indicator_panel` inputs already get through.
+
+What changed:
+- `vmt.rs`: every material's `Proxies` block is parsed into
+  `MaterialInfo::proxies` (`MaterialProxy`: lowercased name, keys,
+  `result_var()`), patch `insert`s included.
+- `proxy.rs` (new): proxies compiled once per material (`ProxyProgram`)
+  and run every frame over its variables: AnimatedTexture, TextureScroll,
+  Sine, LinearRamp, UniformNoise, Add/Subtract/Multiply/Divide, Equals,
+  Abs/Frac/Int, Clamp, LessOrEqual, SelectFirstIfNonZero, WrapMinMax,
+  Exponential, CurrentTime, EntityRandom, LightedMouth, ToggleTexture.
+  Others (PortalOpenAmount, ConveyorScroll, MaterialModify, ...) are skipped
+  and leave the VMT's values. `$var[1]` components, literal or variable
+  inputs, and `center/scale/rotate/translate` texture transforms work.
+  Only surfaces whose material has proxies are updated (PostUpdate).
+- Per-entity inputs (pub resources, keyed by the spawned entity
+  `MapEntity::entity`, or an overlay surface): `source_assets::TextureFrames`
+  (read by ToggleTexture) and `source_assets::SpeakingAmount` (read by
+  LightedMouth; an entity not in it counts as 1 = fully lit). Nothing writes
+  `SpeakingAmount` yet: to make Wheatley's eye pulse with his voice, set his
+  core's entity to the voice loudness (0..1) from voice playback and remove
+  it when he stops.
+- Valve path (`valve.rs`, `valve_render.rs`): constants are built from
+  material variables (`surface_consts`), so proxy results reach the right
+  registers ($color/$alpha, $selfillumtint, $envmaptint, $detailtint,
+  $detailblendfactor, $basetexturetransform...). Each sampler knows its frame
+  variable ($frame, $bumpframe, $detailframe, ...); all frames of a
+  multi-frame VTF sit in the texture table, so a frame flip only changes a
+  slot word. Proxied surfaces get a `SurfaceOverrides` component rewritten
+  every frame.
+- Fallback path: a proxied material gets its own `SourceMaterial` per mesh;
+  tint, base texture frame and a new base-texture transform follow the
+  proxies.
+- `vtf.rs`: every animation frame is decoded (`frame_count()`, `frame(i)`).
+- `map.rs`/`bsp_raw.rs`: overlays keep their id; overlay surfaces carry
+  `SourceOverlay { id }` (what `info_overlay_accessor`'s `overlayid` names).
+- `p2_game/src/texture_toggle.rs`: `env_texturetoggle` SetTextureIndex /
+  IncrementTextureIndex on its `target` (brushes, props, overlay accessors);
+  `prop_indicator_panel` Check/Uncheck sets its `indicatorlights` toggle to
+  1/0. Frames reset on level load.
+- Static changes every material now sees (closer to Portal 2, but look
+  for regressions): a VMT's own `$basetexturetransform` and `$frame` are
+  applied on both paths, and `$selfillummask` textures are loaded (model
+  self-illumination used the base alpha before).
+
+Check in the real game:
+1. **sp_a1_intro7 Wheatley's eye**: it glows (self-illuminated, blue
+   light). If not, log which material/shader the eye mesh uses
+   (`SOURCE_VALVE_DEBUG=1`, and the "model materials on the fallback" log
+   line): the glow only works on VertexLitGeneric/UnlitGeneric (the fallback
+   material has no self-illumination), and a proxy name in
+   `ProxyProgram::unsupported` would leave it static.
+2. **sp_a1_intro2 / sp_a1_intro3 indicator lights**: after the io.rs line
+   above, pressing the floor button turns the antlines on the floor/walls and
+   the checkmark by the exit door from blue to orange; stepping off (where
+   the map unchecks) turns them back. With `RUST_LOG=info,portal2=debug`
+   the button's outputs should show `settextureindex` on the toggle. If the
+   inputs arrive but nothing changes, check that the toggle's `target`
+   finds `info_overlay_accessor`s whose `overlayid` matches an overlay
+   (`SourceOverlay`) and that the material is drawn by the Valve path or
+   the fallback (both handle it).
+3. **Animated screens** (monitors, signs with AnimatedTexture, e.g. the
+   relaxation vault TV and chamber info signs): they flip frames at their
+   own rate, and nothing static started flickering.
+4. **Water**: still looks as before (water is drawn as a tinted pane, so
+   its animated/scrolling normal map has nothing to show yet); scrolling
+   textures elsewhere (TextureScroll: fans, conveyor-like signs) move.
+5. Also: no surface turned a wrong colour or shifted its texture (that would
+   be a static `$basetexturetransform`/`$frame` problem), and frame time in a
+   chamber with many lights is unchanged.
+
+Not done: `prop_indicator_panel` itself is not drawn (its checkbox/timer
+face); nothing feeds `SpeakingAmount` from voice playback yet.
+
 ## cloud/anim branch (merged 2026-10-18, partly verified)
 
 Verified locally: test chamber doors animate open/closed (intro2 exit

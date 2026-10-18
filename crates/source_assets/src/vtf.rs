@@ -40,6 +40,10 @@ pub struct VtfTexture {
     pub mips: Vec<Vec<u8>>,
     /// 1, or 6 for cubemaps.
     pub faces: u32,
+    /// Animation frames after the first (flipbooks driven by the
+    /// `AnimatedTexture` / `ToggleTexture` proxies), each laid out like
+    /// [`Self::mips`]. Empty for single-frame textures.
+    pub extra_frames: Vec<Vec<Vec<u8>>>,
     /// The texture has meaningful alpha (from flags or format).
     pub has_alpha: bool,
     pub reflectivity: [f32; 3],
@@ -167,7 +171,8 @@ fn to_rgba8(fmt: i32, src: &[u8], w: u32, h: u32) -> Option<Vec<u8>> {
 }
 
 impl VtfTexture {
-    /// Parse a VTF (versions 7.0–7.5). Only frame 0, face 0, slice 0 is kept.
+    /// Parse a VTF (versions 7.0–7.5). Every animation frame is kept (frame 0
+    /// in `mips`, the rest in `extra_frames`); only slice 0 of volume textures.
     pub fn parse(data: &[u8]) -> anyhow::Result<Self> {
         if data.len() < 64 || &data[0..4] != b"VTF\0" {
             bail!("not a VTF");
@@ -254,21 +259,26 @@ impl VtfTexture {
             _ => (PixelFormat::Rgba8, false),
         };
         let out_faces = if faces >= 6 { 6 } else { 1 };
-        let mut mips = Vec::with_capacity(mip_count as usize);
-        for level in 0..mip_count {
-            let (w, h) = ((width >> level).max(1), (height >> level).max(1));
-            let size = size_of(level).unwrap();
-            let mut img = Vec::new();
-            for face in 0..out_faces {
-                let start = offsets[level as usize] + face * size * depth;
-                let src = &data[start..start + size];
-                match format {
-                    PixelFormat::Rgba8 => img.extend(to_rgba8(hi_fmt, src, w, h).with_context(|| format!("format {hi_fmt}"))?),
-                    _ => img.extend_from_slice(src),
+        let decode_frame = |frame: usize| -> anyhow::Result<Vec<Vec<u8>>> {
+            let mut mips = Vec::with_capacity(mip_count as usize);
+            for level in 0..mip_count {
+                let (w, h) = ((width >> level).max(1), (height >> level).max(1));
+                let size = size_of(level).unwrap();
+                let mut img = Vec::new();
+                for face in 0..out_faces {
+                    let start = offsets[level as usize] + (frame * faces + face) * size * depth;
+                    let src = &data[start..start + size];
+                    match format {
+                        PixelFormat::Rgba8 => img.extend(to_rgba8(hi_fmt, src, w, h).with_context(|| format!("format {hi_fmt}"))?),
+                        _ => img.extend_from_slice(src),
+                    }
                 }
+                mips.push(img);
             }
-            mips.push(img);
-        }
+            Ok(mips)
+        };
+        let mips = decode_frame(0)?;
+        let extra_frames = (1..frames).map(decode_frame).collect::<anyhow::Result<Vec<_>>>()?;
         let has_alpha = has_alpha_fmt || flags & (FLAG_ONEBITALPHA | FLAG_EIGHTBITALPHA) != 0;
         Ok(VtfTexture {
             width,
@@ -277,9 +287,31 @@ impl VtfTexture {
             format,
             mips,
             faces: out_faces as u32,
+            extra_frames,
             has_alpha,
             reflectivity,
         })
+    }
+
+    /// Number of animation frames (at least 1).
+    pub fn frame_count(&self) -> u32 {
+        1 + self.extra_frames.len() as u32
+    }
+
+    /// Animation frame `i` (wrapped) as a single-frame texture.
+    pub fn frame(&self, i: u32) -> VtfTexture {
+        let i = (i % self.frame_count()) as usize;
+        VtfTexture {
+            width: self.width,
+            height: self.height,
+            flags: self.flags,
+            format: self.format,
+            mips: if i == 0 { self.mips.clone() } else { self.extra_frames[i - 1].clone() },
+            faces: self.faces,
+            extra_frames: Vec::new(),
+            has_alpha: self.has_alpha,
+            reflectivity: self.reflectivity,
+        }
     }
 
     /// Decompress BC data to RGBA8 in place (for GPUs without BC support or
@@ -307,7 +339,7 @@ impl VtfTexture {
 
     /// Top-level RGBA8 pixels (decompressing if needed). For tests and tools.
     pub fn rgba8_level0(&self) -> Option<Vec<u8>> {
-        let mut t = self.clone();
+        let mut t = self.frame(0);
         t.mips.truncate(1);
         t.decompress();
         (t.format == PixelFormat::Rgba8).then(|| t.mips.swap_remove(0))
@@ -315,7 +347,7 @@ impl VtfTexture {
 
     /// Average colour of the smallest mip, linear-ish sRGB 0..1.
     pub fn average_color(&self) -> [f32; 4] {
-        let mut t = self.clone();
+        let mut t = self.frame(0);
         let last = t.mips.len() - 1;
         let lw = (t.width >> last).max(1);
         let lh = (t.height >> last).max(1);
@@ -455,6 +487,50 @@ mod tests {
         let img = t.into_image(true, true);
         assert_eq!(img.texture_descriptor.mip_level_count, 3);
         assert_eq!(img.data.unwrap().len(), (16 + 4 + 1) * 4);
+    }
+
+    /// A 2x2 RGBA8888 VTF with one mip and `frames` frames, frame `i` filled
+    /// with red = 10 * i.
+    fn synth_frames(frames: u16) -> Vec<u8> {
+        let mut d = vec![0u8; 80];
+        d[0..4].copy_from_slice(b"VTF\0");
+        d[4..8].copy_from_slice(&7u32.to_le_bytes());
+        d[8..12].copy_from_slice(&2u32.to_le_bytes());
+        d[12..16].copy_from_slice(&80u32.to_le_bytes());
+        d[16..18].copy_from_slice(&2u16.to_le_bytes());
+        d[18..20].copy_from_slice(&2u16.to_le_bytes());
+        d[24..26].copy_from_slice(&frames.to_le_bytes());
+        d[52..56].copy_from_slice(&0u32.to_le_bytes()); // RGBA8888
+        d[56] = 1;
+        d[57..61].copy_from_slice(&(-1i32).to_le_bytes());
+        d[63..65].copy_from_slice(&1u16.to_le_bytes());
+        for f in 0..frames {
+            for _ in 0..4 {
+                d.extend_from_slice(&[10 * f as u8, 0, 0, 255]);
+            }
+        }
+        d
+    }
+
+    #[test]
+    fn decodes_every_animation_frame() {
+        let t = VtfTexture::parse(&synth_frames(3)).unwrap();
+        assert_eq!(t.frame_count(), 3);
+        assert_eq!(t.mips[0][0], 0);
+        for i in 0..3 {
+            let f = t.frame(i);
+            assert_eq!(f.frame_count(), 1);
+            assert_eq!(f.mips.len(), 1);
+            assert_eq!(f.mips[0], [10 * i as u8, 0, 0, 255].repeat(4));
+        }
+        // frame numbers wrap like the proxies' do
+        assert_eq!(t.frame(4).mips[0][0], 10);
+        // a single-frame texture has no extras
+        assert_eq!(VtfTexture::parse(&synth_vtf()).unwrap().frame_count(), 1);
+        // truncated frame data is an error, not a panic
+        let mut short = synth_frames(3);
+        short.truncate(short.len() - 4);
+        assert!(VtfTexture::parse(&short).is_err());
     }
 
     #[test]
