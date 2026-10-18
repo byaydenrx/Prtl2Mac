@@ -69,7 +69,7 @@ fn touch_triggers(
     map: Option<Res<CurrentMap>>,
     mut touching: ResMut<Touching>,
     mut players: Query<(&mut Transform, &mut InterpolatedFeet, &mut CharacterVelocity, &mut ViewAngles, &Crouch), With<Player>>,
-    props: Query<(Entity, &Prop, &Position, Has<Held>)>,
+    props: Query<(Entity, &Prop, &Position, Has<Held>, &LinearVelocity)>,
     mut fire: MessageWriter<FireOutput>,
     mut fizzle: MessageWriter<FizzlePortals>,
     mut loaded: MessageReader<LevelLoaded>,
@@ -91,6 +91,7 @@ fn touch_triggers(
     let mut now_touching = std::collections::HashSet::new();
     let mut teleport_to: Option<usize> = None;
     let mut dissolve: Vec<(Entity, usize)> = Vec::new();
+    let mut launch_player: Option<Vec3> = None;
     for i in 0..ents.list.len() {
         let e = &ents.list[i];
         if e.killed || !e.enabled || !TRIGGER_CLASSES.contains(&e.class.as_str()) {
@@ -107,7 +108,7 @@ fn touch_triggers(
             touchers.push(PLAYER);
         }
         if wants_props {
-            for (pe, prop, pos, _) in &props {
+            for (pe, prop, pos, _, _) in &props {
                 if overlaps(lo, hi, pos.0 - prop.half, pos.0 + prop.half) {
                     touchers.push(prop.ent);
                     if class == "trigger_portal_cleanser" {
@@ -132,6 +133,39 @@ fn touch_triggers(
                 "trigger_once" => ents.list[i].enabled = false,
                 "trigger_teleport" | "trigger_playerteleport" if t == PLAYER => {
                     teleport_to = ents.list[i].get("target").and_then(|tg| ents.find(tg, i, Some(t)).first().copied());
+                }
+                "trigger_catapult" => {
+                    let e = &ents.list[i];
+                    let (from, v_in, prop) = if t == PLAYER {
+                        (ptf.translation, vel.0, None)
+                    } else {
+                        match props.iter().find(|p| p.1.ent == t && !p.3) {
+                            Some((pe, _, pos, _, lv)) => (pos.0, lv.0, Some(pe)),
+                            None => continue,
+                        }
+                    };
+                    let speed = e.get_f32(if t == PLAYER { "playerspeed" } else { "physicsspeed" }).unwrap_or(450.0) * shared::SOURCE_UNIT;
+                    let target = e.get("launchtarget").filter(|n| !n.is_empty()).and_then(|n| ents.find(n, i, Some(t)).first().copied());
+                    let launch = catapult_velocity(from, target.map(|x| ents.list[x].transform.translation), e.get("launchdirection"), speed);
+                    // Threshold check: only correct things already flying about
+                    // this fast (chained plates); others pass through.
+                    let check = e.get("usethresholdcheck").is_some_and(|v| v.trim() == "1");
+                    let lower = e.get_f32("lowerthreshold").unwrap_or(0.15);
+                    let upper = e.get_f32("upperthreshold").unwrap_or(0.30);
+                    let ratio = v_in.length() / launch.length().max(1e-3);
+                    if check && !(ratio >= 1.0 - lower && ratio <= 1.0 + upper) {
+                        continue;
+                    }
+                    if std::env::var_os("P2_TRACE").is_some() {
+                        info!("TRACE catapult {:?} launches {t} at {:.0?} u/s", e.name, launch / shared::SOURCE_UNIT);
+                    }
+                    match prop {
+                        None => launch_player = Some(launch),
+                        Some(pe) => {
+                            commands.entity(pe).insert((LinearVelocity(launch), AngularVelocity(Vec3::ZERO)));
+                        }
+                    }
+                    fire.write(FireOutput { ent: i, event: "OnCatapulted".into(), activator: Some(t) });
                 }
                 "trigger_portal_cleanser" if t == PLAYER => {
                     fizzle.write(FizzlePortals);
@@ -160,6 +194,9 @@ fn touch_triggers(
         commands.entity(d).despawn();
         crate::props::dissolved(&mut ents, ent);
     }
+    if let Some(v) = launch_player {
+        vel.0 = v;
+    }
     if let Some(dest) = teleport_to {
         let t = ents.list[dest].transform;
         ptf.translation = t.translation;
@@ -167,6 +204,31 @@ fn touch_triggers(
         view.yaw = entity_yaw(t.rotation);
         vel.0 = Vec3::ZERO;
     }
+}
+
+/// Faith plate launch velocity (m/s). With a target, `speed` is the speed
+/// across the ground toward it and the upward speed is whatever makes the
+/// arc land there under Portal 2's gravity; without one, straight along
+/// `launchdirection` (Source pitch/yaw) at `speed`.
+pub fn catapult_velocity(from: Vec3, target: Option<Vec3>, direction: Option<&str>, speed: f32) -> Vec3 {
+    let g = 600.0 * shared::SOURCE_UNIT;
+    if let Some(to) = target {
+        let d = to - from;
+        let flat = Vec2::new(d.x, d.z);
+        if flat.length() > 1.0 * shared::SOURCE_UNIT {
+            let t = flat.length() / speed.max(1e-3);
+            let up = (d.y + 0.5 * g * t * t) / t;
+            let h = flat.normalize() * speed;
+            return Vec3::new(h.x, up, h.y);
+        }
+        // Straight up to a point overhead: just enough to reach it.
+        return Vec3::Y * (2.0 * g * d.y.max(0.0)).sqrt().max(speed);
+    }
+    let a: Vec<f32> = direction.unwrap_or("").split_whitespace().filter_map(|v| v.parse().ok()).collect();
+    let (pitch, yaw) = (a.first().copied().unwrap_or(0.0).to_radians(), a.get(1).copied().unwrap_or(0.0).to_radians());
+    // Source forward: (cos p cos y, cos p sin y, -sin p) -> world (x, z_up, -y).
+    let src = Vec3::new(pitch.cos() * yaw.cos(), pitch.cos() * yaw.sin(), -pitch.sin());
+    Vec3::new(src.x, src.z, -src.y) * speed
 }
 
 /// View yaw (0 looks down -Z) facing a map entity's forward (`rotation * X`).

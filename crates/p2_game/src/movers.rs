@@ -457,6 +457,11 @@ fn ride(
             }
             Some(d) => {
                 let at = m.pos + d;
+                // Teleported out of the car (setpos, a trigger_teleport): let go.
+                if tf.translation.distance(at) > 2.0 {
+                    movers.riders.remove(&i);
+                    continue;
+                }
                 tf.translation = at;
                 *feet = InterpolatedFeet { prev: feet.curr, curr: at };
                 vel.0 = Vec3::ZERO;
