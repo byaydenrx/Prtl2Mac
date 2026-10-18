@@ -184,3 +184,75 @@ fn tools_run_together() {
     std::env::remove_var("P2_DATA_DIR");
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// Press a menu button the way scripted tests do, and let the menu rebuild.
+fn click(app: &mut App, action: &str) {
+    app.world_mut().write_message(crate::ui::MenuClick(action.into()));
+    app.update();
+    app.update();
+}
+
+#[test]
+fn options_pages_work() {
+    let _env = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let root = temp("ui");
+    std::env::set_var("P2_DATA_DIR", root.join("data"));
+    let mut app = app(&root);
+    // The menu's view placement casts rays: an empty collider tree will do.
+    app.init_resource::<avian3d::collider_tree::ColliderTrees>()
+        .init_asset::<Image>()
+        .add_message::<crate::audio::PlayGameSound>()
+        .insert_resource(crate::Launch::default())
+        .add_plugins(crate::ui::UiPlugin)
+        .insert_resource(crate::ui::Screen::Main);
+    {
+        let mut tools = app.world_mut().resource_mut::<Settings>();
+        tools.tools = ToolSettings::default();
+    }
+    for _ in 0..3 {
+        app.update();
+    }
+    click(&mut app, "Options");
+    assert!(matches!(*app.world().resource::<crate::ui::Screen>(), crate::ui::Screen::Options { .. }));
+    click(&mut app, "Toggle(DevConsole)");
+    click(&mut app, "Toggle(ShowFps)");
+    click(&mut app, "Toggle(ShowPos)");
+    let t = app.world().resource::<Settings>().tools.clone();
+    assert!(t.dev_console && t.show_fps && t.show_pos);
+    click(&mut app, "SpeedrunOptions");
+    click(&mut app, "Toggle(SpeedrunTimer)");
+    click(&mut app, "Adjust(SpeedrunMode,1.0)");
+    click(&mut app, "Toggle(QuickRestart)");
+    click(&mut app, "Adjust(QuickRestartKey,1.0)");
+    click(&mut app, "Toggle(Practice)");
+    click(&mut app, "Adjust(SaveCheckpointKey,-1.0)");
+    click(&mut app, "Adjust(LoadCheckpointKey,1.0)");
+    click(&mut app, "Adjust(CheckpointSlot,1.0)");
+    let t = app.world().resource::<Settings>().tools.clone();
+    assert!(t.speedrun_timer && t.quick_restart && t.practice);
+    assert_eq!(t.speedrun_mode, crate::tool_settings::SpeedrunMode::SingleMap);
+    assert_eq!((t.quick_restart_key, t.checkpoint_save_key, t.checkpoint_load_key, t.checkpoint_slot), (KeyCode::F7, KeyCode::F6, KeyCode::F9, 2));
+    // BACK from the page saves settings.cfg with the new keys.
+    click(&mut app, "Back");
+    let cfg = std::fs::read_to_string(root.join("data/settings.cfg")).unwrap();
+    assert!(cfg.contains("speedrun_timer 1") && cfg.contains("quick_restart_key F7") && cfg.contains("con_enable 1"), "{cfg}");
+    assert!(matches!(*app.world().resource::<crate::ui::Screen>(), crate::ui::Screen::Options { .. }));
+    // The Mods page with no mod folder, and back.
+    click(&mut app, "ModsOptions");
+    assert!(!root.join("data/mods").exists());
+    click(&mut app, "Back");
+    click(&mut app, "Back");
+    assert_eq!(*app.world().resource::<crate::ui::Screen>(), crate::ui::Screen::Main);
+    // Chapter select with a community map: its tab, then start it.
+    std::fs::create_dir_all(root.join("data/maps")).unwrap();
+    std::fs::write(root.join("data/maps/my_map.bsp"), b"VBSP").unwrap();
+    app.world_mut().resource_mut::<crate::community::CommunityMaps>().folders = vec![root.join("data/maps")];
+    click(&mut app, "Chapters");
+    click(&mut app, "ChapterTab(true)");
+    click(&mut app, "CommunityMap(0)");
+    assert_eq!(*app.world().resource::<crate::ui::Screen>(), crate::ui::Screen::None);
+    let loads: Vec<String> = app.world_mut().resource_mut::<Messages<LoadLevel>>().drain().map(|l| l.map).collect();
+    assert!(loads.iter().any(|m| m.ends_with("my_map.bsp")), "{loads:?}");
+    std::env::remove_var("P2_DATA_DIR");
+    let _ = std::fs::remove_dir_all(&root);
+}
