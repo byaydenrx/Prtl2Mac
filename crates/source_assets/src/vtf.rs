@@ -406,6 +406,9 @@ impl VtfTexture {
             mag_filter: filter,
             min_filter: filter,
             mipmap_filter: filter,
+            // TODO(renderer): follow `valve_render::ValveQuality::anisotropy`
+            // (the player's texture filtering setting) for model textures too;
+            // world surfaces already do.
             anisotropy_clamp: if point { 1 } else { 16 },
             ..Default::default()
         });
