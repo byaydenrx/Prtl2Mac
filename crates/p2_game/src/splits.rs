@@ -328,6 +328,33 @@ impl Run {
     }
 }
 
+/// The best possible time from the golds: their sum over the PB's maps
+/// (`None` while a map has no gold).
+pub fn sum_of_best(pb: &Splits, golds: &Golds) -> Option<f64> {
+    pb.maps.iter().map(|(m, _)| golds.maps.get(m).copied()).sum()
+}
+
+/// A text table of a category's PB: each split's time, segment and gold.
+pub fn report(category: &str, pb: Option<&Splits>, golds: &Golds) -> Vec<String> {
+    let Some(pb) = pb else { return vec![format!("{category}: no personal best yet")] };
+    let mut out = vec![format!("{category}: personal best {}", pb.total.map(fmt_time).unwrap_or_else(|| "-".into()))];
+    let mut prev = 0.0;
+    for (m, t) in &pb.maps {
+        let seg = t - prev;
+        prev = *t;
+        let gold = golds.maps.get(m).map(|g| format!("gold {}", fmt_time(*g))).unwrap_or_default();
+        out.push(format!("  {m:<28} {:>10}  segment {:>9}  {gold}", fmt_time(*t), fmt_time(seg)));
+    }
+    for (c, t) in &pb.chapters {
+        let gold = golds.chapters.get(c).map(|g| format!("gold {}", fmt_time(*g))).unwrap_or_default();
+        out.push(format!("  Chapter {c:<20} {:>10}  {gold}", fmt_time(*t)));
+    }
+    if let Some(sob) = sum_of_best(pb, golds) {
+        out.push(format!("sum of best {}", fmt_time(sob)));
+    }
+    out
+}
+
 /// A practice checkpoint: where the player was and how they were moving.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Checkpoint {
@@ -568,6 +595,21 @@ mod tests {
         let s = Splits::parse("version 9\nsplit a nan\nsplit b -1\nsplit c 2\nfuture stuff\ntotal x\n");
         assert_eq!(s.maps, [("c".to_string(), 2.0)]);
         assert_eq!(s.total, None);
+    }
+
+    #[test]
+    fn sum_of_best_and_report() {
+        let pb = Splits { category: "run-a1".into(), maps: vec![("a1".into(), 10.0), ("a2".into(), 30.0)], chapters: vec![(1, 30.0)], total: Some(30.0) };
+        let mut golds = Golds { maps: [("a1".to_string(), 9.0)].into(), chapters: [(1, 28.0)].into() };
+        assert_eq!(sum_of_best(&pb, &golds), None);
+        golds.maps.insert("a2".into(), 18.5);
+        assert_eq!(sum_of_best(&pb, &golds), Some(27.5));
+        let r = report("run-a1", Some(&pb), &golds);
+        assert_eq!(r[0], "run-a1: personal best 0:30.00");
+        assert!(r[2].contains("a2") && r[2].contains("segment   0:20.00") && r[2].contains("gold 0:18.50"), "{:?}", r[2]);
+        assert!(r[3].contains("Chapter 1") && r[3].contains("gold 0:28.00"));
+        assert_eq!(r.last().unwrap(), "sum of best 0:27.50");
+        assert_eq!(report("map-x", None, &golds), ["map-x: no personal best yet"]);
     }
 
     #[test]

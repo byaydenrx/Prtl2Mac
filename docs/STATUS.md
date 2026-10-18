@@ -167,7 +167,11 @@ What's in it:
   weapon_portalgun, upgrade_portalgun, setpos, setang, getpos (prints the
   feet, so it pastes back into setpos), fov, host_timescale, cl_showfps,
   cl_showpos, sv_cheats, fire/ent_fire, ent_list, practice_save/load/list/
-  delete, speedrun_reset, mods, help, find, echo, clear, quit. Cheats need
+  delete, speedrun_reset, speedrun_splits (PB table, golds, sum of best),
+  mods, mod_list, mod_enable, mod_disable, mod_profile, mod_rollback (mod
+  changes apply at the next start), exec (`<data>/cfg/<name>.cfg`;
+  `autoexec.cfg` runs at startup when the console is enabled), help, find,
+  echo, clear, quit. Cheats need
   `sv_cheats 1` with Portal 2's message; noclip and god reset on map load,
   sv_cheats 0 turns them and host_timescale back off.
 - **Overlays** (top left): FPS with frame time min/avg/max over the last

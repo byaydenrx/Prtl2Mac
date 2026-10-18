@@ -35,6 +35,7 @@ impl Plugin for ConsolePlugin {
             .init_resource::<Cheats>()
             .add_message::<ConsoleSubmit>()
             .add_message::<ConsolePrint>()
+            .add_systems(Startup, autoexec)
             .add_systems(PreUpdate, console_keys.after(bevy::input::InputSystems))
             .add_systems(Update, (run_commands, cheats_on_load, god_mode).chain().in_set(GameSet::Logic))
             .add_systems(PostUpdate, (hold_focus, draw_console).chain())
@@ -118,6 +119,9 @@ pub enum ArgKind {
     Bool,
     Command,
     Item,
+    Mod,
+    Profile,
+    Config,
 }
 
 pub struct CommandDef {
@@ -141,6 +145,7 @@ pub const COMMANDS: &[CommandDef] = &[
     def("echo", "<text>", "Print text.", false, ArgKind::None),
     def("ent_fire", "<target> <input> [param]", "Send an input to map entities (same as fire).", true, ArgKind::Entity),
     def("ent_list", "[filter]", "List map entities: index, class, name, position.", false, ArgKind::Entity),
+    def("exec", "<file>", "Run the commands in <data dir>/cfg/<file>.cfg (autoexec.cfg runs at startup).", false, ArgKind::Config),
     def("exit", "", "Quit the game.", false, ArgKind::None),
     def("find", "<text>", "Find commands by name or help text.", false, ArgKind::None),
     def("fire", "<target> <input> [param]", "Send an input to map entities, like an output would.", true, ArgKind::Entity),
@@ -153,6 +158,11 @@ pub const COMMANDS: &[CommandDef] = &[
     def("host_timescale", "[scale]", "Game speed (1 is normal).", true, ArgKind::None),
     def("map", "<name>", "Start a map (campaign, community or a .bsp path).", false, ArgKind::Map),
     def("maps", "[filter]", "List the maps you can start.", false, ArgKind::None),
+    def("mod_disable", "<id>", "Turn a mod off in the active mod profile (from the next start).", false, ArgKind::Mod),
+    def("mod_enable", "<id>", "Turn an installed mod on in the active mod profile (from the next start).", false, ArgKind::Mod),
+    def("mod_list", "", "List installed mods; [x] marks the ones the active profile enables.", false, ArgKind::None),
+    def("mod_profile", "[name]", "List mod profiles, or make another one active (from the next start).", false, ArgKind::Profile),
+    def("mod_rollback", "", "Undo the last change to the active mod profile.", false, ArgKind::None),
     def("mods", "", "Show the enabled mods and any problems with them.", false, ArgKind::None),
     def("noclip", "", "Toggle flying through walls.", true, ArgKind::None),
     def("practice_delete", "<name>", "Delete a practice checkpoint of this map.", false, ArgKind::None),
@@ -164,6 +174,7 @@ pub const COMMANDS: &[CommandDef] = &[
     def("setang", "<pitch> <yaw> [roll]", "Set your view angles (degrees, Source convention).", true, ArgKind::None),
     def("setpos", "<x> <y> <z>", "Move your feet to a Source position (units).", true, ArgKind::None),
     def("speedrun_reset", "", "Reset the speedrun timer (the next map start begins a run).", false, ArgKind::None),
+    def("speedrun_splits", "", "Show the personal best, its splits, the golds and the sum of best.", false, ArgKind::None),
     def("sv_cheats", "[0/1]", "Allow cheat commands.", false, ArgKind::Bool),
     def("upgrade_portalgun", "", "Give the dual portal gun.", true, ArgKind::None),
 ];
@@ -180,6 +191,7 @@ pub enum Cmd {
     ShowPos(Option<bool>),
     ListCommands,
     Echo(String),
+    Exec(String),
     Fire { target: String, input: String, param: String },
     EntList(Option<String>),
     Quit,
@@ -193,6 +205,11 @@ pub enum Cmd {
     Map(String),
     Maps(Option<String>),
     Mods,
+    ModList,
+    ModEnable(String),
+    ModDisable(String),
+    ModProfile(Option<String>),
+    ModRollback,
     Noclip,
     PracticeDelete(String),
     PracticeList,
@@ -202,6 +219,7 @@ pub enum Cmd {
     SetAng(f32, f32, f32),
     SetPos(Vec3),
     SpeedrunReset,
+    SpeedrunSplits,
     SvCheats(Option<bool>),
     UpgradePortalgun,
 }
@@ -235,6 +253,7 @@ pub fn parse(words: &[String]) -> Result<Cmd, String> {
         "cl_showpos" => Cmd::ShowPos(opt_bool()?),
         "cmdlist" => Cmd::ListCommands,
         "echo" => Cmd::Echo(args.join(" ")),
+        "exec" => Cmd::Exec(args.first().ok_or_else(usage)?.clone()),
         "fire" | "ent_fire" => match args {
             [t, i, p @ ..] => Cmd::Fire { target: t.clone(), input: i.clone(), param: p.join(" ") },
             _ => return Err(usage()),
@@ -251,6 +270,11 @@ pub fn parse(words: &[String]) -> Result<Cmd, String> {
         "map" => Cmd::Map(rest().ok_or_else(usage)?),
         "maps" => Cmd::Maps(args.first().map(|a| a.trim_matches('*').to_ascii_lowercase()).filter(|a| !a.is_empty())),
         "mods" => Cmd::Mods,
+        "mod_list" => Cmd::ModList,
+        "mod_enable" => Cmd::ModEnable(args.first().ok_or_else(usage)?.to_ascii_lowercase()),
+        "mod_disable" => Cmd::ModDisable(args.first().ok_or_else(usage)?.to_ascii_lowercase()),
+        "mod_profile" => Cmd::ModProfile(args.first().map(|a| a.to_ascii_lowercase())),
+        "mod_rollback" => Cmd::ModRollback,
         "noclip" => Cmd::Noclip,
         "practice_delete" => Cmd::PracticeDelete(args.first().ok_or_else(usage)?.clone()),
         "practice_list" => Cmd::PracticeList,
@@ -267,6 +291,7 @@ pub fn parse(words: &[String]) -> Result<Cmd, String> {
             _ => return Err(usage()),
         },
         "speedrun_reset" => Cmd::SpeedrunReset,
+        "speedrun_splits" => Cmd::SpeedrunSplits,
         "sv_cheats" => Cmd::SvCheats(opt_bool()?),
         "upgrade_portalgun" => Cmd::UpgradePortalgun,
         _ => return Err(format!("Unknown command \"{first}\"")),
@@ -345,6 +370,7 @@ impl History {
         self.lines.get(i).map(String::as_str)
     }
 
+    #[cfg(test)]
     pub fn lines(&self) -> &[String] {
         &self.lines
     }
@@ -358,6 +384,11 @@ pub struct Completer {
     pub maps: Vec<String>,
     /// Entity names, with the inputs worth offering for each.
     pub ents: Vec<(String, Vec<String>)>,
+    /// Installed mod ids, mod profiles and `cfg/*.cfg` names (only filled
+    /// when the line's command takes one).
+    pub mods: Vec<String>,
+    pub profiles: Vec<String>,
+    pub configs: Vec<String>,
 }
 
 /// Inputs most entities take, offered after any entity name.
@@ -388,6 +419,9 @@ pub fn complete(line: &str, c: &Completer) -> (String, Vec<String>) {
             (ArgKind::Bool, 1) => ["0", "1"].iter().filter(|m| matches(m)).map(|s| s.to_string()).collect(),
             (ArgKind::Command, 1) => COMMANDS.iter().map(|d| d.name.to_string()).filter(|n| matches(n)).collect(),
             (ArgKind::Item, 1) => ["weapon_portalgun".to_string()].into_iter().filter(|n| matches(n)).collect(),
+            (ArgKind::Mod, 1) => c.mods.iter().filter(|m| matches(m)).cloned().collect(),
+            (ArgKind::Profile, 1) => c.profiles.iter().filter(|m| matches(m)).cloned().collect(),
+            (ArgKind::Config, 1) => c.configs.iter().filter(|m| matches(m)).cloned().collect(),
             (ArgKind::Entity, 1) => {
                 let mut v: Vec<String> = c.ents.iter().map(|(n, _)| n.clone()).filter(|n| matches(n)).collect();
                 if matches("!player") && words[0] != "ent_list" {
@@ -593,7 +627,45 @@ fn completer(console: &mut Console, game: &p2_assets::GameFsRes, community: &Com
             }
         }
     }
-    Completer { maps, ents: list }
+    // Mods, profiles and cfg files come off the disk, so only when asked for.
+    let kind = console.input.split_whitespace().next().and_then(command).map(|d| d.arg);
+    let (mut mods, mut profiles, mut configs) = (Vec::new(), Vec::new(), Vec::new());
+    match kind {
+        Some(ArgKind::Mod | ArgKind::Profile) => {
+            if let Ok(m) = p2_mods::ModManager::open(crate::mounts::mods_root()) {
+                mods = m.installed().into_iter().map(|i| i.manifest.id).collect();
+                mods.dedup();
+                profiles = m.profiles();
+            }
+        }
+        Some(ArgKind::Config) => {
+            configs = std::fs::read_dir(cfg_dir()).into_iter().flatten().flatten().filter_map(|e| e.file_name().to_string_lossy().strip_suffix(".cfg").map(str::to_string)).collect();
+        }
+        _ => {}
+    }
+    Completer { maps, ents: list, mods, profiles, configs }
+}
+
+/// Where `exec` finds its files.
+fn cfg_dir() -> std::path::PathBuf {
+    crate::settings::data_dir().join("cfg")
+}
+
+/// The lines of `cfg/<name>.cfg`, or what went wrong.
+pub fn read_cfg(name: &str) -> Result<Vec<String>, String> {
+    let file = if name.to_ascii_lowercase().ends_with(".cfg") { name.to_string() } else { format!("{name}.cfg") };
+    if file.contains("..") || file.starts_with(['/', '\\']) || file.contains(':') {
+        return Err(format!("exec: {name}: stay inside the cfg folder"));
+    }
+    let path = cfg_dir().join(&file);
+    std::fs::read_to_string(&path).map(|t| t.lines().map(str::to_string).filter(|l| !l.trim().is_empty()).collect()).map_err(|_| format!("exec: couldn't exec {file} (looked in {})", cfg_dir().display()))
+}
+
+/// Run `cfg/autoexec.cfg` once at startup when the console is enabled.
+fn autoexec(settings: Res<Settings>, mut console: ResMut<Console>) {
+    if settings.tools.dev_console && cfg_dir().join("autoexec.cfg").is_file() {
+        console.pending.push("exec autoexec".into());
+    }
 }
 
 /// The console key opens and closes it; while open every key goes to it
@@ -777,12 +849,19 @@ fn run_commands(mut console: ResMut<Console>, mut submitted: MessageReader<Conso
     for p in prints.read() {
         console.print(p.0.clone());
     }
-    let mut lines = std::mem::take(&mut console.pending);
+    let mut lines: VecDeque<String> = std::mem::take(&mut console.pending).into();
     for s in submitted.read() {
         console.print(format!("] {}", s.0));
-        lines.push(s.0.clone());
+        lines.push_back(s.0.clone());
     }
-    for line in lines {
+    // `exec` adds lines; a file that execs itself stops here.
+    let mut budget = 1000;
+    while let Some(line) = lines.pop_front() {
+        budget -= 1;
+        if budget == 0 {
+            console.print("exec: too many commands at once (does a cfg exec itself?)");
+            break;
+        }
         for words in split_commands(&line) {
             match parse(&words) {
                 Ok(cmd) => {
@@ -791,6 +870,18 @@ fn run_commands(mut console: ResMut<Console>, mut submitted: MessageReader<Conso
                     let reading = matches!(cmd, Cmd::Timescale(None));
                     if d.cheat && !w.cheats.sv_cheats && !reading {
                         console.print(format!("Can't use cheat command {} in multiplayer, unless the server has sv_cheats set to 1.", d.name));
+                        continue;
+                    }
+                    if let Cmd::Exec(name) = &cmd {
+                        match read_cfg(name) {
+                            Ok(file) => {
+                                // The file's lines run next, before the rest of this line.
+                                for l in file.into_iter().rev() {
+                                    lines.push_front(l);
+                                }
+                            }
+                            Err(e) => console.print(e),
+                        }
                         continue;
                     }
                     execute(cmd, &mut console, &mut w, &mut out);
@@ -831,6 +922,11 @@ fn execute(cmd: Cmd, console: &mut Console, w: &mut World1, out: &mut Outbox) {
             console.print(format!("{} commands", COMMANDS.len()));
         }
         Cmd::Echo(t) => console.print(t),
+        Cmd::Exec(_) => {}
+        Cmd::ModList | Cmd::ModEnable(_) | Cmd::ModDisable(_) | Cmd::ModProfile(_) | Cmd::ModRollback => mod_command(cmd, console),
+        Cmd::SpeedrunSplits => {
+            out.practice.write(crate::speedrun::PracticeRequest::ShowSplits);
+        }
         Cmd::Fire { target, input, param } => match w.ents.as_mut() {
             Some(ents) => {
                 let n = ents.find(&target, crate::io::PLAYER, Some(crate::io::PLAYER)).len();
@@ -999,6 +1095,98 @@ fn execute(cmd: Cmd, console: &mut Console, w: &mut World1, out: &mut Outbox) {
                 w.cheats.noclip = false;
                 w.cheats.god = false;
                 w.time.set_relative_speed(1.0);
+            }
+        }
+    }
+}
+
+/// The mod manager from the console. Changes apply the next time the game
+/// starts (mods are mounted at startup).
+fn mod_command(cmd: Cmd, console: &mut Console) {
+    if !matches!(cmd, Cmd::ModList | Cmd::ModProfile(None)) && !crate::settings::may_write_data() {
+        console.print("mods: scripted test runs don't change the mod profile (set P2_DATA_DIR)");
+        return;
+    }
+    let m = match p2_mods::ModManager::open(crate::mounts::mods_root()) {
+        Ok(m) => m,
+        Err(e) => {
+            console.print(format!("mods: {e}"));
+            return;
+        }
+    };
+    let profile = m.active_profile();
+    let next_start = "(takes effect the next time the game starts)";
+    let changed = match cmd {
+        Cmd::ModList => {
+            let p = m.load_profile(&profile).unwrap_or_default();
+            let installed = m.installed();
+            if installed.is_empty() {
+                console.print(format!("no mods installed: p2mods install <folder or .zip>, store in {}", m.root().display()));
+            }
+            for i in &installed {
+                let on = p.get(&i.manifest.id).is_some_and(|e| e.enabled && e.version == i.manifest.version);
+                console.print(format!("[{}] {} {}  {}", if on { "x" } else { " " }, i.manifest.id, i.manifest.version, i.manifest.name));
+            }
+            console.print(format!("profile {profile}"));
+            false
+        }
+        Cmd::ModEnable(id) => match m.enable(&profile, &id, None) {
+            Ok(v) => {
+                console.print(format!("enabled {id} {v} in {profile} {next_start}"));
+                true
+            }
+            Err(e) => {
+                console.print(format!("mod_enable: {e}"));
+                false
+            }
+        },
+        Cmd::ModDisable(id) => match m.disable(&profile, &id) {
+            Ok(()) => {
+                console.print(format!("disabled {id} in {profile} {next_start}"));
+                true
+            }
+            Err(e) => {
+                console.print(format!("mod_disable: {e}"));
+                false
+            }
+        },
+        Cmd::ModProfile(None) => {
+            for p in m.profiles() {
+                console.print(format!("{} {p}", if p == profile { "*" } else { " " }));
+            }
+            false
+        }
+        Cmd::ModProfile(Some(name)) => match m.set_active_profile(&name) {
+            Ok(()) => {
+                console.print(format!("mod profile {name} {next_start}"));
+                true
+            }
+            Err(e) => {
+                console.print(format!("mod_profile: {e} (make one with: p2mods profile create {name})"));
+                false
+            }
+        },
+        Cmd::ModRollback => match m.rollback(&profile, None) {
+            Ok(Some(label)) => {
+                console.print(format!("undid \"{label}\" in {profile} {next_start}"));
+                true
+            }
+            Ok(None) => {
+                console.print(format!("nothing to roll back in {profile}"));
+                false
+            }
+            Err(e) => {
+                console.print(format!("mod_rollback: {e}"));
+                false
+            }
+        },
+        _ => false,
+    };
+    if changed {
+        let engine = p2_mods::semver::Version::parse(env!("CARGO_PKG_VERSION")).ok();
+        if let Ok((r, _)) = m.check(&m.active_profile(), engine.as_ref()) {
+            for i in &r.issues {
+                console.print(format!("  {i}"));
             }
         }
     }
@@ -1342,6 +1530,9 @@ mod tests {
         Completer {
             maps: ["sp_a1_intro1", "sp_a1_intro2", "sp_a2_laser_intro", "my_community_map"].map(String::from).to_vec(),
             ents: vec![("@exit_door".into(), vec!["Open".into(), "Close".into()]), ("box_dropper".into(), vec!["FireUser1".into()])],
+            mods: vec!["better-cubes".into(), "better-sounds".into()],
+            profiles: vec!["default".into(), "speedrun".into()],
+            configs: vec!["autoexec".into()],
         }
     }
 
@@ -1360,10 +1551,20 @@ mod tests {
         assert_eq!(complete("sv_cheats ", &c).1, ["0", "1"]);
         assert_eq!(complete("help no", &c).1, ["noclip"]);
         assert_eq!(complete("give w", &c).1, ["weapon_portalgun"]);
+        assert_eq!(complete("mod_enable better-s", &c).1, ["better-sounds"]);
+        assert_eq!(complete("mod_profile sp", &c).1, ["speedrun"]);
+        assert_eq!(complete("exec auto", &c).1, ["autoexec"]);
         // Only the last command of a line.
         assert_eq!(complete("sv_cheats 1; nocl", &c), ("sv_cheats 1; ".to_string(), vec!["noclip".to_string()]));
         assert!(complete("echo hel", &c).1.is_empty());
         assert!(complete("zzz", &c).1.is_empty());
+    }
+
+    #[test]
+    fn exec_stays_in_the_cfg_folder() {
+        for bad in ["../settings", "/etc/passwd", "a/../../b", "C:evil"] {
+            assert!(read_cfg(bad).unwrap_err().contains("inside the cfg folder"), "{bad}");
+        }
     }
 
     #[test]

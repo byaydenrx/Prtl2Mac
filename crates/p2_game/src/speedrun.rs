@@ -45,6 +45,8 @@ pub enum PracticeRequest {
     Delete(String),
     List,
     ResetTimer,
+    /// Print the PB, its splits, the golds and the sum of best.
+    ShowSplits,
 }
 
 #[derive(Resource, Default)]
@@ -216,6 +218,12 @@ fn practice(
             say(&mut sr, &mut print, "speedrun timer reset".into());
             continue;
         }
+        if *req == PracticeRequest::ShowSplits {
+            for l in splits_report(&sr, &settings) {
+                print.write(ConsolePrint(l));
+            }
+            continue;
+        }
         let Some(m) = map.as_ref().filter(|m| !m.menu) else {
             print.write(ConsolePrint("practice: not in a map".into()));
             continue;
@@ -272,9 +280,22 @@ fn practice(
                     print.write(ConsolePrint(format!("  {}  setpos {:.0} {:.0} {:.0}{}", c.name, c.pos.x, c.pos.y, c.pos.z, if c.ducked { " (ducked)" } else { "" })));
                 }
             }
-            PracticeRequest::ResetTimer => {}
+            PracticeRequest::ResetTimer | PracticeRequest::ShowSplits => {}
         }
     }
+}
+
+/// The `speedrun_splits` lines: the run's category, its PB split by split
+/// with the golds, and the sum of best.
+fn splits_report(sr: &Speedrun, settings: &Settings) -> Vec<String> {
+    if !settings.tools.speedrun_timer {
+        return vec!["the speedrun timer is off (Options > Speedrun)".into()];
+    }
+    if sr.run.state == RunState::Idle {
+        return vec!["no run yet: start a map".into()];
+    }
+    let golds = sr.golds.clone().unwrap_or_default();
+    splits::report(&sr.run.splits.category, sr.pb.as_ref(), &golds)
 }
 
 #[derive(Component)]
