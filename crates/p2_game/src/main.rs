@@ -13,6 +13,7 @@ use source_assets::{SourceMapPlugin, SourceRenderSettings};
 mod ai;
 mod audio;
 mod autopilot;
+mod bridges;
 mod campaign;
 mod captions;
 mod health;
@@ -72,9 +73,12 @@ fn main() {
             ai::AiPlugin,
             viewcontrol::ViewControlPlugin,
             captions::CaptionsPlugin,
+        ))
+        .add_plugins((
             templates::TemplatesPlugin,
             health::HealthPlugin,
             lasers::LasersPlugin,
+            bridges::BridgesPlugin,
         ))
         .insert_resource(args)
         .add_plugins(p2_room::HarnessPlugin);
