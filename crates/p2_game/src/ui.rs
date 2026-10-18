@@ -554,10 +554,12 @@ fn menu_music(mut loaded: MessageReader<LevelLoaded>, mut play: MessageWriter<Pl
     play.write(PlayGameSound { looped: true, ..PlayGameSound::music(track.trim_start_matches("sound/")) });
 }
 
-/// Every level start is saved for "Continue".
+/// Every level start is saved for "Continue" (not in scripted test runs,
+/// which would overwrite the player's progress).
 fn autosave(mut loaded: MessageReader<LevelLoaded>) {
+    let scripted = std::env::var_os("P2_SCRIPT").is_some();
     for ev in loaded.read() {
-        if !ev.menu {
+        if !ev.menu && !scripted {
             let _ = std::fs::write(data_dir().join("save.txt"), &ev.map);
         }
     }
