@@ -76,14 +76,17 @@ fn open_portal(
     let half = PORTAL_HALF_SIZE;
     // The wall behind it: rays from just in front of the opening, at the centre and corners.
     let mut surfaces = Vec::new();
-    for (x, y) in [(0.0, 0.0), (-0.8, -0.8), (0.8, -0.8), (-0.8, 0.8), (0.8, 0.8)] {
+    for (x, y) in [(0.0, 0.0), (-0.8, -0.8), (0.8, -0.8), (-0.8, 0.8), (0.8, 0.8), (0.0, -0.9), (0.0, 0.9), (-0.9, 0.0), (0.9, 0.0)] {
         let from = frame.to_world(Vec3::new(half.x * x, half.y * y, 0.05));
-        if let Some(hit) = spatial.cast_ray(from, Dir3::new(-frame.normal()).unwrap_or(Dir3::NEG_Z), 0.2, true, &SpatialQueryFilter::from_excluded_entities([player])) {
+        // Everything just behind the opening: the wall, and the frame prop
+        // the map puts around the portal.
+        for hit in spatial.ray_hits(from, Dir3::new(-frame.normal()).unwrap_or(Dir3::NEG_Z), 0.3, 8, true, &SpatialQueryFilter::from_excluded_entities([player])) {
             if !surfaces.contains(&hit.entity) {
                 surfaces.push(hit.entity);
             }
         }
     }
+    let wall_count = surfaces.len();
     if let Some(old) = gun.portals[kind.index()].take() {
         commands.entity(old).despawn();
     }
@@ -101,7 +104,7 @@ fn open_portal(
         commands.entity(new).insert(PortalLink(partner));
         commands.entity(partner).insert(PortalLink(new));
     }
-    debug!("portal2: map portal {} ({kind:?}) open at {:.2?} normal {:.2?}, {} wall colliders", e.name, tf.translation, frame.normal(), gun.portals[kind.index()].map_or(0, |_| 1));
+    debug!("portal2: map portal {} ({kind:?}) open at {:.2?} normal {:.2?}, wall colliders {:?}", e.name, tf.translation, frame.normal(), wall_count);
     placed.write(PortalPlaced { gun: player, portal: new, kind, transform: tf });
 }
 
