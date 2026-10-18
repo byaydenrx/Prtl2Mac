@@ -5,7 +5,7 @@
 //! `setpos x y z [pitch yaw]` (Source units/degrees, feet like the game's
 //! `setpos`), `look pitch yaw`, `walk secs` (forward), `back secs`,
 //! `left secs`, `right secs`, `jump`, `duck secs`, `use`, `fire blue|orange`,
-//! `shot path.png`, `log`, `con <console line>` (runs a developer-console
+//! `shot path.png`, `log`, `info <name>` (an entity's state, place, axes and bounds; also `ent`), `con <console line>` (runs a developer-console
 //! command, e.g. `con sv_cheats 1` then `con noclip`; `;` can't be used inside).
 use bevy::prelude::*;
 use p2_core::*;
@@ -65,7 +65,7 @@ fn drive(
     (mut exit, mut click, real, mut con): (MessageWriter<AppExit>, MessageWriter<crate::ui::MenuClick>, Res<Time<Real>>, MessageWriter<crate::console::ConsoleSubmit>),
     mut ents: Option<ResMut<crate::io::Ents>>,
     spatial: avian3d::prelude::SpatialQuery,
-    props: Query<(&crate::props::Prop, &Transform), Without<Player>>,
+    props: Query<(&crate::props::Prop, &Transform, Option<&avian3d::prelude::Position>, Has<crate::props::Held>), Without<Player>>,
     prop_ents: Query<(Entity, &crate::props::Prop)>,
     children: Query<&Children>,
     collider_of: Query<(Option<&avian3d::prelude::ColliderOf>, Has<avian3d::prelude::Collider>, Has<avian3d::prelude::ColliderDisabled>)>,
@@ -118,6 +118,14 @@ fn drive(
         match step.cmd.as_str() {
             "setpos" => {
                 let p = shared::source_to_world(Vec3::new(f(a, 0), f(a, 1), f(a, 2)));
+                // What the player holds comes along (it would be dropped as stuck).
+                let moved = p - tf.translation;
+                for (pe, _) in &prop_ents {
+                    if let Ok((_, ht, _, true)) = props.get(pe) {
+                        let to = ht.translation + moved;
+                        commands.entity(pe).insert((Transform::from_translation(to).with_rotation(ht.rotation), avian3d::prelude::Position(to)));
+                    }
+                }
                 tf.translation = p;
                 *feet = InterpolatedFeet { prev: p, curr: p };
                 vel.0 = Vec3::ZERO;
@@ -139,7 +147,7 @@ fn drive(
                     warn!("autopilot: no entity {key}");
                     continue;
                 };
-                let target = props.iter().find(|(p, _)| p.ent == i).map(|(_, t)| t.translation).unwrap_or(ents.list[i].transform.translation);
+                let target = props.iter().find(|(p, _, _, _)| p.ent == i).map(|(_, t, _, _)| t.translation).unwrap_or(ents.list[i].transform.translation);
                 if step.cmd == "goto" {
                     // Stand `dist` units away on the side with the most room.
                     let dist = a.get(1).and_then(|d| d.parse::<f32>().ok()).unwrap_or(64.0) * shared::SOURCE_UNIT;
@@ -191,22 +199,33 @@ fn drive(
                     }
                 }
             }
-            "info" => {
-                // info <name>: an entity's state, bounds (Source units) and position.
+            "info" | "ent" => {
+                // info <name>: an entity's state, bounds (Source units),
+                // position and axes, and a prop's physics body (where
+                // triggers see it).
                 let key = a.first().map(|k| k.to_ascii_lowercase()).unwrap_or_default();
                 if let Some(ents) = ents.as_deref() {
                     for (i, e) in ents.list.iter().enumerate().filter(|(_, e)| e.name == key) {
                         let b = e.bounds.map(|(lo, hi)| (shared::world_to_source(lo), shared::world_to_source(hi)));
+                        let r = e.transform.rotation;
+                        let axis = |v: Vec3| Vec3::new(v.x, -v.z, v.y);
                         info!(
-                            "autopilot: #{i} {} {:?} enabled {} killed {} value {} at source {:.0?} bounds {:.0?}",
+                            "autopilot: #{i} {} {:?} enabled {} killed {} value {} at source {:.0?} fwd {:.2?} up {:.2?} bounds {:.0?}",
                             e.class,
                             e.name,
                             e.enabled,
                             e.killed,
                             e.value,
                             shared::world_to_source(e.transform.translation),
+                            axis(r * Vec3::X),
+                            axis(r * Vec3::Y),
                             b
                         );
+                    }
+                    for (p, _, pos, _) in &props {
+                        if ents.list[p.ent].name == key {
+                            info!("autopilot: {key} body at source {:.0?} half {:.0?}", pos.map(|v| shared::world_to_source(v.0)), p.half / shared::SOURCE_UNIT);
+                        }
                     }
                 }
             }
@@ -254,7 +273,7 @@ fn drive(
                     }
                     info!("autopilot: prop {pe} kind {:?}", bodies.get(pe).ok());
                 }
-                for (p, t) in &props {
+                for (p, t, _, _) in &props {
                     let s = t.translation / shared::SOURCE_UNIT;
                     let name = ents.as_ref().map(|e| e.list[p.ent].name.clone()).unwrap_or_default();
                     info!("autopilot: prop {name} at source ({:.0} {:.0} {:.0}) half {:.2?}", s.x, -s.z, s.y, p.half);

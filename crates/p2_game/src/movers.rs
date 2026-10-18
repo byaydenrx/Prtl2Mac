@@ -52,6 +52,10 @@ pub struct Movers {
     parented: Vec<(usize, usize, Transform)>,
     /// Movement of each mover this frame (for children and riders).
     moved: HashMap<usize, Vec3>,
+    /// Where each parent was last tick, to catch parents moved by something
+    /// other than a mover (a prop's animated attachment carrying the
+    /// sp_a1_wakeup socket, whose trigger is parented to it).
+    parent_seen: HashMap<usize, Transform>,
     /// Timed switches: (time, ent, show).
     pending_show: Vec<(f32, usize, bool)>,
     /// Trains carrying the player: the player's offset from the train
@@ -409,16 +413,36 @@ fn run_movers(
 }
 
 /// Parented entities keep their pose relative to a moving parent.
-fn follow_parents(ents: Option<ResMut<Ents>>, mut movers: ResMut<Movers>, mut transforms: Query<&mut Transform, Without<Player>>) {
+fn follow_parents(
+    ents: Option<ResMut<Ents>>,
+    mut movers: ResMut<Movers>,
+    anims: Option<Res<crate::viewcontrol::PropAnims>>,
+    mut transforms: Query<&mut Transform, Without<Player>>,
+) {
     let Some(mut ents) = ents else { return };
+    // Parents that moved since last tick without being movers.
+    let parents: Vec<usize> = movers.parented.iter().map(|p| p.1).collect();
+    for p in parents {
+        let now = ents.list[p].transform;
+        match movers.parent_seen.insert(p, now) {
+            Some(was) if !movers.moved.contains_key(&p) && (was.translation != now.translation || was.rotation != now.rotation) => {
+                movers.moved.insert(p, now.translation - was.translation);
+            }
+            _ => {}
+        }
+    }
     if movers.moved.is_empty() {
         return;
     }
     let parented = movers.parented.clone();
     for (child, parent, offset) in parented {
-        let Some(&delta) = movers.moved.get(&parent) else { continue };
+        // Children on an animated attachment are placed by viewcontrol.
+        if !movers.moved.contains_key(&parent) || anims.as_ref().is_some_and(|a| a.is_attached(child)) {
+            continue;
+        }
         let pt = ents.list[parent].transform;
         let world = Transform::from_translation(pt.translation + pt.rotation * offset.translation).with_rotation(pt.rotation * offset.rotation);
+        let delta = world.translation - ents.list[child].transform.translation;
         ents.list[child].transform = world;
         if let Some((lo, hi)) = &mut ents.list[child].bounds {
             *lo += delta;
@@ -432,6 +456,7 @@ fn follow_parents(ents: Option<ResMut<Ents>>, mut movers: ResMut<Movers>, mut tr
         }
         // A moving train's children move its own children in turn.
         movers.moved.entry(child).or_insert(delta);
+        movers.parent_seen.insert(child, world);
     }
 }
 

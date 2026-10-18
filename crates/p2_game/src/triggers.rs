@@ -76,7 +76,7 @@ fn touch_triggers(
     map: Option<Res<CurrentMap>>,
     mut touching: ResMut<Touching>,
     mut looks: ResMut<LookTimes>,
-    mut players: Query<(&mut Transform, &mut InterpolatedFeet, &mut CharacterVelocity, &mut ViewAngles, &Crouch), With<Player>>,
+    mut players: Query<(&mut Transform, &mut InterpolatedFeet, &mut CharacterVelocity, &mut ViewAngles, &Crouch, &mut PortalGun), With<Player>>,
     props: Query<(Entity, &Prop, &Position, Has<Held>, &LinearVelocity)>,
     mut fire: MessageWriter<FireOutput>,
     mut fizzle: MessageWriter<FizzlePortals>,
@@ -93,7 +93,7 @@ fn touch_triggers(
     if map.menu {
         return;
     }
-    let Ok((mut ptf, mut feet, mut vel, mut view, crouch)) = players.single_mut() else { return };
+    let Ok((mut ptf, mut feet, mut vel, mut view, crouch, mut gun)) = players.single_mut() else { return };
     let hull = crouch.hull() * 0.5;
     let p_lo = ptf.translation - Vec3::new(hull.x, 0.0, hull.z);
     let p_hi = ptf.translation + Vec3::new(hull.x, hull.y * 2.0, hull.z);
@@ -217,6 +217,11 @@ fn touch_triggers(
                         }
                     }
                     fire.write(FireOutput { ent: i, event: "OnCatapulted".into(), activator: Some(t) });
+                }
+                // sp_a1_wakeup's claw takes the gun before the incinerator.
+                "trigger_weapon_strip" if t == PLAYER => {
+                    gun.can_fire = [false, false];
+                    fizzle.write(FizzlePortals);
                 }
                 "trigger_portal_cleanser" if t == PLAYER => {
                     fizzle.write(FizzlePortals);

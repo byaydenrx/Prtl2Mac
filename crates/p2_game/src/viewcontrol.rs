@@ -96,6 +96,11 @@ impl PropAnims {
         Some(Transform::from_translation(p).with_rotation(q.normalize()))
     }
 
+    /// `ent` rides an animated attachment (its pose comes from here).
+    pub fn is_attached(&self, ent: usize) -> bool {
+        self.attached.contains_key(&ent)
+    }
+
     /// Camera pose from an attachment: position, forward, up. Camera rigs
     /// (the intro's ghostanim) look down the bone's -X with +Y up.
     pub fn attachment_world(&mut self, game: &GameFsRes, ents: &Ents, ent: usize, attachment: &str) -> Option<(Vec3, Vec3, Vec3)> {
