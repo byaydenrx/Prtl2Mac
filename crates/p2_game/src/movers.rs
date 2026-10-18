@@ -123,6 +123,21 @@ fn mover_inputs(
         let i = msg.target;
         let class = ents.list[i].class.clone();
         let input = msg.input.as_str();
+        // Re-parenting at run time (Wheatley onto his socket, off his rail).
+        match input {
+            "clearparent" => movers.parented.retain(|p| p.0 != i),
+            "setparent" => {
+                movers.parented.retain(|p| p.0 != i);
+                if let Some(&p) = ents.find(msg.param.trim(), i, msg.activator).first() {
+                    let pt = ents.list[p].transform;
+                    let e = &ents.list[i];
+                    let offset = Transform::from_translation(pt.rotation.inverse() * (e.transform.translation - pt.translation))
+                        .with_rotation(pt.rotation.inverse() * e.transform.rotation);
+                    movers.parented.push((i, p, offset));
+                }
+            }
+            _ => {}
+        }
         match class.as_str() {
             "func_tracktrain" | "func_train" => {
                 let speed = u(ents.list[i].get_f32("startspeed").unwrap_or(100.0).max(1.0));

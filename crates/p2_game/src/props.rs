@@ -18,7 +18,8 @@ pub struct PropsPlugin;
 impl Plugin for PropsPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Gravity(Vec3::NEG_Y * 600.0 * shared::SOURCE_UNIT))
-            .add_systems(Update, (make_props_dynamic, hook_prop_colliders, use_key, prop_inputs, floor_buttons).chain().in_set(crate::level::GameSet::Logic))
+            .init_resource::<CoreState>()
+            .add_systems(Update, (make_props_dynamic, hook_prop_colliders, sync_prop_transforms, core_inputs, use_key, prop_inputs, floor_buttons).chain().in_set(crate::level::GameSet::Logic))
             .add_systems(FixedUpdate, (carry, prop_transit, wall_passthrough).chain().after(P2Systems::Transit));
     }
 }
@@ -73,7 +74,10 @@ pub fn make_props_dynamic(
     }
     let Some(ents) = ents else { return };
     for (i, e) in ents.list.iter().enumerate() {
-        if !PICKUP_CLASSES.contains(&e.class.as_str()) {
+        // Personality cores ride rails and sockets (kinematic) until the map
+        // lets them fall or the player takes them.
+        let core = e.class == "npc_personality_core";
+        if !PICKUP_CLASSES.contains(&e.class.as_str()) && !core {
             continue;
         }
         let Some(entity) = e.entity else { continue };
@@ -89,9 +93,13 @@ pub fn make_props_dynamic(
             }
         }
         let half = if lo.x <= hi.x { (hi - lo) * 0.5 } else { Vec3::splat(16.0 * shared::SOURCE_UNIT) };
+        if core && lo.x > hi.x {
+            // No collision model: a ball about Wheatley's size.
+            commands.spawn((Name::new("core collider"), Collider::sphere(14.0 * shared::SOURCE_UNIT), Transform::IDENTITY, ChildOf(entity)));
+        }
         commands.entity(entity).remove::<ChildOf>().insert((
             tf,
-            RigidBody::Dynamic,
+            if core { RigidBody::Kinematic } else { RigidBody::Dynamic },
             // vphysics cube: 40 kg-ish, slides a little, rolls very little.
             Mass(40.0),
             Friction::new(0.6),
@@ -125,6 +133,7 @@ fn use_key(
     spatial: SpatialQuery,
     mut ents: Option<ResMut<Ents>>,
     mut fire: MessageWriter<FireOutput>,
+    cores: Res<CoreState>,
 ) {
     let Ok((player, mut input, feet, crouch, view, mut ignore)) = players.single_mut() else { return };
     if !input.use_key {
@@ -132,6 +141,10 @@ fn use_key(
     }
     input.use_key = false;
     if let Ok((e, hc)) = held.single() {
+        // Some scenes won't let go of what you carry (Wheatley in intro7).
+        if cores.drop_disabled {
+            return;
+        }
         for c in &hc.0 {
             ignore.remove(c);
         }
@@ -196,6 +209,13 @@ fn use_key(
     let Some(hit) = hit else { return };
     let body = body_of.get(hit.entity).map_or(hit.entity, |c| c.body);
     if let Ok((prop, tf)) = props.get(body) {
+        let is_core = ents.as_deref().is_some_and(|e| e.list[prop.ent].class == "npc_personality_core");
+        if is_core && !cores.pickup.contains(&prop.ent) {
+            return;
+        }
+        if is_core {
+            commands.entity(body).insert(RigidBody::Dynamic);
+        }
         let mut cols: Vec<Entity> = children.iter_descendants(body).filter(|c| colliders.contains(*c)).collect();
         if colliders.contains(body) {
             cols.push(body);
@@ -426,6 +446,74 @@ pub fn hook_prop_colliders(mut commands: Commands, props: Query<Entity, Added<Pr
             if colliders.contains(c) {
                 commands.entity(c).insert(ActiveCollisionHooks::FILTER_PAIRS);
             }
+        }
+    }
+}
+
+/// The entity table follows the physics: where a prop is now (scripts'
+/// GetOrigin, parenting a carried core onto a socket, lasers).
+fn sync_prop_transforms(ents: Option<ResMut<Ents>>, props: Query<(&Prop, &Transform), Changed<Transform>>) {
+    let Some(mut ents) = ents else { return };
+    for (p, tf) in &props {
+        if let Some(e) = ents.list.get_mut(p.ent) {
+            e.transform.translation = tf.translation;
+            e.transform.rotation = tf.rotation;
+        }
+    }
+}
+
+/// Personality cores the map has made pickable, and whether the player may
+/// drop what they hold (`logic_playerproxy` SetDropEnabled).
+#[derive(Resource, Default)]
+pub struct CoreState {
+    pub pickup: std::collections::HashSet<usize>,
+    pub drop_disabled: bool,
+}
+
+fn core_inputs(
+    mut commands: Commands,
+    mut inputs: MessageReader<EntInput>,
+    ents: Option<Res<Ents>>,
+    mut cores: ResMut<CoreState>,
+    props: Query<(Entity, &Prop)>,
+    mut loaded: MessageReader<LevelLoaded>,
+    mut players: Query<&mut IgnoreColliders, With<Player>>,
+    held: Query<&HeldColliders>,
+) {
+    if loaded.read().count() > 0 {
+        *cores = CoreState::default();
+    }
+    let Some(ents) = ents else {
+        inputs.clear();
+        return;
+    };
+    for msg in inputs.read() {
+        let i = msg.target;
+        match (ents.list[i].class.as_str(), msg.input.as_str()) {
+            ("npc_personality_core", "enablepickup") => {
+                cores.pickup.insert(i);
+            }
+            ("npc_personality_core", "disablepickup") => {
+                cores.pickup.remove(&i);
+            }
+            ("npc_personality_core", "enablemotion" | "wake") => {
+                if let Some((e, _)) = props.iter().find(|(_, p)| p.ent == i) {
+                    commands.entity(e).insert(RigidBody::Dynamic);
+                }
+            }
+            // Locked into a socket or onto a rail: out of the player's hands.
+            ("npc_personality_core", "disablemotion") => {
+                if let Some((e, _)) = props.iter().find(|(_, p)| p.ent == i) {
+                    if let (Ok(hc), Ok(mut ignore)) = (held.get(e), players.single_mut()) {
+                        for c in &hc.0 {
+                            ignore.remove(c);
+                        }
+                    }
+                    commands.entity(e).remove::<(Held, HeldColliders)>().insert((RigidBody::Kinematic, LinearVelocity::ZERO, AngularVelocity::ZERO));
+                }
+            }
+            ("logic_playerproxy", "setdropenabled") => cores.drop_disabled = msg.param.trim() == "0",
+            _ => {}
         }
     }
 }

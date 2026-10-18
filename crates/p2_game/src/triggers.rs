@@ -116,12 +116,19 @@ fn touch_triggers(
         // spawnflags: 1 clients, 8 physics objects (cleansers catch everything).
         let wants_player = flags & 1 != 0 || class == "trigger_portal_cleanser" || class == "trigger_look" || flags == 0;
         let wants_props = flags & 8 != 0 || class == "trigger_portal_cleanser";
+        // spawnflags 2: NPCs (the personality cores, turrets).
+        let wants_npcs = flags & 2 != 0;
+        let filter = e.get("filtername").filter(|f| !f.is_empty()).map(str::to_string);
         let mut touchers: Vec<usize> = Vec::new();
         if wants_player && overlaps(lo, hi, p_lo, p_hi) {
             touchers.push(PLAYER);
         }
-        if wants_props {
+        if wants_props || wants_npcs {
             for (pe, prop, pos, _, _) in &props {
+                let is_npc = ents.list[prop.ent].class.starts_with("npc_");
+                if !(if is_npc { wants_npcs || wants_props } else { wants_props }) {
+                    continue;
+                }
                 if overlaps(lo, hi, pos.0 - prop.half, pos.0 + prop.half) {
                     touchers.push(prop.ent);
                     if class == "trigger_portal_cleanser" {
@@ -129,6 +136,10 @@ fn touch_triggers(
                     }
                 }
             }
+        }
+        // The trigger's filter (by name, class, model) decides who counts.
+        if let Some(f) = &filter {
+            touchers.retain(|t| ents.filter_passes(f, i, *t));
         }
         // While touching: hazards hurt, pushers push.
         for &t in &touchers {

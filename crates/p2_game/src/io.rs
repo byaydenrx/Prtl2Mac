@@ -224,6 +224,51 @@ impl Ents {
         }
     }
 
+    /// Does `who` pass the filter entity named `filter` (`filter_activator_name`,
+    /// `_class`, `_model`, `filter_multi`)? Unknown filters pass.
+    pub fn filter_passes(&self, filter: &str, caller: usize, who: usize) -> bool {
+        let Some(&f) = self.find(filter, caller, Some(who)).first() else { return true };
+        self.filter_index_passes(f, who, 0)
+    }
+
+    fn filter_index_passes(&self, f: usize, who: usize, depth: usize) -> bool {
+        if depth > 8 {
+            return true;
+        }
+        let e = &self.list[f];
+        let negated = e.get("negated").is_some_and(|v| v.trim() == "1");
+        let w = &self.list[who];
+        let pass = match e.class.as_str() {
+            "filter_activator_name" => {
+                let n = e.get("filtername").unwrap_or("").to_ascii_lowercase();
+                if who == PLAYER {
+                    n == "!player" || n == "player"
+                } else {
+                    match n.strip_suffix('*') {
+                        Some(p) => w.name.starts_with(p),
+                        None => w.name == n,
+                    }
+                }
+            }
+            "filter_activator_class" => e.get("filterclass").is_some_and(|c| c.eq_ignore_ascii_case(&w.class)),
+            "filter_activator_model" => e.get("model").is_some_and(|m| w.get("model").is_some_and(|wm| wm.eq_ignore_ascii_case(m))),
+            "filter_multi" => {
+                let subs: Vec<usize> = (1..=10)
+                    .filter_map(|n| e.get(&format!("filter{n:02}")))
+                    .filter_map(|name| self.find(name, f, Some(who)).first().copied())
+                    .collect();
+                // filtertype 0: all must pass; 1: any.
+                if e.get("filtertype").is_some_and(|v| v.trim() == "1") {
+                    subs.iter().any(|&s| self.filter_index_passes(s, who, depth + 1))
+                } else {
+                    subs.iter().all(|&s| self.filter_index_passes(s, who, depth + 1))
+                }
+            }
+            _ => return true,
+        };
+        pass != negated
+    }
+
     /// Fire every `event` output of `ent`.
     pub fn fire(&mut self, ent: usize, event: &str, activator: Option<usize>) {
         let now = self.now;
@@ -327,6 +372,16 @@ impl Ents {
             "addoutput" => {
                 self.add_output(i, param);
                 return true;
+            }
+            // Keep `parentname` current so a later SetParentAttachment finds it.
+            "setparent" => {
+                self.list[i].keyvalues.retain(|(k, _)| k != "parentname");
+                self.list[i].keyvalues.push(("parentname".into(), param.trim().into()));
+                return false;
+            }
+            "clearparent" => {
+                self.list[i].keyvalues.retain(|(k, _)| k != "parentname");
+                return false;
             }
             "cancelpending" => {
                 self.queue.retain(|p| p.caller != i);
