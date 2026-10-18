@@ -10,9 +10,14 @@ use p2_core::*;
 use crate::audio::{GameSound, PlayGameSound};
 use crate::campaign::Campaign;
 use crate::level::{CurrentMap, LevelLoaded, LoadLevel};
-use crate::settings::{data_dir, Settings};
+use crate::settings::{data_dir, frame_limit_rank, resolution_choices, step_in, Settings, SubtitleColor, ANISOTROPY, FOV_RANGE, FRAME_LIMITS, SUBTITLE_SIZES};
 
 pub struct UiPlugin;
+
+/// Scripted tests press a menu button by its action (`Options`,
+/// `Toggle(VSync)`, `Adjust(Fov,5.0)`, spaces ignored), or `pause`.
+#[derive(Message, Clone, Debug)]
+pub struct MenuClick(pub String);
 
 /// Show the current chapter's title card (the map's `DisplayChapterTitle()`).
 #[derive(Message, Clone, Copy, Debug)]
@@ -21,12 +26,14 @@ pub struct ShowChapterTitle;
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Screen::Main)
+            .init_resource::<OptionsPage>()
             .init_resource::<TitleCard>()
             .add_message::<ShowChapterTitle>()
+            .add_message::<MenuClick>()
             .add_systems(Startup, (load_fonts, open_main_menu).chain().after(crate::campaign::load_campaign))
             .add_systems(
                 Update,
-                (escape_key, buttons, rebuild_menu, menu_view, menu_camera, pause_world, menu_music, autosave, title_card).chain().in_set(crate::level::GameSet::Logic),
+                (escape_key, scripted_clicks, buttons, rebuild_menu, menu_view, menu_camera, pause_world, menu_music, autosave, title_card).chain().in_set(crate::level::GameSet::Logic),
             );
     }
 }
@@ -39,6 +46,15 @@ pub enum Screen {
     Chapters,
     Options { from_pause: bool },
     Pause,
+}
+
+/// Which part of Options is up: the main list, or the Subtitles section
+/// clicked into from it.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum OptionsPage {
+    #[default]
+    Main,
+    Subtitles,
 }
 
 #[derive(Resource, Clone)]
@@ -67,6 +83,7 @@ enum Action {
     Chapters,
     Chapter(usize),
     Options,
+    SubtitleOptions,
     Back,
     Quit,
     Resume,
@@ -86,7 +103,24 @@ enum Setting {
     Invert,
     Smoothing,
     Fullscreen,
+    Resolution,
+    VSync,
+    FrameLimit,
+    AntiAliasing,
+    Anisotropy,
+    Graphics,
     Subtitles,
+    SubtitleSize,
+    SubtitleColor,
+    SubtitleBackground,
+}
+
+/// The control at the right of an options row.
+enum Ctl {
+    /// `<` value `>`; the step is the change per click (its sign for list settings).
+    Step(Setting, f32),
+    /// The value is the button.
+    Press(Action),
 }
 
 const WHITE: Color = Color::srgb(0.92, 0.94, 0.95);
@@ -118,8 +152,24 @@ fn open_main_menu(campaign: Res<Campaign>, mut load: MessageWriter<LoadLevel>, a
     };
 }
 
+/// Written as the autosave's `version` line. 1 is the old file: just the map name.
+const SAVE_VERSION: u32 = 2;
+
 fn read_save() -> Option<String> {
-    std::fs::read_to_string(data_dir().join("save.txt")).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+    std::fs::read_to_string(data_dir().join("save.txt")).ok().and_then(|s| parse_save(&s))
+}
+
+/// The map in an autosave: `key value` lines (`map` is the one we use,
+/// unknown keys are skipped), or an old file holding only the map name.
+fn parse_save(text: &str) -> Option<String> {
+    let lines = || text.lines().map(str::trim).filter(|l| !l.is_empty());
+    let map = lines().find_map(|l| l.split_once(char::is_whitespace).filter(|(k, _)| *k == "map").map(|(_, v)| v.trim().to_string()));
+    let old = || lines().next().filter(|l| !l.contains(char::is_whitespace)).map(str::to_string);
+    map.or_else(old).filter(|m| !m.is_empty())
+}
+
+fn save_text(map: &str) -> String {
+    format!("version {SAVE_VERSION}\nmap {map}\n")
 }
 
 fn text(font: &Handle<Font>, size: f32, s: impl Into<String>, color: Color) -> impl Bundle {
@@ -136,9 +186,37 @@ fn button(fonts: &UiFonts, label: impl Into<String>, action: Action, size: f32) 
     )
 }
 
+/// One options row: label, then its control.
+fn option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, label: &str, value: String, ctl: Ctl) {
+    p.spawn(Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(14.0), ..default() })
+        .with_children(|r| {
+            r.spawn((Node { width: Val::Px(280.0), ..default() }, children![text(&fonts.regular, 20.0, label, DIM)]));
+            match ctl {
+                Ctl::Step(setting, s) => {
+                    r.spawn(button(fonts, "<", Action::Adjust(setting, -s), 22.0));
+                    r.spawn((Node { width: Val::Px(130.0), justify_content: JustifyContent::Center, ..default() }, children![text(&fonts.bold, 20.0, value, WHITE)]));
+                    r.spawn(button(fonts, ">", Action::Adjust(setting, s), 22.0));
+                }
+                Ctl::Press(action) => {
+                    r.spawn(button(fonts, value, action, 20.0));
+                }
+            }
+        });
+}
+
+fn heading(p: &mut ChildSpawnerCommands, fonts: &UiFonts, label: &str) {
+    p.spawn((Node { margin: UiRect::top(Val::Px(10.0)), ..default() }, children![text(&fonts.bold, 16.0, label, WHITE)]));
+}
+
+fn on_off(on: bool) -> String {
+    if on { "ON".into() } else { "OFF".into() }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn rebuild_menu(
     mut commands: Commands,
     screen: Res<Screen>,
+    page: Res<OptionsPage>,
     fonts: Option<Res<UiFonts>>,
     campaign: Res<Campaign>,
     settings: Res<Settings>,
@@ -149,7 +227,8 @@ fn rebuild_menu(
     mut backgrounds: Local<std::collections::HashMap<usize, Option<Handle<Image>>>>,
 ) {
     let Some(fonts) = fonts else { return };
-    if !screen.is_changed() && !(settings.is_changed() && matches!(*screen, Screen::Options { .. })) && !fonts.is_added() {
+    let options_changed = (settings.is_changed() || page.is_changed()) && matches!(*screen, Screen::Options { .. });
+    if !screen.is_changed() && !options_changed && !fonts.is_added() {
         return;
     }
     for r in &roots {
@@ -252,40 +331,65 @@ fn rebuild_menu(
                 p.spawn(button(&fonts, "BACK", Action::Back, 22.0));
             });
         }
+        Screen::Options { .. } if *page == OptionsPage::Subtitles => {
+            let size = SUBTITLE_SIZES.iter().find(|z| z.0 == settings.subtitle_size).map_or(format!("{:.0}", settings.subtitle_size), |z| z.1.to_string());
+            let color = format!("{:?}", settings.subtitle_color).to_uppercase();
+            let mut root = commands.spawn((MenuRoot, full, BackgroundColor(PANEL), GlobalZIndex(10)));
+            root.with_children(|p| {
+                p.spawn(text(&fonts.bold, 40.0, "SUBTITLES", WHITE));
+                p.spawn(Node { height: Val::Px(16.0), ..default() });
+                option_row(p, &fonts, "SUBTITLES", on_off(settings.subtitles), Ctl::Press(Action::Toggle(Setting::Subtitles)));
+                option_row(p, &fonts, "TEXT SIZE", size, Ctl::Step(Setting::SubtitleSize, 1.0));
+                option_row(p, &fonts, "TEXT COLOUR", color, Ctl::Step(Setting::SubtitleColor, 1.0));
+                option_row(p, &fonts, "BACKGROUND", format!("{:.0}%", settings.subtitle_background * 100.0), Ctl::Step(Setting::SubtitleBackground, 0.1));
+                // A sample caption in the chosen style.
+                p.spawn((
+                    Node { margin: UiRect::vertical(Val::Px(18.0)), padding: UiRect::axes(Val::Px(16.0), Val::Px(10.0)), align_self: AlignSelf::FlexStart, ..default() },
+                    BackgroundColor(Color::srgba(0.0, 0.0, 0.0, settings.subtitle_background)),
+                    children![text(&fonts.regular, settings.subtitle_size, "Subtitles will look like this.", settings.subtitle_color.color().unwrap_or(WHITE))],
+                ));
+                p.spawn(button(&fonts, "BACK", Action::Back, 22.0));
+            });
+        }
         Screen::Options { .. } => {
-            let row = |label: &str, value: String, setting: Setting, step: Option<f32>| (label.to_string(), value, setting, step);
             let pct = |v: f32| format!("{:.0}%", v * 100.0);
-            let rows = [
-                row("MASTER VOLUME", pct(settings.master_volume), Setting::Master, Some(0.1)),
-                row("MUSIC VOLUME", pct(settings.music_volume), Setting::Music, Some(0.1)),
-                row("EFFECTS VOLUME", pct(settings.effects_volume), Setting::Effects, Some(0.1)),
-                row("MOUSE SENSITIVITY", format!("{:.1}", settings.mouse_sensitivity), Setting::Sensitivity, Some(0.5)),
-                row("FIELD OF VIEW", format!("{:.0}", settings.fov), Setting::Fov, Some(5.0)),
-                row("INVERT MOUSE", if settings.invert_mouse { "ON".into() } else { "OFF".into() }, Setting::Invert, None),
-                row("MOUSE SMOOTHING", if settings.mouse_filter { "ON".into() } else { "OFF".into() }, Setting::Smoothing, None),
-                row("FULLSCREEN", if settings.fullscreen { "ON".into() } else { "OFF".into() }, Setting::Fullscreen, None),
-                row("SUBTITLES", if settings.subtitles { "ON".into() } else { "OFF".into() }, Setting::Subtitles, None),
-            ];
+            let resolution = match settings.resolution {
+                Some(r) => format!("{} x {}", r.x, r.y),
+                // In a window, native is the size the game opened at.
+                None if settings.fullscreen => "NATIVE".into(),
+                None => "DEFAULT".into(),
+            };
+            let frame_limit = if settings.frame_limit == 0 { "UNLIMITED".into() } else { settings.frame_limit.to_string() };
+            let aniso = if settings.anisotropy <= 1 { "OFF".into() } else { format!("{}X", settings.anisotropy) };
+            let column = Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(6.0), ..default() };
             let mut root = commands.spawn((MenuRoot, full, BackgroundColor(PANEL), GlobalZIndex(10)));
             root.with_children(|p| {
                 p.spawn(text(&fonts.bold, 40.0, "OPTIONS", WHITE));
-                p.spawn(Node { height: Val::Px(16.0), ..default() });
-                for (label, value, setting, step) in rows {
-                    p.spawn(Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(14.0), ..default() })
-                        .with_children(|r| {
-                            r.spawn((Node { width: Val::Px(300.0), ..default() }, children![text(&fonts.regular, 20.0, label, DIM)]));
-                            match step {
-                                Some(s) => {
-                                    r.spawn(button(&fonts, "<", Action::Adjust(setting, -s), 22.0));
-                                    r.spawn((Node { width: Val::Px(90.0), justify_content: JustifyContent::Center, ..default() }, children![text(&fonts.bold, 20.0, value, WHITE)]));
-                                    r.spawn(button(&fonts, ">", Action::Adjust(setting, s), 22.0));
-                                }
-                                None => {
-                                    r.spawn(button(&fonts, value, Action::Toggle(setting), 20.0));
-                                }
-                            }
-                        });
-                }
+                p.spawn(Node { height: Val::Px(6.0), ..default() });
+                p.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(48.0), ..default() }).with_children(|cols| {
+                    cols.spawn(column.clone()).with_children(|c| {
+                        heading(c, &fonts, "AUDIO");
+                        option_row(c, &fonts, "MASTER VOLUME", pct(settings.master_volume), Ctl::Step(Setting::Master, 0.1));
+                        option_row(c, &fonts, "MUSIC VOLUME", pct(settings.music_volume), Ctl::Step(Setting::Music, 0.1));
+                        option_row(c, &fonts, "EFFECTS VOLUME", pct(settings.effects_volume), Ctl::Step(Setting::Effects, 0.1));
+                        option_row(c, &fonts, "SUBTITLES", format!("{}  >", on_off(settings.subtitles)), Ctl::Press(Action::SubtitleOptions));
+                        heading(c, &fonts, "MOUSE");
+                        option_row(c, &fonts, "MOUSE SENSITIVITY", format!("{:.1}", settings.mouse_sensitivity), Ctl::Step(Setting::Sensitivity, 0.5));
+                        option_row(c, &fonts, "INVERT MOUSE", on_off(settings.invert_mouse), Ctl::Press(Action::Toggle(Setting::Invert)));
+                        option_row(c, &fonts, "MOUSE SMOOTHING", on_off(settings.mouse_filter), Ctl::Press(Action::Toggle(Setting::Smoothing)));
+                    });
+                    cols.spawn(column).with_children(|c| {
+                        heading(c, &fonts, "VIDEO");
+                        option_row(c, &fonts, "FIELD OF VIEW", format!("{:.0}", settings.fov), Ctl::Step(Setting::Fov, 5.0));
+                        option_row(c, &fonts, "FULLSCREEN", on_off(settings.fullscreen), Ctl::Press(Action::Toggle(Setting::Fullscreen)));
+                        option_row(c, &fonts, "RESOLUTION", resolution, Ctl::Step(Setting::Resolution, 1.0));
+                        option_row(c, &fonts, "VERTICAL SYNC", on_off(settings.vsync), Ctl::Press(Action::Toggle(Setting::VSync)));
+                        option_row(c, &fonts, "MAX FRAME RATE", frame_limit, Ctl::Step(Setting::FrameLimit, 1.0));
+                        option_row(c, &fonts, "ANTI-ALIASING", if settings.msaa { "MSAA 4X".into() } else { "OFF".into() }, Ctl::Press(Action::Toggle(Setting::AntiAliasing)));
+                        option_row(c, &fonts, "TEXTURE FILTERING", aniso, Ctl::Step(Setting::Anisotropy, 1.0));
+                        option_row(c, &fonts, "GRAPHICS", if settings.enhanced_graphics { "ENHANCED".into() } else { "ORIGINAL".into() }, Ctl::Press(Action::Toggle(Setting::Graphics)));
+                    });
+                });
                 p.spawn(Node { height: Val::Px(16.0), ..default() });
                 p.spawn(button(&fonts, "BACK", Action::Back, 22.0));
             });
@@ -306,13 +410,17 @@ fn rebuild_menu(
 }
 
 /// Esc pauses and resumes, and backs out of sub-menus.
-fn escape_key(keys: Res<ButtonInput<KeyCode>>, mut screen: ResMut<Screen>, map: Option<Res<CurrentMap>>, settings: Res<Settings>) {
+fn escape_key(keys: Res<ButtonInput<KeyCode>>, mut screen: ResMut<Screen>, mut page: ResMut<OptionsPage>, map: Option<Res<CurrentMap>>, settings: Res<Settings>) {
     if !keys.just_pressed(KeyCode::Escape) {
         return;
     }
     // Leaving Options any way keeps what was changed.
     if matches!(*screen, Screen::Options { .. }) {
         settings.save();
+        if *page == OptionsPage::Subtitles {
+            *page = OptionsPage::Main;
+            return;
+        }
     }
     let in_game = map.as_ref().is_some_and(|m| !m.menu);
     *screen = match *screen {
@@ -324,11 +432,26 @@ fn escape_key(keys: Res<ButtonInput<KeyCode>>, mut screen: ResMut<Screen>, map: 
     };
 }
 
+fn scripted_clicks(mut clicks: MessageReader<MenuClick>, mut screen: ResMut<Screen>, mut q: Query<(&mut Interaction, &Action)>) {
+    for c in clicks.read() {
+        let want = c.0.replace(' ', "").to_ascii_lowercase();
+        if want == "pause" {
+            *screen = Screen::Pause;
+            continue;
+        }
+        match q.iter_mut().find(|(_, a)| format!("{a:?}").replace(' ', "").to_ascii_lowercase() == want) {
+            Some((mut i, _)) => *i = Interaction::Pressed,
+            None => warn!("portal2: no menu button {:?}; have {:?}", c.0, q.iter().map(|(_, a)| format!("{a:?}")).collect::<Vec<_>>()),
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn buttons(
     mut q: Query<(&Interaction, &Action, &Children), Changed<Interaction>>,
     mut texts: Query<&mut TextColor>,
     mut screen: ResMut<Screen>,
+    mut page: ResMut<OptionsPage>,
     mut settings: ResMut<Settings>,
     campaign: Res<Campaign>,
     map: Option<Res<CurrentMap>>,
@@ -371,7 +494,15 @@ fn buttons(
                     *screen = Screen::None;
                 }
             }
-            Action::Options => *screen = Screen::Options { from_pause: *screen == Screen::Pause },
+            Action::Options => {
+                *page = OptionsPage::Main;
+                *screen = Screen::Options { from_pause: *screen == Screen::Pause };
+            }
+            Action::SubtitleOptions => *page = OptionsPage::Subtitles,
+            Action::Back if *page == OptionsPage::Subtitles && matches!(*screen, Screen::Options { .. }) => {
+                *page = OptionsPage::Main;
+                settings.save();
+            }
             Action::Back => {
                 *screen = match *screen {
                     Screen::Options { from_pause: true } => Screen::Pause,
@@ -394,6 +525,18 @@ fn buttons(
                 load.write(LoadLevel { map: menu_background(&campaign), menu: true });
                 *screen = Screen::Main;
             }
+            // Settings picked from a list step through it.
+            Action::Adjust(Setting::Resolution, d) => {
+                settings.resolution = step_in(&resolution_choices(), settings.resolution, d.signum() as i32, |r| r.map_or(f32::MAX, |r| (r.x * r.y) as f32))
+            }
+            Action::Adjust(Setting::FrameLimit, d) => settings.frame_limit = step_in(&FRAME_LIMITS, settings.frame_limit, d.signum() as i32, frame_limit_rank),
+            Action::Adjust(Setting::Anisotropy, d) => settings.anisotropy = step_in(&ANISOTROPY, settings.anisotropy, d.signum() as i32, |a| a as f32),
+            Action::Adjust(Setting::SubtitleSize, d) => {
+                settings.subtitle_size = step_in(&SUBTITLE_SIZES.map(|z| z.0), settings.subtitle_size, d.signum() as i32, |z| z)
+            }
+            Action::Adjust(Setting::SubtitleColor, d) => {
+                settings.subtitle_color = step_in(&SubtitleColor::ALL, settings.subtitle_color, d.signum() as i32, |c| c as u8 as f32)
+            }
             Action::Adjust(s, d) => {
                 let v = match s {
                     Setting::Master => &mut settings.master_volume,
@@ -401,12 +544,13 @@ fn buttons(
                     Setting::Effects => &mut settings.effects_volume,
                     Setting::Sensitivity => &mut settings.mouse_sensitivity,
                     Setting::Fov => &mut settings.fov,
+                    Setting::SubtitleBackground => &mut settings.subtitle_background,
                     _ => continue,
                 };
                 *v += d;
                 match s {
                     Setting::Sensitivity => *v = v.clamp(0.5, 20.0),
-                    Setting::Fov => *v = v.clamp(75.0, 90.0),
+                    Setting::Fov => *v = v.clamp(FOV_RANGE.0, FOV_RANGE.1),
                     _ => *v = (v.clamp(0.0, 1.0) * 10.0).round() / 10.0,
                 }
             }
@@ -414,6 +558,9 @@ fn buttons(
                 Setting::Invert => settings.invert_mouse = !settings.invert_mouse,
                 Setting::Smoothing => settings.mouse_filter = !settings.mouse_filter,
                 Setting::Fullscreen => settings.fullscreen = !settings.fullscreen,
+                Setting::VSync => settings.vsync = !settings.vsync,
+                Setting::AntiAliasing => settings.msaa = !settings.msaa,
+                Setting::Graphics => settings.enhanced_graphics = !settings.enhanced_graphics,
                 Setting::Subtitles => settings.subtitles = !settings.subtitles,
                 _ => {}
             },
@@ -554,13 +701,11 @@ fn menu_music(mut loaded: MessageReader<LevelLoaded>, mut play: MessageWriter<Pl
     play.write(PlayGameSound { looped: true, ..PlayGameSound::music(track.trim_start_matches("sound/")) });
 }
 
-/// Every level start is saved for "Continue" (not in scripted test runs,
-/// which would overwrite the player's progress).
+/// Every level start is saved for "Continue" (see `may_write_data`).
 fn autosave(mut loaded: MessageReader<LevelLoaded>) {
-    let scripted = std::env::var_os("P2_SCRIPT").is_some();
     for ev in loaded.read() {
-        if !ev.menu && !scripted {
-            let _ = std::fs::write(data_dir().join("save.txt"), &ev.map);
+        if !ev.menu && crate::settings::may_write_data() {
+            let _ = std::fs::write(data_dir().join("save.txt"), save_text(&ev.map));
         }
     }
 }
@@ -644,5 +789,25 @@ fn title_card(
             commands.entity(r).despawn();
             card.lines = None;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn autosave_round_trip() {
+        assert_eq!(parse_save(&save_text("sp_a2_laser_intro")).as_deref(), Some("sp_a2_laser_intro"));
+    }
+
+    #[test]
+    fn autosave_reads_old_and_newer_files() {
+        // Before `version`: just the map name.
+        assert_eq!(parse_save("sp_a1_intro3\n").as_deref(), Some("sp_a1_intro3"));
+        // A newer file with keys this build doesn't know.
+        assert_eq!(parse_save("version 7\nchecksum abc\nmap sp_a4_finale1\nslot 2\n").as_deref(), Some("sp_a4_finale1"));
+        assert_eq!(parse_save(""), None);
+        assert_eq!(parse_save("version 2\n"), None);
     }
 }

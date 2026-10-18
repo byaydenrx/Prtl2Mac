@@ -37,11 +37,28 @@ impl Default for ValveExposure {
     }
 }
 
+/// Picture-quality options from the game's settings.
+#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ValveQuality {
+    /// Anisotropic filtering on the world's linear samplers, 1 (off) to 16.
+    pub anisotropy: u16,
+    /// The player's Original / Enhanced graphics preset. Nothing reads it yet.
+    /// TODO(renderer): with it on, slightly better shadows, AO, texture
+    /// filtering and reflections; off must stay the original look.
+    pub enhanced: bool,
+}
+
+impl Default for ValveQuality {
+    fn default() -> Self {
+        ValveQuality { anisotropy: 16, enhanced: false }
+    }
+}
+
 pub struct ValveRenderPlugin;
 
 impl Plugin for ValveRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ValveExposure>();
+        app.init_resource::<ValveExposure>().init_resource::<ValveQuality>();
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else { return };
         render_app
             .init_resource::<ExtractedSurfaces>()
@@ -62,12 +79,14 @@ impl Plugin for ValveRenderPlugin {
 struct ExtractedSurfaces {
     draws: Vec<(Arc<SurfaceDraw>, Mat4)>,
     exposure: f32,
+    quality: ValveQuality,
 }
 
 fn extract_surfaces(
     mut out: ResMut<ExtractedSurfaces>,
     q: Extract<Query<(&ValveSurface, &GlobalTransform, &InheritedVisibility)>>,
     exposure: Extract<Option<Res<ValveExposure>>>,
+    quality: Extract<Option<Res<ValveQuality>>>,
 ) {
     out.draws.clear();
     for (s, t, v) in &q {
@@ -76,6 +95,7 @@ fn extract_surfaces(
         }
     }
     out.exposure = exposure.as_ref().map(|e| e.0).unwrap_or(crate::plugin::DEFAULT_LIGHT_SCALE);
+    out.quality = quality.as_deref().copied().unwrap_or_default();
 }
 
 const MAX_2D: u32 = 2048;
@@ -122,6 +142,8 @@ struct PreparedSurfaces {
     texture_bind: Option<BindGroup>,
     texture_set: Vec<AssetId<Image>>,
     samplers: Vec<Sampler>,
+    /// What `samplers` were made with.
+    anisotropy: u16,
     fallback_2d: Option<(Texture, TextureView)>,
     fallback_cube: Option<(Texture, TextureView)>,
     views: HashMap<Entity, ViewDraws>,
@@ -334,6 +356,16 @@ fn prepare_surfaces(
         let (c, t) = layouts();
         prepared.constants_layout = Some(c);
         prepared.textures_layout = Some(t);
+        let (a, b) = make_fallbacks(&device, &queue);
+        prepared.fallback_2d = Some(a);
+        prepared.fallback_cube = Some(b);
+    }
+    // The sampler table, remade (with the texture bind group) when the
+    // anisotropic filtering setting changes.
+    let anisotropy = extracted.quality.anisotropy.clamp(1, 16);
+    if prepared.samplers.is_empty() || prepared.anisotropy != anisotropy {
+        prepared.anisotropy = anisotropy;
+        prepared.texture_bind = None;
         prepared.samplers = (0..SAMPLERS as u16)
             .map(|i| {
                 let k = SamplerKey::from_index(i);
@@ -347,14 +379,11 @@ fn prepare_surfaces(
                     mag_filter: filter,
                     min_filter: filter,
                     mipmap_filter: if k.point { MipmapFilterMode::Nearest } else { MipmapFilterMode::Linear },
-                    anisotropy_clamp: if k.point { 1 } else { 16 },
+                    anisotropy_clamp: if k.point { 1 } else { anisotropy },
                     ..default()
                 })
             })
             .collect();
-        let (a, b) = make_fallbacks(&device, &queue);
-        prepared.fallback_2d = Some(a);
-        prepared.fallback_cube = Some(b);
     }
     let constants_layout = prepared.constants_layout.clone().unwrap();
     let textures_layout = prepared.textures_layout.clone().unwrap();

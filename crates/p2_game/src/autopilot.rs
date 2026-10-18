@@ -61,7 +61,7 @@ fn drive(
     mut loaded: MessageReader<LevelLoaded>,
     mut players: Query<(Entity, &mut Transform, &mut InterpolatedFeet, &mut ViewAngles, &mut MoveInput, &mut CharacterVelocity, &PortalGun), With<Player>>,
     mut fire: MessageWriter<FirePortal>,
-    mut exit: MessageWriter<AppExit>,
+    (mut exit, mut click, real): (MessageWriter<AppExit>, MessageWriter<crate::ui::MenuClick>, Res<Time<Real>>),
     mut ents: Option<ResMut<crate::io::Ents>>,
     spatial: avian3d::prelude::SpatialQuery,
     props: Query<(&crate::props::Prop, &Transform), Without<Player>>,
@@ -72,11 +72,12 @@ fn drive(
     mut settings: ResMut<crate::settings::Settings>,
     names: Query<(Option<&Name>, Option<&ChildOf>)>,
 ) {
+    // The script clock is real time: menus pause the world's clock.
     if loaded.read().any(|e| !e.menu) {
-        pilot.start = Some(time.elapsed_secs());
+        pilot.start = Some(real.elapsed_secs());
     }
     let Some(start) = pilot.start else { return };
-    let t = time.elapsed_secs() - start;
+    let t = real.elapsed_secs() - start;
     let Ok((player, mut tf, mut feet, mut view, mut input, mut vel, gun)) = players.single_mut() else { return };
     let f = |a: &[String], i: usize| a.get(i).and_then(|v| v.parse::<f32>().ok()).unwrap_or(0.0);
     let now = time.elapsed_secs();
@@ -205,6 +206,9 @@ fn drive(
                 (Some("volume"), Some(v)) => settings.master_volume = v,
                 _ => warn!("autopilot: set what?"),
             },
+            "click" => {
+                click.write(crate::ui::MenuClick(a.join("")));
+            }
             "quit" => {
                 exit.write(AppExit::Success);
             }

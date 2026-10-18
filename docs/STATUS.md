@@ -90,3 +90,43 @@ Owner's feature wishlist: docs/ROADMAP.md.
    npc_portal_turret_floor (16), info_paint_sprayer gels (12),
    npc_personality_core / npc_wheatley_boss (finale), func_rotating,
    logic_playerproxy, env_global, trigger_look (currently fires on touch).
+
+## cloud/settings branch (untested in game)
+
+Settings from docs/ROADMAP.md, all inside the existing Options screen (no new
+main/pause menu buttons). Options is now two columns: AUDIO (volumes, a
+SUBTITLES row that opens its own page) + MOUSE, and VIDEO. Defaults equal the
+old behaviour (FOV 75, v-sync on, unlimited frame rate, MSAA 4x, 16x
+anisotropic, native/launch resolution, Original graphics, captions 20px in
+their own colours on a 60% box). Only `cargo check` / `cargo test` were run:
+no game assets or Mac GPU in the cloud. Verify in the real game:
+
+- [ ] Options fits at 1280x720 and fullscreen; every `<`/`>` and toggle
+      changes its value; Esc/BACK from the Subtitles page returns to Options
+      (from the pause menu too, with audio still paused).
+- [ ] FOV goes 75..110 in steps of 5 and the view widens; viewmodel unchanged.
+- [ ] VERTICAL SYNC off uncaps the frame rate live (AutoNoVsync); on is
+      Fifo. No tearing/stutter regressions with it on.
+- [ ] MAX FRAME RATE 30/60/120/144/165/240/UNLIMITED: frame times are even
+      (sleep + spin limiter in `settings.rs`, `Last` schedule); with v-sync
+      on, a limit above the display rate changes nothing; CPU use reasonable.
+- [ ] RESOLUTION: windowed sizes the window (in points, `resolution.set`);
+      DEFAULT goes back to the launch size; the player's own resizing is
+      kept. Fullscreen with a size uses the monitor's exclusive video mode
+      of that size (macOS exclusive fullscreen is the part most likely to
+      misbehave); NATIVE/no matching mode is borderless as before.
+- [ ] ANTI-ALIASING OFF/MSAA 4X switches live on the main and viewmodel
+      cameras; world (valve_render pipelines are keyed by sample count),
+      portals, viewmodel and UI still draw.
+- [ ] TEXTURE FILTERING OFF/4X/8X/16X changes world surfaces live
+      (`source_assets::valve_render::ValveQuality` rebuilds the sampler
+      table). Model textures (`vtf.rs`) still always use 16x: TODO there.
+- [ ] GRAPHICS ORIGINAL/ENHANCED only stores the choice and sets
+      `ValveQuality::enhanced`; nothing renders differently yet.
+- [ ] SUBTITLES page: on/off, text size, colour (ORIGINAL keeps the game's
+      per-speaker colours), background opacity; the sample line and live
+      captions follow them.
+- [ ] settings.cfg now starts with `version 2`; an old file loads with its
+      values; unknown lines are kept. save.txt is now `version 2` + `map X`
+      (an old map-name-only file still works for Continue; a build from
+      before this branch cannot read the new save.txt).

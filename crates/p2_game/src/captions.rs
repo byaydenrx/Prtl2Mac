@@ -1,6 +1,7 @@
 //! Subtitles: the game's own caption text (`resource/closecaption_english.txt`
 //! and `subtitles_english.txt`, keyed by soundscript name) shown at the
-//! bottom of the screen while a voice line plays.
+//! bottom of the screen while a voice line plays, in the size, colour and
+//! background the player picked under Options > Subtitles.
 use std::collections::HashMap;
 
 use bevy::prelude::*;
@@ -188,8 +189,14 @@ fn queue_captions(
 #[derive(Component)]
 struct CaptionRoot;
 
-fn draw_captions(mut commands: Commands, lines: Res<CaptionLines>, fonts: Option<Res<UiFonts>>, roots: Query<Entity, With<CaptionRoot>>) {
-    if !lines.is_changed() {
+fn draw_captions(
+    mut commands: Commands,
+    lines: Res<CaptionLines>,
+    settings: Res<Settings>,
+    fonts: Option<Res<UiFonts>>,
+    roots: Query<Entity, With<CaptionRoot>>,
+) {
+    if !lines.is_changed() && !settings.is_changed() {
         return;
     }
     let Some(fonts) = fonts else { return };
@@ -221,14 +228,14 @@ fn draw_captions(mut commands: Commands, lines: Res<CaptionLines>, fonts: Option
                     row_gap: Val::Px(4.0),
                     ..default()
                 },
-                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
+                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, settings.subtitle_background)),
             ))
             .with_children(|b| {
                 for (t, c, _) in &lines.0 {
                     b.spawn((
                         Text::new(t.clone()),
-                        TextFont { font: fonts.regular.clone().into(), font_size: bevy::text::FontSize::Px(20.0), ..default() },
-                        TextColor(*c),
+                        TextFont { font: fonts.regular.clone().into(), font_size: bevy::text::FontSize::Px(settings.subtitle_size), ..default() },
+                        TextColor(settings.subtitle_color.color().unwrap_or(*c)),
                         TextLayout::justify(Justify::Center),
                     ));
                 }
