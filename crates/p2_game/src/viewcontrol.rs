@@ -100,7 +100,17 @@ impl PropAnims {
         if t.translation.distance(ents.list[ent].transform.translation) > 20.0 {
             return None;
         }
-        Some((t.translation, t.rotation * Vec3::NEG_X, t.rotation * Vec3::NEG_Z))
+        // A camera on an attachment looks along the attachment's +X with +Z
+        // up (Source's matrix-to-angles convention); in world axes that is
+        // +X and +Y. P2_CAMAXIS="fx,fy,fz,ux,uy,uz" overrides for testing.
+        let (f, u) = std::env::var("P2_CAMAXIS")
+            .ok()
+            .and_then(|v| {
+                let n: Vec<f32> = v.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+                (n.len() == 6).then(|| (Vec3::new(n[0], n[1], n[2]), Vec3::new(n[3], n[4], n[5])))
+            })
+            .unwrap_or((Vec3::X, Vec3::Y));
+        Some((t.translation, t.rotation * f, t.rotation * u))
     }
 }
 
@@ -256,9 +266,9 @@ fn viewcontrol_inputs(
 /// its own place, facing its target when it has one.
 fn camera_pose(anims: &mut PropAnims, game: &GameFsRes, ents: &Ents, i: usize) -> Option<(Vec3, Vec3, Vec3)> {
     if let Some((parent, att)) = anims.attached.get(&i).cloned() {
-        // Cameras riding animated rigs (the intro's wake-up) aren't matched
-        // to the game yet; P2_CINEMATIC=1 turns them on for testing.
-        if std::env::var_os("P2_CINEMATIC").is_none() {
+        // Cameras riding animated rigs (the intro's wake-up). P2_NOCINEMATIC=1
+        // skips them.
+        if std::env::var_os("P2_NOCINEMATIC").is_some() {
             return None;
         }
         return anims.attachment_world(game, ents, parent, &att);
