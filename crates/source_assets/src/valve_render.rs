@@ -323,7 +323,7 @@ fn prepare_surfaces(
     queue: Res<RenderQueue>,
     pipeline_cache: Res<PipelineCache>,
     images: Res<RenderAssets<GpuImage>>,
-    views: Query<(Entity, &ExtractedView, &ViewTarget, &Msaa)>,
+    views: Query<(Entity, &ExtractedView, &ViewTarget, &Msaa, Option<&bevy::camera::visibility::RenderLayers>)>,
 ) {
     let prepared = &mut *prepared;
     prepared.views.clear();
@@ -428,7 +428,12 @@ fn prepare_surfaces(
     let s2w = crate::valve::source_to_world_matrix();
     let w2s = s2w.inverse();
     let mut arena: Vec<[f32; 4]> = Vec::new();
-    for (view_entity, view, target, msaa) in &views {
+    for (view_entity, view, target, msaa, layers) in &views {
+        // Map surfaces are on layer 0: cameras that don't draw it (a
+        // first-person viewmodel camera) don't draw the map either.
+        if layers.is_some_and(|l| !l.intersects(&bevy::camera::visibility::RenderLayers::layer(0))) {
+            continue;
+        }
         let clip_from_world = view
             .clip_from_world
             .unwrap_or_else(|| view.clip_from_view * view.world_from_view.to_matrix().inverse());

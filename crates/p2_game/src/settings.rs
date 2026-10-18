@@ -21,6 +21,8 @@ pub struct Settings {
     /// Source `sensitivity` (default 3).
     pub mouse_sensitivity: f32,
     pub invert_mouse: bool,
+    /// Mouse smoothing (`m_filter`).
+    pub mouse_filter: bool,
     /// `fov_desired`, 75..90.
     pub fov: f32,
     pub fullscreen: bool,
@@ -28,7 +30,7 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { master_volume: 0.8, music_volume: 0.6, effects_volume: 1.0, mouse_sensitivity: 3.0, invert_mouse: false, fov: 75.0, fullscreen: false }
+        Self { master_volume: 0.8, music_volume: 0.6, effects_volume: 1.0, mouse_sensitivity: 3.0, invert_mouse: false, mouse_filter: false, fov: 75.0, fullscreen: false }
     }
 }
 
@@ -57,6 +59,7 @@ impl Settings {
                 ("snd_effectsvolume", Some(f)) => s.effects_volume = f.clamp(0.0, 1.0),
                 ("sensitivity", Some(f)) => s.mouse_sensitivity = f.clamp(0.1, 20.0),
                 ("m_invert", Some(f)) => s.invert_mouse = f != 0.0,
+                ("m_filter", Some(f)) => s.mouse_filter = f != 0.0,
                 ("fov_desired", Some(f)) => s.fov = f.clamp(75.0, 90.0),
                 ("fullscreen", Some(f)) => s.fullscreen = f != 0.0,
                 _ => {}
@@ -67,8 +70,8 @@ impl Settings {
 
     pub fn save(&self) {
         let text = format!(
-            "volume {}\nsnd_musicvolume {}\nsnd_effectsvolume {}\nsensitivity {}\nm_invert {}\nfov_desired {}\nfullscreen {}\n",
-            self.master_volume, self.music_volume, self.effects_volume, self.mouse_sensitivity, self.invert_mouse as u8, self.fov, self.fullscreen as u8
+            "volume {}\nsnd_musicvolume {}\nsnd_effectsvolume {}\nsensitivity {}\nm_invert {}\nm_filter {}\nfov_desired {}\nfullscreen {}\n",
+            self.master_volume, self.music_volume, self.effects_volume, self.mouse_sensitivity, self.invert_mouse as u8, self.mouse_filter as u8, self.fov, self.fullscreen as u8
         );
         if let Err(e) = std::fs::write(data_dir().join("settings.cfg"), text) {
             warn!("portal2: can't save settings: {e}");
@@ -90,14 +93,20 @@ fn apply_settings(
     }
     movement.mouse_sensitivity = settings.mouse_sensitivity;
     movement.invert_pitch = settings.invert_mouse;
+    movement.mouse_filter = settings.mouse_filter;
     fx.master_volume = settings.master_volume * settings.effects_volume;
+    let mut n = 0;
     for mut p in &mut cams {
         if let Projection::Perspective(pp) = &mut *p {
             pp.fov = p2_view::source_fov_to_vertical(settings.fov);
+            n += 1;
         }
     }
+    debug!("portal2: settings applied (fov {} on {n} cameras)", settings.fov);
+    // Scripted test runs always stay in a window.
+    let scripted = std::env::var_os("P2_SCRIPT").is_some() || std::env::args().any(|a| a == "--screenshot" || a == "--shot" || a == "--exit-after");
     if let Ok(mut w) = windows.single_mut() {
-        let want = if settings.fullscreen { WindowMode::BorderlessFullscreen(MonitorSelection::Current) } else { WindowMode::Windowed };
+        let want = if settings.fullscreen && !scripted { WindowMode::BorderlessFullscreen(MonitorSelection::Current) } else { WindowMode::Windowed };
         if w.mode != want {
             w.mode = want;
         }

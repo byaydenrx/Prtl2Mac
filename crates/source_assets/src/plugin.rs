@@ -791,7 +791,7 @@ pub fn spawn_loaded_map(
             if sp.vertex_light.is_some() { vhv_ctx.as_ref() } else { amb_ctx.as_ref() },
         );
         if sp.solid != 0 {
-            spawn_prop_collider(commands, model, e);
+            spawn_prop_collider(commands, model, e, sp.solid as i32);
         }
         let idx = entities_out.len();
         commands.entity(e).insert(SourceEntityRef { kind: MapEntityKind::StaticProp, index: idx });
@@ -889,8 +889,9 @@ pub fn spawn_loaded_map(
                     commands.entity(ent).insert(Name::new(format!("{} {tn}", e.classname)));
                 }
                 // Entity props collide too unless `solid` is 0 (not solid).
-                if e.get("solid").map(str::trim) != Some("0") {
-                    spawn_prop_collider(commands, model, ent);
+                let solid = e.get("solid").and_then(|v| v.trim().parse().ok()).unwrap_or(6);
+                if solid != 0 {
+                    spawn_prop_collider(commands, model, ent, solid);
                 }
                 spawned = Some(ent);
                 bounds_e = Some(model_bounds(model));
@@ -1017,8 +1018,10 @@ fn spawn_collider(commands: &mut Commands, c: &ColliderData, parent: Entity) {
     }
 }
 
-/// Prop collision: the model's `.phy` convex pieces, or its bounding box.
-fn spawn_prop_collider(commands: &mut Commands, model: &ModelData, parent: Entity) {
+/// Prop collision: the model's `.phy` convex pieces; its bounding box only
+/// for `solid 2` (SOLID_BBOX). A `solid 6` (VPhysics) model without a
+/// `.phy` is not solid, as in the engine.
+fn spawn_prop_collider(commands: &mut Commands, model: &ModelData, parent: Entity, solid: i32) {
     let collider = if !model.physics.is_empty() {
         let parts: Vec<(Vec3, Quat, Collider)> = model
             .physics
@@ -1030,12 +1033,14 @@ fn spawn_prop_collider(commands: &mut Commands, model: &ModelData, parent: Entit
             1 => parts.into_iter().next().map(|p| p.2),
             _ => Some(Collider::compound(parts)),
         }
-    } else {
+    } else if solid == 2 {
         let (lo, hi) = model_bounds(model);
         let size = hi - lo;
         (size.min_element() > 0.01).then(|| {
             Collider::compound(vec![((lo + hi) * 0.5, Quat::IDENTITY, Collider::cuboid(size.x, size.y, size.z))])
         })
+    } else {
+        None
     };
     if let Some(c) = collider {
         commands.spawn((Name::new("prop collider"), c, Transform::IDENTITY, ChildOf(parent)));

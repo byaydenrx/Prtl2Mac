@@ -18,7 +18,9 @@ impl Plugin for AutopilotPlugin {
         if let Ok(script) = std::env::var("P2_SCRIPT") {
             let steps = parse(&script);
             info!("autopilot: {} steps", steps.len());
-            app.insert_resource(Autopilot { steps, start: None, hold: Vec::new() })
+            // Scripted runs never read the real keyboard and mouse.
+            app.insert_resource(InputLocked(true))
+                .insert_resource(Autopilot { steps, start: None, hold: Vec::new() })
                 .add_systems(Update, drive.after(P2Systems::Input).before(P2Systems::Fire));
         }
     }
@@ -67,6 +69,7 @@ fn drive(
     children: Query<&Children>,
     collider_of: Query<(Option<&avian3d::prelude::ColliderOf>, Has<avian3d::prelude::Collider>, Has<avian3d::prelude::ColliderDisabled>)>,
     bodies: Query<&avian3d::prelude::RigidBody>,
+    mut settings: ResMut<crate::settings::Settings>,
 ) {
     if loaded.read().any(|e| !e.menu) {
         pilot.start = Some(time.elapsed_secs());
@@ -165,6 +168,12 @@ fn drive(
                     info!("autopilot: prop {name} at source ({:.0} {:.0} {:.0}) half {:.2?}", s.x, -s.z, s.y, p.half);
                 }
             }
+            "set" => match (a.first().map(String::as_str), a.get(1).and_then(|v| v.parse::<f32>().ok())) {
+                (Some("fov"), Some(v)) => settings.fov = v,
+                (Some("sensitivity"), Some(v)) => settings.mouse_sensitivity = v,
+                (Some("volume"), Some(v)) => settings.master_volume = v,
+                _ => warn!("autopilot: set what?"),
+            },
             "quit" => {
                 exit.write(AppExit::Success);
             }

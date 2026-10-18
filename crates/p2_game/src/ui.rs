@@ -79,6 +79,7 @@ enum Setting {
     Sensitivity,
     Fov,
     Invert,
+    Smoothing,
     Fullscreen,
 }
 
@@ -237,8 +238,8 @@ fn rebuild_menu(
                             if let Some(Some(img)) = chapter_pics.get(i) {
                                 b.spawn((ImageNode::new(img.clone()), Node { width: Val::Percent(100.0), aspect_ratio: Some(16.0 / 9.0), ..default() }));
                             }
-                            b.spawn(text(&fonts.regular, 15.0, format!("CHAPTER {}", i + 1), DIM));
-                            b.spawn(text(&fonts.bold, 18.0, c.title.to_uppercase(), WHITE));
+                            b.spawn(text(&fonts.regular, 15.0, c.title.to_uppercase(), DIM));
+                            b.spawn(text(&fonts.bold, 18.0, c.subtitle.to_uppercase(), WHITE));
                         });
                     }
                 });
@@ -255,6 +256,7 @@ fn rebuild_menu(
                 row("MOUSE SENSITIVITY", format!("{:.1}", settings.mouse_sensitivity), Setting::Sensitivity, Some(0.5)),
                 row("FIELD OF VIEW", format!("{:.0}", settings.fov), Setting::Fov, Some(5.0)),
                 row("INVERT MOUSE", if settings.invert_mouse { "ON".into() } else { "OFF".into() }, Setting::Invert, None),
+                row("MOUSE SMOOTHING", if settings.mouse_filter { "ON".into() } else { "OFF".into() }, Setting::Smoothing, None),
                 row("FULLSCREEN", if settings.fullscreen { "ON".into() } else { "OFF".into() }, Setting::Fullscreen, None),
             ];
             let mut root = commands.spawn((MenuRoot, full, BackgroundColor(PANEL), GlobalZIndex(10)));
@@ -297,9 +299,13 @@ fn rebuild_menu(
 }
 
 /// Esc pauses and resumes, and backs out of sub-menus.
-fn escape_key(keys: Res<ButtonInput<KeyCode>>, mut screen: ResMut<Screen>, map: Option<Res<CurrentMap>>) {
+fn escape_key(keys: Res<ButtonInput<KeyCode>>, mut screen: ResMut<Screen>, map: Option<Res<CurrentMap>>, settings: Res<Settings>) {
     if !keys.just_pressed(KeyCode::Escape) {
         return;
+    }
+    // Leaving Options any way keeps what was changed.
+    if matches!(*screen, Screen::Options { .. }) {
+        settings.save();
     }
     let in_game = map.as_ref().is_some_and(|m| !m.menu);
     *screen = match *screen {
@@ -399,6 +405,7 @@ fn buttons(
             }
             Action::Toggle(s) => match s {
                 Setting::Invert => settings.invert_mouse = !settings.invert_mouse,
+                Setting::Smoothing => settings.mouse_filter = !settings.mouse_filter,
                 Setting::Fullscreen => settings.fullscreen = !settings.fullscreen,
                 _ => {}
             },
@@ -419,6 +426,7 @@ fn pause_world(
     if !screen.is_changed() && !map.as_ref().is_some_and(|m| m.is_changed()) {
         return;
     }
+    let scripted = args.automated() || std::env::var_os("P2_SCRIPT").is_some();
     let playing = *screen == Screen::None && map.as_ref().is_some_and(|m| !m.menu);
     let in_menu_map = map.as_ref().is_none_or(|m| m.menu);
     if *screen == Screen::Pause {
@@ -427,7 +435,7 @@ fn pause_world(
         time.unpause();
     }
     // Scripted runs (screenshots) keep their own input lock.
-    if !args.automated() {
+    if !scripted {
         locked.0 = !playing;
     }
     if !playing {
@@ -436,7 +444,7 @@ fn pause_world(
         }
     }
     if let Ok(mut c) = cursor.single_mut() {
-        if playing && !args.automated() {
+        if playing && !scripted {
             c.grab_mode = CursorGrabMode::Locked;
             c.visible = false;
         } else {
@@ -567,7 +575,8 @@ fn title_card(
         }
         if let Some(i) = campaign.chapters.iter().position(|c| c.map.eq_ignore_ascii_case(&ev.map)) {
             let c = &campaign.chapters[i];
-            card.lines = Some((format!("Chapter {}", i + 1), c.title.clone(), c.subtitle.clone()));
+            // The game's own strings: "Chapter 1" / "The Courtesy Call".
+            card.lines = Some((String::new(), c.title.clone(), c.subtitle.to_uppercase()));
             card.shown_at = time.elapsed_secs() + 1.0;
             for r in &roots {
                 commands.entity(r).despawn();

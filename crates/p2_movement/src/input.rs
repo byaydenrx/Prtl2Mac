@@ -52,17 +52,22 @@ fn mouse_look(
     mouse: Option<Res<AccumulatedMouseMotion>>,
     cursor: Query<&CursorOptions, With<PrimaryWindow>>,
     mut q: Query<&mut ViewAngles, With<Player>>,
+    mut last: Local<Vec2>,
 ) {
     if locked.0 {
         return;
     }
     let grabbed = cursor.single().map(|c| c.grab_mode != CursorGrabMode::None).unwrap_or(false);
     let Some(mouse) = mouse else { return };
-    if !grabbed || mouse.delta == Vec2::ZERO {
+    let raw = if grabbed { mouse.delta } else { Vec2::ZERO };
+    // m_filter: the mean of this frame's and the last frame's movement.
+    let delta = if cfg.mouse_filter { (raw + *last) * 0.5 } else { raw };
+    *last = raw;
+    if delta == Vec2::ZERO {
         return;
     }
     for mut view in &mut q {
-        let (yaw, pitch) = rules::look(&cfg, view.yaw, view.pitch, mouse.delta);
+        let (yaw, pitch) = rules::look(&cfg, view.yaw, view.pitch, delta);
         view.yaw = yaw;
         view.pitch = pitch;
     }

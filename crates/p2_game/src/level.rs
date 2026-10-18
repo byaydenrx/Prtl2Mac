@@ -226,16 +226,29 @@ fn gun_visibility(
 
 /// `P2_TRACE=1`: log the player's feet twice a second.
 fn trace_player(
+    time: Res<Time<Real>>,
+    mut frame_times: Local<Vec<f32>>,
     cams: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
-    players: Query<(&Transform, &CharacterVelocity, &Grounded), With<Player>>,
+    players: Query<(&Transform, &CharacterVelocity, &Grounded, &ViewAngles), With<Player>>,
     names: Query<(Option<&Name>, Option<&ChildOf>)>,
     mut frame: Local<u32>,
 ) {
     *frame += 1;
-    if *frame % 30 != 0 || std::env::var_os("P2_TRACE").is_none() {
+    if std::env::var_os("P2_TRACE").is_none() {
         return;
     }
-    if let Ok((tf, v, g)) = players.single() {
+    frame_times.push(time.delta_secs());
+    if frame_times.len() >= 120 {
+        let mut v = std::mem::take(&mut *frame_times);
+        v.sort_by(|a, b| a.total_cmp(b));
+        let avg = v.iter().sum::<f32>() / v.len() as f32;
+        info!("TRACE fps {:.0} (frame avg {:.1} ms, worst {:.1} ms)", 1.0 / avg, avg * 1000.0, v[v.len() - 1] * 1000.0);
+    }
+    if *frame % 30 != 0 {
+        return;
+    }
+    if let Ok((tf, v, g, va)) = players.single() {
+        info!("TRACE view {:?}", va);
         let mut chain = Vec::new();
         let mut cur = g.entity;
         while let Some(c) = cur {
@@ -248,7 +261,7 @@ fn trace_player(
         }
         info!("TRACE f{} feet {:.2?} vel {:.2?} ground {} on {:?}", *frame, tf.translation, v.0, g.on_ground, chain);
         for (c, gt) in &cams {
-            info!("TRACE camera active {} at {:.2?}", c.is_active, gt.translation());
+            info!("TRACE camera active {} at {:.2?} rot {:.3?}", c.is_active, gt.translation(), gt.rotation());
         }
     }
 }
