@@ -15,6 +15,7 @@ mod audio;
 mod autopilot;
 mod campaign;
 mod captions;
+mod health;
 mod io;
 mod level;
 mod movers;
@@ -71,6 +72,7 @@ fn main() {
             viewcontrol::ViewControlPlugin,
             captions::CaptionsPlugin,
             templates::TemplatesPlugin,
+            health::HealthPlugin,
         ))
         .insert_resource(args)
         .add_plugins(p2_room::HarnessPlugin);

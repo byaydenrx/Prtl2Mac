@@ -50,6 +50,7 @@ const TRIGGER_CLASSES: &[&str] = &[
     "trigger_teleport",
     "trigger_portal_cleanser",
     "trigger_hurt",
+    "trigger_push",
     "trigger_look",
     "trigger_weapon_strip",
     "trigger_physics_trap",
@@ -73,10 +74,13 @@ fn touch_triggers(
     mut fire: MessageWriter<FireOutput>,
     mut fizzle: MessageWriter<FizzlePortals>,
     mut loaded: MessageReader<LevelLoaded>,
+    time: Res<Time>,
+    mut damage: MessageWriter<crate::health::DamagePlayer>,
 ) {
     if loaded.read().count() > 0 {
         touching.0.clear();
     }
+    let dt = time.delta_secs();
     let (Some(mut ents), Some(map)) = (ents, map) else { return };
     if map.menu {
         return;
@@ -92,6 +96,7 @@ fn touch_triggers(
     let mut teleport_to: Option<usize> = None;
     let mut dissolve: Vec<(Entity, usize)> = Vec::new();
     let mut launch_player: Option<Vec3> = None;
+    let mut push_player = Vec3::ZERO;
     for i in 0..ents.list.len() {
         let e = &ents.list[i];
         if e.killed || !e.enabled || !TRIGGER_CLASSES.contains(&e.class.as_str()) {
@@ -115,6 +120,29 @@ fn touch_triggers(
                         dissolve.push((pe, prop.ent));
                     }
                 }
+            }
+        }
+        // While touching: hazards hurt, pushers push.
+        for &t in &touchers {
+            let e = &ents.list[i];
+            match class.as_str() {
+                // `damage` is per second.
+                "trigger_hurt" if t == PLAYER => {
+                    damage.write(crate::health::DamagePlayer(e.get_f32("damage").unwrap_or(10.0) * dt));
+                }
+                "trigger_push" => {
+                    let a: Vec<f32> = e.get("pushdir").unwrap_or("").split_whitespace().filter_map(|v| v.parse().ok()).collect();
+                    let (p, y) = (a.first().copied().unwrap_or(0.0).to_radians(), a.get(1).copied().unwrap_or(0.0).to_radians());
+                    let src = Vec3::new(p.cos() * y.cos(), p.cos() * y.sin(), -p.sin());
+                    let dir = e.transform.rotation * Vec3::new(src.x, src.z, -src.y);
+                    let speed = e.get_f32("speed").unwrap_or(40.0) * shared::SOURCE_UNIT;
+                    if t == PLAYER {
+                        push_player += dir * (speed - vel.0.dot(dir)).max(0.0);
+                    } else if let Some((pe, _, _, false, lv)) = props.iter().find(|p| p.1.ent == t) {
+                        commands.entity(pe).insert(LinearVelocity(lv.0 + dir * speed * dt));
+                    }
+                }
+                _ => {}
             }
         }
         for t in touchers {
@@ -194,6 +222,7 @@ fn touch_triggers(
         commands.entity(d).despawn();
         crate::props::dissolved(&mut ents, ent);
     }
+    vel.0 += push_player;
     if let Some(v) = launch_player {
         vel.0 = v;
     }
