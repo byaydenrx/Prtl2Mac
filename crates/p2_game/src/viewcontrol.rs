@@ -21,8 +21,9 @@ impl Plugin for ViewControlPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PropAnims>()
             .init_resource::<ViewControl>()
-            .add_systems(Update, (track_animations, animation_done, viewcontrol_inputs).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic))
-            .add_systems(PostUpdate, drive_camera.after(P2Systems::View).before(bevy::transform::TransformSystems::Propagate));
+            .init_resource::<ViewProxy>()
+            .add_systems(Update, (track_animations, follow_attachments, animation_done, viewcontrol_inputs, viewproxy_inputs).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic))
+            .add_systems(PostUpdate, (drive_camera, apply_viewproxy).chain().after(P2Systems::View).before(bevy::transform::TransformSystems::Propagate));
     }
 }
 
@@ -32,6 +33,8 @@ pub struct PropAnims {
     playing: HashMap<usize, (String, f32)>,
     /// Attachment each entity is parented to: child -> (parent ent, attachment).
     attached: HashMap<usize, (usize, String)>,
+    /// Each attached child's pose relative to its attachment.
+    offsets: HashMap<usize, Transform>,
     animators: HashMap<String, Option<Arc<Animator>>>,
 }
 
@@ -52,9 +55,10 @@ impl PropAnims {
             .clone()
     }
 
-    /// World pose of `attachment` on prop `ent` now: position and the
-    /// attachment's forward/up directions.
-    pub fn attachment_world(&mut self, game: &GameFsRes, ents: &Ents, ent: usize, attachment: &str) -> Option<(Vec3, Vec3, Vec3)> {
+    /// World transform of `attachment` on prop `ent` now (same rotation
+    /// convention as map entity transforms: Source axes seen through the
+    /// world basis change).
+    pub fn attachment_transform(&mut self, game: &GameFsRes, ents: &Ents, ent: usize, attachment: &str) -> Option<Transform> {
         let e = &ents.list[ent];
         let model = e.get("model")?.to_string();
         let anim = self.animator(game, &model)?;
@@ -75,25 +79,39 @@ impl PropAnims {
             to_model.push(m);
         }
         let (pos, rot) = anim.attachment(attachment, &to_model)?;
-        // Model space is Source's (Z up, inches); the prop's world rotation
-        // is the Source rotation seen through the same basis change.
+        let basis = Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2);
         let r = e.transform.rotation;
-        let world = |v: Vec3| r * (source_to_world(v) / shared::SOURCE_UNIT);
         let p = e.transform.translation + r * source_to_world(pos);
-        // Animations the decoder can't read yet come out as nonsense:
-        // only trust poses near the prop.
-        if !p.is_finite() || p.distance(e.transform.translation) > 20.0 {
+        // Animations the decoder can't read come out as nonsense.
+        if !p.is_finite() || p.distance(e.transform.translation) > 2000.0 {
             return None;
         }
-        // Camera rigs (the intro's ghostanim) look down the bone's -X with +Y up.
-        Some((p, world(rot * Vec3::NEG_X), world(rot * Vec3::Y)))
+        let q = r * basis * Quat::from_mat3(&rot) * basis.inverse();
+        Some(Transform::from_translation(p).with_rotation(q.normalize()))
+    }
+
+    /// Camera pose from an attachment: position, forward, up. Camera rigs
+    /// (the intro's ghostanim) look down the bone's -X with +Y up.
+    pub fn attachment_world(&mut self, game: &GameFsRes, ents: &Ents, ent: usize, attachment: &str) -> Option<(Vec3, Vec3, Vec3)> {
+        let t = self.attachment_transform(game, ents, ent, attachment)?;
+        if t.translation.distance(ents.list[ent].transform.translation) > 20.0 {
+            return None;
+        }
+        Some((t.translation, t.rotation * Vec3::NEG_X, t.rotation * Vec3::NEG_Z))
     }
 }
 
-fn track_animations(mut inputs: MessageReader<EntInput>, ents: Option<Res<Ents>>, mut anims: ResMut<PropAnims>, mut loaded: MessageReader<LevelLoaded>) {
+fn track_animations(
+    mut inputs: MessageReader<EntInput>,
+    ents: Option<Res<Ents>>,
+    game: Res<GameFsRes>,
+    mut anims: ResMut<PropAnims>,
+    mut loaded: MessageReader<LevelLoaded>,
+) {
     if loaded.read().count() > 0 {
         anims.playing.clear();
         anims.attached.clear();
+        anims.offsets.clear();
     }
     let Some(ents) = ents else {
         inputs.clear();
@@ -107,11 +125,24 @@ fn track_animations(mut inputs: MessageReader<EntInput>, ents: Option<Res<Ents>>
             "setparentattachment" | "setparentattachmentmaintainoffset" => {
                 let parent = ents.list[msg.target].get("parentname").and_then(|p| ents.find(p, msg.target, None).first().copied());
                 if let Some(p) = parent {
-                    anims.attached.insert(msg.target, (p, msg.param.trim().to_string()));
+                    let att = msg.param.trim().to_string();
+                    // Keep the child where it is relative to the attachment
+                    // (or snap onto it).
+                    let offset = if msg.input == "setparentattachmentmaintainoffset" {
+                        anims
+                            .attachment_transform(&game, &ents, p, &att)
+                            .map(|a| Transform::from_matrix(a.to_matrix().inverse() * ents.list[msg.target].transform.to_matrix()))
+                            .unwrap_or_default()
+                    } else {
+                        Transform::IDENTITY
+                    };
+                    anims.attached.insert(msg.target, (p, att));
+                    anims.offsets.insert(msg.target, offset);
                 }
             }
-            "setparent" => {
+            "setparent" | "clearparent" => {
                 anims.attached.remove(&msg.target);
+                anims.offsets.remove(&msg.target);
             }
             _ => {}
         }
@@ -271,5 +302,106 @@ fn drive_camera(
     for mut tf in &mut cams {
         tf.translation = pos;
         tf.look_to(fwd, up.normalize_or(Vec3::Y));
+    }
+}
+
+/// Entities parented to an animated attachment keep their pose relative to
+/// it every frame (the container ride's camera proxy, Wheatley's rail).
+fn follow_attachments(
+    mut ents: Option<ResMut<Ents>>,
+    game: Res<GameFsRes>,
+    mut anims: ResMut<PropAnims>,
+    mut transforms: Query<&mut Transform, Without<Player>>,
+) {
+    let Some(ents) = ents.as_mut() else { return };
+    let list: Vec<(usize, usize, String)> = anims.attached.iter().map(|(c, (p, a))| (*c, *p, a.clone())).collect();
+    for (child, parent, att) in list {
+        if ents.list[child].class == "point_viewcontrol" {
+            continue;
+        }
+        let Some(offset) = anims.offsets.get(&child).copied() else { continue };
+        let Some(a) = anims.attachment_transform(&game, ents, parent, &att) else { continue };
+        let world = Transform::from_matrix(a.to_matrix() * offset.to_matrix());
+        let delta = world.translation - ents.list[child].transform.translation;
+        ents.list[child].transform = world;
+        if let Some((lo, hi)) = &mut ents.list[child].bounds {
+            *lo += delta;
+            *hi += delta;
+        }
+        if let Some(r) = ents.list[child].entity {
+            if let Ok(mut t) = transforms.get_mut(r) {
+                t.translation = world.translation;
+                t.rotation = world.rotation;
+            }
+        }
+    }
+}
+
+/// An enabled `point_viewproxy`: the player's view is drawn as if their
+/// place relative to this entity were relative to its `proxy` entity. The
+/// container ride moves the proxy with the crane while the player stands in
+/// a still copy of the vault.
+#[derive(Resource, Default)]
+pub struct ViewProxy {
+    active: Option<usize>,
+}
+
+impl ViewProxy {
+    /// The transform from the registration point to the proxy, now.
+    fn mapping(&self, ents: &Ents) -> Option<Mat4> {
+        let i = self.active?;
+        let e = &ents.list[i];
+        let proxy = e.get("proxy").and_then(|p| ents.find(p, i, None).first().copied())?;
+        let from = Transform::from_translation(e.transform.translation).with_rotation(e.transform.rotation);
+        let to = ents.list[proxy].transform;
+        Some(to.to_matrix() * from.to_matrix().inverse())
+    }
+}
+
+fn viewproxy_inputs(
+    mut inputs: MessageReader<EntInput>,
+    ents: Option<Res<Ents>>,
+    mut proxy: ResMut<ViewProxy>,
+    mut players: Query<(&mut Transform, &mut InterpolatedFeet, &mut ViewAngles, &mut CharacterVelocity), With<Player>>,
+    mut loaded: MessageReader<LevelLoaded>,
+) {
+    if loaded.read().count() > 0 {
+        proxy.active = None;
+    }
+    let Some(ents) = ents else {
+        inputs.clear();
+        return;
+    };
+    for msg in inputs.read() {
+        if ents.list[msg.target].class != "point_viewproxy" {
+            continue;
+        }
+        match msg.input.as_str() {
+            "enable" => proxy.active = Some(msg.target),
+            "disable" if proxy.active == Some(msg.target) => proxy.active = None,
+            "teleportplayertoproxy" => {
+                let was = proxy.active;
+                proxy.active = Some(msg.target);
+                if let (Some(m), Ok((mut tf, mut feet, mut view, mut vel))) = (proxy.mapping(&ents), players.single_mut()) {
+                    let at = m.transform_point3(tf.translation);
+                    tf.translation = at;
+                    *feet = InterpolatedFeet { prev: at, curr: at };
+                    let fwd = m.transform_vector3(view.forward()).normalize_or(Vec3::NEG_Z);
+                    view.yaw = (-fwd.x).atan2(-fwd.z);
+                    vel.0 = Vec3::ZERO;
+                }
+                proxy.active = if was == Some(msg.target) { None } else { was };
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Moves the main camera through the proxy mapping.
+fn apply_viewproxy(proxy: Res<ViewProxy>, ents: Option<Res<Ents>>, mut cams: Query<&mut Transform, With<MainCamera>>) {
+    let (Some(ents), true) = (ents, proxy.active.is_some()) else { return };
+    let Some(m) = proxy.mapping(&ents) else { return };
+    for mut tf in &mut cams {
+        *tf = Transform::from_matrix(m * tf.to_matrix());
     }
 }

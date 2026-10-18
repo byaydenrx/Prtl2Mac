@@ -62,7 +62,7 @@ fn drive(
     mut players: Query<(Entity, &mut Transform, &mut InterpolatedFeet, &mut ViewAngles, &mut MoveInput, &mut CharacterVelocity), With<Player>>,
     mut fire: MessageWriter<FirePortal>,
     mut exit: MessageWriter<AppExit>,
-    ents: Option<Res<crate::io::Ents>>,
+    mut ents: Option<ResMut<crate::io::Ents>>,
     spatial: avian3d::prelude::SpatialQuery,
     props: Query<(&crate::props::Prop, &Transform), Without<Player>>,
     prop_ents: Query<(Entity, &crate::props::Prop)>,
@@ -94,9 +94,15 @@ fn drive(
                     *view = ViewAngles { yaw: (f(a, 4) - 90.0).to_radians(), pitch: -f(a, 3).to_radians(), roll: 0.0 };
                 }
             }
+            "fire" => {
+                // fire <target> <input> [param]: send an input like the map does.
+                if let (Some(ents), Some(t), Some(i)) = (ents.as_mut(), a.first(), a.get(1)) {
+                    ents.send(t, i, a.get(2).map(String::as_str).unwrap_or(""), 0.0);
+                }
+            }
             "goto" | "lookat" => {
                 // A map entity by name or class: where it is now (props move).
-                let Some(ents) = &ents else { continue };
+                let Some(ents) = ents.as_deref() else { continue };
                 let key = a.first().map(|k| k.to_ascii_lowercase()).unwrap_or_default();
                 let Some(i) = ents.list.iter().position(|e| e.name == key || e.class == key) else {
                     warn!("autopilot: no entity {key}");
