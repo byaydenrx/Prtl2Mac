@@ -12,6 +12,7 @@ use p2_assets::GameFsRes;
 use p2_core::*;
 use shared::source_to_world;
 
+use crate::anim_props::Playback;
 use crate::io::{EntInput, Ents, PLAYER};
 use crate::level::LevelLoaded;
 
@@ -22,15 +23,23 @@ impl Plugin for ViewControlPlugin {
         app.init_resource::<PropAnims>()
             .init_resource::<ViewControl>()
             .init_resource::<ViewProxy>()
-            .add_systems(Update, (track_animations, follow_attachments, animation_done, viewcontrol_inputs, viewproxy_inputs).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic))
+            .add_systems(Update, (track_animations, follow_attachments, viewcontrol_inputs, viewproxy_inputs).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic))
             .add_systems(PostUpdate, (drive_camera, apply_viewproxy).chain().after(P2Systems::View).before(bevy::transform::TransformSystems::Propagate));
     }
 }
 
-/// Which sequence each prop is playing and since when (game seconds).
+/// Prop animation state, shared by the attachments and cameras here and
+/// the animated props (`anim_props.rs`, which plays the sequences).
 #[derive(Resource, Default)]
 pub struct PropAnims {
-    playing: HashMap<usize, (String, f32)>,
+    /// The sequence each prop is playing (props that never got one play
+    /// their default from the start, `anim_props::initial_seq`).
+    pub playing: HashMap<usize, Playback>,
+    /// `SetDefaultAnimation` overrides of `DefaultAnim`.
+    pub defaults: HashMap<usize, String>,
+    /// Model of each prop drawn animated (its `.mdl`, also for entities with
+    /// no `model` keyvalue, like the personality cores).
+    pub models: HashMap<usize, String>,
     /// Attachment each entity is parented to: child -> (parent ent, attachment).
     attached: HashMap<usize, (usize, String)>,
     /// Each attached child's pose relative to its attachment.
@@ -42,7 +51,12 @@ pub struct PropAnims {
 }
 
 impl PropAnims {
-    fn animator(&mut self, game: &GameFsRes, model: &str) -> Option<Arc<Animator>> {
+    /// The model a prop draws.
+    pub fn model_of(&self, ent: usize, e: &crate::io::GameEnt) -> Option<String> {
+        self.models.get(&ent).cloned().or_else(|| e.get("model").map(str::to_string))
+    }
+
+    pub fn animator(&mut self, game: &GameFsRes, model: &str) -> Option<Arc<Animator>> {
         let key = model.to_ascii_lowercase().replace('\\', "/");
         self.animators
             .entry(key.clone())
@@ -63,24 +77,13 @@ impl PropAnims {
     /// world basis change).
     pub fn attachment_transform(&mut self, game: &GameFsRes, ents: &Ents, ent: usize, attachment: &str) -> Option<Transform> {
         let e = &ents.list[ent];
-        let model = e.get("model")?.to_string();
+        let model = self.model_of(ent, e)?;
         let anim = self.animator(game, &model)?;
-        let (seq, cycle) = match self.playing.get(&ent) {
-            Some((name, start)) => {
-                let s = anim.find(name)?;
-                (s, (ents.now - start).min(anim.duration(s)))
-            }
+        let (seq, time) = match self.playing.get(&ent) {
+            Some(pb) => (anim.find(&pb.seq)?, pb.time),
             None => (e.get("defaultanim").and_then(|n| anim.find(n)).unwrap_or(0), 0.0),
         };
-        let local = anim.sample(seq, cycle);
-        // Bone -> model, through the parents.
-        let mut to_model: Vec<bevy::math::Affine3A> = Vec::with_capacity(local.len());
-        for (i, (p, q)) in local.iter().enumerate() {
-            let m = bevy::math::Affine3A::from_rotation_translation(*q, *p);
-            let parent = anim.skeleton.bones.get(i).map(|b| b.parent).unwrap_or(-1);
-            let m = if parent >= 0 && (parent as usize) < i { to_model[parent as usize] * m } else { m };
-            to_model.push(m);
-        }
+        let to_model = anim.bone_to_model(&anim.sample(seq, time));
         let (pos, rot) = anim.attachment(attachment, &to_model)?;
         let basis = Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2);
         let r = e.transform.rotation;
@@ -104,15 +107,15 @@ impl PropAnims {
     }
 }
 
-fn track_animations(
+pub(crate) fn track_animations(
     mut inputs: MessageReader<EntInput>,
     ents: Option<Res<Ents>>,
     game: Res<GameFsRes>,
     mut anims: ResMut<PropAnims>,
     mut loaded: MessageReader<LevelLoaded>,
 ) {
+    // (`anim_props` clears and tracks the sequences.)
     if loaded.read().count() > 0 {
-        anims.playing.clear();
         anims.attached.clear();
         anims.offsets.clear();
         anims.drawn_rel.clear();
@@ -123,9 +126,6 @@ fn track_animations(
     };
     for msg in inputs.read() {
         match msg.input.as_str() {
-            "setanimation" | "setanimationnoreset" => {
-                anims.playing.insert(msg.target, (msg.param.trim().to_string(), ents.now));
-            }
             "setparentattachment" | "setparentattachmentmaintainoffset" => {
                 let parent = ents.list[msg.target].get("parentname").and_then(|p| ents.find(p, msg.target, None).first().copied());
                 if let Some(p) = parent {
@@ -150,25 +150,6 @@ fn track_animations(
                 anims.offsets.remove(&msg.target);
             }
             _ => {}
-        }
-    }
-}
-
-/// Props whose animation finished fire `OnAnimationDone` once.
-fn animation_done(ents: Option<Res<Ents>>, game: Res<GameFsRes>, mut anims: ResMut<PropAnims>, mut fire: MessageWriter<crate::io::FireOutput>, mut done: Local<std::collections::HashSet<(usize, u32)>>) {
-    let Some(ents) = ents else { return };
-    let playing: Vec<(usize, String, f32)> = anims.playing.iter().map(|(k, (s, t))| (*k, s.clone(), *t)).collect();
-    for (i, seq, start) in playing {
-        let key = (i, start.to_bits());
-        if done.contains(&key) {
-            continue;
-        }
-        let Some(model) = ents.list[i].get("model").map(str::to_string) else { continue };
-        let Some(anim) = anims.animator(&game, &model) else { continue };
-        let Some(s) = anim.find(&seq) else { continue };
-        if ents.now - start >= anim.duration(s) {
-            done.insert(key);
-            fire.write(crate::io::FireOutput { ent: i, event: "OnAnimationDone".into(), activator: None });
         }
     }
 }

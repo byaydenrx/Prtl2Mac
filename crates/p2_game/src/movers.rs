@@ -215,28 +215,11 @@ fn mover_inputs(
                 _ => {}
             },
             "prop_dynamic" | "prop_dynamic_override" => {
-                let seq = msg.param.to_ascii_lowercase();
-                // Props don't animate yet: a door prop that opens disappears; any
-                // other prop playing an "open" animation (an elevator body
-                // opening its doors) stays drawn but stops blocking.
-                let model = ents.list[i].get("model").unwrap_or("").to_ascii_lowercase();
-                let is_door = model.contains("door") || model.contains("hatch") || model.contains("tube_opener");
-                let opening = seq.contains("open") && !seq.contains("close");
+                // SetAnimation & co. are played by `anim_props.rs` (doors,
+                // hatches and elevator bodies open for real, their per-bone
+                // collision moving with them); they used to hide the door
+                // or turn its collision off here.
                 match input {
-                    "setanimation" | "setanimationnoreset" | "setdefaultanimation" if opening => {
-                        if is_door {
-                            movers.pending_show.push((now + 0.4, i, false));
-                        } else {
-                            set_solid(&mut commands, &ents.list[i], &children, &colliders, false);
-                        }
-                    }
-                    "setanimation" | "setanimationnoreset" | "setdefaultanimation" if seq.contains("close") && !seq.contains("idle") => {
-                        if is_door {
-                            movers.pending_show.push((now, i, true));
-                        } else {
-                            set_solid(&mut commands, &ents.list[i], &children, &colliders, true);
-                        }
-                    }
                     "turnoff" | "disable" => movers.pending_show.push((now, i, false)),
                     "turnon" | "enable" => movers.pending_show.push((now, i, true)),
                     "disablecollision" => set_solid(&mut commands, &ents.list[i], &children, &colliders, false),

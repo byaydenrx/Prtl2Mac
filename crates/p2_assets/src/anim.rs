@@ -424,6 +424,40 @@ impl Animator {
         ((a.frames - 1).max(1)) as f32 / a.fps.max(1.0)
     }
 
+    /// The first sequence of an activity (e.g. `ACT_IDLE`).
+    pub fn find_activity(&self, activity: &str) -> Option<usize> {
+        self.sequences.iter().position(|s| s.activity.eq_ignore_ascii_case(activity))
+    }
+
+    /// Whether a sequence loops (`STUDIO_LOOPING`).
+    pub fn looping(&self, seq: usize) -> bool {
+        self.sequences.get(seq).is_some_and(|s| s.looping)
+    }
+
+    /// The (fractional) frame [`Animator::sample`] shows `time` seconds into
+    /// `seq`: wrapped for looping sequences, clamped to the last frame
+    /// otherwise. `None` when the sequence has no animation (its pose is the
+    /// rest pose). Two times with the same frame give the same pose.
+    pub fn frame_at(&self, seq: usize, time: f32) -> Option<f32> {
+        let info = self.sequences.get(seq)?;
+        let desc = info.anim.and_then(|a| self.anims.get(a))?;
+        let n = desc.frames.max(1);
+        let f = time * desc.fps;
+        Some(if info.looping && n > 1 { f.rem_euclid((n - 1) as f32) } else { f.clamp(0.0, (n - 1) as f32) })
+    }
+
+    /// Model-space bone transforms from parent-space ones (as from
+    /// [`Animator::sample`]), through the parents.
+    pub fn bone_to_model(&self, local: &[(Vec3, Quat)]) -> Vec<bevy::math::Affine3A> {
+        let mut out: Vec<bevy::math::Affine3A> = Vec::with_capacity(local.len());
+        for (i, (p, q)) in local.iter().enumerate() {
+            let m = bevy::math::Affine3A::from_rotation_translation(*q, *p);
+            let parent = self.skeleton.bones.get(i).map(|b| b.parent).unwrap_or(-1);
+            out.push(if parent >= 0 && (parent as usize) < i { out[parent as usize] * m } else { m });
+        }
+        out
+    }
+
     /// Parent-space (position, rotation) of every bone at `time` seconds into
     /// `seq`, interpolating between frames.
     pub fn sample(&self, seq: usize, time: f32) -> Vec<(Vec3, Quat)> {
@@ -432,12 +466,7 @@ impl Animator {
         let Some(info) = self.sequences.get(seq) else { return out };
         let Some(desc) = info.anim.and_then(|a| self.anims.get(a)) else { return out };
         let n = desc.frames.max(1);
-        let mut f = time * desc.fps;
-        if info.looping && n > 1 {
-            f = f.rem_euclid((n - 1) as f32);
-        } else {
-            f = f.clamp(0.0, (n - 1) as f32);
-        }
+        let Some(f) = self.frame_at(seq, time) else { return out };
         let f0 = f.floor() as i32;
         let f1 = (f0 + 1).min(n - 1);
         let t = f - f0 as f32;
