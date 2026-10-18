@@ -180,6 +180,11 @@ pub fn material_info(name: &str, shader: &str, p: &Kv) -> MaterialInfo {
     m.shader = shader.to_string();
     m.params = p.clone();
     m.base_texture = texture_param(p, "$basetexture");
+    if m.base_texture.is_none() && matches!(shader, "eyerefract" | "eyes" | "eyeball") {
+        // Eyes have no base texture: the iris is projected onto them (the
+        // mesh's UVs are made by `ModelData::iris_uvs`).
+        m.base_texture = texture_param(p, "$iris");
+    }
     m.base_texture2 = texture_param(p, "$basetexture2");
     m.alpha = p.get_f32("$alpha").unwrap_or(1.0);
     m.color = p

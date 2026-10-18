@@ -11,6 +11,7 @@ use p2_core::*;
 use source_assets::{SourceMapPlugin, SourceRenderSettings};
 
 mod ai;
+mod anim_props;
 mod audio;
 mod autopilot;
 mod bridges;
@@ -77,6 +78,7 @@ fn main() {
             scenes::ScenesPlugin,
             ai::AiPlugin,
             viewcontrol::ViewControlPlugin,
+            anim_props::AnimPropsPlugin,
             captions::CaptionsPlugin,
         ))
         .add_plugins((

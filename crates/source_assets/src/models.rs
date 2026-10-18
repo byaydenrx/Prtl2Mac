@@ -1,7 +1,7 @@
 //! MDL/VTX/VVD studio models via `vmdl`, flattened into per-material
 //! triangle lists in world axes (metres, model space).
 
-use bevy::math::Vec3;
+use bevy::math::{Affine3A, Quat, Vec3};
 use shared::{source_dir_to_world, source_to_world};
 
 #[derive(Clone, Debug, Default)]
@@ -150,6 +150,55 @@ impl ModelData {
         std::borrow::Cow::Owned(meshes)
     }
 
+    /// Whether an entity prop of this model can animate: it has bones and
+    /// at least one animation with more than one frame. Such props are drawn
+    /// as rigid per-bone parts ([`ModelData::rigid_parts`]); everything else
+    /// keeps one baked pose.
+    pub fn is_animated(&self) -> bool {
+        !self.is_static_prop && self.skeleton.as_ref().is_some_and(|sk| !sk.bones.is_empty() && sk.has_motion())
+    }
+
+    /// Every mesh split into rigid per-bone parts, vertices in their bone's
+    /// space (see [`split_by_bone`]). `sequence` (default: sequence 0) only
+    /// picks the pose whose normals the baked lighting uses.
+    pub fn rigid_parts(&self, sequence: Option<&str>) -> Vec<RigidPart> {
+        let Some(sk) = self.skeleton.as_ref() else { return Vec::new() };
+        let seq = sequence.and_then(|n| sk.sequence_index(n)).or(Some(0));
+        let pose_to_bone: Vec<Affine3A> = sk.bones.iter().map(|b| b.pose_to_bone).collect();
+        let bone_to_model = sk.bone_to_model(seq);
+        self.meshes.iter().flat_map(|m| split_by_bone(m, &pose_to_bone, &bone_to_model)).collect()
+    }
+
+    /// Texture coordinates of an eyeball mesh (`EyeRefract`): the iris
+    /// texture projected onto the eye along its forward axis, as Source's eye
+    /// shaders do, for an eye looking straight ahead. `u` runs along the eye's
+    /// right, `v` down its up, both `0.5 + offset * iris_scale` from the eye
+    /// centre; the iris yaw (`zoffset`, a tangent) turns the axis outwards.
+    pub fn iris_uvs(&self, mesh: &ModelMesh) -> Option<Vec<[f32; 2]>> {
+        let e = self.eyeballs.get(mesh.eyeball?)?;
+        let bone_to_model = self
+            .skeleton
+            .as_ref()
+            .and_then(|sk| sk.bones.get(e.bone))
+            .map_or(Affine3A::IDENTITY, |b| b.pose_to_bone.inverse());
+        let org = bone_to_model.transform_point3(e.org);
+        let up = bone_to_model.transform_vector3(e.up).normalize_or_zero();
+        let fwd = bone_to_model.transform_vector3(e.forward).normalize_or_zero();
+        let right = fwd.cross(up).normalize_or_zero();
+        let fwd = (fwd + right * e.zoffset).normalize_or_zero();
+        let right = fwd.cross(up).normalize_or_zero();
+        let up = right.cross(fwd).normalize_or_zero();
+        Some(
+            mesh.source_positions
+                .iter()
+                .map(|&p| {
+                    let d = p - org;
+                    [0.5 + d.dot(right) * e.iris_scale, 0.5 - d.dot(up) * e.iris_scale]
+                })
+                .collect(),
+        )
+    }
+
     pub fn material_for(&self, skin: i32, material_index: i32) -> Option<&str> {
         let table = self.skins.get(skin.max(0) as usize).or_else(|| self.skins.first())?;
         table.get(material_index as usize).map(String::as_str)
@@ -159,6 +208,104 @@ impl ModelData {
     pub fn all_materials(&self) -> impl Iterator<Item = &str> {
         self.skins.iter().flatten().map(String::as_str)
     }
+}
+
+/// One rigid piece of an animated model: the triangles of one mesh that
+/// follow `bone`, with `positions`/`normals` (world axes, metres) and
+/// `source_positions`/`source_normals` (Source axes, units) in that bone's
+/// space. Drawn under an entity whose transform is the bone's
+/// ([`bone_transform`]), it lands where skinning would put it.
+#[derive(Clone, Debug, Default)]
+pub struct RigidPart {
+    pub bone: usize,
+    pub mesh: ModelMesh,
+    /// Per-vertex model-space Source normals in the pose the part was split
+    /// for, for baked lighting (which doesn't follow the animation).
+    pub light_normals: Vec<Vec3>,
+}
+
+/// The bone a triangle follows: the one with the most weight over its three
+/// vertices (ties go to the lower bone). Bones past `bones` are ignored.
+fn dominant_bone(weights: [&[(u8, f32); 3]; 3], bones: usize) -> usize {
+    let mut sums: [(usize, f32); 9] = [(usize::MAX, 0.0); 9];
+    for w in weights {
+        for &(b, wt) in w {
+            let b = b as usize;
+            if wt <= 0.0 || b >= bones {
+                continue;
+            }
+            if let Some(s) = sums.iter_mut().find(|s| s.0 == b || s.0 == usize::MAX) {
+                s.0 = b;
+                s.1 += wt;
+            }
+        }
+    }
+    sums.iter()
+        .filter(|s| s.0 != usize::MAX)
+        .fold(None, |best: Option<(usize, f32)>, &s| match best {
+            Some(b) if b.1 > s.1 || (b.1 == s.1 && b.0 < s.0) => Some(b),
+            _ => Some(s),
+        })
+        .map_or(0, |b| b.0)
+}
+
+/// Splits a bind-pose mesh into rigid per-bone parts: each triangle goes to
+/// its dominant bone, and its vertices move into that bone's space
+/// (`pose_to_bone[bone] * vertex`). Mechanical Portal 2 props are skinned
+/// rigidly, one bone per piece, so this is what skinning draws. Vertices
+/// shared by triangles of different bones are copied into each part. Light
+/// normals are the vertex normals posed by `bone_to_model`.
+pub fn split_by_bone(mesh: &ModelMesh, pose_to_bone: &[Affine3A], bone_to_model: &[Affine3A]) -> Vec<RigidPart> {
+    let mut parts: Vec<RigidPart> = Vec::new();
+    let mut remaps: Vec<std::collections::HashMap<u32, u32>> = Vec::new();
+    for t in mesh.indices.chunks_exact(3) {
+        let w = |k: usize| mesh.bone_weights.get(t[k] as usize).unwrap_or(&[(0, 1.0), (0, 0.0), (0, 0.0)]);
+        let bone = dominant_bone([w(0), w(1), w(2)], pose_to_bone.len());
+        let pi = match parts.iter().position(|p| p.bone == bone) {
+            Some(i) => i,
+            None => {
+                parts.push(RigidPart {
+                    bone,
+                    mesh: ModelMesh { material_index: mesh.material_index, eyeball: mesh.eyeball, ..Default::default() },
+                    light_normals: Vec::new(),
+                });
+                remaps.push(Default::default());
+                parts.len() - 1
+            }
+        };
+        let to_bone = pose_to_bone.get(bone).copied().unwrap_or(Affine3A::IDENTITY);
+        let light = bone_to_model.get(bone).copied().unwrap_or(Affine3A::IDENTITY);
+        let (part, remap) = (&mut parts[pi], &mut remaps[pi]);
+        for &vi in t {
+            let v = vi as usize;
+            let ni = *remap.entry(vi).or_insert_with(|| {
+                let m = &mut part.mesh;
+                let p = to_bone.transform_point3(mesh.source_positions[v]);
+                let n = to_bone.transform_vector3(mesh.source_normals[v]).normalize_or_zero();
+                m.positions.push(source_to_world(p).to_array());
+                m.normals.push(source_dir_to_world(n).to_array());
+                m.uvs.push(mesh.uvs[v]);
+                m.source_normals.push(n);
+                m.source_positions.push(p);
+                m.vvd_index.push(mesh.vvd_index[v]);
+                m.bone_weights.push([(bone as u8, 1.0), (0, 0.0), (0, 0.0)]);
+                part.light_normals.push(light.transform_vector3(n).normalize_or_zero());
+                (m.positions.len() - 1) as u32
+            });
+            part.mesh.indices.push(ni);
+        }
+    }
+    parts
+}
+
+/// A bone's model-space transform (Source axes and units, as from
+/// [`crate::skeleton::Skeleton::bone_to_model`]) as a [`Transform`] in the
+/// model entity's space (world axes, metres): rotation `C R C^-1` with `C`
+/// the Source-to-world axis change, translation `source_to_world(t)`.
+pub fn bone_transform(m: Affine3A) -> bevy::transform::components::Transform {
+    let (_, r, t) = m.to_scale_rotation_translation();
+    let c = Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2);
+    bevy::transform::components::Transform::from_translation(source_to_world(t)).with_rotation((c * r * c.inverse()).normalize())
 }
 
 fn mdl_vec(v: vmdl::Vector) -> Vec3 {
@@ -641,6 +788,153 @@ mod pose_sweep {
         for ((c, p, a), m) in &seen {
             if *m > 0.05 {
                 eprintln!("posed {m:6.2}m  {c:28} {p} anim={a}");
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod part_tests {
+    use super::*;
+
+    /// Two bones: bone 0 at the origin, bone 1 at (10, 0, 0) turned 90
+    /// degrees about Z. Bind-pose (model space) transforms of each bone.
+    fn bones() -> Vec<Affine3A> {
+        vec![
+            Affine3A::IDENTITY,
+            Affine3A::from_rotation_translation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_2), Vec3::new(10.0, 0.0, 0.0)),
+        ]
+    }
+
+    /// Two triangles sharing vertex 2: the first all on bone 0, the second
+    /// mostly on bone 1.
+    fn mesh() -> ModelMesh {
+        let src = [Vec3::ZERO, Vec3::new(1.0, 0.0, 0.0), Vec3::new(5.0, 1.0, 0.0), Vec3::new(10.0, 0.0, 0.0), Vec3::new(11.0, 2.0, 3.0)];
+        let w = |b: u8| [(b, 1.0), (0, 0.0), (0, 0.0)];
+        ModelMesh {
+            material_index: 2,
+            positions: src.iter().map(|&p| source_to_world(p).to_array()).collect(),
+            normals: src.iter().map(|_| source_dir_to_world(Vec3::Z).to_array()).collect(),
+            uvs: (0..5).map(|i| [i as f32, 0.0]).collect(),
+            source_normals: vec![Vec3::Z; 5],
+            vvd_index: (10..15).collect(),
+            source_positions: src.to_vec(),
+            bone_weights: vec![w(0), w(0), [(0, 0.5), (1, 0.5), (0, 0.0)], w(1), [(1, 0.7), (0, 0.3), (0, 0.0)]],
+            indices: vec![0, 1, 2, 2, 3, 4],
+            eyeball: None,
+        }
+    }
+
+    #[test]
+    fn dominant_bone_per_triangle() {
+        let w = |pairs: &[(u8, f32)]| {
+            let mut a = [(0u8, 0.0f32); 3];
+            a[..pairs.len()].copy_from_slice(pairs);
+            a
+        };
+        let (a, b, c) = (w(&[(0, 1.0)]), w(&[(2, 0.6), (0, 0.4)]), w(&[(2, 1.0)]));
+        assert_eq!(dominant_bone([&a, &b, &c], 3), 2);
+        // Ties go to the lower bone; bones past the skeleton don't count.
+        let (d, e) = (w(&[(1, 1.0)]), w(&[(2, 1.0)]));
+        assert_eq!(dominant_bone([&d, &e, &w(&[(1, 0.5), (2, 0.5)])], 3), 1);
+        assert_eq!(dominant_bone([&w(&[(7, 1.0)]), &d, &d], 3), 1);
+        // No weight at all: the root.
+        assert_eq!(dominant_bone([&w(&[]), &w(&[]), &w(&[])], 3), 0);
+    }
+
+    #[test]
+    fn splits_triangles_by_bone() {
+        let bind = bones();
+        let pose_to_bone: Vec<Affine3A> = bind.iter().map(|m| m.inverse()).collect();
+        let parts = split_by_bone(&mesh(), &pose_to_bone, &bind);
+        assert_eq!(parts.len(), 2);
+        let (p0, p1) = (&parts[0], &parts[1]);
+        assert_eq!((p0.bone, p1.bone), (0, 1));
+        // Vertex 2 is copied into both parts.
+        assert_eq!(p0.mesh.indices, vec![0, 1, 2]);
+        assert_eq!(p1.mesh.indices, vec![0, 1, 2]);
+        assert_eq!(p0.mesh.vvd_index, vec![10, 11, 12]);
+        assert_eq!(p1.mesh.vvd_index, vec![12, 13, 14]);
+        assert_eq!(p1.mesh.uvs, vec![[2.0, 0.0], [3.0, 0.0], [4.0, 0.0]]);
+        assert_eq!(p1.mesh.material_index, 2);
+        for p in &parts {
+            assert!(p.mesh.bone_weights.iter().all(|w| w[0] == (p.bone as u8, 1.0)));
+            assert_eq!(p.mesh.positions.len(), p.mesh.source_positions.len());
+            assert_eq!(p.light_normals.len(), p.mesh.positions.len());
+        }
+    }
+
+    /// Put back with the reference pose, bone-local vertices land on the
+    /// bind-pose vertices: in Source space, and drawn under an entity with
+    /// the bone's `bone_transform` (the per-part render path), in world axes.
+    #[test]
+    fn bone_local_parts_reproduce_reference_pose() {
+        let bind = bones();
+        let pose_to_bone: Vec<Affine3A> = bind.iter().map(|m| m.inverse()).collect();
+        let m = mesh();
+        let parts = split_by_bone(&m, &pose_to_bone, &bind);
+        let close = |a: Vec3, b: Vec3| (a - b).length() < 1e-4;
+        for p in &parts {
+            let xf = bone_transform(bind[p.bone]);
+            for (k, &vvd) in p.mesh.vvd_index.iter().enumerate() {
+                let orig = (vvd - 10) as usize;
+                let src = bind[p.bone].transform_point3(p.mesh.source_positions[k]);
+                assert!(close(src, m.source_positions[orig]), "{src} vs {}", m.source_positions[orig]);
+                let drawn = xf.transform_point(Vec3::from(p.mesh.positions[k]));
+                assert!(close(drawn, Vec3::from(m.positions[orig])), "{drawn} vs {:?}", m.positions[orig]);
+                let n = xf.rotation * Vec3::from(p.mesh.normals[k]);
+                assert!(close(n, Vec3::from(m.normals[orig])), "{n}");
+                // Light normals are the reference-pose normals.
+                assert!(close(p.light_normals[k], Vec3::Z));
+            }
+        }
+        // Bone 1's part is stored turned back by -90 degrees about Z.
+        let p1 = &parts[1];
+        assert!(close(p1.mesh.source_positions[1], Vec3::ZERO));
+        assert!(close(p1.mesh.source_positions[2], Vec3::new(2.0, -1.0, 3.0)), "{}", p1.mesh.source_positions[2]);
+    }
+
+    /// `bone_transform` agrees with converting Source points one by one,
+    /// for any rotation and translation.
+    #[test]
+    fn bone_transform_is_source_to_world() {
+        let m = Affine3A::from_rotation_translation(
+            Quat::from_euler(bevy::math::EulerRot::ZYX, 0.7, -0.4, 1.9),
+            Vec3::new(12.0, -30.0, 47.0),
+        );
+        let t = bone_transform(m);
+        assert!((t.scale - Vec3::ONE).length() < 1e-6);
+        for p in [Vec3::ZERO, Vec3::X, Vec3::new(3.0, -8.0, 21.0), Vec3::new(-50.0, 4.0, 0.5)] {
+            let want = source_to_world(m.transform_point3(p));
+            let got = t.transform_point(source_to_world(p));
+            assert!((want - got).length() < 1e-5, "{p}: {want} vs {got}");
+            let want = source_dir_to_world(m.transform_vector3(p));
+            let got = t.rotation * source_dir_to_world(p);
+            assert!((want - got).length() < 1e-4, "{p}: {want} vs {got}");
+        }
+        // Source +Z (up) turned onto +X stays +X in the world.
+        let up_to_x = Affine3A::from_quat(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2));
+        assert!((bone_transform(up_to_x).rotation * Vec3::Y - Vec3::X).length() < 1e-5);
+    }
+
+    /// A posed bone moves its part rigidly (what the animation system does
+    /// each frame) to where full skinning would put the vertices.
+    #[test]
+    fn posed_parts_match_skinning() {
+        let bind = bones();
+        let pose_to_bone: Vec<Affine3A> = bind.iter().map(|m| m.inverse()).collect();
+        let posed = [
+            Affine3A::from_translation(Vec3::new(0.0, 0.0, 5.0)),
+            Affine3A::from_rotation_translation(Quat::from_rotation_x(1.0), Vec3::new(-3.0, 2.0, 1.0)),
+        ];
+        let m = mesh();
+        for p in split_by_bone(&m, &pose_to_bone, &bind) {
+            let xf = bone_transform(posed[p.bone]);
+            for (k, &vvd) in p.mesh.vvd_index.iter().enumerate() {
+                let orig = (vvd - 10) as usize;
+                let skinned = source_to_world((posed[p.bone] * pose_to_bone[p.bone]).transform_point3(m.source_positions[orig]));
+                let drawn = xf.transform_point(Vec3::from(p.mesh.positions[k]));
+                assert!((skinned - drawn).length() < 1e-5);
             }
         }
     }
