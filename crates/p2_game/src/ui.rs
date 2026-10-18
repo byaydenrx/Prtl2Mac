@@ -53,8 +53,8 @@ pub enum Screen {
     Pause,
 }
 
-/// Which part of Options is up: the main list, or the Subtitles or Speedrun
-/// section clicked into from it.
+/// Which part of Options is up: the main list, or the Subtitles, Speedrun or
+/// Mods section clicked into from it.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum OptionsPage {
     #[default]

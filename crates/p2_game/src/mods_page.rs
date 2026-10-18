@@ -62,7 +62,7 @@ impl ModsPage {
             };
             self.mods.push(ModRow { id: i.manifest.id.clone(), name: i.manifest.name.clone(), version, enabled });
         }
-        self.mods.sort_by(|a, b| a.name.to_ascii_lowercase().cmp(&b.name.to_ascii_lowercase()));
+        self.mods.sort_by_key(|a| a.name.to_ascii_lowercase());
         if let Ok((r, loaded)) = m.check(&self.profile, engine().as_ref()) {
             self.issues = r.issues.iter().map(|i| (i.severity == p2_mods::Severity::Error, format!("{}: {}", i.mod_id, i.message))).collect();
             let now: Vec<(String, p2_mods::semver::Version)> = loaded.iter().map(|l| (l.manifest.id.clone(), l.manifest.version.clone())).collect();
