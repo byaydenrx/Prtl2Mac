@@ -230,7 +230,7 @@ fn use_key(
         let reflective = ents.as_deref().is_some_and(|e| crate::lasers::reflective(e, prop.ent));
         let yaw_offset = if reflective { std::f32::consts::FRAC_PI_2 } else { prop_yaw - view.yaw };
         commands.entity(body).insert((
-            Held { stuck_for: 0.0, yaw_offset, distance: radius + 24.0 * shared::SOURCE_UNIT + 16.0 * shared::SOURCE_UNIT },
+            Held { stuck_for: 0.0, yaw_offset, distance: hold_distance(radius) },
             HeldColliders(cols),
             GravityScale(0.0),
         ));
@@ -265,6 +265,19 @@ fn use_key(
     }
 }
 
+/// How far in front of the eye a prop of this size is held.
+fn hold_distance(radius: f32) -> f32 {
+    radius + 24.0 * shared::SOURCE_UNIT + 16.0 * shared::SOURCE_UNIT
+}
+
+/// Where a held prop floats: Portal 2 keeps it level, a little below the
+/// view line.
+fn hold_point(eye: Vec3, view: &ViewAngles, distance: f32) -> Vec3 {
+    let pitch = view.pitch.clamp(-1.2, 1.2);
+    let fwd = Quat::from_euler(EulerRot::YXZ, view.yaw, pitch, 0.0) * Vec3::NEG_Z;
+    eye + fwd * distance - Vec3::Y * (8.0 * shared::SOURCE_UNIT)
+}
+
 /// Carry: float the held prop in front of the eye. Looking through a
 /// portal, the hold point is carried through it (Portal 2 lets you hold a
 /// cube on the far side of a portal you're looking into).
@@ -296,10 +309,7 @@ fn carry(
     let dt = time.delta_secs().max(1e-4);
     for (e, mut h, hc, tf, _, _, mut lv, mut av) in &mut held {
         let eye = feet.curr + Vec3::Y * crouch.eye_height;
-        // Portal 2 keeps the held object level, a little below the view line.
-        let pitch = view.pitch.clamp(-1.2, 1.2);
-        let fwd = Quat::from_euler(EulerRot::YXZ, view.yaw, pitch, 0.0) * Vec3::NEG_Z;
-        let mut target = eye + fwd * h.distance - Vec3::Y * (8.0 * shared::SOURCE_UNIT);
+        let mut target = hold_point(eye, view, h.distance);
         let mut want = Quat::from_rotation_y(view.yaw + h.yaw_offset);
         // The hold line passes through a portal: carry the point through.
         for (p, ptf, link) in &portals {
@@ -477,8 +487,11 @@ fn core_inputs(
     mut cores: ResMut<CoreState>,
     props: Query<(Entity, &Prop)>,
     mut loaded: MessageReader<LevelLoaded>,
-    mut players: Query<&mut IgnoreColliders, With<Player>>,
+    mut players: Query<(&mut IgnoreColliders, &InterpolatedFeet, &Crouch, &ViewAngles), With<Player>>,
     held: Query<&HeldColliders>,
+    children: Query<&Children>,
+    colliders: Query<(), With<Collider>>,
+    mut fire: MessageWriter<FireOutput>,
 ) {
     if loaded.read().count() > 0 {
         *cores = CoreState::default();
@@ -504,13 +517,47 @@ fn core_inputs(
             // Locked into a socket or onto a rail: out of the player's hands.
             ("npc_personality_core", "disablemotion") => {
                 if let Some((e, _)) = props.iter().find(|(_, p)| p.ent == i) {
-                    if let (Ok(hc), Ok(mut ignore)) = (held.get(e), players.single_mut()) {
+                    if let (Ok(hc), Ok((mut ignore, ..))) = (held.get(e), players.single_mut()) {
                         for c in &hc.0 {
                             ignore.remove(c);
                         }
                     }
                     commands.entity(e).remove::<(Held, HeldColliders)>().insert((RigidBody::Kinematic, LinearVelocity::ZERO, AngularVelocity::ZERO));
                 }
+            }
+            // Put straight into the player's hands (sp_a1_wakeup starts
+            // with Wheatley carried).
+            (_, "forcepickup") => {
+                let Some((e, prop)) = props.iter().find(|(_, p)| p.ent == i) else { continue };
+                let Ok((mut ignore, feet, crouch, view)) = players.single_mut() else { continue };
+                if held.contains(e) {
+                    continue;
+                }
+                let mut cols: Vec<Entity> = children.iter_descendants(e).filter(|c| colliders.contains(*c)).collect();
+                if colliders.contains(e) {
+                    cols.push(e);
+                }
+                for c in &cols {
+                    ignore.insert(*c);
+                }
+                let distance = hold_distance(prop.half.length());
+                let at = hold_point(feet.curr + Vec3::Y * crouch.eye_height, view, distance);
+                // Facing the player, as Wheatley is carried.
+                let yaw_offset = -std::f32::consts::FRAC_PI_2;
+                let rot = Quat::from_rotation_y(view.yaw + yaw_offset);
+                commands.entity(e).insert((
+                    RigidBody::Dynamic,
+                    Transform::from_translation(at).with_rotation(rot),
+                    Position(at),
+                    Rotation(rot),
+                    LinearVelocity::ZERO,
+                    AngularVelocity::ZERO,
+                    Held { stuck_for: 0.0, yaw_offset, distance },
+                    HeldColliders(cols),
+                    GravityScale(0.0),
+                ));
+                fire.write(FireOutput { ent: i, event: "OnPlayerPickup".into(), activator: Some(PLAYER) });
+                fire.write(FireOutput { ent: i, event: "OnPhysGunPickup".into(), activator: Some(PLAYER) });
             }
             ("logic_playerproxy", "setdropenabled") => cores.drop_disabled = msg.param.trim() == "0",
             _ => {}
