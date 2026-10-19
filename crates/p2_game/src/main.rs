@@ -26,6 +26,7 @@ mod health;
 mod io;
 mod lasers;
 mod level;
+mod map_particles;
 mod mods_page;
 mod mounts;
 mod movers;
@@ -112,6 +113,7 @@ fn main() {
             exposure::ExposurePlugin,
             paint::PaintPlugin,
             paint_props::PaintPropsPlugin,
+            map_particles::MapParticlesPlugin,
             texture_toggle::TextureTogglePlugin,
             movies::MoviesPlugin,
             projected_lights::ProjectedLightsPlugin,
