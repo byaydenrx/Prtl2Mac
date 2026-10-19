@@ -26,7 +26,7 @@ route not proven. NOT STARTED = untested.
 | sp_a1_intro2..intro6 | VERIFIED | button -> door chains and exits (autopilot, 2026-10-18) |
 | sp_a1_intro7 | VERIFIED | Wheatley pickup, socket, powered relay, scene (autopilot) |
 | sp_a1_wakeup | VERIFIED (autopilot) | socket fixed 2026-10-19 (core trigger reach); breakers -> GLaDOS -> claw -> incinerator -> sp_a2_intro; needs a manual play |
-| sp_a2_intro | IN PROGRESS | exit works |
+| sp_a2_intro | VERIFIED (logic) | after the fall, the pedestal gives the dual gun (blue and orange both place); the exit trigger opens door_0; next map loads. The portal route out of the gun pit wasn't flown: manual check |
 | sp_a2_laser_intro | VERIFIED | solved (dbc2f19) |
 | sp_a2_laser_stairs | VERIFIED | solved (3cf08c2, rescued into main as f2d9b71) |
 | sp_a2_dual_lasers .. sp_a2_fizzler_intro | IN PROGRESS | exits work; faith plates land on target (catapult_intro, trust_fling, pit_flings) |
@@ -49,3 +49,14 @@ route not proven. NOT STARTED = untested.
   conflicted). Its one unpushed commit (3cf08c2) is now on main.
 - `Portal2-ch35`, `Portal2-ch6-9` worktrees: chapter sessions (both at their
   usage limit; resume with a message).
+
+## Resume here (next session)
+- State: branch `wheatley` worktree = origin/main (all pushed). Tests pass.
+- Next task: prove the chapter 2 puzzles after laser_stairs in play order
+  (dual_lasers, laser_over_goo, catapult_intro, trust_fling, pit_flings,
+  fizzler_intro), then chapter 3's bridge_the_gap..pull_the_rug. Autopilot
+  helpers: `info <name>`, `portalable x y z r`, `ray x y z dx dy dz`,
+  `goto/lookat <name>`, `fire blue|orange`, `input <ent> <input>`.
+- Build the app: `sh scripts/make_app.sh` -> dist/Prtl2Mac.app.
+- Manual checks wanted from the owner: sp_a1_intro1 ride, sp_a1_wakeup
+  socket, sp_a2_intro portal route.
