@@ -65,7 +65,10 @@ pub fn mount(game: GameFs) -> (GameFs, Option<GameConfig>, Mounts, CommunityMaps
     let community_root = if crate::settings::may_write_data() { community::prepare_mount(&mut maps, &data_dir().join(".mount/community")) } else { None };
     let community = CommunityMaps { maps, folders };
     if plan.dirs.is_empty() && community_root.is_none() {
-        return (game, None, Mounts { mods: plan, community: None, notes }, community);
+        // The maps mount the install that was found (Steam library or
+        // depot), not only PORTAL2_DIR: a Finder-launched app has no env.
+        let config = game.config.clone();
+        return (game, Some(config), Mounts { mods: plan, community: None, notes }, community);
     }
     let mut config = game.config.clone();
     for d in plan.dirs.iter().rev() {
@@ -82,7 +85,8 @@ pub fn mount(game: GameFs) -> (GameFs, Option<GameConfig>, Mounts, CommunityMaps
             notes.push((true, format!("can't mount mods/community maps ({e}); starting without them")));
             let mut community = community;
             community.maps.iter_mut().for_each(|m| m.mounted = false);
-            (game, None, Mounts { mods: p2_mods::MountPlan { profile: plan.profile, issues: plan.issues, ..Default::default() }, community: None, notes }, community)
+            let config = game.config.clone();
+            (game, Some(config), Mounts { mods: p2_mods::MountPlan { profile: plan.profile, issues: plan.issues, ..Default::default() }, community: None, notes }, community)
         }
     }
 }

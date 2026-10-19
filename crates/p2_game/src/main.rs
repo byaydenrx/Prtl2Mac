@@ -68,6 +68,14 @@ fn main() {
     // Portal 2 is required: check before any window opens.
     let game = p2_assets::find_portal2().unwrap_or_else(|msg| {
         eprintln!("{msg}");
+        // Launched from Finder there is no terminal: say it in a dialog.
+        #[cfg(target_os = "macos")]
+        {
+            let text = msg.replace('\\', "\\\\").replace('"', "\\\"");
+            let _ = std::process::Command::new("osascript")
+                .args(["-e", &format!("display alert \"Prtl2Mac needs Portal 2\" message \"{text}\" as critical")])
+                .status();
+        }
         std::process::exit(1);
     });
     // Enabled mods ahead of the install, community maps behind it.

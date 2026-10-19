@@ -54,7 +54,16 @@ pub fn find_portal2() -> Result<source_assets::GameFs, String> {
         }
         None => {
             let libraries = steam_libraries();
-            match libraries.iter().map(|l| install_dir(l)).find(|d| is_portal2(d)) {
+            // Steam libraries' install folders, then depots downloaded with
+            // the Steam console (`download_depot 620 621`), which macOS Steam
+            // keeps inside its app bundle.
+            let mut candidates: Vec<std::path::PathBuf> = libraries.iter().map(|l| install_dir(l)).collect();
+            for l in &libraries {
+                for content in [l.join("steamapps/content"), l.join("Steam.AppBundle/Steam/Contents/MacOS/steamapps/content")] {
+                    candidates.extend(depots(&content));
+                }
+            }
+            match candidates.into_iter().find(|d| is_portal2(d)) {
                 Some(dir) => dir,
                 None => {
                     let looked: Vec<String> = libraries.iter().map(|l| l.display().to_string()).collect();
@@ -66,6 +75,19 @@ pub fn find_portal2() -> Result<source_assets::GameFs, String> {
     };
     let config = source_assets::config::GameConfig::from_root(&root);
     source_assets::GameFs::mount(config).map_err(|e| format!("{PORTAL2_REQUIRED}\n({e})"))
+}
+
+/// Depot folders of Portal 2 under a Steam `content` folder (`app_620/depot_*`).
+fn depots(content: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut out: Vec<std::path::PathBuf> = std::fs::read_dir(content.join(format!("app_{PORTAL2_APP_ID}")))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.file_name().is_some_and(|n| n.to_string_lossy().starts_with("depot_")))
+        .collect();
+    out.sort();
+    out
 }
 
 /// Portal 2 is Steam app 620.
