@@ -23,9 +23,12 @@ Not part of v1 (tracked as P3/P4): full visual fidelity (projected-texture
 lighting, every particle, glass refraction), every non-blocking scripted
 scene, co-op, commentary, multiplayer, Windows/Linux.
 
-Today we can honestly claim: chapter 1 and the first maps of chapter 2 play
-through (autopilot evidence); most later maps load and reach their exit
-when the player is placed on the route; most puzzles are unproven.
+Today we can honestly claim: maps load and their entity logic runs, and most
+reach their exit when the player is placed on the route. The owner's
+playtest (2026-10-19) found chapter 1 blocked for a real player (ride end,
+portal traversal, breaker lift), so nothing is playable end to end yet.
+Autopilot runs that use `setpos`/`input` prove logic, not playability; S
+needs a run with movement, portals and props only, or the owner's play.
 
 ## Build and package
 - [x] `cargo build --release`, `cargo test --release --workspace` pass
@@ -43,11 +46,12 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 
 | Ch | Map | L | O | S | N | R | Status | Evidence / notes |
 |---|---|---|---|---|---|---|---|---|
-| 1 | sp_a1_intro1 | y | y | y | y | - | IN PROGRESS | autopilot: wake-up, exercises, bed, Wheatley door, space to talk, ride; ride visuals rough (T-020); owner manual play wanted |
-| 1 | sp_a1_intro2..intro6 | y | y | y | y | - | VERIFIED | button->door chains, exits (autopilot 2026-10-18) |
-| 1 | sp_a1_intro7 | y | y | y | y | - | VERIFIED | Wheatley pickup, socket, relay, scene (autopilot) |
-| 1 | sp_a1_wakeup | y | y | y | y | - | VERIFIED | socket fixed 2026-10-19 (core trigger reach); breakers->GLaDOS->incinerator->sp_a2_intro (autopilot) |
-| 2 | sp_a2_intro | y | y | - | y | - | IN PROGRESS | gun pickup, both portals place, exit door, next map (autopilot); portal route out of the pit not flown (T-001) |
+| 1 | sp_a1_intro1 | y | y | x | - | - | BLOCKED | owner playtest: wall doesn't break at the ride's end, invisible barrier (T-101); many P2 issues (T-110..T-117) |
+| 1 | sp_a1_intro2, intro3, intro5, intro6 | y | y | - | y | - | IN PROGRESS | button->door chains and exits (autopilot logic only); portal traversal broken (T-102) |
+| 1 | sp_a1_intro4 | y | y | x | y | - | BLOCKED | owner playtest: can't walk through portals, cubes don't pass portals (T-102) |
+| 1 | sp_a1_intro7 | y | y | - | y | - | IN PROGRESS | Wheatley pickup, socket, relay, scene (autopilot logic); Wheatley re-pickup broken (T-105) |
+| 1 | sp_a1_wakeup | y | y | x | y | - | BLOCKED | owner playtest: breaker lift doesn't carry the player (T-103); crouch needed to enter (T-106); missing textures, music stops |
+| 2 | sp_a2_intro | y | y | x | y | - | BLOCKED | owner playtest: lands with nowhere to go; blue screen at start (T-104) |
 | 2 | sp_a2_laser_intro | y | y | y | y | - | VERIFIED | solved dbc2f19 |
 | 2 | sp_a2_laser_stairs | y | y | y | y | - | VERIFIED | solved 3cf08c2 (f2d9b71) |
 | 2 | sp_a2_dual_lasers | y | - | - | y | - | IN PROGRESS | exit reached by placement only (T-002) |
@@ -71,6 +75,7 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 9 | sp_a4_finale1..finale4 | - | - | - | - | - | NOT STARTED | T-015 |
 
 ## Release blockers (open P0/P1)
+- Owner playtest blockers T-101..T-106 (chapter 1 and sp_a2_intro).
 - Most chapter 2-3 puzzles unproven (T-001..T-008).
 - Chapters 4-9 not swept (T-010..T-015).
 - Restart/reload never checked per map (T-090).

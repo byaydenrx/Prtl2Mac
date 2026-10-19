@@ -5,7 +5,7 @@ P0-P4 (see WORKFLOW.md). Work top to bottom: the first TODO/IN_PROGRESS task
 whose dependencies are DONE. When a task finishes, move it to Done (newest
 first) with its evidence and update PROJECT_STATE.md.
 
-"Prove a map" (the standard acceptance for T-001..T-015): from the map's
+"Prove a map" (the standard acceptance for T-002..T-015): from the map's
 start, an autopilot script plays the intended solution using movement,
 `fire`, `use` and props (no `setpos` past a puzzle step, no `input` on
 puzzle entities); the exit door opens from the puzzle's own outputs; the
@@ -14,11 +14,47 @@ date. Any engine bug found becomes its own task (P1 if it blocks the route).
 
 ## Active
 
-### T-001 Fly sp_a2_intro's portal route out of the gun pit  (P1, IN_PROGRESS)
-- Outcome: after picking up the gun, the player leaves the pit only via portals and reaches the exit.
-- Verify: autopilot route (fire/walk only) to the exit trigger.
-- Files: scripts/routes/sp_a2_intro.txt; engine files if a bug turns up.
-- Depends on: none.
+### T-101 sp_a1_intro1: ride ending blocks progress  (P1, IN_PROGRESS)
+- Owner playtest 2026-10-19: after "seriously, do hold on this time" no more
+  lines, the wall doesn't break, you can walk into the wall but an invisible
+  barrier stops you. Unplayable past this point.
+- Outcome: the end-of-ride scene plays, the wall breaks (or the original's
+  equivalent), and the player can walk on to the next area and map.
+- Files: viewcontrol.rs, scenes.rs, movers.rs, anim_props.rs (to be found).
+- Verify: trace the I/O chain after the last ride line; play from the ride
+  start to the map change by walking, not setpos.
+
+## Owner playtest blockers (P1, play order)
+
+### T-102 sp_a1_intro4: player can't walk through portals; cubes don't pass portals normally  (P1, TODO)
+- Owner: got a cube through once, then couldn't walk through a portal. Core mechanic.
+- Verify: walk through a placed portal pair, and carry and throw a cube through, in intro4 (and intro3).
+
+### T-103 sp_a1_wakeup: breaker lift doesn't carry the player  (P1, TODO)
+- Owner: when the pod moves up switching the breakers, you don't move with it. Unplayable.
+- Verify: stand on the lift and ride it to the top without setpos.
+
+### T-104 sp_a2_intro: player lands with nowhere to go  (P1, TODO; replaces T-001)
+- Owner: the fall is normal but drops you somewhere with nowhere to go; screen blue and glitchy for ~5 s at the start.
+- Verify: from map start, the fall, the gun pickup, then leave the pit using only portals and walking, to the exit.
+
+### T-105 Wheatley can't be picked up again once dropped/stuck  (P1, TODO)
+- Owner: if he gets stuck and you drop him, you can't pick him up; the original allows drop and pick up.
+- Verify: drop and pick up in sp_a1_intro7 and sp_a1_wakeup.
+
+### T-106 sp_a1_wakeup: crouch needed to enter the breaker room  (P1, TODO)
+- Owner: you have to crouch to get in (then Wheatley drops and auto-plugs since he's close).
+
+## Owner playtest issues (P2)
+- T-110 Voice lines overlap: jumping/saying "apple" while Wheatley talks, opening the door early; Portal 2 queues or interrupts by scene priority.
+- T-111 Music stops at the stairs (wakeup, way to GLaDOS).
+- T-112 Missing textures: hallway to GLaDOS, after the jumps (plus a black wall you can walk through), GLaDOS chamber floor drawn as a warm sky, a blue flat wall behind the intro4 elevator.
+- T-113 Instructor hints vanish after a few seconds if not done; the key icons have no label ("E", "SPACE").
+- T-114 intro1: the Wheatley door opens on approach without pressing E.
+- T-115 intro1: wake-up animation still wrong; no wake/sleep animation on the bed.
+- T-116 intro1: the first room's window is a grey block (should be blinds etc.); the TV screen sits forward and up from the TV; glitchy screen at the start of the ride; odd outside lighting on the ride.
+- T-117 Shadows are blocky (shadow-map resolution and filtering).
+- T-118 intro4: loud glass-breaking sound (check against the original); the door animation cuts to black.
 
 ## Backlog
 

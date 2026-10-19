@@ -11,13 +11,16 @@ pushes to `main`).
 - main builds; ~340 workspace tests pass (2026-10-19).
 - Workflow set up: WORKFLOW.md, TASKS.md, PROJECT_STATE.md, this file,
   CLAUDE.md, scripts/resume.sh.
-- Current task: **T-001** (sp_a2_intro portal route out of the gun pit).
+- Current task: **T-101** (intro1 ride end). The owner playtest (2026-10-19) found chapter 1 blockers T-101..T-106.
 
 ## Next action
-Continue T-001: load sp_a2_intro, take the gun (see the evidence run in
-TASKS.md Done), find the portal surfaces with `portalable`/`ray`, and fly
-the route to the exit with `fire`/`walk` only. Save the working script to
-`scripts/routes/sp_a2_intro.txt`. Then T-002 (dual_lasers).
+Fix the owner-playtest blockers in play order: T-101 (intro1 ride end: wall
+doesn't break, invisible barrier), T-102 (portal traversal for the player
+and cubes), T-103 (wakeup breaker lift), T-104 (sp_a2_intro), T-105, T-106.
+Verify with walking/portal runs, not setpos/input, then ask the owner to replay.
+Autopilot screenshots sometimes come out fully black when the game window
+is covered; the owner sees it rendering fine. Re-take the shot rather than
+debugging the renderer.
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.
