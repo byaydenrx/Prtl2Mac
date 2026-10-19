@@ -74,6 +74,9 @@ fn gun_for(campaign: &Campaign, map: &str, info: &MapInfo) -> [bool; 2] {
             }
         }
         (Some(h), _, Some(u)) if h < u => [true, false],
+        // A gun lying in a later map is the one the player lost: sp_a3_01
+        // starts after the fall without it (the knockout scene drops it).
+        (Some(h), _, Some(u)) if h > u && hands_out_gun => [false, false],
         _ => [true, true],
     }
 }

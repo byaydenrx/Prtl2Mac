@@ -334,7 +334,9 @@ fn console_command(line: &str, gun: &mut PortalGun, exit: &mut MessageWriter<Lev
             exit.write(LevelExit);
         } else if c == "give weapon_portalgun" || c == "give_portalgun" {
             gun.can_fire[0] = true;
-        } else if c.starts_with("upgrade_portalgun") || c.starts_with("upgrade_potatogun") {
+        } else if (c.starts_with("upgrade_portalgun") || c.starts_with("upgrade_potatogun")) && gun.can_fire.iter().any(|f| *f) {
+            // Upgrades only the gun the player holds: sp_a3_01's transition
+            // script upgrades before the player has found the gun again.
             gun.can_fire = [true, true];
         }
     }

@@ -216,6 +216,10 @@ fn use_key(
                 if class == "func_button" {
                     fire.write(FireOutput { ent: i, event: "OnIn".into(), activator: Some(PLAYER) });
                 }
+                if class == "func_rot_button" {
+                    // It turns in and fires OnIn on arrival (rotators.rs).
+                    ents.input_to(i, "use");
+                }
             }
             return;
         }

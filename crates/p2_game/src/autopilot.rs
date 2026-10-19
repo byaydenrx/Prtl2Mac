@@ -74,7 +74,12 @@ fn drive(
     collider_of: Query<(Option<&avian3d::prelude::ColliderOf>, Has<avian3d::prelude::Collider>, Has<avian3d::prelude::ColliderDisabled>)>,
     bodies: Query<&avian3d::prelude::RigidBody>,
     mut settings: ResMut<crate::settings::Settings>,
-    (names, globals, src_cols): (Query<(Option<&Name>, Option<&ChildOf>)>, Query<&GlobalTransform>, Query<&source_assets::SourceCollider>),
+    (names, globals, src_cols, portalable): (
+        Query<(Option<&Name>, Option<&ChildOf>)>,
+        Query<&GlobalTransform>,
+        Query<&source_assets::SourceCollider>,
+        Query<(&source_assets::SourceCollider, &avian3d::prelude::ColliderAabb), (With<Portalable>, Without<avian3d::prelude::ColliderDisabled>)>,
+    ),
 ) {
     // The script clock is real time: menus pause the world's clock.
     // It starts with the first level (the menu's too, for menu tests) and
@@ -274,6 +279,33 @@ fn drive(
                 } else {
                     info!("autopilot: ray hit nothing");
                 }
+            }
+            "portalable" => {
+                // portalable x y z r: portal surfaces within r units (Source
+                // boxes and the directions their portalable faces look).
+                let c = Vec3::new(f(a, 0), f(a, 1), f(a, 2));
+                let r = if a.len() >= 4 { f(a, 3) } else { 512.0 };
+                let mut n = 0;
+                for (sc, aabb) in &portalable {
+                    let lo = shared::world_to_source(aabb.min);
+                    let hi = shared::world_to_source(aabb.max);
+                    let (lo, hi) = (lo.min(hi), lo.max(hi));
+                    if c.clamp(lo, hi).distance(c) > r {
+                        continue;
+                    }
+                    let dirs: Vec<String> = sc
+                        .sides
+                        .iter()
+                        .filter(|s| s.portalable)
+                        .map(|s| {
+                            let d = Vec3::new(s.normal.x, -s.normal.z, s.normal.y);
+                            ["+x", "-x", "+y", "-y", "+z", "-z"][[d.x, -d.x, d.y, -d.y, d.z, -d.z].iter().enumerate().max_by(|x, y| x.1.total_cmp(y.1)).unwrap().0].to_string()
+                        })
+                        .collect();
+                    info!("autopilot: portalable {:.0?}..{:.0?} faces {:?} model {}", lo, hi, dirs, sc.model);
+                    n += 1;
+                }
+                info!("autopilot: {n} portalable colliders");
             }
             "plan" => {
                 let at = shared::source_to_world(Vec3::new(f(a, 0), f(a, 1), f(a, 2)));
