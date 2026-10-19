@@ -433,14 +433,42 @@ fn parse_vhv(data: &[u8], model: &ModelData) -> Option<Vec<Vec3>> {
     Some(out)
 }
 
+/// A prop_weighted_cube's type (0 standard, 1 companion, 2 reflective,
+/// 3 sphere, 4 antique) from its keyvalues. Older maps leave CubeType out
+/// and pick the type with the old `skin` field (3 reflective, 4 sphere,
+/// 5 antique: Portal 2's FGD "Skin (OLD)").
+pub fn cube_type(cubetype: Option<&str>, newskins: Option<&str>, skin: Option<&str>) -> u8 {
+    let n = |v: Option<&str>| v.and_then(|v| v.trim().parse::<i32>().ok()).unwrap_or(0);
+    if n(newskins) != 0 || n(cubetype) != 0 {
+        return n(cubetype).clamp(0, 4) as u8;
+    }
+    match n(skin) {
+        1 => 1,
+        3 => 2,
+        4 => 3,
+        5 => 4,
+        _ => 0,
+    }
+}
+
+/// The model skin a prop_weighted_cube draws with: the old skin field is
+/// a cube type for reflective, sphere and antique cubes (their own models).
+pub fn cube_skin(cubetype: Option<&str>, newskins: Option<&str>, skin: Option<&str>) -> i32 {
+    let n = |v: Option<&str>| v.and_then(|v| v.trim().parse::<i32>().ok()).unwrap_or(0);
+    if n(newskins) == 0 && n(cubetype) == 0 && n(skin) >= 3 {
+        0
+    } else {
+        n(skin)
+    }
+}
+
 /// Studio models an entity class renders when it has no `model` key.
 pub fn default_entity_model(e: &SourceEntity) -> Option<String> {
     let m = match e.classname.as_str() {
-        "prop_weighted_cube" => match e.get("cubetype").unwrap_or("0") {
-            "1" => "models/props/metal_box.mdl",
-            "2" => "models/props/reflection_cube.mdl",
-            "3" => "models/props_gameplay/mp_ball.mdl",
-            "4" => "models/props_underground/underground_weighted_cube.mdl",
+        "prop_weighted_cube" => match cube_type(e.get("cubetype"), e.get("newskins"), e.get("skin")) {
+            2 => "models/props/reflection_cube.mdl",
+            3 => "models/props_gameplay/mp_ball.mdl",
+            4 => "models/props_underground/underground_weighted_cube.mdl",
             _ => "models/props/metal_box.mdl",
         },
         "prop_testchamber_door" => "models/props/portal_door_combined.mdl",

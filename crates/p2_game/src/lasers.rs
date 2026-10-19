@@ -47,7 +47,7 @@ pub struct LaserState {
 pub fn reflective(ents: &Ents, i: usize) -> bool {
     let e = &ents.list[i];
     e.class == "prop_weighted_cube"
-        && (e.get("cubetype").is_some_and(|v| v.trim() == "2") || e.get("model").is_some_and(|m| m.to_ascii_lowercase().contains("reflection_cube")))
+        && (source_assets::map::cube_type(e.get("cubetype"), e.get("newskins"), e.get("skin")) == 2 || e.get("model").is_some_and(|m| m.to_ascii_lowercase().contains("reflection_cube")))
 }
 
 fn laser_inputs(mut inputs: MessageReader<EntInput>, ents: Option<Res<Ents>>, mut state: ResMut<LaserState>, mut loaded: MessageReader<LevelLoaded>) {
@@ -185,7 +185,8 @@ fn trace_lasers(
             skip.extend(children.iter_descendants(x).filter(|c| colliders.contains(*c)));
         }
         for _ in 0..MAX_LEGS {
-            let filter = SpatialQueryFilter::from_excluded_entities(skip.iter().copied());
+            // Beams pass player clips (they stand in front of catchers).
+            let filter = SpatialQueryFilter::from_excluded_entities(skip.iter().copied()).with_mask(LayerMask(!source_assets::plugin::PLAYER_CLIP_LAYER));
             let hit = spatial.cast_ray(o, Dir3::new(dir).unwrap_or(Dir3::X), RANGE, true, &filter);
             let mut len = hit.map_or(RANGE, |h| h.distance);
             // Through the front of a linked portal?

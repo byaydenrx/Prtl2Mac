@@ -1027,7 +1027,7 @@ pub fn spawn_loaded_map(
         }
         if let Some(path) = &model_path {
             if let Some(model) = map.models.get(path) {
-                let skin = e.get("skin").or(e.get("modelskin")).and_then(|s| s.parse().ok()).unwrap_or(0);
+                let skin = if e.classname == "prop_weighted_cube" { crate::map::cube_skin(e.get("cubetype"), e.get("newskins"), e.get("skin")) } else { e.get("skin").or(e.get("modelskin")).and_then(|s| s.parse().ok()).unwrap_or(0) };
                 let scale = e.get_f32("modelscale").filter(|s| *s > 0.0).unwrap_or(1.0);
                 let local = Transform::from_translation(source_to_world(e.origin))
                     .with_rotation(source_angles_to_world(e.angles))
@@ -1101,7 +1101,7 @@ pub fn spawn_loaded_map(
             transform,
             model: model_path,
             brush_model: e.brush_model(),
-            skin: e.get("skin").or(e.get("modelskin")).and_then(|s| s.parse().ok()).unwrap_or(0),
+            skin: if e.classname == "prop_weighted_cube" { crate::map::cube_skin(e.get("cubetype"), e.get("newskins"), e.get("skin")) } else { e.get("skin").or(e.get("modelskin")).and_then(|s| s.parse().ok()).unwrap_or(0) },
             entity: spawned,
             bounds: bounds_e,
             keyvalues: e.keyvalues.clone(),
@@ -1171,6 +1171,10 @@ fn model_bounds(model: &ModelData) -> (Vec3, Vec3) {
     (a.min(b), a.max(b))
 }
 
+/// The collision layer of player clips: queries that should see through
+/// them (lasers) mask it out (`LayerMask(!PLAYER_CLIP_LAYER)`).
+pub const PLAYER_CLIP_LAYER: u32 = 1 << 1;
+
 fn spawn_collider(commands: &mut Commands, c: &ColliderData, parent: Entity) {
     let collider = if c.pieces.len() == 1 {
         Collider::convex_hull(c.pieces[0].clone())
@@ -1205,7 +1209,7 @@ fn spawn_collider(commands: &mut Commands, c: &ColliderData, parent: Entity) {
         // Player clips (toolsclip, toolsplayerclip) only stop the player,
         // whose movement is a shape cast: physics objects fall through them
         // (cube droppers have one across their chute).
-        ec.insert(CollisionLayers::new(LayerMask(1 << 1), LayerMask::NONE));
+        ec.insert(CollisionLayers::new(LayerMask(PLAYER_CLIP_LAYER), LayerMask::NONE));
     }
 }
 
