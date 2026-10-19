@@ -174,6 +174,79 @@ sp_a1_wakeup, checked with scripted runs:
    at 60 fps (95-103 with a 120/240 cap); check in a focused window.
    Enhanced graphics does nothing yet; model textures ignore the AF setting.
 
+## cloud/aimers branch (untested in game)
+
+Built in the cloud with unit tests only (no game files, no GPU).
+
+What's new:
+- `tanks.rs`, **func_tank** (any `func_tank*` class): a tank turns about
+  its own origin, relative to its unturned pose (its spawn pose, or where
+  its parent / animated attachment puts it this tick):
+  - yaw within +-`yawrange` (180 and more = all the way round, the short
+    way), pitch within +-`pitchrange`, at `yawrate` / `pitchrate` deg/s;
+  - it aims its barrel (`barrel`/`barrely`/`barrelz`) at the target.
+  - Inputs: `Activate`, `Deactivate`, `SetTargetEntity` /
+    `SetTargetEntityName` (a point_viewproxy, point_viewcontrol or
+    `!player` = the main camera, otherwise the entity's origin),
+    `SetTargetPosition`, `SetTargetDir`, `ClearTargetEntity` /
+    `ClearTarget` (holds its aim). Spawnflag 1 = starts active.
+  - Children: `movers.rs` `follow_parents` places a tank child from its
+    parent and then adds the tank's own turn (`Tanks::place`), and the
+    tank's children follow it the same tick. A tank on an animated
+    attachment is turned again after `follow_attachments` each frame.
+  - Not saved in save games yet (tanks restart unturned on a load).
+- `sprites.rs`, **env_sprite** (and env_glow, env_sprite_oriented):
+  - Drawn as camera-facing quads of the sprite material's `$basetexture`.
+    Size = texels x `scale` units; colour = `rendercolor` x
+    `HDRColorScale` (linear), alpha = `renderamt`.
+  - Additive for `rendermode` 3/5/9, blended otherwise. Each sprite is
+    pulled `GlowProxySize` units toward the camera so its fixture doesn't
+    clip it.
+  - Starts on with spawnflag 1, or when it has no name.
+  - Inputs: ShowSprite / HideSprite / ToggleSprite, ColorRedValue /
+    ColorGreenValue / ColorBlueValue, Color, Alpha, SetScale.
+  - Placed from the entity's transform every frame, so parented sprites
+    follow their parent.
+- **point_spotlight**: a camera-facing additive cone from the lamp along
+  its forward, `spotlightlength` long. It is `spotlightwidth` wide at the
+  lamp and twice that at the far end (`SPOTLIGHT_SPREAD`, a guess). Its
+  texture is a generated gradient fading along the cone and to the
+  edges. Takes `rendercolor` x `HDRColorScale`; LightOn / LightOff;
+  spawnflag 1 = on.
+- **env_beam**: a camera-facing ribbon from `LightningStart` to
+  `LightningEnd` (or to itself), `BoltWidth` wide, with its `texture`
+  material. TurnOn / TurnOff / Toggle. No noise.
+
+Verify in game:
+1. **sp_a1_intro1, Wheatley's rail**:
+   - `top_swivel_1` and `bottom_swivel_1` turn toward the player's view
+     once activated (`SetTargetEntity camera_1`), quickly (600 / 300
+     deg/s).
+   - Wheatley (@sphere, under bottom_swivel_1) swings with them and stays
+     attached, while the rail (actor_railing_1) moves.
+   - If a swivel turns the wrong way (mirror), check `angles_to`'s axis
+     change.
+   - If it turns about the wrong point, the brush's origin isn't its
+     pivot.
+   - If the children lag a frame behind the rail, the chain mixes an
+     animated attachment (Update) with plain parenting (FixedUpdate).
+2. **Other tank users**: sp_a1_intro3, sp_a2_bts2 and others: the turrets
+   / cameras built from func_tank face their targets and stop at their
+   yaw/pitch limits.
+3. **sp_a3_01 glows** (64 env_sprites):
+   - right size and colour, additive;
+   - not cut by the lamps they sit on;
+   - hidden ones appear on ShowSprite.
+   - Not done: occlusion fading. Glows show through nothing (they are
+     depth-tested), but don't fade behind thin geometry as Source's
+     `GlowProxySize` query does.
+   - `rendermode 3` (constant screen size) is approximated: world size at
+     256 units, growing with distance.
+4. **Spotlights**: point_spotlight cones look like Portal 2's soft light
+   shafts (length, width, brightness, the far-end width) and switch with
+   LightOn/LightOff.
+5. **env_beam** ribbons span their two ends with the right texture.
+
 ## cloud/projtex branch (untested in game)
 
 `env_projectedtexture` (shadowed spotlights), built without the game

@@ -484,11 +484,13 @@ fn run_movers(
     }
 }
 
-/// Parented entities keep their pose relative to a moving parent.
-fn follow_parents(
+/// Parented entities keep their pose relative to a moving parent (a
+/// `func_tank` child keeps its own turn on top, `tanks.rs`).
+pub(crate) fn follow_parents(
     ents: Option<ResMut<Ents>>,
     mut movers: ResMut<Movers>,
     anims: Option<Res<crate::viewcontrol::PropAnims>>,
+    mut tanks: Option<ResMut<crate::tanks::Tanks>>,
     mut transforms: Query<&mut Transform, Without<Player>>,
 ) {
     let Some(mut ents) = ents else { return };
@@ -514,6 +516,7 @@ fn follow_parents(
         }
         let pt = ents.list[parent].transform;
         let world = Transform::from_translation(pt.translation + pt.rotation * offset.translation).with_rotation(pt.rotation * offset.rotation);
+        let world = tanks.as_mut().map_or(world, |t| t.place(child, world));
         let delta = world.translation - ents.list[child].transform.translation;
         ents.list[child].transform = world;
         if let Some((lo, hi)) = &mut ents.list[child].bounds {
