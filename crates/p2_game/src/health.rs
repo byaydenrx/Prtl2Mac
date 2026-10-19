@@ -1,11 +1,12 @@
 //! The player's health: hazards (goo, turrets, lasers, crushers) hurt,
 //! health comes back after a short rest, and at zero the screen fades and
-//! the level starts again from its last save (the map start; Portal 2's
-//! mid-map autosaves are not kept yet). `player_loadsaved` does the same.
+//! the level starts again from its last save (`saves.rs`; the map start
+//! when the level has none). `player_loadsaved` does the same.
 use bevy::prelude::*;
 
 use crate::io::{EntInput, Ents};
-use crate::level::{CurrentMap, LevelLoaded, LoadLevel};
+use crate::level::{CurrentMap, LevelLoaded};
+use crate::saves::{LoadGame, Slot};
 use crate::triggers::ScreenFade;
 
 pub struct HealthPlugin;
@@ -69,7 +70,7 @@ fn take_damage(
     mut fade: ResMut<ScreenFade>,
     mut loaded: MessageReader<LevelLoaded>,
     map: Option<Res<CurrentMap>>,
-    mut load: MessageWriter<LoadLevel>,
+    mut load: MessageWriter<LoadGame>,
     ents: Option<Res<Ents>>,
 ) {
     if loaded.read().count() > 0 {
@@ -99,7 +100,7 @@ fn take_damage(
     if let (Some(at), Some(map)) = (health.reload_at, map) {
         if now >= at {
             health.reload_at = None;
-            load.write(LoadLevel { map: map.info.name.clone(), menu: false });
+            load.write(LoadGame(Slot::Latest(Some(map.info.name.clone()))));
             *fade = ScreenFade { color: Vec4::new(0.0, 0.0, 0.0, 1.0), start: time.elapsed_secs(), duration: 1.0, hold: 0.0, out: false, active: true, stay: false };
         }
     }

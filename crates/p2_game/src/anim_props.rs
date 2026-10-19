@@ -452,8 +452,9 @@ fn start_default_anims(ents: Option<Res<Ents>>, game: Res<GameFsRes>, mut anims:
 /// fires `OnAnimationDone`.
 fn advance_anims(ents: Option<Res<Ents>>, game: Res<GameFsRes>, mut anims: ResMut<PropAnims>, mut fire: MessageWriter<FireOutput>, mut last: Local<f32>) {
     let Some(ents) = ents else { return };
-    // Game time stops in menus and restarts at 0 with each level.
-    let dt = if ents.now >= *last { ents.now - *last } else { 0.0 };
+    // Game time stops in menus and restarts at 0 with each level; a loaded
+    // save sets it in one jump (its sequences come back with their times).
+    let dt = if ents.now >= *last && ents.now - *last < 1.0 { ents.now - *last } else { 0.0 };
     *last = ents.now;
     if dt <= 0.0 {
         return;

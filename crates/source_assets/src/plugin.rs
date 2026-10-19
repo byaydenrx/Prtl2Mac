@@ -55,7 +55,8 @@ impl Plugin for SourceMapPlugin {
         .init_resource::<SourceRenderSettings>()
         .init_resource::<crate::valve::ValveShaderLibrary>()
         .add_plugins(crate::valve_render::ValveRenderPlugin)
-        .add_plugins(crate::proxy::MaterialProxyPlugin);
+        .add_plugins(crate::proxy::MaterialProxyPlugin)
+        .add_plugins(crate::projected::ProjectedLightPlugin);
         if std::env::var_os("P2_TRACE_BONE").is_some() {
             app.add_systems(PostUpdate, trace_bones.after(TransformSystems::Propagate));
         }
@@ -138,6 +139,7 @@ pub struct SourceMapAssets<'w> {
     pub compressed: Option<Res<'w, CompressedImageFormatSupport>>,
     pub shaders: ResMut<'w, Assets<bevy::shader::Shader>>,
     pub valve: Res<'w, crate::valve::ValveShaderLibrary>,
+    pub projected: Res<'w, crate::projected::ProjectedLightAssets>,
 }
 
 // ---------------------------------------------------------------- components
@@ -537,6 +539,9 @@ fn make_material(
         base_texture: base,
         lightmap,
         base_texture2: base2,
+        proj_lights: assets.projected.lights.clone(),
+        proj_cookies: Some(assets.projected.cookies.clone()),
+        proj_shadows: Some(assets.projected.shadows.clone()),
         alpha_mode,
         double_sided: m.no_cull || std::env::var_os("SOURCE_NOCULL").is_some(),
     }

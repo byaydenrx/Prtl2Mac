@@ -76,11 +76,11 @@ impl Plugin for ValveRenderPlugin {
 }
 
 #[derive(Resource, Default)]
-struct ExtractedSurfaces {
+pub(crate) struct ExtractedSurfaces {
     /// Each visible surface, its transform and (proxied materials) this
     /// frame's constants and texture frames.
-    draws: Vec<(Arc<SurfaceDraw>, Mat4, Option<Arc<OverrideData>>)>,
-    exposure: f32,
+    pub(crate) draws: Vec<(Arc<SurfaceDraw>, Mat4, Option<Arc<OverrideData>>)>,
+    pub(crate) exposure: f32,
     quality: ValveQuality,
 }
 
@@ -114,10 +114,12 @@ struct PipelineKey {
     samples: u32,
 }
 
-struct GpuMesh {
-    vertex: Buffer,
-    index: Buffer,
-    count: u32,
+pub(crate) struct GpuMesh {
+    pub(crate) vertex: Buffer,
+    pub(crate) index: Buffer,
+    pub(crate) count: u32,
+    /// Bounds of the vertices (Source units, model space).
+    pub(crate) bounds: (Vec3, Vec3),
 }
 
 struct PreparedDraw {
@@ -133,15 +135,17 @@ struct ViewDraws {
 }
 
 #[derive(Resource, Default)]
-struct PreparedSurfaces {
+pub(crate) struct PreparedSurfaces {
     constants_layout: Option<BindGroupLayoutDescriptor>,
-    textures_layout: Option<BindGroupLayoutDescriptor>,
+    pub(crate) textures_layout: Option<BindGroupLayoutDescriptor>,
     pipelines: HashMap<PipelineKey, CachedRenderPipelineId>,
-    meshes: Vec<GpuMesh>,
-    mesh_index: HashMap<(usize, usize), usize>,
+    pub(crate) meshes: Vec<GpuMesh>,
+    pub(crate) mesh_index: HashMap<(usize, usize), usize>,
     constants: Option<Buffer>,
     constants_bind: Option<BindGroup>,
-    texture_bind: Option<BindGroup>,
+    pub(crate) texture_bind: Option<BindGroup>,
+    /// This frame's texture table: image -> slot.
+    pub(crate) slot_of: HashMap<AssetId<Image>, u16>,
     texture_set: Vec<AssetId<Image>>,
     samplers: Vec<Sampler>,
     /// What `samplers` were made with.
@@ -340,7 +344,7 @@ fn make_fallbacks(device: &RenderDevice, queue: &RenderQueue) -> ((Texture, Text
 }
 
 #[allow(clippy::too_many_arguments)]
-fn prepare_surfaces(
+pub(crate) fn prepare_surfaces(
     extracted: Res<ExtractedSurfaces>,
     mut prepared: ResMut<PreparedSurfaces>,
     device: Res<RenderDevice>,
@@ -449,11 +453,16 @@ fn prepare_surfaces(
             contents: bytemuck::cast_slice(&d.indices),
             usage: BufferUsages::INDEX,
         });
+        let bounds = d.vertices.iter().fold((Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)), |(lo, hi), v| {
+            let p = Vec3::new(v.position[0], v.position[1], v.position[2]);
+            (lo.min(p), hi.max(p))
+        });
         prepared.mesh_index.insert(key, prepared.meshes.len());
         prepared.meshes.push(GpuMesh {
             vertex,
             index,
             count: d.indices.len() as u32,
+            bounds,
         });
     }
 
@@ -572,6 +581,7 @@ fn prepare_surfaces(
         vd.opaque.sort_by_key(|d| d.pipeline.id());
         prepared.views.insert(view_entity, vd);
     }
+    prepared.slot_of = slot_of;
     if arena.is_empty() {
         return;
     }
@@ -596,7 +606,7 @@ fn prepare_surfaces(
     queue.write_buffer(prepared.constants.as_ref().unwrap(), 0, bytes);
 }
 
-fn valve_main_pass(
+pub(crate) fn valve_main_pass(
     view: ViewQuery<(&ExtractedCamera, &ViewTarget, &ViewDepthTexture)>,
     prepared: Res<PreparedSurfaces>,
     pipeline_cache: Res<PipelineCache>,

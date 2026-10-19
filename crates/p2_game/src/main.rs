@@ -34,7 +34,9 @@ mod overlays;
 mod paint;
 mod paint_props;
 mod portals;
+mod projected_lights;
 mod props;
+mod saves;
 mod scenes;
 mod settings;
 mod speedrun;
@@ -112,9 +114,11 @@ fn main() {
             paint_props::PaintPropsPlugin,
             texture_toggle::TextureTogglePlugin,
             movies::MoviesPlugin,
+            projected_lights::ProjectedLightsPlugin,
         ))
         // Developer, speedrun and modding tools (all off until turned on in Options).
         .add_plugins((console::ConsolePlugin, overlays::OverlaysPlugin, speedrun::SpeedrunPlugin))
+        .add_plugins(saves::SavesPlugin)
         .insert_resource(args)
         .add_plugins(p2_room::HarnessPlugin);
     // UI after the Screen resource above (its own default is the main menu).

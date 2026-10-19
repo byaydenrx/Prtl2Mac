@@ -11,6 +11,7 @@ use std::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use p2_assets::GameFsRes;
 use p2_core::*;
+use serde::{Deserialize, Serialize};
 use vscript::{Host, Key, Value, Vm};
 
 use crate::audio::PlayGameSound;
@@ -51,6 +52,125 @@ pub struct Scripts {
     /// Functions already reported missing (log once).
     missing: HashSet<String>,
     rng: u32,
+}
+
+/// A script value with no code in it (saved games keep these).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum PlainValue {
+    Null,
+    Bool(bool),
+    Int(i64),
+    Float(f64),
+    Str(String),
+    /// An entity (or engine object) handle.
+    Handle(u64),
+    Vector([f64; 3]),
+    /// The plain slots of a table (string keys).
+    Table(Vec<(String, PlainValue)>),
+    Array(Vec<PlainValue>),
+}
+
+/// `v` as plain data: tables keep only their plain slots; an array with
+/// anything else in it, functions, classes and instances give `None`.
+pub fn to_plain(v: &Value, depth: usize) -> Option<PlainValue> {
+    if depth > 8 {
+        return None;
+    }
+    Some(match v {
+        Value::Null => PlainValue::Null,
+        Value::Bool(b) => PlainValue::Bool(*b),
+        Value::Int(i) => PlainValue::Int(*i),
+        Value::Float(f) => PlainValue::Float(*f),
+        Value::Str(s) => PlainValue::Str(s.to_string()),
+        Value::Handle(h) => PlainValue::Handle(*h),
+        Value::Vector(v) => PlainValue::Vector(*v.borrow()),
+        Value::Table(t) => PlainValue::Table(plain_slots(t.borrow().map.iter(), depth + 1)),
+        Value::Array(a) => PlainValue::Array(a.borrow().iter().map(|x| to_plain(x, depth + 1)).collect::<Option<Vec<_>>>()?),
+        _ => return None,
+    })
+}
+
+fn plain_slots<'a>(slots: impl Iterator<Item = (&'a Key, &'a Value)>, depth: usize) -> Vec<(String, PlainValue)> {
+    slots
+        .filter_map(|(k, v)| match k {
+            Key::Str(k) => to_plain(v, depth).map(|p| (k.to_string(), p)),
+            _ => None,
+        })
+        .collect()
+}
+
+pub fn from_plain(p: &PlainValue) -> Value {
+    match p {
+        PlainValue::Null => Value::Null,
+        PlainValue::Bool(b) => Value::Bool(*b),
+        PlainValue::Int(i) => Value::Int(*i),
+        PlainValue::Float(f) => Value::Float(*f),
+        PlainValue::Str(s) => Value::str(s),
+        PlainValue::Handle(h) => Value::Handle(*h),
+        PlainValue::Vector([x, y, z]) => Value::vector(*x, *y, *z),
+        PlainValue::Table(slots) => {
+            let t = vscript::Table::new_ref();
+            for (k, v) in slots {
+                t.borrow_mut().map.insert(Key::str(k), from_plain(v));
+            }
+            Value::Table(t)
+        }
+        PlainValue::Array(items) => Value::Array(std::rc::Rc::new(std::cell::RefCell::new(items.iter().map(from_plain).collect()))),
+    }
+}
+
+/// Write saved slots into a live table: a saved table merges into a table
+/// already there (keeping its functions), anything else replaces the slot.
+pub fn merge_slots(table: &vscript::TableRef, slots: &[(String, PlainValue)]) {
+    for (k, v) in slots {
+        let key = Key::str(k);
+        let here = table.borrow().map.get(&key).cloned();
+        match (v, here) {
+            (PlainValue::Table(inner), Some(Value::Table(t))) => merge_slots(&t, inner),
+            _ => {
+                table.borrow_mut().map.insert(key, from_plain(v));
+            }
+        }
+    }
+}
+
+/// The scripts' state as plain data, for saved games.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct ScriptsSave {
+    /// The root table's plain slots (the scripts' globals).
+    pub root: Vec<(String, PlainValue)>,
+    /// Each entity scope's plain slots, by scope id (entity index + 1).
+    pub scopes: Vec<(u64, Vec<(String, PlainValue)>)>,
+    pub thinks: Vec<(usize, String, f32)>,
+    pub teams: Vec<(usize, i64)>,
+    pub rng: u32,
+}
+
+impl Scripts {
+    /// `None` when no scripts run on this level.
+    pub fn save(&self) -> Option<ScriptsSave> {
+        let VmBox(vm) = self.vm.as_ref()?;
+        let mut scopes: Vec<(u64, Vec<(String, PlainValue)>)> = vm.scopes.iter().map(|(id, t)| (*id, plain_slots(t.borrow().map.iter(), 0))).filter(|(_, s)| !s.is_empty()).collect();
+        scopes.sort_by_key(|s| s.0);
+        let mut teams: Vec<(usize, i64)> = self.teams.iter().map(|(k, v)| (*k, *v)).collect();
+        teams.sort();
+        Some(ScriptsSave { root: plain_slots(vm.root.borrow().map.iter(), 0), scopes, thinks: self.thinks.clone(), teams, rng: self.rng })
+    }
+
+    /// Put saved values into the scripts loaded for this level. Local
+    /// variables of script files and anything with code in it stay as the
+    /// fresh load made them.
+    pub fn restore(&mut self, s: &ScriptsSave) {
+        let Some(VmBox(vm)) = self.vm.as_mut() else { return };
+        merge_slots(&vm.root.clone(), &s.root);
+        for (id, slots) in &s.scopes {
+            let scope = vm.scope(*id);
+            merge_slots(&scope, slots);
+        }
+        self.thinks = s.thinks.clone();
+        self.teams = s.teams.iter().copied().collect();
+        self.rng = s.rng;
+    }
 }
 
 /// The VM uses `Rc`; it is only ever touched from these systems (one at a
@@ -399,7 +519,7 @@ impl Host for GameHost<'_> {
 
 /// Load every entity's scripts when a level comes up (before its autos fire).
 #[allow(clippy::too_many_arguments)]
-fn start_scripts(
+pub(crate) fn start_scripts(
     mut loaded: MessageReader<LevelLoaded>,
     mut scripts: ResMut<Scripts>,
     mut scripted: ResMut<ScriptedEnts>,

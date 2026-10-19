@@ -4,7 +4,8 @@
 //! background still and menu music, the New Game chapter dialog with the
 //! game's chapter pictures and titles, the pause menu, the Options dialogs
 //! (rows and footer buttons; content in options.rs), quit confirmations,
-//! chapter title cards and the autosave that "Continue" picks up.
+//! the Load Game and Save Game lists (saves themselves are `saves.rs`) and
+//! chapter title cards.
 //!
 //! Fonts and the logo come from the player's install when it has them (see
 //! [`load_menu_art`]); otherwise DejaVu Sans and a text logo.
@@ -22,6 +23,7 @@ use crate::community::CommunityMaps;
 use crate::level::{CurrentMap, LevelLoaded, LoadLevel};
 use crate::mods_page::ModsPage;
 use crate::mounts::Mounts;
+use crate::saves::{list_saves, LoadGame, Progress, SaveGame, SaveInfo, Slot};
 use crate::options::{self, Ctx, Footer, OptionsPage, Row, Setting, VideoMode};
 use crate::settings::{data_dir, Settings};
 
@@ -53,7 +55,7 @@ impl Plugin for UiPlugin {
                 Update,
                 (
                     (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, hover_rows).chain(),
-                    (menu_view, menu_camera, pause_world, menu_music, autosave, title_card).chain(),
+                    (menu_view, menu_camera, pause_world, menu_music, title_card).chain(),
                 )
                     .chain()
                     .in_set(crate::level::GameSet::Logic),
@@ -79,6 +81,13 @@ enum Flyout {
     Options,
 }
 
+/// The saved-game lists over the main or pause menu.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SavesDialog {
+    Load,
+    Save,
+}
+
 /// "Are you sure?" before quitting.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Confirm {
@@ -91,6 +100,9 @@ enum Confirm {
 struct MenuState {
     flyout: Option<Flyout>,
     confirm: Option<Confirm>,
+    /// Load Game / Save Game, and the saves it lists (newest first).
+    saves: Option<SavesDialog>,
+    save_list: Vec<SaveInfo>,
     /// The Options page shown on [`Screen::Options`].
     page: OptionsPage,
     /// Settings as they were when each open page was entered, for Cancel.
@@ -161,6 +173,13 @@ enum Action {
     /// Opens the chapter list, as in Portal 2.
     NewGame,
     Chapter(usize),
+    /// Open Load Game / Save Game.
+    LoadGame,
+    SaveGame,
+    /// A row of Load Game.
+    LoadSave(usize),
+    /// A row of Save Game: an existing save to overwrite, or a new one.
+    SaveSlot(Option<usize>),
     Options,
     /// An Options page, from the Options flyout or a link row.
     Page(OptionsPage),
@@ -349,8 +368,19 @@ fn open_main_menu(campaign: Res<Campaign>, mut load: MessageWriter<LoadLevel>, a
 /// Written as the autosave's `version` line. 1 is the old file: just the map name.
 const SAVE_VERSION: u32 = 2;
 
+/// The map the newest save is on (Continue Game's).
 fn read_save() -> Option<String> {
+    crate::saves::latest_map()
+}
+
+/// The map in `save.txt`, the autosave from before `saves/` existed.
+pub(crate) fn read_legacy_save() -> Option<String> {
     std::fs::read_to_string(data_dir().join("save.txt")).ok().and_then(|s| parse_save(&s))
+}
+
+/// `save.txt` for `map` (still written, for older builds).
+pub(crate) fn legacy_save_text(map: &str) -> String {
+    save_text(map)
 }
 
 /// The map in an autosave: `key value` lines (`map` is the one we use,
@@ -727,7 +757,7 @@ fn rebuild_menu(
     menu: Res<MenuState>,
     scroll: Res<MenuScroll>,
     (fonts, art, campaign, settings, actions, defaults): (Option<Res<UiFonts>>, Option<Res<MenuArt>>, Res<Campaign>, Res<Settings>, Res<KeyActions>, Res<DefaultBinds>),
-    (tab, community, mods): (Res<ChapterTab>, Res<CommunityMaps>, Res<ModsPage>),
+    (tab, community, mods, progress): (Res<ChapterTab>, Res<CommunityMaps>, Res<ModsPage>, Res<Progress>),
     roots: Query<Entity, With<MenuRoot>>,
     game: Res<GameFsRes>,
     mut images: ResMut<Assets<Image>>,
@@ -768,6 +798,18 @@ fn rebuild_menu(
     } else if in_game {
         commands.spawn((layer(9), BackgroundColor(theme::SHADE)));
     }
+    // Chapter pictures: New Game's tiles and the saved-game lists.
+    if (*screen == Screen::Chapters || menu.saves.is_some()) && chapter_pics.len() != campaign.chapters.len() {
+        *chapter_pics = campaign
+            .chapters
+            .iter()
+            .map(|c| {
+                let data = game.read(&format!("materials/{}.vtf", c.picture))?;
+                let vtf = source_assets::vtf::VtfTexture::parse(&data).ok()?;
+                Some(images.add(vtf.into_image(false, true)))
+            })
+            .collect();
+    }
     let options_flyout: Vec<(&str, Action)> = options::rows(OptionsPage::List, &settings, &dummy_ctx())
         .into_iter()
         .filter_map(|r| match r {
@@ -777,6 +819,51 @@ fn rebuild_menu(
         .collect();
     match *screen {
         Screen::None => {}
+        Screen::Main | Screen::Pause if menu.saves.is_some() => {
+            let save = menu.saves == Some(SavesDialog::Save);
+            let panel = dialog(&mut commands, &fonts, if save { "SAVE GAME" } else { "LOAD GAME" }, 760.0);
+            commands.entity(panel).with_children(|p| {
+                p.spawn((ScrollList, ScrollPosition(Vec2::ZERO), Node { flex_direction: FlexDirection::Column, overflow: Overflow::scroll_y(), max_height: Val::Vh(56.0), ..default() }))
+                    .with_children(|l| {
+                        if save {
+                            l.spawn((Button, Action::SaveSlot(None), VALUE_LOOK, save_row_node(), BackgroundColor(Color::NONE)))
+                                .with_children(|r| {
+                                    r.spawn((Node { width: Val::Px(128.0), height: Val::Px(72.0), ..default() }, BackgroundColor(theme::EDGE)));
+                                    r.spawn(text(&fonts.menu, 18.0, "NEW SAVED GAME", theme::VALUE));
+                                });
+                        }
+                        let shown: Vec<(usize, &SaveInfo)> = menu.save_list.iter().enumerate().filter(|(_, s)| !save || s.header.kind == "save").collect();
+                        if shown.is_empty() && !save {
+                            l.spawn(text(&fonts.regular, 16.0, "No saved games.", theme::LABEL));
+                        }
+                        for (i, s) in shown {
+                            let action = if save { Action::SaveSlot(Some(i)) } else { Action::LoadSave(i) };
+                            let chapter = campaign.chapter_of(&s.header.map);
+                            l.spawn((Button, action, VALUE_LOOK, save_row_node(), BackgroundColor(Color::NONE))).with_children(|r| {
+                                match chapter.and_then(|c| chapter_pics.get(c).cloned().flatten()) {
+                                    Some(img) => {
+                                        r.spawn((ImageNode::new(img), Node { width: Val::Px(128.0), height: Val::Px(72.0), ..default() }));
+                                    }
+                                    None => {
+                                        r.spawn((Node { width: Val::Px(128.0), height: Val::Px(72.0), ..default() }, BackgroundColor(theme::EDGE)));
+                                    }
+                                }
+                                let (title, subtitle) = chapter.and_then(|c| campaign.chapters.get(c)).map_or((String::new(), String::new()), |c| (c.title.to_uppercase(), c.subtitle.to_uppercase()));
+                                r.spawn(Node { flex_direction: FlexDirection::Column, flex_grow: 1.0, row_gap: Val::Px(2.0), ..default() }).with_children(|c| {
+                                    c.spawn(text(&fonts.regular, 13.0, title, theme::LABEL));
+                                    c.spawn(text(&fonts.menu, 18.0, if subtitle.is_empty() { s.header.map.to_uppercase() } else { subtitle }, theme::VALUE));
+                                    c.spawn(text(&fonts.regular, 13.0, s.header.map.clone(), theme::HINT));
+                                });
+                                r.spawn(Node { flex_direction: FlexDirection::Column, align_items: AlignItems::FlexEnd, row_gap: Val::Px(2.0), ..default() }).with_children(|c| {
+                                    c.spawn(text(&fonts.regular, 13.0, crate::saves::time_text(s.header.saved_at), theme::LABEL));
+                                    c.spawn(text(&fonts.regular, 13.0, save_kind_label(&s.header.kind, &s.name), theme::HINT));
+                                });
+                            });
+                        }
+                    });
+                footer(p, &fonts, "", &[Footer::Back]);
+            });
+        }
         Screen::Main => {
             let mut root = commands.spawn(layer(10));
             root.with_children(|p| {
@@ -790,8 +877,12 @@ fn rebuild_menu(
                         p.spawn((logo_node, children![text(&fonts.menu, 72.0, "PORTAL 2", theme::TITLE)]));
                     }
                 }
-                let sp: Vec<(&str, Action)> =
-                    if read_save().is_some() { vec![("CONTINUE GAME", Action::Continue), ("NEW GAME", Action::NewGame)] } else { vec![("NEW GAME", Action::NewGame)] };
+                // As in Portal 2: Continue and Load Game once there is a save.
+                let sp: Vec<(&str, Action)> = if read_save().is_some() {
+                    vec![("CONTINUE GAME", Action::Continue), ("NEW GAME", Action::NewGame), ("LOAD GAME", Action::LoadGame)]
+                } else {
+                    vec![("NEW GAME", Action::NewGame)]
+                };
                 let fly = if menu.flyout == Some(Flyout::Options) { &options_flyout } else { &sp };
                 item_list(
                     p,
@@ -810,6 +901,8 @@ fn rebuild_menu(
                     &fonts,
                     &[
                         ("RESUME GAME", Action::Resume, None),
+                        ("SAVE GAME", Action::SaveGame, None),
+                        ("LOAD GAME", Action::LoadGame, None),
                         ("RESTART LEVEL", Action::Restart, None),
                         ("OPTIONS", Action::Options, Some(Flyout::Options)),
                         ("QUIT TO MAIN MENU", Action::MainMenu, None),
@@ -821,17 +914,6 @@ fn rebuild_menu(
             });
         }
         Screen::Chapters => {
-            if chapter_pics.len() != campaign.chapters.len() {
-                *chapter_pics = campaign
-                    .chapters
-                    .iter()
-                    .map(|c| {
-                        let data = game.read(&format!("materials/{}.vtf", c.picture))?;
-                        let vtf = source_assets::vtf::VtfTexture::parse(&data).ok()?;
-                        Some(images.add(vtf.into_image(false, true)))
-                    })
-                    .collect();
-            }
             let show_community = tab.community && !community.maps.is_empty();
             let panel = dialog(&mut commands, &fonts, "NEW GAME", 980.0);
             commands.entity(panel).with_children(|p| {
@@ -870,6 +952,15 @@ fn rebuild_menu(
                 } else {
                     p.spawn(grid).with_children(|g| {
                         for (i, c) in campaign.chapters.iter().enumerate() {
+                            // Chapters not reached yet: a dark tile, not clickable.
+                            if !progress.is_unlocked(i) {
+                                g.spawn(tile.clone()).with_children(|b| {
+                                    b.spawn((Node { width: Val::Percent(100.0), aspect_ratio: Some(16.0 / 9.0), ..default() }, BackgroundColor(theme::EDGE)));
+                                    b.spawn(text(&fonts.regular, 14.0, c.title.to_uppercase(), theme::HINT));
+                                    b.spawn(text(&fonts.menu, 17.0, "?", theme::HINT));
+                                });
+                                continue;
+                            }
                             g.spawn((Button, Action::Chapter(i), VALUE_LOOK, tile.clone(), BackgroundColor(Color::NONE))).with_children(|b| {
                                 if let Some(Some(img)) = chapter_pics.get(i) {
                                     b.spawn((ImageNode::new(img.clone()), Node { width: Val::Percent(100.0), aspect_ratio: Some(16.0 / 9.0), ..default() }));
@@ -949,6 +1040,20 @@ fn rebuild_menu(
             d.spawn((Node { margin: UiRect::horizontal(Val::Px(6.0)), ..default() }, children![text(&fonts.regular, 18.0, message, theme::LABEL)]));
             footer_buttons(d, &fonts, "", &[("OK", Action::ConfirmOk), ("CANCEL", Action::ConfirmCancel)]);
         });
+    }
+}
+
+/// A Load Game / Save Game row: picture, chapter and map, then time and kind.
+fn save_row_node() -> Node {
+    Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(14.0), padding: UiRect::all(Val::Px(6.0)), ..default() }
+}
+
+/// "Autosave", "Quick save" or the save's name.
+fn save_kind_label(kind: &str, name: &str) -> String {
+    match kind {
+        "autosave" => "Autosave".into(),
+        "quick" => "Quick save".into(),
+        _ => name.to_string(),
     }
 }
 
@@ -1052,6 +1157,10 @@ fn escape_key(
         menu.confirm = None;
         return;
     }
+    if menu.saves.is_some() {
+        menu.saves = None;
+        return;
+    }
     let in_game = map.as_ref().is_some_and(|m| !m.menu);
     match *screen {
         Screen::Options { .. } => close_page(&mut screen, &mut menu, &mut scroll, &mut settings, true),
@@ -1112,6 +1221,7 @@ fn buttons(
     (mut tab, mut community, mut mods, mounts): (ResMut<ChapterTab>, ResMut<CommunityMaps>, ResMut<ModsPage>, Res<Mounts>),
     mut load: MessageWriter<LoadLevel>,
     mut exit: MessageWriter<AppExit>,
+    (mut load_game, mut save_game): (MessageWriter<LoadGame>, MessageWriter<SaveGame>),
 ) {
     for (e, interaction, action, look, in_row) in &q {
         let hot = *interaction != Interaction::None;
@@ -1136,11 +1246,31 @@ fn buttons(
             Action::SinglePlayer => menu.flyout = if menu.flyout == Some(Flyout::SinglePlayer) { None } else { Some(Flyout::SinglePlayer) },
             Action::Options => menu.flyout = if menu.flyout == Some(Flyout::Options) { None } else { Some(Flyout::Options) },
             Action::Continue => {
-                if let Some(m) = read_save() {
-                    load.write(LoadLevel { map: m, menu: false });
+                if read_save().is_some() {
+                    load_game.write(LoadGame(Slot::Latest(None)));
                     menu.flyout = None;
                     *screen = Screen::None;
                 }
+            }
+            Action::LoadGame | Action::SaveGame => {
+                menu.flyout = None;
+                menu.save_list = list_saves();
+                menu.saves = Some(if *action == Action::SaveGame { SavesDialog::Save } else { SavesDialog::Load });
+            }
+            Action::LoadSave(i) => {
+                if let Some(s) = menu.save_list.get(i) {
+                    load_game.write(LoadGame(Slot::Named(s.name.clone())));
+                    menu.saves = None;
+                    *screen = Screen::None;
+                }
+            }
+            Action::SaveSlot(i) => {
+                let slot = match i.and_then(|i| menu.save_list.get(i)) {
+                    Some(s) => Slot::Named(s.name.clone()),
+                    None => Slot::New,
+                };
+                save_game.write(SaveGame(slot));
+                menu.saves = None;
             }
             Action::NewGame => {
                 menu.flyout = None;
@@ -1187,6 +1317,7 @@ fn buttons(
                 }
                 open_page(&mut menu, &mut scroll, &settings, p);
             }
+            Action::Back if menu.saves.is_some() => menu.saves = None,
             Action::Back | Action::Done if matches!(*screen, Screen::Options { .. }) => close_page(&mut screen, &mut menu, &mut scroll, &mut settings, true),
             Action::Cancel => close_page(&mut screen, &mut menu, &mut scroll, &mut settings, false),
             Action::Back | Action::Done => *screen = Screen::Main,
@@ -1386,15 +1517,6 @@ fn menu_music(mut loaded: MessageReader<LevelLoaded>, mut play: MessageWriter<Pl
     let act = campaign.chapter_of(&ev.map).unwrap_or(0);
     let track = &tracks[act.min(tracks.len() - 1)];
     play.write(PlayGameSound { looped: true, ..PlayGameSound::music(track.trim_start_matches("sound/")) });
-}
-
-/// Every level start is saved for "Continue" (see `may_write_data`).
-fn autosave(mut loaded: MessageReader<LevelLoaded>) {
-    for ev in loaded.read() {
-        if !ev.menu && crate::settings::may_write_data() {
-            let _ = std::fs::write(data_dir().join("save.txt"), save_text(&ev.map));
-        }
-    }
 }
 
 /// "Chapter N / Title" when a chapter's first map starts.

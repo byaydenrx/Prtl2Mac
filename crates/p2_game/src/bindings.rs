@@ -6,10 +6,11 @@
 //! turned into [`p2_core::InputBindings`] for the input systems.
 //!
 //! Commands read today: movement (`+forward` `+back` `+moveleft`
-//! `+moveright` `+jump` `+duck` `+use`) in `p2_movement::input`.
+//! `+moveright` `+jump` `+duck` `+use`) in `p2_movement::input`,
+//! `save_quick`/`load_quick` in `saves.rs`.
 //! TODO: `+attack`/`+attack2` (p2_gun still reads mouse buttons directly),
-//! `jpeg`, `save_quick`/`load_quick`, `toggleconsole`, `pause` and the co-op
-//! commands are saved and listed but nothing reads them yet.
+//! `jpeg`, `toggleconsole`, `pause` and the co-op commands are saved and
+//! listed but nothing reads them yet.
 use std::collections::{BTreeMap, HashMap};
 
 use bevy::prelude::*;
