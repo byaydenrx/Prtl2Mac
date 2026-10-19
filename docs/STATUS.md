@@ -109,17 +109,26 @@ sp_a1_wakeup, checked with scripted runs:
   x≈10928 (a pillar and the railing leave ~45 units; the player is 32 wide).
 - **Blocker: plugging Wheatley in.** `basement_breakers_socket_trigger` is a
   6x4x6 trigger parented to `core_receptacle_socket`, which rides
-  `breaker_shaft`'s `psphere_plug_attach` (bone `joint2`). Our decode of
-  `breaker_shaft_open_hatch` tilts that attachment 20° about X as it rises
-  (`animinfo models/props_basement/breaker_shaft.mdl breaker_shaft_open_hatch
-  psphere_plug_attach`, now prints the attachment's axes), which leaves the
-  trigger at y 1086-1090, 10 units inside the pillar's solid face (y=1100),
-  out of Wheatley's reach. Without the tilt the plug arm's tip
-  (`psphere_plug.mdl` `open`, `sphere_attach` ≈ (-10.7, 38.5, 10)) pokes 2
-  units out of the cabinet and the trigger sits at the face, which looks like
-  the design. Check `joint2`'s rotation track (sign/axis) in the decoder. To
-  test past it: `input socket_powered_rl trigger` (what the trigger fires),
-  or `input basement_breakers_start trigger`.
+  `breaker_shaft`'s `psphere_plug_attach` (bone `joint2`). As the plug rises,
+  `breaker_shaft_open_hatch` tilts that attachment 20° about X. That tilt is
+  authored, not a decode error: it is joint2's own local rotation track, and
+  `breaker_shaft_going_up` starts from the same pose turned 90° (checked by
+  the animation session with `EVALTEST=joint2 animinfo ...`). With it the
+  trigger sits at y 1086-1090, 10 units inside the solid face at y=1100,
+  out of held Wheatley's reach. Rays show the face is a brush of
+  `func_tracktrain *50` (`breaker_train`: 3 brushes, all CONTENTS_SOLID), not
+  the shaft prop or its hatch. Still unexplained; leads:
+  - whether the trigger's offset should be taken from the socket's map
+    transform (8990 1090.84 -655, yaw 90) as now, and which shaft pose is
+    current when the logic_auto snaps the socket at map spawn;
+  - `core_receptacle_socket_brush` (func_brush on the socket's
+    `panel_attach`) and the hatch bones (`hatch_joint`, `hatch_joint1`):
+    what they cover in Portal 2, and whether the player and Wheatley are
+    meant to reach the face at all;
+  - how Source tests a held vphysics object against a trigger (its
+    surrounding box, any margin).
+  To test past it: `input socket_powered_rl trigger` (what the trigger
+  fires), or `input basement_breakers_start trigger`.
 - After the socket everything works: breakers, platform ride to GLaDOS
   (`basement_elevator_complete_rl`), the 13-scene wake-up chain
   (GladosPlayVcd 589), the claw pickup (`relay_start_claw_pickup` fired by
@@ -140,8 +149,8 @@ sp_a1_wakeup, checked with scripted runs:
 
 ## Next (priority order)
 
-1. **sp_a1_wakeup socket** (above): fix the `breaker_shaft` attachment tilt,
-   then carry Wheatley up to the opened cabinet and check
+1. **sp_a1_wakeup socket** (above): find why held Wheatley can't reach the
+   socket trigger, then carry him up to the opened cabinet and check
    `socket_powered_rl` fires and the platform rises with the player on it.
 2. **sp_a1_intro1 wrecked vault / container ride**: the finedebris_part
    models (170 bones) need per-bone playback to look right; the vault is
