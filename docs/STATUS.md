@@ -147,6 +147,50 @@ sp_a1_wakeup, checked with scripted runs:
   inside geometry (physics pushes it out, the carry gives up): walk the last
   stretch, or `input @sphere forcepickup` to grab Wheatley again.
 
+## Chapters 6-9 (2026-10-19, worktree session "ch6-9")
+
+Checked map by map in play order with autopilot runs (`setpos`, `use`,
+`propto` cubes onto buttons, `info`), so each note says what was proven:
+the I/O chain that opens the way works and the next map loads. Routes
+between those points (portal shots, gel jumps) were not all flown.
+
+New engine pieces:
+- `rotators.rs`: `func_door_rotating`, `func_rot_button`, `func_rotating`
+  turn about their origin (they didn't move at all before, so their
+  OnFullyOpen / OnIn chains never fired).
+- Gel tuning from Portal 2's published cvar defaults (Valve Developer
+  Community, "Gel-related console commands"): `bounce_paint_min_speed`
+  500 (walk-on bounce ~208 u), `bounce_paint_wall_jump_upward_speed` 275,
+  `sv_speed_paint_max` 800 reached at `sv_speed_paint_acceleration` 500.
+  Still not modelled: `sv_press_jump_to_bounce` 3 (jump pressed on gel),
+  `sv_wall_bounce_trade` 0.73, `sv_wall_jump_help`.
+- sp_a3_01 starts without the gun (the transition script's
+  `upgrade_portalgun` only upgrades a held gun; a gun lying in a later map
+  is the one the player lost).
+
+Per map:
+- **sp_a3_00**: the fall plays and sp_a3_01 loads after ~88 s.
+- **sp_a3_01**: knockout scene (~18 s, `knockout-viewcontroller`) puts the
+  player by the gun; gun pickup; breaker lever (`use` at 3640 4482 -430)
+  lights the area; `big_door_button1`/`2` within 4.5 s -> `door_start` ->
+  vault door opens (its collision follows the animation); exit door
+  button (5698 4500 -491, `use`) -> `transition_trigger` -> sp_a3_03.
+- **sp_a3_03**: `door1_button`; lift (`elevator_trigger` +
+  `lift_button_up`) rises; `pump_machine_blue_button` turns its lever
+  (rotators.rs) -> `pump_machine_relay` -> control room gates swing open;
+  `transition_trigger` (12160 1920 -64) -> sp_a3_jump_intro.
+- **sp_a3_jump_intro**: blue floors pre-painted at spawn; walking onto blue
+  bounces (P2_TRACE logs it). Room 1: pedestal (`use` at -310 745 290)
+  drops the cube, which bounces on the gel; cube on the floor button
+  (352 544 280) opens `room_1_door`. Room 2: cubes on both floor buttons
+  flip `flipping_panel_1/2_tile_1` (rotators.rs). Exit lift (-650 2080
+  1580) -> sp_a3_bomb_flings. The intended climb (bounce into a wall
+  portal, portal on the high wall) is a portal + gel route, not flown.
+  Room 1's gel looks flat (plain blue, unlit).
+- The "black elevator": the entrance lift rides up a dark shaft at -8880
+  (lit by one `light`) before `startup_lighting_teleport` moves the player
+  into the room's copy of the lift; the shaft walls render near black.
+
 ## Next (priority order)
 
 1. **sp_a1_wakeup socket** (above): find why held Wheatley can't reach the

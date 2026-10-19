@@ -51,6 +51,8 @@ pub struct PropAnims {
     /// when it was attached (brush geometry is stored already turned).
     drawn_rel: HashMap<usize, Mat4>,
     animators: HashMap<String, Option<Arc<Animator>>>,
+    /// Camera up axis per (rig prop, sequence) ([`PropAnims::rig_up`]).
+    rig_up: HashMap<(usize, usize), Vec3>,
 }
 
 impl PropAnims {
@@ -120,8 +122,36 @@ impl PropAnims {
                 let n: Vec<f32> = v.split(',').filter_map(|x| x.trim().parse().ok()).collect();
                 (n.len() == 6).then(|| (Vec3::new(n[0], n[1], n[2]), Vec3::new(n[3], n[4], n[5])))
             })
-            .unwrap_or((Vec3::X, Vec3::Y));
+            .unwrap_or_else(|| (Vec3::X, self.rig_up(game, ents, ent, attachment)));
         Some((t.translation, t.rotation * f, t.rotation * u))
+    }
+
+    /// Which of the attachment's axes is the camera's up: the one standing
+    /// upright when the rig's sequence ends, since a rig shot ends with the
+    /// head level to hand the view back (sp_a1_intro's wake-up ends with its
+    /// bone's +Y up, sp_a1_wakeup's incinerator ride with +Z up; taking +Z
+    /// for both left the wake-up ending with the head turned 90 degrees).
+    /// In world axes: +Y is the attachment's Source +Z, -Z its Source +Y.
+    fn rig_up(&mut self, game: &GameFsRes, ents: &Ents, ent: usize, attachment: &str) -> Vec3 {
+        let e = &ents.list[ent];
+        let Some(model) = self.model_of(ent, e) else { return Vec3::Y };
+        let Some(anim) = self.animator(game, &model) else { return Vec3::Y };
+        let Some(seq) = self.playing.get(&ent).and_then(|pb| anim.find(&pb.seq)) else { return Vec3::Y };
+        let key = (ent, seq);
+        if let Some(u) = self.rig_up.get(&key) {
+            return *u;
+        }
+        let end = anim.bone_to_model(&anim.sample(seq, anim.duration(seq)));
+        let up = match anim.attachment(attachment, &end) {
+            Some((_, rot)) => {
+                let basis = Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2);
+                let q = e.transform.rotation * basis * Quat::from_mat3(&rot) * basis.inverse();
+                if (q * Vec3::NEG_Z).y > (q * Vec3::Y).y { Vec3::NEG_Z } else { Vec3::Y }
+            }
+            None => Vec3::Y,
+        };
+        self.rig_up.insert(key, up);
+        up
     }
 }
 
@@ -200,13 +230,17 @@ fn viewcontrol_inputs(
 ) {
     if loaded.read().count() > 0 {
         vc.active.clear();
+        anims.rig_up.clear();
     }
     let Some(ents) = ents else {
         inputs.clear();
         return;
     };
     let now = ents.now;
-    let expired: Vec<usize> = vc.until.iter().filter(|(_, t)| **t <= now).map(|(k, _)| *k).collect();
+    // A camera riding an animated rig holds while the rig still plays (the
+    // intro's wake-up: TeleportToView hands over at 12 s, after its 10 s hold).
+    let riding = |k: usize, anims: &PropAnims| anims.attached.get(&k).and_then(|(p, _)| anims.playing.get(p)).is_some_and(|pb| !pb.finished);
+    let expired: Vec<usize> = vc.until.iter().filter(|(k, t)| **t <= now && !riding(**k, &anims)).map(|(k, _)| *k).collect();
     for k in expired {
         vc.until.remove(&k);
         vc.active.retain(|a| *a != k);
@@ -235,14 +269,25 @@ fn viewcontrol_inputs(
             }
             "disable" | "kill" => vc.active.retain(|a| *a != msg.target),
             "teleporttoview" | "teleportplayertoproxy" => {
-                if let Some((pos, fwd, _)) = camera_pose(&mut anims, &game, &ents, msg.target) {
+                if let Some((pos, fwd, up)) = camera_pose(&mut anims, &game, &ents, msg.target) {
                     if let Ok((mut tf, mut feet, mut view, mut vel)) = players.single_mut() {
                         let at = pos - Vec3::Y * VIEW_STAND;
                         tf.translation = at;
                         *feet = InterpolatedFeet { prev: at, curr: at };
-                        *view = ViewAngles { yaw: (-fwd.x).atan2(-fwd.z), pitch: fwd.y.clamp(-1.0, 1.0).asin(), roll: 0.0 };
+                        // Keep the camera's roll: the view levels itself out
+                        // from there (p2_view eases roll back to 0).
+                        let level = (Vec3::Y - fwd * fwd.y).normalize_or(Vec3::Y);
+                        let up = up.normalize_or(Vec3::Y);
+                        // ViewAngles roll is positive the other way round.
+                        let roll = -level.cross(up).dot(fwd).atan2(level.dot(up));
+                        *view = ViewAngles { yaw: (-fwd.x).atan2(-fwd.z), pitch: fwd.y.clamp(-1.0, 1.0).asin(), roll };
                         vel.0 = Vec3::ZERO;
                     }
+                }
+                // The view goes back to the eyes it was just put into.
+                if msg.input == "teleporttoview" {
+                    vc.active.retain(|a| *a != msg.target);
+                    vc.until.remove(&msg.target);
                 }
             }
             _ => {}
