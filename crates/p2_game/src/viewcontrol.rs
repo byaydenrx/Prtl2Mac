@@ -251,12 +251,13 @@ fn viewcontrol_inputs(
         }
         match msg.input.as_str() {
             "enable" => {
-                // The cryo "blackout" eyelid camera needs the eyelid model's
-                // animation and material; leave the player's own view.
-                if ents.list[msg.target].name.contains("blackout") {
-                    continue;
+                // One view entity at a time, as in Source: enabling a camera
+                // takes the view from any other (the intro enables the cryo
+                // "blackout" get-up camera, then the wake-up camera over it);
+                // when it ends the view goes back to the eyes.
+                for other in vc.active.drain(..).collect::<Vec<_>>() {
+                    vc.until.remove(&other);
                 }
-                vc.active.retain(|a| *a != msg.target);
                 vc.active.push(msg.target);
                 // Hold time ("wait"), unless flagged to hold forever (8).
                 let e = &ents.list[msg.target];

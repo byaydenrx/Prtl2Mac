@@ -487,6 +487,10 @@ pub fn default_entity_model(e: &SourceEntity) -> Option<String> {
         "prop_tractor_beam" => "models/props/tractor_beam_emitter.mdl",
         "npc_security_camera" => "models/props/security_camera.mdl",
         "npc_personality_core" => "models/npcs/personality_sphere/personality_sphere.mdl",
+        // Portal 2 draws paint bombs as a ball of gel blobs and has no model
+        // for them; the co-op ball gives one a round body (p2_game hides it
+        // under a gel-coloured ball).
+        "prop_paint_bomb" => "models/props_gameplay/mp_ball.mdl",
         _ => return None,
     };
     Some(m.to_string())
