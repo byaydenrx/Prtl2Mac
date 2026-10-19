@@ -244,6 +244,11 @@ fn drive(
                             b
                         );
                     }
+                    for e in ents.list.iter().filter(|e| e.name == key) {
+                        if let Some(g) = e.entity.and_then(|r| globals.get(r).ok()) {
+                            info!("autopilot: {key} drawn at source {:.0?}", shared::world_to_source(g.translation()));
+                        }
+                    }
                     for (p, _, pos, _) in &props {
                         if ents.list[p.ent].name == key {
                             info!("autopilot: {key} body at source {:.0?} half {:.0?}", pos.map(|v| shared::world_to_source(v.0)), p.half / shared::SOURCE_UNIT);

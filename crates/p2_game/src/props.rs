@@ -123,6 +123,9 @@ pub fn make_props_dynamic(
             // Never asleep: world pieces they rest on move without waking
             // them (a dropper's iris opening, a func_brush switched off).
             SleepingDisabled,
+            // Fast cubes (droppers, faith plates) don't tunnel through thin
+            // things like light bridges.
+            SweptCcd::default(),
             Prop { ent: i, half },
             LevelOwned,
         ));

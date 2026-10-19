@@ -22,6 +22,8 @@ const U: f32 = shared::SOURCE_UNIT;
 const WIDTH: f32 = 64.0 * U;
 /// Thickness of its collision.
 const THICK: f32 = 2.0 * U;
+/// Depth of its collision (the top is `THICK / 2` above the beam).
+const DEPTH: f32 = 16.0 * U;
 const RANGE: f32 = 8192.0 * U;
 const MAX_LEGS: usize = 8;
 
@@ -89,6 +91,7 @@ fn build_bridges(
     body_of: Query<&ColliderOf>,
     kinds: Query<&RigidBody>,
     pieces: Query<(), With<BridgePiece>>,
+    children: Query<&Children>,
     portals: Query<(&Portal, &Transform, &PortalLink)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -135,10 +138,9 @@ fn build_bridges(
             let mut dir = (tf.rotation * Vec3::X).normalize();
             let mut right = (tf.rotation * Vec3::Z).normalize();
             let mut o = tf.translation + dir * (4.0 * U);
-            let mut skip: Vec<Entity> = Vec::new();
-            if let Some(x) = e.entity {
-                skip.push(x);
-            }
+            // Not the projector itself (its model's collision).
+            let own: Vec<Entity> = e.entity.map(|x| std::iter::once(x).chain(children.iter_descendants(x)).collect()).unwrap_or_default();
+            let mut skip = own.clone();
             for _ in 0..MAX_LEGS {
                 let filter = SpatialQueryFilter::default();
                 let hit = spatial.cast_ray_predicate(o, Dir3::new(dir).unwrap_or(Dir3::X), RANGE, true, &filter, &|c| blocks(c, &skip));
@@ -203,9 +205,14 @@ fn build_bridges(
                 commands
                     .spawn((
                         BridgePiece,
+                        // Portal shots go through a bridge, and a portal may
+                        // open on the wall it ends at.
+                        PortalShotPassthrough,
                         Transform::from_translation(centre).with_rotation(rot),
                         RigidBody::Static,
-                        Collider::cuboid(WIDTH, THICK, len),
+                        // Deep below its walkable top so falling cubes can't
+                        // pass through between physics steps.
+                        Collider::compound(vec![(Vec3::Y * (THICK - DEPTH) * 0.5, Quat::IDENTITY, Collider::cuboid(WIDTH, DEPTH, len))]),
                         LevelOwned,
                         Visibility::default(),
                         children![(Mesh3d(mesh.clone()), MeshMaterial3d(mat.clone()), Transform::from_scale(Vec3::new(WIDTH, THICK * 0.5, len)))],
