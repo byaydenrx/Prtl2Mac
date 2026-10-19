@@ -1031,3 +1031,70 @@ trigger you stand in doesn't fire again; a floor button whose cube comes
 back onto it fires OnPressed once more), attachments from SetParentAttachment (viewcontrol), laser /
 bridge / funnel / turret internals (they rebuild from entity state),
 script locals and class instances.
+
+## cloud/particles branch (untested in game)
+
+Map particle effects, from `main` f1aa706, built in a cloud session without
+the game or its `.pcf` files: `cargo test -p p2_fx` (24) and `-p p2_game`
+pass, including a headless run of the new plugin with a panicking error
+handler; nothing has been seen on screen. Files: `p2_fx` (`pcf.rs` manifest
+loading, `sim.rs` operators, `render.rs` loading/culling/stop), new
+`p2_game/src/map_particles.rs`, one plugin line in `main.rs`.
+
+What's new:
+- **All the game's particle files load** (`particles/particles_manifest.txt`
+  at startup, then the three portal files as before), plus the map's own
+  `maps/<map>_particles.txt` on each load (dropped again on the next map).
+  Not read: particle files packed inside a map's BSP.
+- **info_particle_system**: `effect_name`, `start_active`, CP0 at the entity
+  with its Source axes (follows `parentname`; `name,attachment` parents use
+  just the entity), `cpoint1`..`cpoint63` on the named entities every frame,
+  `cpointN_parent` keeps CP N fixed relative to CP M from the moment it
+  starts. Inputs `Start` (no-op while already emitting), `Stop` (no new
+  particles, live ones finish, no end cap), `StopPlayEndCap`,
+  `DestroyImmediately`, `Kill`.
+- **Operators**: the common ones map effects use are added to the simulator
+  (list in `crates/p2_fx/README.md`, "Map effects"). I couldn't scan the
+  campaign's `.pcf` files from the cloud, so the list comes from what Source
+  effects generally use; every system logs what it still lacks once:
+  `p2_fx: <system> uses unsupported ...`. Please grep a play-through log for
+  that line and send the most common ones back for the next round
+  (`Collision via traces` and `Position Modify Place On Ground` are the
+  likely big ones: they need world traces).
+- **env_spark**: bursts every 0.1 s + random(0..`MaxDelay`) while on; count
+  and speed grow with `Magnitude`; `TrailLength` 1-3 sets the streak; 64 start
+  on, 128 glow (a short flash sprite), 256 silent, 512 along the entity's
+  forward; sound `DoSpark` (soundscript). Inputs StartSpark/StopSpark/
+  ToggleSpark/SparkOnce. Drawn here (Source's sparks aren't a `.pcf`):
+  additive streak quads, yellow to orange, gravity 600.
+- **env_steam**: puffs at `Rate`/s moving at `Speed` (+ `SpreadSpeed`
+  sideways) for `JetLength`, growing `StartSize`->`EndSize`, `rendercolor`/
+  `renderamt`, `rollspeed`; spawnflag 1 unlit, else lit. `InitialState`;
+  inputs TurnOn/TurnOff/Toggle and JetLength/Rate/Speed/SpreadSpeed <n>.
+  `type 1` (heat shimmer) isn't drawn. A soft round puff texture is made
+  in code. No sound (Source's steam has none of its own).
+- **Cost**: effects farther than 60 m or behind the camera beyond 10 m pause
+  and hide (no simulation, no mesh rebuild); at most 64 `.pcf` map effects
+  run at once (nearest first); sparks are capped at 96 and steam puffs at
+  120 per emitter.
+
+Verify in the real game (`ent_list info_particle_system`, `ent_list
+env_spark`, `ent_list env_steam` in the console list them; `fire <name>
+Start`/`Stop` to poke one; `cl_showfps 1` for cost):
+1. sp_a1_intro1: the dust/debris effects in the relaxation vault and the
+   container ride run (look for floating dust in light beams and falling
+   debris); nothing piles up after a minute.
+2. sp_a2_bts1: the broken-panel sparks spark at random with a crackle
+   (`DoSpark`), streaks fall to the floor; glow flashes where flagged.
+3. sp_a2_laser_intro: the chamber's ambient effects (and anything at the
+   laser emitter/catcher) start with the map; nothing drawn at the wrong
+   place or with wrong orientation (CP0 axes).
+4. sp_a3_01: the big-room effects (falling water/dust, steam) run and stop
+   when the map stops them; turning away and back resumes them.
+5. Effects on moving things (parented) follow them; control points on
+   other entities (beams between two points) span the right points.
+6. Frame rate with many effects in view stays near what it is without them;
+   tell us the worst map.
+7. Log: `p2_fx: <system> uses unsupported ...` lines (see above), and any
+   `particle system X not found` for a map's `effect_name`.
+
