@@ -34,6 +34,7 @@ mod overlays;
 mod paint;
 mod paint_props;
 mod portals;
+mod projected_lights;
 mod props;
 mod scenes;
 mod settings;
@@ -112,6 +113,7 @@ fn main() {
             paint_props::PaintPropsPlugin,
             texture_toggle::TextureTogglePlugin,
             movies::MoviesPlugin,
+            projected_lights::ProjectedLightsPlugin,
         ))
         // Developer, speedrun and modding tools (all off until turned on in Options).
         .add_plugins((console::ConsolePlugin, overlays::OverlaysPlugin, speedrun::SpeedrunPlugin))

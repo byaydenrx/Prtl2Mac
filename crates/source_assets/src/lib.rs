@@ -24,6 +24,8 @@ pub mod material;
 pub mod models;
 pub mod phy;
 pub mod plugin;
+pub mod projected;
+mod projected_render;
 pub mod proxy;
 pub mod skeleton;
 pub mod sm;
@@ -38,6 +40,7 @@ pub use config::{GameConfig, DEFAULT_PORTAL2_DIR, PORTAL2_DIR_ENV};
 pub use fs::GameFs;
 pub use map::LoadedMap;
 pub use material::SourceMaterial;
+pub use projected::ProjectedLight;
 pub use proxy::{SourceOverlay, SpeakingAmount, TextureFrames};
 pub use plugin::{
     load_map, spawn_loaded_map, AnimatedModel, BonePart, spawn_map, LightEnvironment, MapEntity, MapFog, DEFAULT_LIGHT_SCALE, MapEntityKind, MapInfo,
