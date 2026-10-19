@@ -149,11 +149,30 @@ fn angles_dir(e: &GameEnt, key: &str) -> Vec3 {
     source_to_world(src) / SOURCE_UNIT
 }
 
-fn setup_movers(mut loaded: MessageReader<LevelLoaded>, ents: Option<Res<Ents>>, mut movers: ResMut<Movers>) {
+/// How far a `func_door` / `func_movelinear` moves when it opens, and which way.
+fn door_travel(e: &GameEnt, map: &CurrentMap) -> (Vec3, f32) {
+    let dir = angles_dir(e, "movedir");
+    let travel = if e.class == "func_movelinear" {
+        u(e.get_f32("movedistance").unwrap_or(0.0))
+    } else {
+        let (lo, hi) = e.brush_model.and_then(|b| map.model_bounds.get(&b).copied()).unwrap_or((Vec3::ZERO, Vec3::ZERO));
+        let size = hi - lo;
+        (size * dir.abs()).length() - u(e.get_f32("lip").unwrap_or(0.0))
+    };
+    (dir, travel)
+}
+
+fn setup_movers(
+    mut loaded: MessageReader<LevelLoaded>,
+    ents: Option<ResMut<Ents>>,
+    map: Option<Res<CurrentMap>>,
+    mut movers: ResMut<Movers>,
+    mut transforms: Query<&mut Transform>,
+) {
     if loaded.read().count() == 0 {
         return;
     }
-    let Some(ents) = ents else { return };
+    let (Some(mut ents), Some(map)) = (ents, map) else { return };
     *movers = Movers::default();
     for (i, e) in ents.list.iter().enumerate() {
         if MOVER_CLASSES.contains(&e.class.as_str()) {
@@ -173,6 +192,44 @@ fn setup_movers(mut loaded: MessageReader<LevelLoaded>, ents: Option<Res<Ents>>,
             let offset = Transform::from_translation(pt.rotation.inverse() * (e.transform.translation - pt.translation))
                 .with_rotation(pt.rotation.inverse() * e.transform.rotation);
             movers.parented.push((i, p, offset));
+        }
+    }
+    // Doors that start open (`spawnpos 1`: lifts lowered until a laser
+    // powers them, catchers hidden until they rise): the map places them
+    // closed; they and what rides them start moved open.
+    for i in 0..ents.list.len() {
+        let e = &ents.list[i];
+        if e.class != "func_door" || e.get("spawnpos") != Some("1") || !movers.movers.contains_key(&i) {
+            continue;
+        }
+        let (dir, travel) = door_travel(e, &map);
+        let delta = dir * travel;
+        if let Some(m) = movers.movers.get_mut(&i) {
+            m.pos += delta;
+        }
+        let mut riders = vec![i];
+        let mut k = 0;
+        while k < riders.len() {
+            let p = riders[k];
+            riders.extend(movers.parented.iter().filter(|c| c.1 == p && !riders.contains(&c.0)).map(|c| c.0).collect::<Vec<_>>());
+            k += 1;
+        }
+        for r in riders {
+            if r != i {
+                if let Some(m) = movers.movers.get_mut(&r) {
+                    m.pos += delta;
+                    m.home += delta;
+                }
+            }
+            let e = &mut ents.list[r];
+            e.transform.translation += delta;
+            if let Some((lo, hi)) = &mut e.bounds {
+                *lo += delta;
+                *hi += delta;
+            }
+            if let Some(mut t) = e.entity.and_then(|x| transforms.get_mut(x).ok()) {
+                t.translation += delta;
+            }
         }
     }
 }
@@ -272,14 +329,7 @@ fn mover_inputs(
             "func_door" | "func_movelinear" => {
                 let e = &ents.list[i];
                 let speed = u(e.get_f32("speed").unwrap_or(100.0).max(1.0));
-                let dir = angles_dir(e, "movedir");
-                let travel = if class == "func_movelinear" {
-                    u(e.get_f32("movedistance").unwrap_or(0.0))
-                } else {
-                    let (lo, hi) = e.brush_model.and_then(|b| map.model_bounds.get(&b).copied()).unwrap_or((Vec3::ZERO, Vec3::ZERO));
-                    let size = hi - lo;
-                    (size * dir.abs()).length() - u(e.get_f32("lip").unwrap_or(0.0))
-                };
+                let (dir, travel) = door_travel(e, &map);
                 let Some(m) = movers.movers.get_mut(&i) else { continue };
                 let open = m.home + dir * travel;
                 match input {

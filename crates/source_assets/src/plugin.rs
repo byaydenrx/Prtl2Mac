@@ -188,9 +188,7 @@ pub struct BonePart {
     pub bone: u16,
 }
 
-/// Collider the portal gun's shot passes through (grates, player clips).
-#[derive(Component, Clone, Copy, Debug, Default)]
-pub struct PortalShotPassthrough;
+pub use shared::PortalShotPassthrough;
 
 /// A rendered entity from the map's entity lump or static prop lump.
 #[derive(Component, Clone, Debug)]

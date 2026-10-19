@@ -31,6 +31,11 @@ pub fn source_dir_to_world(v: Vec3) -> Vec3 {
 #[derive(Component, Default, Clone, Copy, Debug)]
 pub struct Portalable;
 
+/// A collider portal shots pass through (Source's portal shot mask leaves
+/// out player clips and grates).
+#[derive(Component, Default, Clone, Copy, Debug)]
+pub struct PortalShotPassthrough;
+
 /// The player the camera follows. Exactly one.
 #[derive(Component, Default, Clone, Copy, Debug)]
 pub struct Player;
