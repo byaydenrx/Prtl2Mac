@@ -46,6 +46,25 @@ fn main() {
             println!("t {t:.2} model pos {:.2?} X {:.2?} Y {:.2?} | local {:.3?}", m[b].translation, m[b].matrix3 * bevy::math::Vec3A::X, m[b].matrix3 * bevy::math::Vec3A::Y, l[b]);
         }
     }
+    if let (Ok(att), Some(sq)) = (std::env::var("SMOOTH"), argv.get(1).and_then(|n| a.find(n))) {
+        // Largest frame-to-frame turn of an attachment over a sequence.
+        let n = (a.duration(sq) * 60.0) as usize;
+        let mut prev: Option<bevy::math::Mat3> = None;
+        let mut worst = (0.0f32, 0.0f32);
+        for k in 0..=n {
+            let t = k as f32 / 60.0;
+            let m = a.bone_to_model(&a.sample(sq, t));
+            let Some((_, r)) = a.attachment(&att, &m) else { break };
+            if let Some(p) = prev {
+                let d = bevy::math::Quat::from_mat3(&(r * p.transpose())).angle_between(bevy::math::Quat::IDENTITY).to_degrees();
+                if d > worst.0 {
+                    worst = (d, t);
+                }
+            }
+            prev = Some(r);
+        }
+        println!("smooth {att}: worst step {:.2} deg at t {:.2}", worst.0, worst.1);
+    }
     if std::env::var_os("AIMTEST").is_some() {
         // Where the eye light (bone eyelight_aimjoint, +X) points, in the root bone's frame,
         // for aim_yaw/aim_pitch at -1/0/+1 over sphere_idle_neutral.
