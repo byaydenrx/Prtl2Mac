@@ -24,7 +24,7 @@
 use std::collections::HashMap;
 
 use bevy::prelude::*;
-use p2_assets::anim::Animator;
+use p2_assets::anim::{Animator, SeqEvent};
 use p2_assets::GameFsRes;
 use source_assets::{AnimatedModel, BonePart};
 
@@ -448,10 +448,41 @@ fn start_default_anims(ents: Option<Res<Ents>>, game: Res<GameFsRes>, mut anims:
     }
 }
 
+/// The events a playback step passed over: those with a cycle in
+/// `(from, to]` (`[0, to]` from the very start), wrapping once for a loop
+/// that went past its end. Cycles are fractions of the sequence, 0..1.
+pub fn crossed_events(events: &[SeqEvent], from: f32, to: f32, wrapped: bool) -> Vec<&SeqEvent> {
+    let hit = |e: &&SeqEvent, a: f32, b: f32| (e.cycle > a || (a <= 0.0 && e.cycle >= 0.0)) && e.cycle <= b;
+    let span = |a: f32, b: f32| {
+        let mut v: Vec<&SeqEvent> = events.iter().filter(|e| hit(e, a, b)).collect();
+        v.sort_by(|x, y| x.cycle.total_cmp(&y.cycle));
+        v
+    };
+    if wrapped {
+        [span(from, 1.0), span(-1.0, to)].concat()
+    } else {
+        span(from, to)
+    }
+}
+
+/// Source's script event that sends its options (`FireUser3`, `Skin 1`) to
+/// the animating entity as an input.
+const EVENT_FIRE_INPUT: i32 = 1100;
+/// Old numeric sound events (`SCRIPT_EVENT_SOUND`, `CL_EVENT_SOUND`).
+const EVENT_SOUNDS: [i32; 3] = [1004, 1005, 5004];
+
 /// Plays every prop's sequence on by the game time since last frame;
-/// fires `OnAnimationDone`.
-fn advance_anims(ents: Option<Res<Ents>>, game: Res<GameFsRes>, mut anims: ResMut<PropAnims>, mut fire: MessageWriter<FireOutput>, mut last: Local<f32>) {
-    let Some(ents) = ents else { return };
+/// fires `OnAnimationDone` and the sequence's animation events (inputs on
+/// the prop itself, sounds) as playback passes them.
+fn advance_anims(
+    ents: Option<ResMut<Ents>>,
+    game: Res<GameFsRes>,
+    mut anims: ResMut<PropAnims>,
+    mut fire: MessageWriter<FireOutput>,
+    mut sounds: MessageWriter<crate::audio::PlayGameSound>,
+    mut last: Local<f32>,
+) {
+    let Some(mut ents) = ents else { return };
     // Game time stops in menus and restarts at 0 with each level; a loaded
     // save sets it in one jump (its sequences come back with their times).
     let dt = if ents.now >= *last && ents.now - *last < 1.0 { ents.now - *last } else { 0.0 };
@@ -464,13 +495,44 @@ fn advance_anims(ents: Option<Res<Ents>>, game: Res<GameFsRes>, mut anims: ResMu
         let e = &ents.list[i];
         let anim = anims.model_of(i, e).and_then(|m| anims.animator(&game, &m));
         let default = default_anim(&anims, i, e);
+        let hold = hold_animation(e);
         let timing = |name: &str| match &anim {
             Some(a) => a.find(name).map(|s| SeqTiming::of(a, s)),
             None => None,
         };
         let Some(pb) = anims.playing.get_mut(&i) else { continue };
-        if step(pb, dt, &timing, default.as_deref(), hold_animation(e)) {
+        let before = pb.clone();
+        let done = step(pb, dt, &timing, default.as_deref(), hold);
+        let after = pb.clone();
+        if done {
             fire.write(FireOutput { ent: i, event: "OnAnimationDone".into(), activator: None });
+        }
+        // Animation events of the sequence that was playing.
+        let Some(a) = &anim else { continue };
+        let Some(seq) = a.find(&before.seq) else { continue };
+        let events = &a.sequences[seq].events;
+        if events.is_empty() || before.finished || before.rate <= 0.0 {
+            continue;
+        }
+        let dur = a.duration(seq).max(1e-6);
+        let from = before.time / dur;
+        let (to, wrapped) = if after.id == before.id && !after.finished {
+            (after.time / dur, after.time < before.time)
+        } else {
+            (1.0, false)
+        };
+        let at = ents.list[i].transform.translation;
+        for ev in crossed_events(events, from, to, wrapped) {
+            let name = ev.name.to_ascii_uppercase();
+            if ev.id == EVENT_FIRE_INPUT {
+                let (input, param) = ev.options.trim().split_once(char::is_whitespace).unwrap_or((ev.options.trim(), ""));
+                ents.send_from("!self", input, param.trim(), 0.0, i, None);
+            } else if EVENT_SOUNDS.contains(&ev.id) || name.ends_with("_PLAYSOUND") || name == "AE_CL_PLAYSOUND" {
+                let sound = ev.options.trim();
+                if !sound.is_empty() {
+                    sounds.write(crate::audio::PlayGameSound { sound: sound.into(), at: Some(at), looped: false, owner: None, music: false, volume: 1.0 });
+                }
+            }
         }
     }
 }
@@ -621,6 +683,22 @@ fn pose_parts(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn ev(cycle: f32, opt: &str) -> SeqEvent {
+        SeqEvent { cycle, id: EVENT_FIRE_INPUT, name: String::new(), options: opt.into() }
+    }
+
+    #[test]
+    fn crossed_events_by_cycle() {
+        let evs = vec![ev(0.0, "a"), ev(0.5, "b"), ev(0.7, "c"), ev(0.9, "d")];
+        let names = |v: Vec<&SeqEvent>| v.iter().map(|e| e.options.clone()).collect::<Vec<_>>();
+        assert_eq!(names(crossed_events(&evs, 0.0, 0.1, false)), ["a"]);
+        assert_eq!(names(crossed_events(&evs, 0.1, 0.5, false)), ["b"]);
+        assert_eq!(names(crossed_events(&evs, 0.5, 0.69, false)), Vec::<String>::new());
+        assert_eq!(names(crossed_events(&evs, 0.6, 1.0, false)), ["c", "d"]);
+        // A loop wrapping past its end: the tail, then the head again.
+        assert_eq!(names(crossed_events(&evs, 0.8, 0.1, true)), ["d", "a"]);
+    }
 
     fn timing(name: &str) -> Option<SeqTiming> {
         match name {

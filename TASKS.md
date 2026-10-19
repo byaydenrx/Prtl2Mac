@@ -14,15 +14,25 @@ date. Any engine bug found becomes its own task (P1 if it blocks the route).
 
 ## Active
 
-### T-101 sp_a1_intro1: ride ending blocks progress  (P1, IN_PROGRESS)
+### T-101 sp_a1_intro1: ride ending blocks progress  (P1, NEEDS_VERIFICATION, owner replay)
 - Owner playtest 2026-10-19: after "seriously, do hold on this time" no more
-  lines, the wall doesn't break, you can walk into the wall but an invisible
-  barrier stops you. Unplayable past this point.
-- Outcome: the end-of-ride scene plays, the wall breaks (or the original's
-  equivalent), and the player can walk on to the next area and map.
-- Files: viewcontrol.rs, scenes.rs, movers.rs, anim_props.rs (to be found).
-- Verify: trace the I/O chain after the last ride line; play from the ride
-  start to the map change by walking, not setpos.
+  lines, the wall doesn't break, an invisible barrier stops you.
+- Cause (2026-10-19): the ride is driven by animation events in
+  `container_ride/mastertransform.mdl` (event 1100 `FireUser1..4`): impacts,
+  the wall hit, and three `FireUser4` that count `@exit_wall_hit_counter` up to
+  `exit_wall_break_case`, which breaks the wall, opens the blocking doors
+  (`@modify_collision_2_rl`), starts the third section and Wheatley's lines.
+  We never fired model animation events, and math_counter's OutValue passed
+  no value, so the case never matched.
+- Fix: anim.rs parses sequence events; anim_props.rs fires 1100 events as
+  inputs on the prop and plays sound events; io.rs passes counter values on
+  outputs with no parameter (`fire_value`) and logic_case matches numbers.
+- Evidence: unit tests (crossed_events_by_cycle, counter_values_match_cases);
+  autopilot run (ride started with `input @rl_container_ride_second_section
+  trigger`, timescale 4) logs oncase01..03, @modify_collision_2_rl,
+  third section, wheatley_back_inside. NOT yet walked by a player off the
+  container to the map change.
+- Verify: owner plays intro1 from New Game through the ride to sp_a1_intro2.
 
 ## Owner playtest blockers (P1, play order)
 
@@ -103,6 +113,7 @@ date. Any engine bug found becomes its own task (P1 if it blocks the route).
 - Their checklists are in docs/STATUS.md.
 
 ## Done
+- 2026-10-19 make_app.sh keeps dist/Prtl2Mac-previous.app and stamps a build id (BUILD.txt, CFBundleVersion).
 - 2026-10-19 Workflow docs (WORKFLOW.md, TASKS.md, PROJECT_STATE.md, SESSION_HANDOFF.md, CLAUDE.md, scripts/resume.sh).
 - 2026-10-19 sp_a2_intro logic: gun pickup, both portals, exit door, next map (autopilot) - 01c83ec.
 - 2026-10-19 sp_a1_wakeup socket: CORE_TRIGGER_REACH lets the held core plug in (autopilot).

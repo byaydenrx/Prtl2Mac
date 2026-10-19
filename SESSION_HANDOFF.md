@@ -4,34 +4,48 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-19, Wheatley session (worktree `Portal2-wheatley`, branch `wheatley`,
-pushes to `main`).
+2026-10-19 evening, sprint session (worktree `Portal2-wheatley`, branch
+`wheatley`, pushes to `main`).
 
 ## Where things stand
-- main builds; ~340 workspace tests pass (2026-10-19).
-- Workflow set up: WORKFLOW.md, TASKS.md, PROJECT_STATE.md, this file,
-  CLAUDE.md, scripts/resume.sh.
-- Current task: **T-101** (intro1 ride end). The owner playtest (2026-10-19) found chapter 1 blockers T-101..T-106.
+- T-101 (intro1 ride end) fixed in logic: model animation events
+  (`FireUser1..4`, sounds) now fire; math_counter OutValue passes its value,
+  so `exit_wall_break_case` breaks the wall and opens the blocking doors.
+  Autopilot log proves the chain; a player has NOT yet walked off the
+  container to sp_a1_intro2. Status NEEDS_VERIFICATION (owner replay).
+- Animation events are new for every map: re-check verified maps for new
+  sounds/inputs that misbehave (none seen; only intro1 was run).
+- `cargo test --release --workspace` passes (~340 tests, 0 failures).
+- make_app.sh keeps `dist/Prtl2Mac-previous.app` and writes a build id to
+  `Contents/Resources/BUILD.txt`.
 
 ## Next action
-Fix the owner-playtest blockers in play order: T-101 (intro1 ride end: wall
-doesn't break, invisible barrier), T-102 (portal traversal for the player
-and cubes), T-103 (wakeup breaker lift), T-104 (sp_a2_intro), T-105, T-106.
-Verify with walking/portal runs, not setpos/input, then ask the owner to replay.
-Autopilot screenshots sometimes come out fully black when the game window
-is covered; the owner sees it rendering fine. Re-take the shot rather than
-debugging the renderer.
+1. If the owner's replay of intro1 passes, mark T-101 DONE; if not, take their report.
+2. T-102 (sp_a1_intro4: player can't walk through portals, cubes don't pass
+   portals): core mechanic, blocks most of the campaign. Then T-103..T-106.
+Verify with walking/portal runs, not setpos/input. Autopilot screenshots can
+come out black when the window is covered; re-take rather than debug.
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.
 
-## Checkouts and sessions
-- `Portal2-wheatley` (this session): chapter 1-2 proof, packaging, workflow.
-- `Portal2-rust-engine`: main checkout of the chapter 2 session; it had an
-  unfinished `git merge` of cloud/particles (props.rs conflicted). Don't
-  touch it; that session resolves it.
-- `Portal2-ch35`, `Portal2-ch6-9`: chapter sessions, clean, nothing unpushed.
+## Disk (2026-10-19)
+`~/Documents/Claude` is ~71 GB, ~70 GB of it Rust `target/` dirs:
+Portal2-ch6-9 27 GB, Portal2-rust-engine 26 GB, Portal2-ch35 10 GB,
+Portal2-wheatley 7.5 GB (in use). Portal 2 itself (12 GB) lives in Steam's
+folder, not here. The other checkouts' targets are regenerable but await
+the owner's approval (owner asked to leave those checkouts untouched).
 
+## Checkouts and sessions (checked 2026-10-19)
+- `Portal2-wheatley` (this one): up to date with origin/main; the sprint works here.
+- `Portal2-rust-engine` (branch `main`): stuck mid-merge since 00:45 Oct 19
+  (merging origin/main at 11a60b7; props.rs conflicted), 41 behind
+  origin/main. Its one local commit 3cf08c2 (laser_stairs) reached main as
+  f2d9b71 (same change, slightly reworked). A stash "local animinfo (other
+  session)" holds a 15-line animinfo.rs debug addition. Don't touch until
+  the owner decides; nothing unique found besides that stash.
+- `Portal2-ch35`, `Portal2-ch6-9`: clean, 6 / 8 behind origin/main, nothing unpushed.
+- All `origin/cloud/*` branches are ancestors of origin/main.
 ## Owner manual checks wanted (T-021)
 sp_a1_intro1 ride, sp_a1_wakeup socket, sp_a2_intro portal route.
 

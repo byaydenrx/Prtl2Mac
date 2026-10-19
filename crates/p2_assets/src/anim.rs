@@ -256,6 +256,21 @@ pub struct SeqInfo {
     pub autolayers: Vec<usize>,
     /// Per-bone weight of this sequence when used as a layer.
     weights: Vec<f32>,
+    /// Animation events (`{ event ... }` in the QC), by cycle.
+    pub events: Vec<SeqEvent>,
+}
+
+/// An animation event of a sequence: fired when playback passes `cycle`.
+#[derive(Clone, Debug)]
+pub struct SeqEvent {
+    /// Where in the sequence, 0..1.
+    pub cycle: f32,
+    /// Numeric event id (old-style events; 0 when named).
+    pub id: i32,
+    /// Event name, e.g. `AE_CL_PLAYSOUND` (empty for old numeric events).
+    pub name: String,
+    /// The event's options string, e.g. a sound name or `FireUser3`.
+    pub options: String,
 }
 
 /// A pose parameter of the model (e.g. `move_x`, `body_yaw`).
@@ -331,6 +346,20 @@ fn parse_tables(d: &[u8], nbones: usize) -> Option<Tables> {
         let nal = i32_at(d, s + 148)?.max(0) as usize;
         let ali = i32_at(d, s + 152)? as usize;
         let autolayers = (0..nal).filter_map(|j| i16_at(d, s + ali + j * 24).filter(|&q| q >= 0).map(|q| q as usize)).collect();
+        let nev = i32_at(d, s + 24)?.clamp(0, 256) as usize;
+        let evi = i32_at(d, s + 28)? as usize;
+        let events = (0..nev)
+            .filter_map(|j| {
+                let e = s + evi + j * 80;
+                let name_at = i32_at(d, e + 76)?;
+                Some(SeqEvent {
+                    cycle: f32_at(d, e)?,
+                    id: i32_at(d, e + 4)?,
+                    name: if name_at != 0 { cstr(d, e + name_at as usize) } else { String::new() },
+                    options: cstr(d, e + 12),
+                })
+            })
+            .collect();
         let wli = i32_at(d, s + 156)?;
         let weights = if wli > 0 {
             (0..nbones).map(|b| f32_at(d, s + wli as usize + 4 * b).unwrap_or(1.0)).collect()
@@ -351,6 +380,7 @@ fn parse_tables(d: &[u8], nbones: usize) -> Option<Tables> {
             param_end,
             autolayers,
             weights,
+            events,
         });
     }
     let npp = i32_at(d, 300)?.max(0) as usize;

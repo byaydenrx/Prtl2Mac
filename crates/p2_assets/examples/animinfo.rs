@@ -25,6 +25,9 @@ fn main() {
     }
     for (i, s) in a.sequences.iter().enumerate().take(40) {
         println!("  seq {i} {} [{}] duration {:.2}", s.label, s.activity, a.duration(i));
+        for e in &s.events {
+            println!("    event at {:.3}: {} {:?} {:?}", e.cycle, e.id, e.name, e.options);
+        }
     }
     for (i, p) in a.pose_params.iter().enumerate() {
         println!("  pose param {i} {} {}..{}", p.name, p.start, p.end);

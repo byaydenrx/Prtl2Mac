@@ -33,7 +33,9 @@ needs a run with movement, portals and props only, or the owner's play.
 ## Build and package
 - [x] `cargo build --release`, `cargo test --release --workspace` pass
       (~340 tests, 0 failures, 2026-10-19).
-- [x] `sh scripts/make_app.sh` builds `dist/Prtl2Mac.app` (ad-hoc signed);
+- [x] `sh scripts/make_app.sh` builds `dist/Prtl2Mac.app` (ad-hoc signed,
+      build id in Contents/Resources/BUILD.txt, previous app kept as
+      dist/Prtl2Mac-previous.app);
       launched with `open` and no environment it finds the install and runs.
       A missing install shows a dialog.
 - [ ] App icon; first-run check on a second Mac.
@@ -46,7 +48,7 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 
 | Ch | Map | L | O | S | N | R | Status | Evidence / notes |
 |---|---|---|---|---|---|---|---|---|
-| 1 | sp_a1_intro1 | y | y | x | - | - | BLOCKED | owner playtest: wall doesn't break at the ride's end, invisible barrier (T-101); many P2 issues (T-110..T-117) |
+| 1 | sp_a1_intro1 | y | y | - | - | - | IN PROGRESS | ride-end wall break/barrier fixed in logic (animation events, T-101), awaiting owner replay; many P2 issues (T-110..T-117) |
 | 1 | sp_a1_intro2, intro3, intro5, intro6 | y | y | - | y | - | IN PROGRESS | button->door chains and exits (autopilot logic only); portal traversal broken (T-102) |
 | 1 | sp_a1_intro4 | y | y | x | y | - | BLOCKED | owner playtest: can't walk through portals, cubes don't pass portals (T-102) |
 | 1 | sp_a1_intro7 | y | y | - | y | - | IN PROGRESS | Wheatley pickup, socket, relay, scene (autopilot logic); Wheatley re-pickup broken (T-105) |
@@ -75,7 +77,7 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 9 | sp_a4_finale1..finale4 | - | - | - | - | - | NOT STARTED | T-015 |
 
 ## Release blockers (open P0/P1)
-- Owner playtest blockers T-101..T-106 (chapter 1 and sp_a2_intro).
+- Owner playtest blockers T-102..T-106 (chapter 1 and sp_a2_intro); T-101 fixed, awaiting replay.
 - Most chapter 2-3 puzzles unproven (T-001..T-008).
 - Chapters 4-9 not swept (T-010..T-015).
 - Restart/reload never checked per map (T-090).
@@ -84,4 +86,4 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 Portals, cubes/buttons, lasers, bridges, funnels, faith plates, turrets,
 gels, fizzlers, saves (autosave, quick save/load, death reloads), scenes and
 captions, view controls/proxies, movies, auto-exposure, projected lights,
-particles, glass, settings/menus. All `origin/cloud/*` branches are merged.
+particles, glass, settings/menus, model animation events (FireUser/sounds). All `origin/cloud/*` branches are merged.

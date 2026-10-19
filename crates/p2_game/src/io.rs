@@ -323,6 +323,13 @@ impl Ents {
 
     /// Fire every `event` output of `ent`.
     pub fn fire(&mut self, ent: usize, event: &str, activator: Option<usize>) {
+        self.fire_value(ent, event, "", activator);
+    }
+
+    /// Fire every `event` output of `ent` carrying `value` (math_counter's
+    /// OutValue): an output with no parameter of its own passes the value
+    /// on, as Source does.
+    pub fn fire_value(&mut self, ent: usize, event: &str, value: &str, activator: Option<usize>) {
         let now = self.now;
         let Some(e) = self.list.get_mut(ent) else { return };
         if e.killed {
@@ -340,7 +347,7 @@ impl Ents {
                 at: now + o.delay.max(0.0),
                 target: o.target.clone(),
                 input: o.input.to_ascii_lowercase(),
-                param: o.param.clone(),
+                param: if o.param.is_empty() { value.into() } else { o.param.clone() },
                 caller: ent,
                 activator,
             });
@@ -478,7 +485,7 @@ impl Ents {
                         old
                     }
                     "getvalue" => {
-                        self.fire(i, "ongetvalue", activator);
+                        self.fire_value(i, "ongetvalue", &value_string(old), activator);
                         old
                     }
                     _ => old,
@@ -486,7 +493,7 @@ impl Ents {
                 let new = if max > min { new.clamp(min, max) } else { new };
                 self.list[i].value = new;
                 if input != "setvaluenofire" && self.list[i].enabled && new != old {
-                    self.fire(i, "outvalue", activator);
+                    self.fire_value(i, "outvalue", &value_string(new), activator);
                     if max > min && new >= max {
                         self.fire(i, "onhitmax", activator);
                     }
@@ -552,7 +559,7 @@ impl Ents {
                     .collect();
                 match input {
                     "invalue" => {
-                        if let Some((n, _)) = cases.iter().find(|(_, v)| v.eq_ignore_ascii_case(param)) {
+                        if let Some((n, _)) = cases.iter().find(|(_, v)| case_matches(v, param)) {
                             self.fire(i, &format!("oncase{n:02}"), activator);
                         } else {
                             self.fire(i, "ondefault", activator);
@@ -680,6 +687,18 @@ impl Ents {
 }
 
 /// `"target\x1binput\x1bparam\x1bdelay\x1btimes"` (Portal 2) or the comma form.
+/// A number as an output value: whole numbers without a fraction (`3`, as
+/// logic_case's `Case03 = 3` expects), others as written.
+fn value_string(v: f32) -> String {
+    if v.fract() == 0.0 && v.abs() < 1e9 { format!("{}", v as i64) } else { format!("{v}") }
+}
+
+/// logic_case: `case` equals `value`, as text or, both being numbers, by value.
+fn case_matches(case: &str, value: &str) -> bool {
+    case.eq_ignore_ascii_case(value.trim())
+        || matches!((source_assets::kv::parse_f32(case), source_assets::kv::parse_f32(value)), (Some(a), Some(b)) if a == b)
+}
+
 fn parse_output(key: &str, value: &str) -> Option<Output> {
     if !key.starts_with("on") && !key.starts_with("out") && !key.starts_with("pressed") && !key.starts_with("unpressed") {
         return None;
@@ -812,5 +831,22 @@ pub fn run_io(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod value_tests {
+    use super::*;
+
+    #[test]
+    fn counter_values_match_cases() {
+        assert_eq!(value_string(3.0), "3");
+        assert_eq!(value_string(-1.0), "-1");
+        assert_eq!(value_string(0.5), "0.5");
+        assert!(case_matches("3", &value_string(3.0)));
+        assert!(case_matches("3", "3.000000"));
+        assert!(case_matches("Open", "open"));
+        assert!(!case_matches("2", "3"));
+        assert!(!case_matches("2", ""));
     }
 }
