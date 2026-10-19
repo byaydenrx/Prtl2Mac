@@ -1213,6 +1213,7 @@ fn spawn_collider(commands: &mut Commands, c: &ColliderData, parent: Entity) {
     }
 }
 
+
 /// Prop collision: the model's `.phy` convex pieces; its bounding box only
 /// for `solid 2` (SOLID_BBOX). A `solid 6` (VPhysics) model without a
 /// `.phy` is not solid, as in the engine.

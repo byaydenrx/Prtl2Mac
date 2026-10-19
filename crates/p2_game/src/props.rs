@@ -19,9 +19,10 @@ impl Plugin for PropsPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Gravity(Vec3::NEG_Y * 600.0 * shared::SOURCE_UNIT))
             .init_resource::<CoreState>()
+            .init_resource::<HoldTargets>()
             .add_systems(Update, (make_props_dynamic, hook_prop_colliders, sync_prop_transforms, core_inputs, use_key, prop_inputs, floor_buttons).chain().in_set(crate::level::GameSet::Logic))
             .add_systems(Update, player_proxy_outputs.in_set(crate::level::GameSet::Logic))
-            .add_systems(FixedUpdate, (carry, prop_transit, wall_passthrough).chain().after(P2Systems::Transit));
+            .add_systems(FixedUpdate, (carry, hold_clearance, prop_transit, wall_passthrough).chain().after(P2Systems::Transit));
     }
 }
 
@@ -168,7 +169,9 @@ fn use_key(
         for c in &hc.0 {
             ignore.remove(c);
         }
-        commands.entity(e).remove::<(Held, HeldColliders)>().insert(GravityScale(1.0));
+        // Let go as aimed: it keeps its drift but not the hold controller's
+        // turning (a reflection cube set down stays pointed where it was).
+        commands.entity(e).remove::<(Held, HeldColliders)>().insert((GravityScale(1.0), AngularVelocity::ZERO));
         return;
     }
     let eye = feet.curr + Vec3::Y * crouch.eye_height;
@@ -314,7 +317,9 @@ fn carry(
     portals: Query<(&Portal, &Transform, &PortalLink), Without<Held>>,
     all_portals: Query<&Transform, (With<Portal>, Without<Held>)>,
     mut teleported: MessageReader<PortalTeleported>,
+    mut targets: ResMut<HoldTargets>,
 ) {
+    targets.0.clear();
     let Ok((player, feet, crouch, view, mut ignore, player_vel)) = players.single_mut() else { return };
     let player_vel = player_vel.0;
     // The player went through a portal: what they hold comes with them.
@@ -348,10 +353,12 @@ fn carry(
                 break;
             }
         }
+        let reach = target - tf.translation;
+        targets.0.insert(e, target);
         let to = target - tf.translation;
         // Dropped only when it stays too far (stuck behind something), not
         // when the player whips around.
-        h.stuck_for = if to.length() > HOLD_BREAK_DISTANCE { h.stuck_for + dt } else { 0.0 };
+        h.stuck_for = if reach.length() > HOLD_BREAK_DISTANCE { h.stuck_for + dt } else { 0.0 };
         if h.stuck_for > 0.5 {
             for c in &hc.0 {
                 ignore.remove(c);
@@ -371,6 +378,49 @@ fn carry(
             angle -= std::f32::consts::TAU;
         }
         av.0 = if axis.is_finite() { axis * angle / dt.max(HOLD_CATCH_UP) } else { Vec3::ZERO };
+    }
+}
+
+/// Where each held prop is being pulled this tick ([`carry`]).
+#[derive(Resource, Default)]
+struct HoldTargets(std::collections::HashMap<Entity, Vec3>);
+
+/// A held prop stops at the world rather than being driven into it:
+/// pressed onto a floor button it would sink in and pop out when let go.
+/// Other physics props are still pushed.
+fn hold_clearance(
+    targets: Res<HoldTargets>,
+    time: Res<Time>,
+    players: Query<Entity, With<Player>>,
+    mut held: Query<(Entity, &Prop, &HeldColliders, &Transform, &mut LinearVelocity), With<Held>>,
+    spatial: SpatialQuery,
+    bodies: Query<&RigidBody>,
+    body_of: Query<&ColliderOf>,
+) {
+    let dt = time.delta_secs().max(1e-4);
+    let player = players.single().ok();
+    for (e, prop, hc, tf, mut lv) in &mut held {
+        let Some(&target) = targets.0.get(&e) else { continue };
+        let reach = target - tf.translation;
+        let Ok(dir) = Dir3::new(reach) else { continue };
+        let shape = Collider::cuboid(prop.half.x * 2.0, prop.half.y * 2.0, prop.half.z * 2.0);
+        let mut skip: Vec<Entity> = hc.0.clone();
+        skip.push(e);
+        skip.extend(player);
+        let filter = SpatialQueryFilter::from_excluded_entities(skip);
+        let config = ShapeCastConfig { max_distance: reach.length(), ignore_origin_penetration: true, ..default() };
+        let solid = |c: Entity| {
+            let body = body_of.get(c).map_or(c, |b| b.body);
+            !matches!(bodies.get(body), Ok(RigidBody::Dynamic))
+        };
+        if let Some(hit) = spatial.cast_shape_predicate(&shape, tf.translation, tf.rotation, dir, &config, &filter, &solid) {
+            // Up to the surface, then the rest slides along it.
+            let free = (hit.distance - 0.25 * shared::SOURCE_UNIT).max(0.0);
+            let n = if hit.normal2.dot(*dir) > 0.0 { -hit.normal2 } else { hit.normal2 };
+            let rest = reach - *dir * free;
+            let to = *dir * free + rest - n * rest.dot(n).min(0.0);
+            lv.0 = (to / dt.max(HOLD_CATCH_UP)).clamp_length_max(HOLD_MAX_SPEED);
+        }
     }
 }
 

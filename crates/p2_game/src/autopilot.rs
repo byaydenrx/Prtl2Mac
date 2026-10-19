@@ -157,19 +157,27 @@ fn drive(
                 // A map entity by name or class: where it is now (props move).
                 let Some(ents) = ents.as_deref() else { continue };
                 let key = a.first().map(|k| k.to_ascii_lowercase()).unwrap_or_default();
-                // Live entities first (templates leave their killed originals).
-                let matches = |e: &crate::io::GameEnt| e.name == key || e.class == key;
-                let Some(i) = ents.list.iter().position(|e| matches(e) && !e.killed).or_else(|| ents.list.iter().position(matches)) else {
+                // Where it is drawn now (props move, cores ride rails).
+                let at = |i: usize| {
+                    props
+                        .iter()
+                        .find(|(p, _, _, _)| p.ent == i)
+                        .map(|(_, t, _, _)| t.translation)
+                        .or_else(|| ents.list[i].entity.and_then(|r| globals.get(r).ok()).map(|g| g.translation()))
+                        .unwrap_or(ents.list[i].transform.translation)
+                };
+                // The nearest live match (a dropper's next cube shares the name).
+                let Some(target) = ents
+                    .list
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, e)| !e.killed && (e.name == key || e.class == key))
+                    .map(|(i, _)| at(i))
+                    .min_by(|a, b| a.distance_squared(tf.translation).total_cmp(&b.distance_squared(tf.translation)))
+                else {
                     warn!("autopilot: no entity {key}");
                     continue;
                 };
-                // Where it is drawn now (props move, cores ride rails).
-                let target = props
-                    .iter()
-                    .find(|(p, _, _, _)| p.ent == i)
-                    .map(|(_, t, _, _)| t.translation)
-                    .or_else(|| ents.list[i].entity.and_then(|r| globals.get(r).ok()).map(|g| g.translation()))
-                    .unwrap_or(ents.list[i].transform.translation);
                 if step.cmd == "goto" {
                     // Stand `dist` units away on the side with the most room.
                     let dist = a.get(1).and_then(|d| d.parse::<f32>().ok()).unwrap_or(64.0) * shared::SOURCE_UNIT;
@@ -273,7 +281,7 @@ fn drive(
                     let at = from + *dir * h.distance;
                     // The face that was hit: material and whether it takes portals.
                     if let Some(side) = src_cols.get(h.entity).ok().and_then(|c| c.side_for_normal(h.normal)) {
-                        info!("autopilot: ray face {} portalable {} surfaceprop {:?}", side.material, side.portalable, side.surface_prop);
+                        info!("autopilot: ray face {} portalable {} surfaceprop {:?} contents {:#x}", side.material, side.portalable, side.surface_prop, src_cols.get(h.entity).map_or(0, |c| c.contents));
                     }
                     info!(
                         "autopilot: ray hit at source z {:.0} ({:.0} {:.0} {:.0}): {}",
