@@ -23,7 +23,9 @@ input and stay windowed. Screenshots of a covered/background window can come
 out black (macOS stops drawing it) — not a game bug.
 
 Autopilot extras: `input <target> <input> [param]` sends a map input,
-`ray x y z` logs what is below a Source point, `click <Action>` presses a
+`ray x y z [dx dy dz]` logs what is below a Source point (or along a
+direction), `info <name>` (or `ent`) logs an entity's state, place, axes,
+bounds and a prop's physics body, `click <Action>` presses a
 menu button by its action (`click pause`, `click Options` opens the
 flyout, then `click Page(Video)` etc.; `click Toggle(VSync)`,
 `click Adjust(Fov,1.0)`, `click Done`; the full list is under "cloud/ui
@@ -91,24 +93,61 @@ the shipped map).
 
 Owner's feature wishlist: docs/ROADMAP.md.
 
+## Chapter 1 end to end (2026-10-18 evening)
+
+Every chapter 1 map hands off to the next: intro2-intro6 through the
+departure elevator (`3 goto departure_elevator-elevator_1`), sp_a1_intro7
+through `transition_trigger` (-2208 376 1280, after Wheatley's transition),
+sp_a1_wakeup through the incinerator drop.
+
+sp_a1_wakeup, checked with scripted runs:
+- Wheatley starts in the player's hands (`ForcePickup`, props.rs) and stays
+  there (`SetDropEnabled 0`); the Wheatley-filtered triggers fire: the gantry
+  door opens, the breaker room hatch opens, all of Wheatley's lines up to the
+  socket play (gantry, "there she is", stairs, jump, catwalk, switch room).
+- The stair jump: walk off the north end of the walkway through the gap at
+  x≈10928 (a pillar and the railing leave ~45 units; the player is 32 wide).
+- **Blocker: plugging Wheatley in.** `basement_breakers_socket_trigger` is a
+  6x4x6 trigger parented to `core_receptacle_socket`, which rides
+  `breaker_shaft`'s `psphere_plug_attach` (bone `joint2`). Our decode of
+  `breaker_shaft_open_hatch` tilts that attachment 20° about X as it rises
+  (`animinfo models/props_basement/breaker_shaft.mdl breaker_shaft_open_hatch
+  psphere_plug_attach`, now prints the attachment's axes), which leaves the
+  trigger at y 1086-1090, 10 units inside the pillar's solid face (y=1100),
+  out of Wheatley's reach. Without the tilt the plug arm's tip
+  (`psphere_plug.mdl` `open`, `sphere_attach` ≈ (-10.7, 38.5, 10)) pokes 2
+  units out of the cabinet and the trigger sits at the face, which looks like
+  the design. Check `joint2`'s rotation track (sign/axis) in the decoder. To
+  test past it: `input socket_powered_rl trigger` (what the trigger fires),
+  or `input basement_breakers_start trigger`.
+- After the socket everything works: breakers, platform ride to GLaDOS
+  (`basement_elevator_complete_rl`), the 13-scene wake-up chain
+  (GladosPlayVcd 589), the claw pickup (`relay_start_claw_pickup` fired by
+  scene A15), the claw camera rides `ghostanim` to the incinerator (the 20 m
+  attachment sanity limit is now 120 m), `trigger_weapon_strip` takes the
+  gun, `TeleportToView` drops the player over the opened hatch, the
+  `linked_portal_door` pair carries them to the drop room, and
+  `@transition_from_map` loads sp_a2_intro.
+- `linked_portal_door` (portals.rs): map-paired world portals the player and
+  props go through; not drawn (the renderer shows only the gun's pair), so
+  the hole looks like whatever is below it. Also used by sp_a4_finale2.
+- Parenting (movers.rs): plainly parented children now follow a parent that
+  moved by any means (an animated attachment), not only movers; children
+  riding an attachment themselves are left to viewcontrol.
+- Scripted `setpos` brings a held prop along, but big jumps can still drop it
+  inside geometry (physics pushes it out, the carry gives up): walk the last
+  stretch, or `input @sphere forcepickup` to grab Wheatley again.
+
 ## Next (priority order)
 
-1. **sp_a1_intro1 wake-up camera** (`viewcontrol.rs`): ghostanim `sp_a1_intro`
-   attach_1 now decodes smoothly (`animinfo`), but which bone axis is the
-   view and whether the 48S quaternion sign is right isn't confirmed. Start
-   should lie on the bed looking at the ceiling, end standing facing the room
-   (+X, like info_player_start). Enable with P2_CINEMATIC=1 when right.
-2. **Wheatley in sp_a1_intro1**: `@sphere` (npc_personality_core) is parented to
-   `bottom_swivel_1`; his rail/arm props animate. Needs: drawing animated
-   props (skinned playback, `p2_assets::anim::Animator`), parenting children
-   to animated attachments (SetParentAttachment) each frame, npc model drawn.
-   His knock/nag lines: `sphere_door_knock_nag_timer` -> `sphere_door_knock_case`
-   -> knock relays (check their ambient_generic messages). Many @glados
-   `runscriptcode` calls name functions that don't exist in the shipped
-   scripts (e.g. `sp_a1_intro1_open_door_sequence`) — harmless no-ops.
-3. **Container ride**: `actor_container_master` (prop_dynamic_override) animates
-   the vault through the facility; vault brushes/props are parented to its
-   attachments. Same need as 2 plus carrying the player inside.
+1. **sp_a1_wakeup socket** (above): fix the `breaker_shaft` attachment tilt,
+   then carry Wheatley up to the opened cabinet and check
+   `socket_powered_rl` fires and the platform rises with the player on it.
+2. **sp_a1_intro1 wrecked vault / container ride**: the finedebris_part
+   models (170 bones) need per-bone playback to look right; the vault is
+   dark (env_projectedtexture, see HANDOFF.md).
+3. Chapter 2 in play order: solve each chamber with autopilot (HANDOFF.md
+   lists what is verified).
 4. Instructor hint icons (`hint_icon_onscreen` -> materials/vgui/hud/…),
    refract/glass shaders (vault window), env_tonemap, sounds on prop events.
 5. Play on through the chapters with P2_SCRIPT runs, fixing whatever blocks

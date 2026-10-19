@@ -22,4 +22,12 @@ Level scripts end to end: finish sp_a1_intro2 and ride the elevator; the game's 
 
     cd ~/Documents/Claude/Portal2-rust-engine && PORTAL2_DIR="$HOME/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steamapps/content/app_620/depot_621" ./target/release/portal2 sp_a1_intro2
 
+sp_a1_wakeup: you start carrying Wheatley; the gantry door, his lines and the breaker room work. Plugging him into the socket doesn't work yet (see docs/STATUS.md):
+
+    cd ~/Documents/Claude/Portal2-rust-engine && PORTAL2_DIR="$HOME/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steamapps/content/app_620/depot_621" ./target/release/portal2 sp_a1_wakeup
+
+The end of sp_a1_wakeup without the socket (GLaDOS wakes, the claw takes you to the incinerator, and sp_a2_intro loads):
+
+    cd ~/Documents/Claude/Portal2-rust-engine && P2_SCRIPT="4 setpos 9016 1106 400; 5 input basement_elevator_complete_rl trigger; 150 quit" PORTAL2_DIR="$HOME/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steamapps/content/app_620/depot_621" ./target/release/portal2 sp_a1_wakeup
+
 Any other map works the same way: put its name at the end (sp_a1_intro1, sp_a1_intro4, sp_a2_laser_intro, ...).
