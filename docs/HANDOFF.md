@@ -42,6 +42,22 @@ possible. New options only inside Settings (no extra main/pause menu buttons).
   outside the container (camera shake / proxy); walls don't break away
   (actor_wall_destruction_* / endwalldestruction models).
 
+## sp_a1_wakeup socket blocker (FIXED 2026-10-19: CORE_TRIGGER_REACH in triggers.rs)
+basement_breakers_socket_trigger (trigger_once, spawnflags 2 = NPCs,
+filter_sphere) ends ~10 units behind an invisible solid toolsnodraw face of
+breaker_train (func_tracktrain *50, y=1100, x~8945-9005), so held Wheatley
+can never overlap it. In Portal 2 pushing him against the slot plugs him in.
+Next: let NPC triggers count a held core whose collision (plus a small reach
+margin) touches the trigger box (triggers.rs ~line 119), or find why the
+train face is there. Workaround meanwhile: console `ent_fire
+socket_powered_rl trigger` (autopilot: `input socket_powered_rl trigger`).
+
+## intro1 done this session (2026-10-19)
+Wake-up camera upright (rig up axis from the shot's end pose), holds until
+TeleportToView and hands over with roll eased out; hint icons; one view
+camera at a time; second wake-up is a fade-in to standing (same as the
+original: its blackout rig is consumed by the first wake-up).
+
 ## Known problems / next steps (in order)
 1. Chapter 2 exits: ALL chapter 1-2 (and 3) maps reach their next map when the
    player follows the real path. The earlier "no exit" results were the sweep's
