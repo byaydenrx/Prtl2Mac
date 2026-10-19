@@ -199,6 +199,14 @@ fn mover_inputs(
         let i = msg.target;
         let class = ents.list[i].class.clone();
         let input = msg.input.as_str();
+        // EF_NODRAW on anything drawn (the container ride hides its spare
+        // door and debris this way); collision is left alone.
+        if matches!(input, "disabledraw" | "enabledraw") && i != crate::io::PLAYER {
+            if let Some(r) = ents.list[i].entity {
+                commands.entity(r).insert(if input == "enabledraw" { Visibility::Inherited } else { Visibility::Hidden });
+            }
+            continue;
+        }
         // Re-parenting at run time (Wheatley onto his socket, off his rail).
         match input {
             "clearparent" => movers.parented.retain(|p| p.0 != i),

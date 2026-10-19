@@ -36,6 +36,16 @@ fn main() {
             println!("  seq {i} {} delta {} post {} grid params {grid:?} autolayers {:?}", s.label, s.delta, s.post, s.autolayers);
         }
     }
+    if let (Ok(bn), Some(sq)) = (std::env::var("EVALTEST"), argv.get(1).and_then(|n| a.find(n))) {
+        // One bone over a sequence: sampled (model space) and its local track.
+        let b = a.skeleton.bones.iter().position(|x| x.name.eq_ignore_ascii_case(&bn)).unwrap_or(0);
+        for k in 0..=4 {
+            let t = a.duration(sq) * k as f32 / 4.0;
+            let l = a.sample(sq, t);
+            let m = a.bone_to_model(&l);
+            println!("t {t:.2} model pos {:.2?} X {:.2?} Y {:.2?} | local {:.3?}", m[b].translation, m[b].matrix3 * bevy::math::Vec3A::X, m[b].matrix3 * bevy::math::Vec3A::Y, l[b]);
+        }
+    }
     if std::env::var_os("AIMTEST").is_some() {
         // Where the eye light (bone eyelight_aimjoint, +X) points, in the root bone's frame,
         // for aim_yaw/aim_pitch at -1/0/+1 over sphere_idle_neutral.

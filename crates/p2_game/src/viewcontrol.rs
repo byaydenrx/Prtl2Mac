@@ -481,9 +481,24 @@ fn apply_viewproxy(
     game: Res<GameFsRes>,
     mut cams: Query<&mut Transform, With<MainCamera>>,
 ) {
-    let (Some(ents), true) = (ents, proxy.active.is_some()) else { return };
+    let (Some(ents), Some(active)) = (ents, proxy.active) else { return };
     let Some(m) = proxy.mapping(&ents, &mut anims, &game) else { return };
+    // The view sits where the player's offset lands in the proxy's frame;
+    // only `tiltfraction` of the proxy's turning reaches the view's angles
+    // (sp_a1_intro1's ride: 0, the room swings around a steady view).
+    let tilt = ents.list[active].get_f32("tiltfraction").unwrap_or(0.5).clamp(0.0, 1.0);
+    let (_, turn, _) = m.to_scale_rotation_translation();
+    // Swing-twist about world up: the yaw (twist) always applies, the
+    // pitch/roll (swing) by the tilt fraction.
+    let r = Vec3::new(turn.x, turn.y, turn.z);
+    let p = Vec3::Y * r.dot(Vec3::Y);
+    let q = Quat::from_xyzw(p.x, p.y, p.z, turn.w);
+    let twist = if q.length_squared() > 1e-8 { q.normalize() } else { Quat::IDENTITY };
+    let swing = turn * twist.inverse();
+    let view_turn = Quat::IDENTITY.slerp(swing, tilt) * twist;
     for mut tf in &mut cams {
-        *tf = Transform::from_matrix(m * tf.to_matrix());
+        let at = m.transform_point3(tf.translation);
+        tf.rotation = (view_turn * tf.rotation).normalize();
+        tf.translation = at;
     }
 }

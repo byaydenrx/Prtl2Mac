@@ -20,6 +20,7 @@ impl Plugin for PropsPlugin {
         app.insert_resource(Gravity(Vec3::NEG_Y * 600.0 * shared::SOURCE_UNIT))
             .init_resource::<CoreState>()
             .add_systems(Update, (make_props_dynamic, hook_prop_colliders, sync_prop_transforms, core_inputs, use_key, prop_inputs, floor_buttons).chain().in_set(crate::level::GameSet::Logic))
+            .add_systems(Update, player_proxy_outputs.in_set(crate::level::GameSet::Logic))
             .add_systems(FixedUpdate, (carry, prop_transit, wall_passthrough).chain().after(P2Systems::Transit));
     }
 }
@@ -657,6 +658,51 @@ fn floor_buttons(
         } else if !down && was {
             pressed.remove(&i);
             fire.write(FireOutput { ent: i, event: "OnUnPressed".into(), activator: Some(PLAYER) });
+        }
+    }
+}
+
+/// `logic_playerproxy` outputs for the player's buttons: OnJump (sp_a1_intro1's
+/// "press space to talk" for Wheatley), OnDuck / OnUnDuck.
+fn player_proxy_outputs(
+    keys: Option<Res<ButtonInput<KeyCode>>>,
+    mouse: Option<Res<ButtonInput<MouseButton>>>,
+    bindings: Option<Res<p2_core::InputBindings>>,
+    ents: Option<Res<Ents>>,
+    players: Query<(&MoveInput, &Crouch), With<Player>>,
+    mut last: Local<(bool, bool)>,
+    mut fire: MessageWriter<FireOutput>,
+) {
+    let Some(ents) = ents else { return };
+    let Ok((input, crouch)) = players.single() else { return };
+    let default = p2_core::InputBindings::default();
+    let b = bindings.as_deref().unwrap_or(&default);
+    let pressed = keys.as_deref().is_some_and(|k| {
+        let state = p2_core::InputState { keys: Some(k), mouse: mouse.as_deref(), scroll: None };
+        b.just_pressed("+jump", &state)
+    });
+    // Also a scripted jump (autopilot sets the input directly).
+    let jumped = pressed || (input.jump && !last.0);
+    let ducked = crouch.wants_duck;
+    let mut events: Vec<&str> = Vec::new();
+    if jumped {
+        events.push("OnJump");
+    }
+    if ducked && !last.1 {
+        events.push("OnDuck");
+    }
+    if !ducked && last.1 {
+        events.push("OnUnDuck");
+    }
+    *last = (input.jump, ducked);
+    if events.is_empty() {
+        return;
+    }
+    for (i, e) in ents.list.iter().enumerate() {
+        if e.class == "logic_playerproxy" && !e.killed {
+            for ev in &events {
+                fire.write(FireOutput { ent: i, event: (*ev).into(), activator: Some(PLAYER) });
+            }
         }
     }
 }
