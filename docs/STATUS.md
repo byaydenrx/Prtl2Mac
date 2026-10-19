@@ -198,8 +198,8 @@ Per map:
    `socket_powered_rl` fires and the platform rises with the player on it.
 2. **sp_a1_intro1 wrecked vault / container ride**: the finedebris_part
    models (170 bones) need per-bone playback to look right; the vault is
-   dark (env_projectedtexture, see HANDOFF.md).
-3. Chapter 2 in play order: solve each chamber with autopilot (HANDOFF.md
+   dark (env_projectedtexture, see SESSION_HANDOFF.md).
+3. Chapter 2 in play order: solve each chamber with autopilot (TASKS.md
    lists what is verified).
 4. Instructor hint icons (`hint_icon_onscreen` -> materials/vgui/hud/…),
    refract/glass shaders (vault window), env_tonemap, sounds on prop events.
