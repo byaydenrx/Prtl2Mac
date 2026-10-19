@@ -17,14 +17,14 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use p2_core::{
-    Crouch, FirePortal, GunFired, InputLocked, InterpolatedFeet, P2Systems, Portal, PortalClosed, PortalGun, PortalHelperCollider, NoPortalVolumes, PortalGel,
+    Crouch, FirePortal, GunFired, InputLocked, InterpolatedFeet, P2Systems, Portal, PortalClosed, PortalGun, PortalHelperCollider, PortalShotPassthrough, NoPortalVolumes, PlacementHelpers, PortalGel,
     PortalKind, PortalLink, PortalPlaced, PortalShotFailed, Portalable, ShotFailReason, ViewAngles, PORTAL_HALF_SIZE,
 };
 
 pub mod rules;
 mod world;
 
-use rules::{place, trace_shot, Open, PortalWindow};
+use rules::{place, trace_shot, Hit, Open, PortalWindow};
 use world::PhysicsWorld;
 
 /// Tunables of the portal gun. Defaults are Portal 2's values.
@@ -153,9 +153,9 @@ fn fire(
     mut guns: Query<(&mut PortalGun, &mut GunTimer, &InterpolatedFeet, &Crouch, &ViewAngles)>,
     portals: Query<(Entity, &Portal, &Transform, Option<&PortalLink>)>,
     spatial: SpatialQuery,
-    (noportal, gel): (Option<Res<NoPortalVolumes>>, Option<Res<PortalGel>>),
+    (noportal, gel, helpers_at): (Option<Res<NoPortalVolumes>>, Option<Res<PortalGel>>, Option<Res<PlacementHelpers>>),
     (helpers, sensors, bodies, body_of, portalable_q): (
-        Query<(), With<PortalHelperCollider>>,
+        Query<(), Or<(With<PortalHelperCollider>, With<PortalShotPassthrough>)>>,
         Query<(), With<Sensor>>,
         Query<&RigidBody>,
         Query<&ColliderOf>,
@@ -183,7 +183,8 @@ fn fire(
         let origin = feet.at(fixed.overstep_fraction()) + Vec3::Y * crouch.eye_height;
         let dir = view.forward();
 
-        // Shots pass through the shooter, helper colliders, sensors and dynamic bodies.
+        // Shots pass through the shooter, helper colliders, player clips and
+        // grates, sensors and dynamic bodies.
         let skip = |e: Entity| {
             if helpers.contains(e) || sensors.contains(e) {
                 return true;
@@ -227,7 +228,14 @@ fn fire(
             .map(|(_, p, t, _)| Open { frame: Portal::frame(t), half: p.half_size })
             .collect();
 
-        let placed = place(&world, hit, trace.dir, half, &others)
+        // A placement helper on the hit surface centres the portal on it
+        // (the plain hit is still tried if the portal can't open there).
+        let snapped = helpers_at.as_ref().and_then(|h| h.snap(hit.point, hit.normal)).and_then(|h| {
+            let point = h.position - hit.normal * (h.position - hit.point).dot(hit.normal);
+            place(&world, Hit { point, ..hit }, h.up.unwrap_or(trace.dir), half, &others).ok()
+        });
+        let placed = snapped
+            .map_or_else(|| place(&world, hit, trace.dir, half, &others), Ok)
             .and_then(|p| {
                 if noportal.as_ref().is_some_and(|v| v.blocks(&p.frame, half)) {
                     debug!("p2_gun: a no-portal volume blocks the portal at {:.2?}", p.frame.position);

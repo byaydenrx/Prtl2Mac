@@ -25,7 +25,7 @@ pub mod math;
 pub use bindings::{InputBindings, InputButton, InputState};
 pub use math::{PortalFrame, PortalPair, PORTAL_HALF_SIZE};
 pub use shared::{
-    source_dir_to_world, source_to_world, CharacterVelocity, EyeOffset, IgnoreColliders, Player, Portalable,
+    source_dir_to_world, source_to_world, CharacterVelocity, EyeOffset, IgnoreColliders, Player, PortalShotPassthrough, Portalable,
     SOURCE_UNIT,
 };
 
@@ -188,6 +188,34 @@ impl NoPortalVolumes {
             }
         }
         self.0.iter().any(|(lo, hi)| pts.iter().any(|p| p.cmpge(*lo).all() && p.cmple(*hi).all()))
+    }
+}
+
+/// A spot that pulls portal shots to it (`info_placement_helper`): a shot
+/// landing on the same surface within `radius` (metres) opens its portal
+/// centred on `position`; with `up` set the portal also takes that up.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PlacementHelper {
+    pub position: Vec3,
+    pub radius: f32,
+    pub up: Option<Vec3>,
+}
+
+/// The map's placement helpers, kept up to date by the game (they can ride
+/// moving panels).
+#[derive(Resource, Clone, Debug, Default)]
+pub struct PlacementHelpers(pub Vec<PlacementHelper>);
+
+impl PlacementHelpers {
+    /// The nearest helper a shot hitting `point` on a surface facing
+    /// `normal` snaps to: within its radius and on that surface (a few
+    /// units either side of it).
+    pub fn snap(&self, point: Vec3, normal: Vec3) -> Option<&PlacementHelper> {
+        let near_plane = 4.0 * 0.0254;
+        self.0
+            .iter()
+            .filter(|h| (h.position - point).dot(normal).abs() <= near_plane && h.position.distance(point) <= h.radius)
+            .min_by(|a, b| a.position.distance_squared(point).total_cmp(&b.position.distance_squared(point)))
     }
 }
 
@@ -542,6 +570,7 @@ impl Plugin for CorePlugin {
         app.init_resource::<InputLocked>()
             .init_resource::<NoPortalVolumes>()
             .init_resource::<PortalGel>()
+            .init_resource::<PlacementHelpers>()
             .init_resource::<LocalEye>()
             .add_message::<FirePortal>()
             .add_message::<GunFired>()
@@ -585,6 +614,18 @@ fn animate_portals(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn placement_helpers_snap_on_their_surface_within_radius() {
+        // A floor helper at the origin, radius 80 u.
+        let h = PlacementHelpers(vec![PlacementHelper { position: Vec3::ZERO, radius: 80.0 * U, up: None }]);
+        assert!(h.snap(Vec3::new(30.0 * U, 0.0, 20.0 * U), Vec3::Y).is_some());
+        // Too far along the surface.
+        assert!(h.snap(Vec3::new(90.0 * U, 0.0, 0.0), Vec3::Y).is_none());
+        // Within the radius but on another surface (a wall 40 u above).
+        assert!(h.snap(Vec3::new(0.0, 40.0 * U, 0.0), Vec3::X).is_some());
+        assert!(h.snap(Vec3::new(0.0, 40.0 * U, 0.0), Vec3::Y).is_none());
+    }
 
     #[test]
     fn view_angles_round_trip() {

@@ -71,7 +71,7 @@ fn drive(
     collider_of: Query<(Option<&avian3d::prelude::ColliderOf>, Has<avian3d::prelude::Collider>, Has<avian3d::prelude::ColliderDisabled>)>,
     bodies: Query<&avian3d::prelude::RigidBody>,
     mut settings: ResMut<crate::settings::Settings>,
-    (names, globals): (Query<(Option<&Name>, Option<&ChildOf>)>, Query<&GlobalTransform>),
+    (names, globals, src_cols): (Query<(Option<&Name>, Option<&ChildOf>)>, Query<&GlobalTransform>, Query<&source_assets::SourceCollider>),
 ) {
     // The script clock is real time: menus pause the world's clock.
     // It starts with the first level (the menu's too, for menu tests) and
@@ -138,6 +138,12 @@ fn drive(
                 if let (Some(ents), Some(t), Some(i)) = (ents.as_mut(), a.first(), a.get(1)) {
                     ents.send(t, i, a.get(2).map(String::as_str).unwrap_or(""), 0.0);
                 }
+            }
+            "lookat" if a.len() >= 3 && a.iter().take(3).all(|v| v.parse::<f32>().is_ok()) => {
+                // lookat x y z: aim at a Source point (portal surfaces).
+                let target = shared::source_to_world(Vec3::new(f(a, 0), f(a, 1), f(a, 2)));
+                let d = target - (tf.translation + Vec3::Y * VIEW_STAND);
+                *view = ViewAngles { yaw: (-d.x).atan2(-d.z), pitch: d.y.atan2(Vec2::new(d.x, d.z).length()), roll: 0.0 };
             }
             "goto" | "lookat" => {
                 // A map entity by name or class: where it is now (props move).
@@ -250,6 +256,10 @@ fn drive(
                         e = p.map(|p| p.parent());
                     }
                     let at = from + *dir * h.distance;
+                    // The face that was hit: material and whether it takes portals.
+                    if let Some(side) = src_cols.get(h.entity).ok().and_then(|c| c.side_for_normal(h.normal)) {
+                        info!("autopilot: ray face {} portalable {} surfaceprop {:?}", side.material, side.portalable, side.surface_prop);
+                    }
                     info!(
                         "autopilot: ray hit at source z {:.0} ({:.0} {:.0} {:.0}): {}",
                         at.y / shared::SOURCE_UNIT,

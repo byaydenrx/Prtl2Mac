@@ -14,7 +14,7 @@ impl Plugin for MapPortalsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LinkedDoors>().add_systems(
             Update,
-            (spawn_active_portals, portal_inputs, linked_door_inputs, sync_linked_doors, sync_noportal_volumes, log_shots)
+            (spawn_active_portals, portal_inputs, linked_door_inputs, sync_linked_doors, sync_noportal_volumes, sync_placement_helpers, log_shots)
                 .chain()
                 .after(crate::io::run_io)
                 .in_set(crate::level::GameSet::Logic),
@@ -194,6 +194,24 @@ fn sync_noportal_volumes(ents: Option<Res<Ents>>, mut volumes: ResMut<NoPortalVo
     if volumes.0 != boxes {
         debug!("portal2: no-portal volumes {:.2?}", boxes.iter().map(|(lo, hi)| { let s = |v: Vec3| Vec3::new(v.x, -v.z, v.y) / shared::SOURCE_UNIT; (s(*lo), s(*hi)) }).collect::<Vec<_>>());
         volumes.0 = boxes;
+    }
+}
+
+/// Keep the gun's `info_placement_helper`s where their entities are (some
+/// are parented to moving panels).
+fn sync_placement_helpers(ents: Option<Res<Ents>>, mut helpers: ResMut<PlacementHelpers>) {
+    let now: Vec<PlacementHelper> = ents
+        .iter()
+        .flat_map(|e| e.list.iter())
+        .filter(|e| e.class == "info_placement_helper" && !e.killed)
+        .map(|e| PlacementHelper {
+            position: e.transform.translation,
+            radius: e.get("radius").and_then(|r| r.parse::<f32>().ok()).unwrap_or(64.0) * shared::SOURCE_UNIT,
+            up: (e.get("snap_to_helper_angles") == Some("1")).then(|| e.transform.rotation * Vec3::Y),
+        })
+        .collect();
+    if helpers.0 != now {
+        helpers.0 = now;
     }
 }
 

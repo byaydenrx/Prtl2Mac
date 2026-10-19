@@ -801,6 +801,11 @@ pub fn run_io(
                 if ents.list[t].killed && p.input != "kill" {
                     continue;
                 }
+                // P2_TRACE_IO=name: every input that entity gets, and from whom.
+                if std::env::var("P2_TRACE_IO").is_ok_and(|n| n.eq_ignore_ascii_case(&ents.list[t].name)) {
+                    let from = ents.list.get(p.caller).map_or("?", |c| c.name.as_str());
+                    info!("TRACE io {} <- {} {:?} from #{} {}", ents.list[t].name, p.input, param, p.caller, from);
+                }
                 // Script inputs always go on to the script system.
                 if script || !ents.apply(t, &p.input, &param, p.caller, p.activator) {
                     out.write(EntInput { target: t, input: p.input.clone(), param: param.clone(), activator: p.activator });
