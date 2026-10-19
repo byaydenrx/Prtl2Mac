@@ -65,8 +65,13 @@ fn main() {
             to_model.push(if parent >= 0 && (parent as usize) < i { to_model[parent as usize] * m } else { m });
         }
         let root = local.first().map(|x| x.0);
-        let attp = att.as_ref().and_then(|n| a.attachment(n, &to_model)).map(|x| x.0);
-        let q = local.get(1).map(|x| x.1).unwrap_or_default();
+        let attm = att.as_ref().and_then(|n| a.attachment(n, &to_model));
+        let attp = attm.map(|x| x.0);
+        // The attachment's axes when one is named, else bone 1's rotation.
+        let q = match attm {
+            Some((_, m)) => bevy::math::Quat::from_mat3(&m),
+            None => local.get(1).map(|x| x.1).unwrap_or_default(),
+        };
         println!("t {t:.2}: pos {attp:?} +X {:.2?} +Y {:.2?} +Z {:.2?}", q * bevy::math::Vec3::X, q * bevy::math::Vec3::Y, q * bevy::math::Vec3::Z);
         let _ = root;
     }
