@@ -228,7 +228,13 @@ fn use_key(
         // A held reflection cube turns its lens the way the player looks
         // (its +X out along the view), so its beam goes where you aim.
         let reflective = ents.as_deref().is_some_and(|e| crate::lasers::reflective(e, prop.ent));
-        let yaw_offset = if reflective { std::f32::consts::FRAC_PI_2 } else { prop_yaw - view.yaw };
+        let yaw_offset = if reflective {
+            std::f32::consts::FRAC_PI_2
+        } else if is_core {
+            CORE_CARRY_YAW
+        } else {
+            prop_yaw - view.yaw
+        };
         commands.entity(body).insert((
             Held { stuck_for: 0.0, yaw_offset, distance: hold_distance(radius) },
             HeldColliders(cols),
@@ -281,6 +287,11 @@ fn hold_point(eye: Vec3, view: &ViewAngles, distance: f32) -> Vec3 {
 /// Carry: float the held prop in front of the eye. Looking through a
 /// portal, the hold point is carried through it (Portal 2 lets you hold a
 /// cube on the far side of a portal you're looking into).
+/// Carried personality cores face the player, as in Portal 2: their eye
+/// looks along the body's local -Z (the rig's root bone turns the model's
+/// +X front to +Y), so turn them half way round from the view.
+const CORE_CARRY_YAW: f32 = std::f32::consts::PI;
+
 fn carry(
     mut commands: Commands,
     time: Res<Time>,
@@ -543,7 +554,7 @@ fn core_inputs(
                 let distance = hold_distance(prop.half.length());
                 let at = hold_point(feet.curr + Vec3::Y * crouch.eye_height, view, distance);
                 // Facing the player, as Wheatley is carried.
-                let yaw_offset = -std::f32::consts::FRAC_PI_2;
+                let yaw_offset = CORE_CARRY_YAW;
                 let rot = Quat::from_rotation_y(view.yaw + yaw_offset);
                 commands.entity(e).insert((
                     RigidBody::Dynamic,
