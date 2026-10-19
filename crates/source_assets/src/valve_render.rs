@@ -70,7 +70,9 @@ impl Plugin for ValveRenderPlugin {
                 valve_main_pass
                     .in_set(Core3dSystems::MainPass)
                     .after(main_opaque_pass_3d)
-                    .before(main_transparent_pass_3d),
+                    .before(main_transparent_pass_3d)
+                    // glass and water read a copy of the scene made there
+                    .before(bevy::pbr::main_transmissive_pass_3d),
             );
     }
 }
