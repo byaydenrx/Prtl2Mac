@@ -39,8 +39,8 @@ mod step_sounds;
 mod transit_sound;
 
 pub use effects::edge_system;
-pub use pcf::{ParticleLibrary, SystemDef};
-pub use render::{ParticleEffect, ParticleStats, Particles, SheetGrids, SpriteCardMaterial};
+pub use pcf::{manifest_files, ParticleLibrary, SystemDef};
+pub use render::{ParticleEffect, ParticleStats, Particles, SheetGrids, SpriteCardMaterial, PARTICLE_MANIFEST};
 pub use sounds::{gain, PlaySound, PortalLoop, PortalSounds};
 pub use step_sounds::StepSurface;
 pub use transit_sound::{box_touches_rectangle, transit_sound_params};

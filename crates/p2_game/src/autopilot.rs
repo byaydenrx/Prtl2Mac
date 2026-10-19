@@ -6,7 +6,10 @@
 //! `setpos`), `look pitch yaw`, `walk secs` (forward), `back secs`,
 //! `left secs`, `right secs`, `jump`, `duck secs`, `use`, `fire blue|orange`,
 //! `shot path.png`, `log`, `info <name>` (an entity's state, place, axes and bounds; also `ent`), `con <console line>` (runs a developer-console
-//! command, e.g. `con sv_cheats 1` then `con noclip`; `;` can't be used inside).
+//! command, e.g. `con sv_cheats 1` then `con noclip`; `;` can't be used inside),
+//! `plan x y z half path.png` (a top-down orthographic picture of the map
+//! below the Source point x y z, `half` units each way from it: a floor plan
+//! cut at height z, north up).
 use bevy::prelude::*;
 use p2_core::*;
 
@@ -22,7 +25,7 @@ impl Plugin for AutopilotPlugin {
             // Scripted runs never read the real keyboard and mouse.
             app.insert_resource(InputLocked(true))
                 .insert_resource(Autopilot { steps, start: None, hold: Vec::new() })
-                .add_systems(Update, drive.after(P2Systems::Input).before(P2Systems::Fire));
+                .add_systems(Update, (drive.after(P2Systems::Input).before(P2Systems::Fire), plan_shots));
         }
     }
 }
@@ -272,6 +275,27 @@ fn drive(
                     info!("autopilot: ray hit nothing");
                 }
             }
+            "plan" => {
+                let at = shared::source_to_world(Vec3::new(f(a, 0), f(a, 1), f(a, 2)));
+                let half = f(a, 3).max(64.0) * shared::SOURCE_UNIT;
+                commands.spawn((
+                    Name::new("Autopilot plan camera"),
+                    PlanCamera { frames: 0, path: a.get(4).cloned().unwrap_or_else(|| "plan.png".into()) },
+                    Camera3d::default(),
+                    Camera { order: 10_000, clear_color: ClearColorConfig::Custom(Color::srgb(0.5, 0.0, 0.5)), ..default() },
+                    bevy::core_pipeline::tonemapping::Tonemapping::None,
+                    bevy::camera::Hdr,
+                    Projection::Orthographic(OrthographicProjection {
+                        near: 0.0,
+                        far: 200.0,
+                        scaling_mode: bevy::camera::ScalingMode::FixedVertical { viewport_height: 2.0 * half },
+                        ..OrthographicProjection::default_3d()
+                    }),
+                    bevy::camera::visibility::RenderLayers::layer(0),
+                    // Looking down with Source north (+Y, our -Z) at the top.
+                    Transform::from_translation(at).looking_to(Dir3::NEG_Y, Dir3::NEG_Z),
+                ));
+            }
             "shot" => {
                 if let Some(path) = a.first() {
                     commands
@@ -330,4 +354,46 @@ fn drive(
     let wish = pilot.hold.iter().fold(Vec2::ZERO, |acc, h| acc + h.1);
     input.wish = wish.clamp_length_max(1.0);
     input.duck = pilot.hold.iter().any(|h| h.2);
+}
+
+/// A temporary top-down camera for `plan`: shoots the window once it has
+/// rendered a few frames, then goes away.
+#[derive(Component)]
+struct PlanCamera {
+    frames: u32,
+    path: String,
+}
+
+fn plan_shots(
+    mut commands: Commands,
+    mut plans: Query<(Entity, &mut PlanCamera)>,
+    mut others: Query<(Entity, &mut Camera, Option<&bevy::camera::RenderTarget>), (With<Camera3d>, Without<PlanCamera>)>,
+    mut paused: Local<Vec<Entity>>,
+) {
+    let mut busy = false;
+    for (e, mut cam) in &mut plans {
+        cam.frames += 1;
+        busy = true;
+        if cam.frames == 6 {
+            commands
+                .spawn(bevy::render::view::screenshot::Screenshot::primary_window())
+                .observe(bevy::render::view::screenshot::save_to_disk(cam.path.clone()));
+        }
+        if cam.frames == 14 {
+            commands.entity(e).despawn();
+            busy = false;
+        }
+    }
+    // The other window cameras draw over it: pause them meanwhile.
+    for (e, mut c, target) in &mut others {
+        if busy && c.is_active && !matches!(target, Some(bevy::camera::RenderTarget::Image(_))) {
+            c.is_active = false;
+            paused.push(e);
+        } else if !busy && paused.contains(&e) {
+            c.is_active = true;
+        }
+    }
+    if !busy {
+        paused.clear();
+    }
 }

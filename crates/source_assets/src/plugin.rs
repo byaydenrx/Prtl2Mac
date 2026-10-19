@@ -56,7 +56,8 @@ impl Plugin for SourceMapPlugin {
         .init_resource::<crate::valve::ValveShaderLibrary>()
         .add_plugins(crate::valve_render::ValveRenderPlugin)
         .add_plugins(crate::proxy::MaterialProxyPlugin)
-        .add_plugins(crate::projected::ProjectedLightPlugin);
+        .add_plugins(crate::projected::ProjectedLightPlugin)
+        .add_plugins(crate::glass::GlassPlugin);
         if std::env::var_os("P2_TRACE_BONE").is_some() {
             app.add_systems(PostUpdate, trace_bones.after(TransformSystems::Propagate));
         }
@@ -72,7 +73,7 @@ fn trace_bones(time: Res<Time>, mut next: Local<f32>, q: Query<(&Name, &GlobalTr
     let key = std::env::var("P2_TRACE_BONE").unwrap_or_default();
     for (name, g, t, vis) in &q {
         if name.as_str().contains(&key) {
-            info!("TRACE bone {name}: world {} local {} scale {} visible {}", g.translation(), t.translation, t.scale, vis.get());
+            info!("TRACE bone {name}: world {} rot {} local {} scale {} visible {}", g.translation(), g.rotation(), t.translation, t.scale, vis.get());
         }
     }
 }
@@ -140,6 +141,7 @@ pub struct SourceMapAssets<'w> {
     pub shaders: ResMut<'w, Assets<bevy::shader::Shader>>,
     pub valve: Res<'w, crate::valve::ValveShaderLibrary>,
     pub projected: Res<'w, crate::projected::ProjectedLightAssets>,
+    pub glass: ResMut<'w, Assets<crate::glass::GlassMaterial>>,
 }
 
 // ---------------------------------------------------------------- components
@@ -409,6 +411,52 @@ fn fallback_proxies(assets: &mut SourceMapAssets, map: &LoadedMap, m: &MaterialI
     let proxies = crate::proxy::FallbackProxies::new(m, frames)?;
     let own = assets.materials.get(mat)?.clone();
     Some((assets.materials.add(own), proxies))
+}
+
+/// A glass/water material and its proxies (if any).
+type GlassBuilt = (Handle<crate::glass::GlassMaterial>, Option<crate::glass::GlassProxies>);
+
+/// A `Refract` or `Water` material as [`crate::glass::GlassMaterial`].
+/// `lightmap`: brushes (lit dirt/frames by the lightmap; models by vertex
+/// colour); `sky`: what water reflects without a cubemap of its own.
+fn glass_material(assets: &mut SourceMapAssets, map: &LoadedMap, m: &MaterialInfo, lightmap: Option<Handle<Image>>, sky: Option<&Handle<Image>>) -> GlassBuilt {
+    use crate::glass::*;
+    let bc = bc_supported(assets);
+    let water = m.shader == "water";
+    let (images, cache) = (&mut assets.images, &mut *assets.cache);
+    let mut tex = |key: &str, srgb: bool| {
+        crate::vmt::texture_param(&m.params, key)
+            .filter(|t| t != "env_cubemap")
+            .and_then(|t| valve_texture(images, cache, bc, map, &t, srgb))
+    };
+    let normal = normal_var(&m.params).and_then(|k| tex(k, false));
+    let base = tex("$basetexture", true);
+    let tint = tex("$refracttinttexture", true);
+    let envmap = tex("$envmap", true).filter(|t| t.cube).map(|t| t.image).or_else(|| sky.filter(|_| water).cloned());
+    let mut flags = if lightmap.is_some() { FLAG_LIGHTMAP } else { FLAG_VERTEX_LIGHT };
+    for (on, f) in [(normal.is_some(), FLAG_NORMAL), (base.is_some(), FLAG_BASE), (tint.is_some(), FLAG_TINT_TEXTURE), (envmap.is_some(), FLAG_ENVMAP)] {
+        if on {
+            flags |= f;
+        }
+    }
+    let params = glass_params(water, &crate::proxy::MaterialVars::of(&m.params), flags, assets.settings.light_scale);
+    let program = crate::proxy::ProxyProgram::compile(&m.proxies);
+    let proxies = (!program.is_empty()).then(|| GlassProxies {
+        program: Arc::new(program),
+        params: m.params.clone(),
+        normal_frames: normal.as_ref().map(|t| t.frames.clone()).unwrap_or_default(),
+        base_frames: base.as_ref().map(|t| t.frames.clone()).unwrap_or_default(),
+    });
+    let mat = GlassMaterial {
+        params,
+        normal_map: normal.map(|t| t.image),
+        base_texture: base.map(|t| t.image),
+        tint_texture: tint.map(|t| t.image),
+        envmap,
+        lightmap,
+        double_sided: m.no_cull || std::env::var_os("SOURCE_NOCULL").is_some(),
+    };
+    (assets.glass.add(mat), proxies)
 }
 
 /// Per-map inputs for model surfaces on Valve shaders.
@@ -725,8 +773,12 @@ pub fn spawn_loaded_map(
     let mut valve_fallbacks: Vec<(String, String)> = Vec::new();
     let mut valve_done: HashMap<usize, Result<(), String>> = HashMap::new();
 
+    // The sky, which water reflects when it has no cubemap of its own.
+    let skybox = skybox_image(assets, map);
+
     // Brush meshes: one material per texdata for this map.
     let mut mats: HashMap<usize, Handle<SourceMaterial>> = HashMap::new();
+    let mut glass_mats: HashMap<usize, GlassBuilt> = HashMap::new();
     let mut bounds = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
     for bm in map.brush_meshes.iter().chain(map.overlays.iter()) {
         let parent = model_parent.get(&bm.model).copied().unwrap_or(root);
@@ -743,6 +795,27 @@ pub fn spawn_loaded_map(
         }
         if std::env::var_os("P2_LIST_MATS").is_some() {
             info!("TRACE brush material {} ({}) model {}", m.name, m.shader, bm.model);
+        }
+        if crate::glass::is_glass(m) {
+            let (h, proxies) = match glass_mats.get(&bm.material) {
+                Some(g) => g.clone(),
+                None => {
+                    let g = glass_material(assets, map, m, Some(lightmap.clone()), skybox.as_ref());
+                    glass_mats.insert(bm.material, g.clone());
+                    g
+                }
+            };
+            let mut ec = commands.spawn((
+                Name::new(format!("glass {}", m.name)),
+                Mesh3d(assets.meshes.add(mesh_from_brush(&bm.mesh))),
+                MeshMaterial3d(h),
+                Transform::IDENTITY,
+                ChildOf(parent),
+            ));
+            if let Some(p) = proxies {
+                ec.insert(p);
+            }
+            continue;
         }
         if use_valve && matches!(m.shader.as_str(), "lightmappedgeneric" | "worldvertextransition" | "unlitgeneric") && !m.is_glassy {
             let fs = assets.game.fs.clone().unwrap();
@@ -1071,7 +1144,6 @@ pub fn spawn_loaded_map(
             list.extend(fb.into_iter());
         }
     }
-    let skybox = skybox_image(assets, map);
     if bounds.0.x > bounds.1.x {
         bounds = (offset, offset);
     }
@@ -1128,6 +1200,12 @@ fn spawn_collider(commands: &mut Commands, c: &ColliderData, parent: Entity) {
     }
     if c.shot_passthrough() {
         ec.insert(PortalShotPassthrough);
+    }
+    if c.player_clip_only() {
+        // Player clips (toolsclip, toolsplayerclip) only stop the player,
+        // whose movement is a shape cast: physics objects fall through them
+        // (cube droppers have one across their chute).
+        ec.insert(CollisionLayers::new(LayerMask(1 << 1), LayerMask::NONE));
     }
 }
 
@@ -1331,7 +1409,7 @@ fn spawn_model(
                         v.fallbacks.lock().unwrap().insert(minfo.name.clone(), err);
                     }
                 }
-            } else {
+            } else if !crate::glass::is_glass(minfo) {
                 v.fallbacks
                     .lock()
                     .unwrap()
@@ -1362,6 +1440,14 @@ fn spawn_model(
             .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, mesh.uvs.clone())
             .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colors)
             .with_inserted_indices(Indices::U32(mesh.indices.clone()));
+        if crate::glass::is_glass(minfo) {
+            let (h, proxies) = glass_material(assets, map, minfo, None, None);
+            let mut ec = commands.spawn((Mesh3d(assets.meshes.add(m)), MeshMaterial3d(h), Transform::IDENTITY, ChildOf(e)));
+            if let Some(p) = proxies {
+                ec.insert(p);
+            }
+            continue;
+        }
         let proxied = fallback_proxies(assets, map, minfo, &mat);
         let mat = proxied.as_ref().map_or(mat, |p| p.0.clone());
         let mut ec = commands.spawn((

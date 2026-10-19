@@ -285,9 +285,22 @@ pub struct SystemInstance {
     pub emitted_last: u32,
     /// Operators in the file that this simulator does not implement.
     pub unsupported: BTreeSet<String>,
+    /// Emission stopped without the end cap (a map's `Stop`): the particles
+    /// alive finish their lives, end-cap operators and children don't run.
+    pub emission_stopped: bool,
+    /// System time the emitters count from (moved by `Restart Effect after Duration`).
+    emit_epoch: f32,
+    /// When `Restart Effect after Duration` next restarts the emitters.
+    restart_at: Option<f32>,
+    /// System time the end cap started (for `Lifespan Endcap Timed Decay`).
+    end_cap_at: Option<f32>,
+    /// The player's eye (Source space), for `Set Control Point To Player`.
+    pub player: Option<ControlPoint>,
+    /// Particles `Cull Random` has already spared (decided once each).
+    spared: BTreeSet<u32>,
 }
 
-const KNOWN_EMITTERS: &[&str] = &["emit_instantaneously", "emit_continuously"];
+const KNOWN_EMITTERS: &[&str] = &["emit_instantaneously", "emit_continuously", "emit noise"];
 const KNOWN_INITIALIZERS: &[&str] = &[
     "Position Within Sphere Random",
     "Position Along Ring",
@@ -310,6 +323,15 @@ const KNOWN_INITIALIZERS: &[&str] = &[
     "Remap Control Point to Vector",
     "Remap Initial Distance to Control Point to Scalar",
     "remap initial scalar",
+    "Position Within Box Random",
+    "Position Along Path Random",
+    "Velocity Noise",
+    "Initial Velocity Noise",
+    "Velocity Inherit from Control Point",
+    "Rotation Yaw Flip Random",
+    "Rotation Yaw Random",
+    "Sequence Two Random",
+    "Remap Control Point to Scalar",
 ];
 const KNOWN_OPERATORS: &[&str] = &[
     "Set Control Point Rotation",
@@ -340,6 +362,24 @@ const KNOWN_OPERATORS: &[&str] = &[
     "random force",
     "twist around axis",
     "Constrain distance to control point",
+    "Set Control Point To Player",
+    "Restart Effect after Duration",
+    "Rotation Spin Roll",
+    "Rotation Spin Yaw",
+    "Noise Scalar",
+    "Noise Vector",
+    "Remap Distance to Control Point to Scalar",
+    "Remap Speed to Scalar",
+    "Remap Scalar",
+    "Lifespan Endcap Timed Decay",
+    "Ramp Scalar Linear Random",
+    "Ramp Scalar Spline Random",
+    "Oscillate Scalar Simple",
+    "Movement Rotate Particle Around Axis",
+    "Cull Random",
+    "Rotation Orient to 2D Direction",
+    "Set child control points from particle positions",
+    "Prevent passing through a plane",
 ];
 
 /// Names of operators in `def` that this simulator does not implement.
@@ -425,6 +465,33 @@ impl SystemInstance {
             ring_counters,
             emitted_last: 0,
             unsupported,
+            emission_stopped: false,
+            emit_epoch: 0.0,
+            restart_at: None,
+            end_cap_at: None,
+            player: None,
+            spared: BTreeSet::new(),
+        }
+    }
+
+    /// Stop emitting but let the live particles finish, without the end
+    /// cap (Source's plain `Stop` on an `info_particle_system`).
+    pub fn stop_emission(&mut self) {
+        self.emission_stopped = true;
+        for c in &mut self.children {
+            if let Some(s) = &mut c.system {
+                s.stop_emission();
+            }
+        }
+    }
+
+    /// The player's eye for `Set Control Point To Player`, here and in children.
+    pub fn set_player(&mut self, eye: Option<ControlPoint>) {
+        self.player = eye;
+        for c in &mut self.children {
+            if let Some(s) = &mut c.system {
+                s.set_player(eye);
+            }
         }
     }
 
@@ -442,6 +509,9 @@ impl SystemInstance {
 
     /// Stop emitting and run end-cap behaviour (the system dies out).
     pub fn stop(&mut self) {
+        if !self.end_cap {
+            self.end_cap_at = Some(self.time);
+        }
         self.end_cap = true;
         for c in &mut self.children {
             if let Some(s) = &mut c.system {
@@ -452,12 +522,13 @@ impl SystemInstance {
 
     /// Nothing left to simulate or draw.
     pub fn finished(&self) -> bool {
-        let emitting = !self.end_cap && self.emitters.iter().any(|e| !e.done);
+        let stopped = self.end_cap || self.emission_stopped;
+        let emitting = !stopped && self.emitters.iter().any(|e| !e.done);
         !emitting
             && self.particles.is_empty()
             && self.children.iter().all(|c| c.system.as_ref().is_none_or(SystemInstance::finished))
-            && (self.end_cap || self.children.iter().all(|c| c.system.is_some() || c.end_cap_only))
-            && (self.end_cap || !self.def.emitters.is_empty())
+            && (stopped || self.children.iter().all(|c| c.system.is_some() || c.end_cap_only))
+            && (stopped || !self.def.emitters.is_empty())
     }
 
     fn cp(&self, i: i32) -> ControlPoint {
@@ -494,12 +565,14 @@ impl SystemInstance {
             match op.function.as_str() {
                 "Set Control Point Rotation" => self.op_cp_rotation(op, dt),
                 "Set Control Point Positions" => self.op_cp_positions(op),
+                "Set Control Point To Player" => self.op_cp_to_player(op),
+                "Restart Effect after Duration" => self.op_restart(op, now),
                 _ => {}
             }
         }
 
         // 2. Emission.
-        if !self.end_cap {
+        if !self.end_cap && !self.emission_stopped {
             let mut counts = Vec::with_capacity(def.emitters.len());
             for (ei, em) in def.emitters.iter().enumerate() {
                 counts.push(self.emit_count(ei, em, dt));
@@ -522,7 +595,8 @@ impl SystemInstance {
         for ci in 0..self.children.len() {
             let start = self.children[ci].delay;
             let only_end = self.children[ci].end_cap_only;
-            if self.children[ci].system.is_none() && now >= start && (!only_end || self.end_cap) {
+            let held = self.emission_stopped && !self.end_cap;
+            if self.children[ci].system.is_none() && now >= start && (!only_end || self.end_cap) && !held {
                 if let Some(child_def) = lib.get(&self.children[ci].name) {
                     let mut s = SystemInstance::new(child_def, self.seed.wrapping_add(ci as u32 * 7777 + 1));
                     for (i, cp) in self.cps.iter().enumerate() {
@@ -607,7 +681,7 @@ impl SystemInstance {
 
     /// Particles this emitter creates this step (runtime spec §3).
     fn emit_count(&mut self, ei: usize, em: &OpDef, dt: f32) -> usize {
-        let now = self.time;
+        let now = self.time - self.emit_epoch;
         // One random per emitter for "emission_start_time max" (fixed for the system's life).
         let r = rnd(self.seed, ei as u32, 0xE1, 7);
         let start_max = em.f("emission_start_time max", -1.0);
@@ -649,6 +723,25 @@ impl SystemInstance {
                 let n = st.accumulated.floor();
                 st.accumulated -= n;
                 n as usize
+            }
+            "emit noise" => {
+                // A rate between the minimum and maximum, varying with noise over time.
+                let duration = em.f("emission duration", 0.0);
+                if duration > 0.0 && now > start + duration {
+                    st.done = true;
+                    return 0;
+                }
+                let (lo, hi) = (em.f("emission minimum", 0.0), em.f("emission maximum", 100.0));
+                let tscale = em.f("time noise coordinate scale", 0.1);
+                let n = noise3(Vec3::splat(now * tscale + em.f("time coordinate offset", 0.0)) + Vec3::new(ei as f32 * 17.0, 0.0, 0.0));
+                let mut t = if em.b("absolute value", false) { n.abs() } else { n * 0.5 + 0.5 };
+                if em.b("invert absolute value", false) {
+                    t = 1.0 - t;
+                }
+                st.accumulated += lerp(lo, hi, t.clamp(0.0, 1.0)) * dt;
+                let k = st.accumulated.floor();
+                st.accumulated -= k;
+                k as usize
             }
             _ => {
                 // Unsupported emitter: nothing emitted (see `unsupported`).
@@ -693,7 +786,7 @@ impl SystemInstance {
         // Position creators first, then position modifiers, then the rest in
         // authored order (modifiers and remaps read the created position).
         let rank = |f: &str| match f {
-            "Position Within Sphere Random" | "Position Along Ring" | "Position Along Path Sequential" => 0,
+            "Position Within Sphere Random" | "Position Along Ring" | "Position Along Path Sequential" | "Position Within Box Random" | "Position Along Path Random" => 0,
             "Position Modify Warp Random" | "Position Modify Offset Random" | "Velocity Repulse from World" => 1,
             _ => 2,
         };
@@ -981,8 +1074,107 @@ impl SystemInstance {
                 let out = remap_clamped(v, imin, imax, op.f("output minimum", 0.0), op.f("output maximum", 1.0));
                 Self::set_initial(p, f, out, op.b("output is scalar of initial random range", false));
             }
+            "Position Within Box Random" => {
+                let cp = self.cp(op.i("control point number", 0));
+                let (lo, hi) = (v3(op.v3("min", [0.0; 3])), v3(op.v3("max", [0.0; 3])));
+                let mut o = Vec3::new(lerp(lo.x, hi.x, r(1)), lerp(lo.y, hi.y, r(2)), lerp(lo.z, hi.z, r(3)));
+                if op.b("use local space", false) {
+                    o = cp.basis * o;
+                }
+                p.pos = cp.pos + o;
+                p.prev = p.pos;
+            }
+            "Position Along Path Random" => {
+                let start = self.cp(op.i("start control point number", 0)).pos;
+                let end = self.cp(op.i("end control point number", 0)).pos;
+                let t = r(1);
+                let mut pos = start.lerp(end, t);
+                let bulge = op.f("bulge", 0.0);
+                if bulge != 0.0 {
+                    // Approximation: a random sideways bow, zero at both ends.
+                    let side = in_unit_sphere(r(2), r(3), 1.0).normalize_or_zero();
+                    pos += side * bulge * (t * PI).sin() * start.distance(end);
+                }
+                p.pos = pos;
+                p.prev = pos;
+            }
+            "Velocity Noise" | "Initial Velocity Noise" => {
+                let cp = self.cp(op.i("Control Point Number", 0));
+                let tscale = op.f("Time Noise Coordinate Scale", 1.0);
+                let sscale = op.f("Spatial Noise Coordinate Scale", 0.01);
+                let toff = op.f("Time Coordinate Offset", 0.0);
+                let soff = v3(op.v3("Spatial Coordinate Offset", [0.0; 3]));
+                let (omin, omax) = (v3(op.v3("output minimum", [0.0; 3])), v3(op.v3("output maximum", [1.0; 3])));
+                let abs = op.b("Absolute Value", false);
+                let base = (p.pos + soff) * sscale + Vec3::splat(self.time * tscale + toff + id as f32 * 0.013);
+                let ch = |k: f32| {
+                    let n = noise3(base + Vec3::splat(k * 31.7));
+                    if abs { n.abs() } else { n * 0.5 + 0.5 }
+                };
+                let mut vel = Vec3::new(lerp(omin.x, omax.x, ch(0.0)), lerp(omin.y, omax.y, ch(1.0)), lerp(omin.z, omax.z, ch(2.0)));
+                if op.b("Apply Velocity in Local Space (0/1)", false) {
+                    vel = cp.basis * vel;
+                }
+                p.prev -= vel * dt;
+            }
+            "Velocity Inherit from Control Point" => {
+                let i = op.i("control point number", 0).clamp(0, 63) as usize;
+                let scale = op.f("velocity scale", 1.0);
+                let vel = (self.cps[i].pos - self.prev_cps[i].pos) / self.last_dt.max(1e-4);
+                p.prev -= vel * scale * dt;
+            }
+            "Rotation Yaw Flip Random" => {
+                if r(1) < op.f("Flip Percentage", 0.5) {
+                    p.yaw += PI;
+                }
+            }
+            "Rotation Yaw Random" => {
+                let init = op.f("yaw_initial", 0.0);
+                let off = rexp(1, op.f("yaw_offset_min", 0.0), op.f("yaw_offset_max", 360.0), op.f("yaw_random_exponent", 1.0));
+                p.yaw = (init + off).to_radians();
+            }
+            "Sequence Two Random" => {
+                let lo = op.i("sequence_min", 0);
+                let hi = op.i("sequence_max", 0).max(lo);
+                p.sequence1 = (lo + ((hi - lo + 1) as f32 * r(1)) as i32).min(hi) as f32;
+            }
+            "Remap Control Point to Scalar" => {
+                let cp = self.cp(op.i("input control point number", 0));
+                let comp = op.i("input field 0-2 X/Y/Z", 0).clamp(0, 2) as usize;
+                let f = op.i("output field", field::RADIUS);
+                let v = remap_clamped(cp.pos[comp], op.f("input minimum", 0.0), op.f("input maximum", 1.0), op.f("output minimum", 0.0), op.f("output maximum", 1.0));
+                Self::set_initial(p, f, v, op.b("output is scalar of initial random range", false));
+            }
             _ => {}
         }
+    }
+
+    fn op_cp_to_player(&mut self, op: &OpDef) {
+        let Some(eye) = self.player else { return };
+        let i = op.i("Control Point Number", 1).clamp(0, 63) as usize;
+        let off = v3(op.v3("Control Point Offset", [0.0; 3]));
+        let basis = if op.b("Use Eye Orientation", false) { eye.basis } else { Mat3::IDENTITY };
+        self.cps[i] = ControlPoint { pos: eye.pos + basis * off, basis, set: true };
+    }
+
+    /// `Restart Effect after Duration`: the emitters start over every few seconds.
+    fn op_restart(&mut self, op: &OpDef, now: f32) {
+        let (lo, hi) = (op.f("Minimum Restart Time", 0.0), op.f("Maximum Restart Time", 1.0));
+        let at = *self.restart_at.get_or_insert_with(|| now + lerp(lo, hi, hash(self.seed, 0x5e57, now.to_bits())).max(0.05));
+        if now < at {
+            return;
+        }
+        if op.b("Only Restart Children", false) {
+            for c in &mut self.children {
+                c.system = None;
+            }
+        } else {
+            self.emit_epoch = now;
+            for e in &mut self.emitters {
+                *e = EmitterState::default();
+            }
+        }
+        self.restart_at = Some(now + lerp(lo, hi, hash(self.seed, 0x5e58, now.to_bits())).max(0.05));
     }
 
     fn run_operators(&mut self, def: &SystemDef, dt: f32, now: f32) {
@@ -1323,8 +1515,194 @@ impl SystemInstance {
                         }
                     }
                 }
+                "Rotation Spin Roll" | "Rotation Spin Yaw" => {
+                    let rate = op.f("spin_rate_degrees", 0.0).to_radians();
+                    let min = op.f("spin_rate_min", 0.0).to_radians();
+                    let stop = op.f("spin_stop_time", 0.0);
+                    let yaw = op.function == "Rotation Spin Yaw";
+                    for p in &mut self.particles {
+                        // Slows from the rate to the minimum over `spin_stop_time` seconds of age.
+                        let r = if stop > 0.0 { lerp(rate, min, (p.age(now) / stop).clamp(0.0, 1.0)) } else { rate };
+                        if yaw {
+                            p.yaw += r * dt * strength;
+                        } else {
+                            p.rotation += r * dt * strength;
+                        }
+                    }
+                }
+                "Noise Scalar" => {
+                    let f = op.i("output field", field::RADIUS);
+                    let (lo, hi) = (op.f("output minimum", 0.0), op.f("output maximum", 1.0));
+                    let scale = op.f("noise coordinate scale", 0.1);
+                    let additive = op.b("additive", false);
+                    for p in &mut self.particles {
+                        let n = noise3(p.pos * scale * 0.01 + Vec3::splat(now * scale + p.id as f32 * 0.37)) * 0.5 + 0.5;
+                        let v = lerp(lo, hi, n);
+                        let out = if additive { p.scalar(f) + v * dt } else { lerp(p.scalar(f), v, strength) };
+                        p.set_scalar(f, out);
+                    }
+                }
+                "Noise Vector" => {
+                    let f = op.i("output field", field::TINT_RGB);
+                    let (lo, hi) = (v3(op.v3("output minimum", [0.0; 3])), v3(op.v3("output maximum", [1.0; 3])));
+                    let scale = op.f("noise coordinate scale", 0.1);
+                    let additive = op.b("additive", false);
+                    for p in &mut self.particles {
+                        let q = p.pos * scale * 0.01 + Vec3::splat(now * scale + p.id as f32 * 0.37);
+                        let n = |k: f32| noise3(q + Vec3::splat(k * 19.1)) * 0.5 + 0.5;
+                        let v = Vec3::new(lerp(lo.x, hi.x, n(0.0)), lerp(lo.y, hi.y, n(1.0)), lerp(lo.z, hi.z, n(2.0)));
+                        let out = if additive { p.vector(f) + v * dt } else { p.vector(f).lerp(v, strength) };
+                        p.set_vector(f, out);
+                        if f == field::XYZ && additive {
+                            p.prev += v * dt;
+                        }
+                    }
+                }
+                "Remap Distance to Control Point to Scalar" => {
+                    let cp = cpn("control point", 0);
+                    let f = op.i("output field", field::RADIUS);
+                    let (dmin, dmax) = (op.f("distance minimum", 0.0), op.f("distance maximum", 128.0));
+                    let (omin, omax) = (op.f("output minimum", 0.0), op.f("output maximum", 1.0));
+                    let only = op.b("only active within specified distance", false);
+                    for p in &mut self.particles {
+                        let d = p.pos.distance(cp.pos);
+                        if only && (d < dmin || d > dmax) {
+                            continue;
+                        }
+                        let v = remap_clamped(d, dmin, dmax, omin, omax);
+                        let cur = p.scalar(f);
+                        p.set_scalar(f, lerp(cur, v, strength));
+                    }
+                }
+                "Remap Speed to Scalar" => {
+                    let f = op.i("output field", field::RADIUS);
+                    let (imin, imax) = (op.f("Input minimum", 0.0), op.f("Input maximum", 1.0));
+                    let (omin, omax) = (op.f("output minimum", 0.0), op.f("output maximum", 1.0));
+                    for p in &mut self.particles {
+                        let speed = (p.pos - p.prev).length() / prev_dt;
+                        let cur = p.scalar(f);
+                        p.set_scalar(f, lerp(cur, remap_clamped(speed, imin, imax, omin, omax), strength));
+                    }
+                }
+                "Remap Scalar" => {
+                    let fin = op.i("Input field", field::ALPHA);
+                    let f = op.i("output field", field::RADIUS);
+                    let (imin, imax) = (op.f("Input minimum", 0.0), op.f("Input maximum", 1.0));
+                    let (omin, omax) = (op.f("output minimum", 0.0), op.f("output maximum", 1.0));
+                    for p in &mut self.particles {
+                        let v = remap_clamped(p.scalar(fin), imin, imax, omin, omax);
+                        let cur = p.scalar(f);
+                        p.set_scalar(f, lerp(cur, v, strength));
+                    }
+                }
+                "Lifespan Endcap Timed Decay" => {
+                    let decay = op.f("decay time", 1.0);
+                    if let Some(t0) = self.end_cap_at {
+                        if now - t0 >= decay {
+                            self.particles.iter_mut().for_each(|p| p.dead = true);
+                        }
+                    }
+                }
+                "Ramp Scalar Linear Random" | "Ramp Scalar Spline Random" => {
+                    let f = op.i("ramp field", field::RADIUS);
+                    let (rmin, rmax) = (op.f("ramp rate min", 0.0), op.f("ramp rate max", 0.0));
+                    let (stmin, stmax) = (op.f("start time min", 0.0), op.f("start time max", 0.0));
+                    let (etmin, etmax) = (op.f("end time min", 1.0), op.f("end time max", 1.0));
+                    let proportional = op.b("proportional 0/1", true);
+                    let spline = op.function == "Ramp Scalar Spline Random";
+                    for p in &mut self.particles {
+                        let t = if proportional { p.life_fraction(now) } else { p.age(now) };
+                        let (st, et) = (lerp(stmin, stmax, rand(p.id, 2)), lerp(etmin, etmax, rand(p.id, 3)));
+                        if t < st || t >= et {
+                            continue;
+                        }
+                        let mut rate = lerp(rmin, rmax, rand(p.id, 1));
+                        if spline {
+                            // Eases in and out across the window (approximation of the spline).
+                            let k = ((t - st) / (et - st).max(1e-4)).clamp(0.0, 1.0);
+                            rate *= 6.0 * k * (1.0 - k);
+                        }
+                        let v = p.scalar(f) + rate * dt * strength;
+                        p.set_scalar(f, v);
+                    }
+                }
+                "Oscillate Scalar Simple" => {
+                    let f = op.i("oscillation field", field::ALPHA);
+                    let rate = op.f("Oscillation Rate", 0.0);
+                    let freq = op.f("Oscillation Frequency", 1.0);
+                    for p in &mut self.particles {
+                        let s = (p.age(now) * freq * 2.0 * PI).sin();
+                        let v = p.scalar(f) + rate * s * dt * strength;
+                        p.set_scalar(f, v);
+                    }
+                }
+                "Movement Rotate Particle Around Axis" => {
+                    let cp = cpn("Control Point", 0);
+                    let mut axis = v3(op.v3("Rotation Axis", [0.0, 0.0, 1.0])).normalize_or(Vec3::Z);
+                    if op.b("Use Local Space", false) {
+                        axis = cp.basis * axis;
+                    }
+                    let q = Quat::from_axis_angle(axis, op.f("Rotation Rate", 180.0).to_radians() * dt * strength);
+                    for p in &mut self.particles {
+                        p.pos = cp.pos + q * (p.pos - cp.pos);
+                        p.prev = cp.pos + q * (p.prev - cp.pos);
+                    }
+                }
+                "Cull Random" => {
+                    let pct = op.f("Cull Percentage", 0.5);
+                    let (st, et) = (op.f("Cull Start Time", 0.0), op.f("Cull End Time", 1.0));
+                    let e = op.f("Cull Time Exponent", 1.0);
+                    for p in &mut self.particles {
+                        let lf = p.life_fraction(now);
+                        if lf < st || lf > et || self.spared.contains(&p.id) {
+                            continue;
+                        }
+                        // Each particle gets one draw, at a time in the window.
+                        let when = lerp(st, et, rand(p.id, 2).powf(e.max(1e-3)));
+                        if lf >= when {
+                            if rand(p.id, 1) < pct {
+                                p.dead = true;
+                            } else {
+                                self.spared.insert(p.id);
+                            }
+                        }
+                    }
+                }
+                "Rotation Orient to 2D Direction" => {
+                    let off = op.f("Rotation Offset", 0.0).to_radians();
+                    let spin = op.f("Spin Strength", 1.0);
+                    for p in &mut self.particles {
+                        let v = p.pos - p.prev;
+                        if v.x == 0.0 && v.y == 0.0 {
+                            continue;
+                        }
+                        let target = v.y.atan2(v.x) + off;
+                        p.rotation = lerp(p.rotation, target, (spin * strength).clamp(0.0, 1.0));
+                    }
+                }
+                "Set child control points from particle positions" => {
+                    let first_cp = op.i("First control point to set", 3).clamp(0, 63) as usize;
+                    let count = op.i("# of control points to set", 1).max(0) as usize;
+                    let first_p = op.i("First particle to copy", 0).max(0) as usize;
+                    let mut ordered: Vec<&Particle> = self.particles.iter().collect();
+                    ordered.sort_by_key(|p| p.id);
+                    let pts: Vec<Vec3> = ordered.iter().skip(first_p).take(count).map(|p| p.pos).collect();
+                    for c in &mut self.children {
+                        if let Some(sys) = &mut c.system {
+                            for (k, pos) in pts.iter().enumerate() {
+                                if first_cp + k < MAX_CONTROL_POINTS {
+                                    sys.cps[first_cp + k] = ControlPoint { pos: *pos, basis: Mat3::IDENTITY, set: true };
+                                }
+                            }
+                        }
+                    }
+                }
                 _ => {}
             }
+        }
+        if self.spared.len() > 4096 {
+            let alive: BTreeSet<u32> = self.particles.iter().map(|p| p.id).collect();
+            self.spared.retain(|id| alive.contains(id));
         }
     }
 
@@ -1382,6 +1760,24 @@ impl SystemInstance {
     fn run_constraints(&mut self, def: &SystemDef) {
         let cps = self.cps;
         for op in &def.constraints {
+            if op.function == "Prevent passing through a plane" {
+                let cp = cps[op.i("control point number", 0).clamp(0, 63) as usize];
+                let mut point = v3(op.v3("plane point", [0.0; 3]));
+                let mut normal = v3(op.v3("plane normal", [0.0, 0.0, 1.0])).normalize_or(Vec3::Z);
+                if !op.b("global origin", false) {
+                    point = cp.to_world(point);
+                }
+                if !op.b("global normal", false) {
+                    normal = (cp.basis * normal).normalize_or(Vec3::Z);
+                }
+                for p in &mut self.particles {
+                    let d = (p.pos - point).dot(normal);
+                    if d < 0.0 {
+                        p.pos -= normal * d;
+                    }
+                }
+                continue;
+            }
             if op.function == "Constrain distance to control point" {
                 let cp = cps[op.i("control point number", 0).clamp(0, 63) as usize];
                 let mind = op.f("minimum distance", 0.0);
@@ -1429,6 +1825,148 @@ mod tests {
         assert_eq!(smoothstep(0.0), 0.0);
         assert_eq!(smoothstep(1.0), 1.0);
         assert!((smoothstep(0.5) - 0.5).abs() < 1e-6);
+    }
+
+    use crate::dmx::Attr;
+
+    fn op(function: &str, params: &[(&str, Attr)]) -> OpDef {
+        OpDef { function: function.into(), params: params.iter().map(|(k, v)| (k.to_string(), v.clone())).collect() }
+    }
+
+    fn system(emitters: Vec<OpDef>, initializers: Vec<OpDef>, operators: Vec<OpDef>, constraints: Vec<OpDef>) -> Arc<SystemDef> {
+        Arc::new(SystemDef {
+            name: "test".into(),
+            material: String::new(),
+            max_particles: 500,
+            initial_particles: 0,
+            radius: 5.0,
+            color: [255; 4],
+            rotation: 0.0,
+            rotation_speed: 0.0,
+            sequence_number: 0,
+            control_point_to_disable_rendering_if_it_is_the_camera: -1,
+            maximum_time_step: 0.1,
+            maximum_sim_tick_rate: 0.0,
+            minimum_sim_tick_rate: 0.0,
+            view_model_effect: false,
+            screen_space_effect: false,
+            emitters,
+            initializers,
+            operators,
+            renderers: Vec::new(),
+            forces: Vec::new(),
+            constraints,
+            children: Vec::new(),
+        })
+    }
+
+    fn burst(n: i32) -> OpDef {
+        op("emit_instantaneously", &[("num_to_emit", Attr::Int(n))])
+    }
+
+    fn lifetime(t: f32) -> OpDef {
+        op("Lifetime Random", &[("lifetime_min", Attr::Float(t)), ("lifetime_max", Attr::Float(t))])
+    }
+
+    fn run(def: Arc<SystemDef>, steps: usize) -> SystemInstance {
+        let lib = ParticleLibrary::default();
+        let mut s = SystemInstance::new(def, 7);
+        s.set_cp(0, ControlPoint::new(Vec3::new(100.0, 0.0, 0.0), Mat3::IDENTITY));
+        for _ in 0..steps {
+            s.update(1.0 / 30.0, &lib);
+        }
+        s
+    }
+
+    #[test]
+    fn box_positions_stay_in_the_box() {
+        let def = system(vec![burst(200)], vec![op("Position Within Box Random", &[("min", Attr::Vec3([-10.0, -5.0, 0.0])), ("max", Attr::Vec3([10.0, 5.0, 2.0]))]), lifetime(5.0)], vec![], vec![]);
+        let s = run(def, 1);
+        assert_eq!(s.particles.len(), 200);
+        for p in &s.particles {
+            let l = p.pos - Vec3::new(100.0, 0.0, 0.0);
+            assert!(l.x.abs() <= 10.0 && l.y.abs() <= 5.0 && (0.0..=2.0).contains(&l.z), "{l:?}");
+        }
+        assert!(s.unsupported.is_empty(), "{:?}", s.unsupported);
+    }
+
+    #[test]
+    fn noise_emitter_rate_stays_in_range() {
+        let def = system(vec![op("emit noise", &[("emission minimum", Attr::Float(30.0)), ("emission maximum", Attr::Float(60.0))])], vec![lifetime(100.0)], vec![], vec![]);
+        let s = run(def, 60);
+        // Two seconds at 30..60 per second.
+        assert!((55..=125).contains(&s.particles.len()), "{}", s.particles.len());
+    }
+
+    #[test]
+    fn spin_and_spin_down() {
+        let def = system(
+            vec![burst(1)],
+            vec![lifetime(10.0)],
+            vec![op("Rotation Spin Roll", &[("spin_rate_degrees", Attr::Float(90.0)), ("spin_rate_min", Attr::Float(0.0)), ("spin_stop_time", Attr::Float(1.0))])],
+            vec![],
+        );
+        let s = run(def, 60);
+        // Spins down from 90 deg/s to 0 over 1 s: about 45 degrees in all.
+        let deg = s.particles[0].rotation.to_degrees();
+        assert!((40.0..50.0).contains(&deg), "{deg}");
+    }
+
+    #[test]
+    fn plane_constraint_keeps_particles_above() {
+        let def = system(
+            vec![burst(20)],
+            vec![lifetime(10.0), op("Velocity Random", &[("speed_in_local_coordinate_system_min", Attr::Vec3([0.0, 0.0, -300.0])), ("speed_in_local_coordinate_system_max", Attr::Vec3([0.0, 0.0, -300.0]))])],
+            vec![op("Movement Basic", &[])],
+            vec![op("Prevent passing through a plane", &[("plane point", Attr::Vec3([0.0, 0.0, -10.0]))])],
+        );
+        let s = run(def, 30);
+        assert!(s.particles.iter().all(|p| p.pos.z >= -10.0 - 1e-3), "{:?}", s.particles.iter().map(|p| p.pos.z).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn cull_random_removes_about_its_share() {
+        let def = system(vec![burst(400)], vec![lifetime(1.0)], vec![op("Cull Random", &[("Cull Percentage", Attr::Float(0.5)), ("Cull Start Time", Attr::Float(0.0)), ("Cull End Time", Attr::Float(0.2))])], vec![]);
+        let s = run(def, 10);
+        assert!((140..260).contains(&s.particles.len()), "{}", s.particles.len());
+    }
+
+    #[test]
+    fn stop_emission_lets_particles_finish_without_end_cap() {
+        let def = system(vec![op("emit_continuously", &[("emission_rate", Attr::Float(100.0))])], vec![lifetime(0.5)], vec![op("Lifespan Decay", &[])], vec![]);
+        let lib = ParticleLibrary::default();
+        let mut s = SystemInstance::new(def, 1);
+        for _ in 0..10 {
+            s.update(1.0 / 30.0, &lib);
+        }
+        assert!(!s.particles.is_empty() && !s.finished());
+        s.stop_emission();
+        let n = s.particles.len();
+        s.update(1.0 / 30.0, &lib);
+        assert!(s.particles.len() <= n, "no new particles");
+        assert!(!s.end_cap);
+        for _ in 0..30 {
+            s.update(1.0 / 30.0, &lib);
+        }
+        assert!(s.particles.is_empty() && s.finished());
+    }
+
+    #[test]
+    fn restart_after_duration_bursts_again() {
+        let def = system(vec![burst(5)], vec![lifetime(100.0)], vec![op("Restart Effect after Duration", &[("Minimum Restart Time", Attr::Float(0.5)), ("Maximum Restart Time", Attr::Float(0.5))])], vec![]);
+        let s = run(def, 50);
+        // Bursts at 0, 0.5, 1.0, 1.5 s.
+        assert!((15..=20).contains(&s.particles.len()), "{}", s.particles.len());
+    }
+
+    #[test]
+    fn control_point_follows_the_player() {
+        let def = system(vec![burst(1)], vec![lifetime(10.0)], vec![op("Set Control Point To Player", &[("Control Point Number", Attr::Int(2)), ("Control Point Offset", Attr::Vec3([0.0, 0.0, 10.0]))])], vec![]);
+        let lib = ParticleLibrary::default();
+        let mut s = SystemInstance::new(def, 1);
+        s.set_player(Some(ControlPoint::new(Vec3::new(5.0, 6.0, 64.0), Mat3::IDENTITY)));
+        s.update(1.0 / 30.0, &lib);
+        assert_eq!(s.cps[2].pos, Vec3::new(5.0, 6.0, 74.0));
     }
 
     #[test]

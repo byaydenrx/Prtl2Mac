@@ -26,6 +26,22 @@ possible. New options only inside Settings (no extra main/pause menu buttons).
 - Intro1 verified with autopilot through the wake-up exercises, bed, second
   wake-up and Wheatley's knocking/nagging (door does not open early).
 
+## sp_a1_intro1 status (local Wheatley session, 2026-10-19)
+- Wrecked vault + container ride now render the real (actor) room: view
+  proxy offsettype 2 = "Keep offset" (bin/base.fgd), tiltfraction applied.
+- Door opens, Wheatley enters on his rail and faces the player, the ride
+  scenes play, "press space to talk" works (logic_playerproxy OnJump),
+  apple nags, "close enough". DisableDraw/EnableDraw work on all entities.
+- Wake-up finding: frames at 0.4 s steps from 14-20 s alternate between two
+  camera poses (one nearer the lamp): two systems fight over the camera
+  (wake-up point_viewcontrol vs player view?). Fix that first.
+- Still open (owner's report): the first wake-up animation looks wrong and
+  teleports the player at the end; the exercise hints (look up/down) show
+  no icons (env_instructor_hint icons); lying down to sleep and the second
+  get-up have no animation; during the ride a frame now and then jumps
+  outside the container (camera shake / proxy); walls don't break away
+  (actor_wall_destruction_* / endwalldestruction models).
+
 ## Known problems / next steps (in order)
 1. Chapter 2 exits: ALL chapter 1-2 (and 3) maps reach their next map when the
    player follows the real path. The earlier "no exit" results were the sweep's

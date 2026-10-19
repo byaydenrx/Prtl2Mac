@@ -249,7 +249,9 @@ fn scene_inputs(
         match msg.input.as_str() {
             "start" => {
                 let path = e.get("scenefile").unwrap_or("").replace('\\', "/").to_ascii_lowercase();
-                let Some(text) = game.read(&path).map(|b| String::from_utf8_lossy(&b).into_owned()) else {
+                // Valve's scene table names one scene by its .wav (intro_ride07): the .vcd is what exists.
+                let text = game.read(&path).or_else(|| path.rsplit_once('.').and_then(|(stem, _)| game.read(&format!("{stem}.vcd"))));
+                let Some(text) = text.map(|b| String::from_utf8_lossy(&b).into_owned()) else {
                     warn!("portal2: scene {path} not found");
                     // Still let the level move on.
                     fire.write(FireOutput { ent: msg.target, event: "OnStart".into(), activator: msg.activator });

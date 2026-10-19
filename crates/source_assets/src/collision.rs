@@ -160,6 +160,12 @@ pub struct ColliderData {
 }
 
 impl ColliderData {
+    /// Only a player (and NPC) clip: blocks player movement, not physics.
+    pub fn player_clip_only(&self) -> bool {
+        self.contents & (CONTENTS_SOLID | CONTENTS_MOVEABLE | CONTENTS_WINDOW | CONTENTS_GRATE) == 0
+            && self.contents & CONTENTS_PLAYERCLIP != 0
+    }
+
     /// Portal shots pass through (grates, player clips).
     pub fn shot_passthrough(&self) -> bool {
         self.contents & MASK_SHOT_PORTAL == 0 || self.contents & CONTENTS_GRATE != 0

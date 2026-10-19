@@ -26,6 +26,12 @@ use crate::sim::{ControlPoint, Particle, SystemInstance};
 /// The `.pcf` files the effects use (Portal 2's file names).
 pub const PORTAL_PCF_FILES: &[&str] = &["particles/portals.pcf", "particles/portal_projectile.pcf", "particles/portalgun.pcf"];
 
+/// The game's list of every `.pcf` (map effects: sparks, steam, debris...).
+pub const PARTICLE_MANIFEST: &str = "particles/particles_manifest.txt";
+
+/// Renderers drawn here; others are reported once per system and skipped.
+const KNOWN_RENDERERS: &[&str] = &["render_animated_sprites", "render_sprites", "render_screen_velocity_rotate", "render_rope", "render_sprite_trail"];
+
 /// Sprite-sheet layouts (columns, rows) by material name, lowercase, no extension.
 ///
 /// The game's sheet layouts are not decoded yet, so this is empty by default.
@@ -77,6 +83,7 @@ pub struct ParticleEffect {
     /// model effect").
     pub render_transform: Transform,
     stop: bool,
+    stop_emission: bool,
     meshes: HashMap<usize, Entity>,
 }
 
@@ -109,6 +116,7 @@ impl ParticleEffect {
             visible: true,
             render_transform: Transform::IDENTITY,
             stop: false,
+            stop_emission: false,
             meshes: HashMap::new(),
         }
     }
@@ -139,6 +147,15 @@ impl ParticleEffect {
     pub fn stop(&mut self) {
         self.stop = true;
         self.restart_when_done = false;
+    }
+    /// Stop emitting without the end cap: live particles finish their lives.
+    pub fn stop_emission(&mut self) {
+        self.stop_emission = true;
+        self.restart_when_done = false;
+    }
+    /// Running and not stopped (still emitting, or will).
+    pub fn is_emitting(&self) -> bool {
+        !self.stop && !self.stop_emission
     }
 }
 
@@ -339,6 +356,17 @@ pub(crate) fn plugin(app: &mut App) {
 fn load_particles(game: Option<Res<GameFsRes>>, mut particles: ResMut<Particles>) {
     let Some(game) = game else { return };
     let mut lib = ParticleLibrary::default();
+    // Every file the game lists (map effects), then the portal files last so
+    // their definitions are exactly the ones the portal effects always used.
+    if let Some(text) = game.read(PARTICLE_MANIFEST).map(|b| String::from_utf8_lossy(&b).into_owned()) {
+        let (n, problems) = lib.load_manifest(&text, &|f| game.read(f));
+        info!("p2_fx: {n} particle files from {PARTICLE_MANIFEST}");
+        for p in problems {
+            warn!("p2_fx: {p}");
+        }
+    } else {
+        warn!("p2_fx: {PARTICLE_MANIFEST} missing; only the portal effects can be drawn");
+    }
     for f in PORTAL_PCF_FILES {
         match game.read(f).map(|d| lib.load_pcf(&d)) {
             Some(Ok(n)) => debug!("p2_fx: {f}: {n} systems"),
@@ -350,15 +378,23 @@ fn load_particles(game: Option<Res<GameFsRes>>, mut particles: ResMut<Particles>
 }
 
 /// Advance every effect and count particles. Runs in `PostUpdate`.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn step_effects(
     time: Res<Time>,
     particles: Option<Res<Particles>>,
     mut stats: ResMut<ParticleStats>,
     mut effects: Query<(Entity, &mut ParticleEffect)>,
     mut missing: Local<HashSet<String>>,
+    mut reported: Local<HashSet<String>>,
     mut commands: Commands,
+    player: Query<(&Transform, &p2_core::ViewAngles, &p2_core::Crouch), With<p2_core::Player>>,
 ) {
     let Some(particles) = particles else { return };
+    // The player's eye, for `Set Control Point To Player`.
+    let eye = player.single().ok().map(|(tf, view, crouch)| {
+        let r = view.rotation();
+        ControlPoint::new(world_to_source(tf.translation + Vec3::Y * crouch.eye_height), basis_to_source(Mat3::from_cols(r * Vec3::NEG_Z, r * Vec3::NEG_X, r * Vec3::Y)))
+    });
     let lib = &particles.library;
     let dt = time.delta_secs();
     stats.alive.clear();
@@ -375,7 +411,14 @@ pub(crate) fn step_effects(
                 commands.entity(e).despawn();
                 continue;
             };
-            fx.instance = Some(SystemInstance::new(def, e.index_u32().wrapping_mul(2654435761)));
+            let inst = SystemInstance::new(def, e.index_u32().wrapping_mul(2654435761));
+            // What this system uses that isn't simulated or drawn, once per system.
+            let mut gaps: Vec<String> = inst.unsupported.iter().cloned().collect();
+            gaps.extend(inst.def.renderers.iter().filter(|r| !KNOWN_RENDERERS.contains(&r.function.as_str())).map(|r| format!("renderer {}", r.function)));
+            if !gaps.is_empty() && reported.insert(fx.name.clone()) {
+                info!("p2_fx: {} uses unsupported {}", fx.name, gaps.join(", "));
+            }
+            fx.instance = Some(inst);
         }
         let inst = fx.instance.as_mut().unwrap();
         for (i, cp) in &fx.cps {
@@ -384,6 +427,10 @@ pub(crate) fn step_effects(
         if fx.stop && !inst.end_cap {
             inst.stop();
         }
+        if fx.stop_emission && !inst.emission_stopped {
+            inst.stop_emission();
+        }
+        inst.set_player(eye);
         inst.update(dt, lib);
         inst.for_each(&mut |s| {
             if s.emitted_last > 0 {
@@ -479,7 +526,7 @@ fn build_system_mesh(inst: &SystemInstance, card: &CardInfo, time: f32) -> Optio
             main_only = true;
         }
         match r.function.as_str() {
-            "render_animated_sprites" | "render_sprites" => {
+            "render_animated_sprites" | "render_sprites" | "render_screen_velocity_rotate" => {
                 let oriented = card.orientation == 3 || r.i("orientation_type", 0) == 3;
                 let (rate, as_fps) = sheet_params(r);
                 for p in &parts {
@@ -607,6 +654,17 @@ fn build_meshes(
     for (e, mut fx) in &mut effects {
         let fx = &mut *fx;
         let Some(inst) = &fx.instance else { continue };
+        // Hidden (culled) effects keep their meshes, hidden, and cost nothing.
+        if !fx.visible {
+            for &child in fx.meshes.values() {
+                if let Ok(mut v) = vis.get_mut(child) {
+                    if *v != Visibility::Hidden {
+                        *v = Visibility::Hidden;
+                    }
+                }
+            }
+            continue;
+        }
         let mut systems = Vec::new();
         inst.for_each(&mut |s| systems.push(s));
         for (i, s) in systems.iter().enumerate() {
