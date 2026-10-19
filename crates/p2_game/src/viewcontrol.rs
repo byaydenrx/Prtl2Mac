@@ -392,9 +392,12 @@ impl ViewProxy {
                 self.follow = Some((parent, att.to_string(), rel));
             }
         }
-        if ents.list[i].get("offsettype").is_some_and(|v| v.trim() == "2") {
-            self.start = self.proxy_now(proxy, ents, anims, game);
-        }
+        // Every offset type maps the registration point onto the proxy: in
+        // sp_a1_intro1 (offsettype 2) the room the player walks in is bare
+        // collision, and the wrecked vault they see is the container's
+        // animated models around `camera_proxy`, lit by the lights riding
+        // them. (Relative-only motion showed the bare room.)
+        let _ = &mut self.start;
     }
 
     fn proxy_now(&self, proxy: usize, ents: &Ents, anims: &mut PropAnims, game: &GameFsRes) -> Option<Mat4> {
