@@ -284,7 +284,7 @@ fn coat_props(
             ec.insert(r);
         }
         // The coat: a ball for spheres (`cubetype` 3), else a box over the colliders.
-        let sphere = ents.as_ref().and_then(|x| x.list.get(prop.ent)).is_some_and(|x| x.get("cubetype").is_some_and(|t| t.trim() == "3") || x.class.contains("sphere"));
+        let sphere = ents.as_ref().and_then(|x| x.list.get(prop.ent)).is_some_and(|x| source_assets::map::cube_type(x.get("cubetype"), x.get("newskins"), x.get("skin")) == 3 || x.class.contains("sphere"));
         let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
         for c in children.iter_descendants(e) {
             if let Ok(a) = aabbs.get(c) {
