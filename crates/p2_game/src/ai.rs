@@ -20,6 +20,7 @@ pub struct AiPlugin;
 impl Plugin for AiPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Hints>()
+            .init_resource::<HintIcons>()
             .add_systems(Update, (script_conditions, hint_inputs, draw_hints).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic));
     }
 }
@@ -88,9 +89,68 @@ fn script_conditions(
     }
 }
 
-/// Hints on screen: (ent, caption, key, until).
+/// Hints on screen: (ent, caption, key, until, on-screen icon).
 #[derive(Resource, Default)]
-struct Hints(Vec<(usize, String, String, f32)>);
+struct Hints(Vec<(usize, String, String, f32, String)>);
+
+/// The game instructor's icons (`scripts/instructor_textures.txt`): each a
+/// region of an icon sheet texture, loaded when first shown.
+#[derive(Resource, Default)]
+struct HintIcons {
+    loaded: bool,
+    /// icon name -> (sheet, x, y, width, height)
+    regions: std::collections::HashMap<String, (String, f32, f32, f32, f32)>,
+    /// sheet -> (image, width, height)
+    sheets: std::collections::HashMap<String, Option<(Handle<Image>, f32, f32)>>,
+}
+
+impl HintIcons {
+    fn load(&mut self, game: &p2_assets::GameFsRes) {
+        if self.loaded {
+            return;
+        }
+        self.loaded = true;
+        let Some(text) = game.read("scripts/instructor_textures.txt") else {
+            warn!("portal2: scripts/instructor_textures.txt not found, hints without icons");
+            return;
+        };
+        let kv = source_assets::kv::parse(&String::from_utf8_lossy(&text));
+        // Icons are blocks with a "file" anywhere under the root
+        // ("sprites/640_hud" { "TextureData" { "icon_tip" { ... } } }).
+        fn walk(kv: &source_assets::kv::Kv, out: &mut std::collections::HashMap<String, (String, f32, f32, f32, f32)>) {
+            for (name, v) in &kv.entries {
+                let source_assets::kv::KvValue::Block(b) = v else { continue };
+                match (b.get("file"), b.get_f32("x"), b.get_f32("y"), b.get_f32("width"), b.get_f32("height")) {
+                    (Some(file), Some(x), Some(y), Some(w), Some(h)) => {
+                        out.insert(name.to_ascii_lowercase(), (file.to_ascii_lowercase(), x, y, w, h));
+                    }
+                    _ => walk(b, out),
+                }
+            }
+        }
+        walk(&kv, &mut self.regions);
+        debug!("portal2: {} instructor icons", self.regions.len());
+    }
+
+    /// An icon's image and its pixel rectangle.
+    fn icon(&mut self, name: &str, game: &p2_assets::GameFsRes, images: &mut Assets<Image>) -> Option<(Handle<Image>, Rect)> {
+        let Some((file, x, y, w, h)) = self.regions.get(&name.to_ascii_lowercase()).cloned() else {
+            debug!("portal2: no instructor icon {name} ({} known)", self.regions.len());
+            return None;
+        };
+        let sheet = self
+            .sheets
+            .entry(file.clone())
+            .or_insert_with(|| {
+                let vtf = source_assets::vtf::VtfTexture::parse(&game.read(&format!("materials/{file}.vtf"))?).ok()?;
+                let (sw, sh) = (vtf.width as f32, vtf.height as f32);
+                Some((images.add(vtf.into_image(false, true)), sw, sh))
+            })
+            .clone()?;
+        let _ = sheet.2;
+        Some((sheet.0, Rect::new(x, y, x + w, y + h)))
+    }
+}
 
 /// A `+duck`-style binding as the key the player presses.
 fn binding_key(b: &str) -> &'static str {
@@ -131,7 +191,8 @@ fn hint_inputs(
                 let key = binding_key(e.get("hint_binding").unwrap_or("")).to_string();
                 let timeout = e.get_f32("hint_timeout").filter(|t| *t > 0.0).unwrap_or(8.0);
                 hints.0.retain(|h| h.0 != msg.target);
-                hints.0.push((msg.target, caption, key, ents.now + timeout));
+                let icon = e.get("hint_icon_onscreen").unwrap_or("icon_tip").to_string();
+                hints.0.push((msg.target, caption, key, ents.now + timeout, icon));
             }
             "endhint" | "kill" => hints.0.retain(|h| h.0 != msg.target),
             _ => {}
@@ -144,11 +205,21 @@ fn hint_inputs(
 #[derive(Component)]
 struct HintRoot;
 
-fn draw_hints(mut commands: Commands, hints: Res<Hints>, fonts: Option<Res<UiFonts>>, roots: Query<Entity, With<HintRoot>>) {
+#[allow(clippy::too_many_arguments)]
+fn draw_hints(
+    mut commands: Commands,
+    hints: Res<Hints>,
+    fonts: Option<Res<UiFonts>>,
+    roots: Query<Entity, With<HintRoot>>,
+    game: Res<p2_assets::GameFsRes>,
+    mut icons: ResMut<HintIcons>,
+    mut images: ResMut<Assets<Image>>,
+) {
     if !hints.is_changed() {
         return;
     }
     let Some(fonts) = fonts else { return };
+    icons.load(&game);
     for r in &roots {
         commands.entity(r).despawn();
     }
@@ -172,13 +243,31 @@ fn draw_hints(mut commands: Commands, hints: Res<Hints>, fonts: Option<Res<UiFon
             bevy::picking::Pickable::IGNORE,
         ))
         .with_children(|p| {
-            for (_, caption, key, _) in &hints.0 {
+            for (_, caption, key, _, icon) in &hints.0 {
+                // A key hint shows the key on the instructor's key icon;
+                // others their own icon (the tip bulb, mostly).
+                let key_icon = if key.chars().count() > 1 { "icon_key_wide" } else { "icon_key_generic" };
+                let art = if icon == "use_binding" && !key.is_empty() { icons.icon(key_icon, &game, &mut images) } else { icons.icon(icon, &game, &mut images) };
                 p.spawn((
-                    Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(10.0), padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)), ..default() },
+                    Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(10.0), padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)), ..default() },
                     BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
                 ))
                 .with_children(|row| {
-                    if !key.is_empty() {
+                    match (&art, icon == "use_binding" && !key.is_empty()) {
+                        (Some((image, rect)), true) => {
+                            let w = 40.0 * rect.width() / rect.height().max(1.0);
+                            row.spawn((
+                                Node { width: Val::Px(w), height: Val::Px(40.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
+                                ImageNode { image: image.clone(), rect: Some(*rect), ..default() },
+                                children![(Text::new(key.clone()), font(15.0), TextColor(Color::WHITE))],
+                            ));
+                        }
+                        (Some((image, rect)), false) => {
+                            row.spawn((Node { width: Val::Px(40.0), height: Val::Px(40.0), ..default() }, ImageNode { image: image.clone(), rect: Some(*rect), ..default() }));
+                        }
+                        _ => {}
+                    }
+                    if !key.is_empty() && !(icon == "use_binding" && art.is_some()) {
                         row.spawn((
                             Node { padding: UiRect::axes(Val::Px(8.0), Val::Px(2.0)), ..default() },
                             BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.9)),
