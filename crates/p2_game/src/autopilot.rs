@@ -157,7 +157,9 @@ fn drive(
                 // A map entity by name or class: where it is now (props move).
                 let Some(ents) = ents.as_deref() else { continue };
                 let key = a.first().map(|k| k.to_ascii_lowercase()).unwrap_or_default();
-                let Some(i) = ents.list.iter().position(|e| e.name == key || e.class == key) else {
+                // Live entities first (templates leave their killed originals).
+                let matches = |e: &crate::io::GameEnt| e.name == key || e.class == key;
+                let Some(i) = ents.list.iter().position(|e| matches(e) && !e.killed).or_else(|| ents.list.iter().position(matches)) else {
                     warn!("autopilot: no entity {key}");
                     continue;
                 };
@@ -213,7 +215,7 @@ fn drive(
                 let p = shared::source_to_world(Vec3::new(f(a, 1), f(a, 2), f(a, 3)));
                 if let Some(ents) = ents.as_deref() {
                     for (pe, prop) in &prop_ents {
-                        if ents.list[prop.ent].name == key {
+                        if ents.list[prop.ent].name == key && !ents.list[prop.ent].killed {
                             commands.entity(pe).insert((Transform::from_translation(p), avian3d::prelude::Position(p), avian3d::prelude::LinearVelocity::ZERO));
                         }
                     }
