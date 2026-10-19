@@ -150,6 +150,36 @@ It logs particle counts per system at each shot. Unit tests: `cargo test -p p2_f
   played.
 - **No-hit shots** (sky) play no sound and no burst. Spec behaviour unclear.
 
+## Map effects (any system from the game's files)
+
+At startup the crate loads every `.pcf` listed in
+`particles/particles_manifest.txt` (then the portal files), so a host can run
+any of the game's systems with `ParticleEffect::new(name)`; `p2_game` uses it
+for `info_particle_system`. Besides what the portal effects need, the
+simulator implements: `emit noise`; `Position Within Box Random`,
+`Position Along Path Random`, `Velocity Noise`/`Initial Velocity Noise`,
+`Velocity Inherit from Control Point`, `Rotation Yaw Random`,
+`Rotation Yaw Flip Random`, `Sequence Two Random`, `Remap Control Point to
+Scalar`; `Rotation Spin Roll`/`Yaw`, `Noise Scalar`/`Vector`, `Remap Distance
+to Control Point to Scalar`, `Remap Speed to Scalar`, `Remap Scalar`,
+`Lifespan Endcap Timed Decay`, `Ramp Scalar Linear/Spline Random`,
+`Oscillate Scalar Simple`, `Movement Rotate Particle Around Axis`, `Cull
+Random`, `Rotation Orient to 2D Direction`, `Set child control points from
+particle positions`, `Set Control Point To Player`, `Restart Effect after
+Duration`; the constraint `Prevent passing through a plane`; the renderer
+`render_screen_velocity_rotate` (drawn as sprites). Parameter names are the
+Source particle editor's; numbers that read wrong mean a name differs.
+
+Not done (logged once per system as `p2_fx: <system> uses unsupported ...`):
+anything needing the world (`Collision via traces`, `Position Modify Place
+On Ground`, `Movement Place On Ground`, `Velocity Repulse from World` beyond
+the portal case), models (`Position On Model Random`, `render_models`),
+parent particles (`Position From Parent Particles`, `Inherit ... From Parent
+Particle`), lighting (`Color Lit Per Particle`), `render_blobs`,
+`render_project`, turbulent and plane-distance forces. `ParticleEffect::stop_emission`
+stops without the end cap (map `Stop`); `ParticleEffect::visible = false`
+pauses a system and skips its mesh rebuild (culling).
+
 ## Open questions
 
 1. Should the main camera's render layers include 25 (rims)? `p2_view` must add it.
