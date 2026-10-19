@@ -60,7 +60,7 @@ fn spawn_active_portals(
 
 /// The wall colliders just behind an opening at `tf` (what the player must
 /// pass through while inside the hole).
-fn surfaces_behind(spatial: &SpatialQuery, tf: &Transform, half: Vec2, player: Entity) -> Vec<Entity> {
+pub(crate) fn surfaces_behind(spatial: &SpatialQuery, tf: &Transform, half: Vec2, player: Entity) -> Vec<Entity> {
     let frame = Portal::frame(tf);
     let mut surfaces = Vec::new();
     for (x, y) in [(0.0, 0.0), (-0.8, -0.8), (0.8, -0.8), (-0.8, 0.8), (0.8, 0.8), (0.0, -0.9), (0.0, 0.9), (-0.9, 0.0), (0.9, 0.0)] {

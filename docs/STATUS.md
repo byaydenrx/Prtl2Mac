@@ -825,3 +825,68 @@ TODO / not done: blob streaks and drips, the player's screen splashing,
 painted props' own surface paint (coat only), dry vs wet bombs, splat look
 (still flat discs), measuring the tuning against the real game.
 
+
+
+## cloud/saves branch (untested in game)
+
+Portal 2's save system, built without the game (unit tests only). Code:
+`saves.rs` (format, writing, loading, chapter progress), with hooks in
+`io.rs` (`Ents::hold`, `io_state`/`set_io_state`/`truncate`; `logic_autosave`
+inputs now reach `saves.rs`), `movers.rs` (`Movers::save`/`restore`),
+`vscripts.rs` (plain globals: `Scripts::save`/`restore`), `templates.rs`
+(copies remember their prototype; `spawn_copy`), `props.rs`
+(`start_holding`), `health.rs` (death loads the latest save), `ui.rs`
+(menus), `console.rs` (`save`/`load`). Not touched: scenes, paint, movies,
+exposure, render crates.
+
+Files: `<data dir>/saves/NAME.sav` = one JSON header line (version, map,
+time, kind) + one JSON state line. `autosave` (level start or
+`logic_autosave`; the previous one moves to `autosave01`), `quick`,
+`saveNN` / any `save NAME`. A level-start autosave has no state (loading it
+starts the level normally). `save.txt` is still written for older builds.
+Chapter unlocks: `<data dir>/progress.cfg` (`sv_unlockedchapters`); the
+first run counts the newest save / old save.txt as reached. Scripted runs
+(`P2_SCRIPT` without `P2_DATA_DIR`) unlock every chapter and write nothing.
+
+How a load works: `LoadLevel`, then on `LevelLoaded` the I/O is held (no
+logic_auto, no outputs, game clock stopped) and the player is put at the
+saved spot behind a black fade; after 3 settle frames the entity table is
+reset to the map's own and the saved differences applied, run-time entities
+re-added (template copies re-spawned from their prototypes), bodies posed
+(transform, velocity, hidden, solid, despawned), movers, animations, script
+globals, health put back; scenes that were playing start again from their
+first line; one frame later the portals (wall colliders found again) and
+the held prop.
+
+Verify in game:
+- [ ] F6 mid-puzzle ("SAVING..." bottom right, console "Saved quick"),
+      move/solve something, F9: back where you were, same view, cubes where
+      they were (incl. a dropped cube and one in your hands), doors/lifts in
+      the same state, buttons still pressed, both portals open and
+      walkable-through, pending timed outputs still happen.
+- [ ] No logic_auto re-runs on load (no intro lines replayed, elevators
+      don't restart); no visible jump of props after the fade.
+- [ ] A map's `logic_autosave` writes `saves/autosave.sav` (sp_a1_intro
+      maps have them); die afterwards (goo, turret): you come back at that
+      save, not the map start. Die on a map with no mid-map save: the map
+      restarts as before.
+- [ ] Main menu: PLAY SINGLE PLAYER shows CONTINUE GAME / NEW GAME / LOAD
+      GAME once a save exists; Continue loads the newest save.
+- [ ] LOAD GAME list (main and pause menu): chapter picture, chapter title,
+      chapter name, map, date/time (local), kind; scrolls; BACK and Esc
+      close it; a click loads.
+- [ ] Pause > SAVE GAME: NEW SAVED GAME makes save01, save02...; clicking
+      an existing one overwrites it.
+- [ ] Console: `save`, `save name`, `load`, `load name`, `load autosave`.
+- [ ] New Game: chapters after the furthest reached are dark tiles with a
+      "?" and can't be clicked; reaching a new chapter unlocks it.
+- [ ] Hitch: F6 should not stutter (state is copied on the main thread,
+      written on a thread); loading costs about a level load.
+- [ ] Mid-scene save: the scene restarts from its first line on load
+      (`Playing` is private to scenes.rs; resuming mid-line would need it).
+Not saved yet: paint (paint.rs), triggers' touch sets / trigger_look
+timers (taken from where the player stands during the settle frames, so a
+trigger you stand in doesn't fire again; a floor button whose cube comes
+back onto it fires OnPressed once more), attachments from SetParentAttachment (viewcontrol), laser /
+bridge / funnel / turret internals (they rebuild from entity state),
+script locals and class instances.

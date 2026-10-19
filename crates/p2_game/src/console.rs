@@ -5,7 +5,7 @@
 //! closes it. The world pauses while it is open, like the original.
 //!
 //! Commands go through the game's own messages and resources: `map` and
-//! `restart` send [`LoadLevel`], `fire` queues an input with [`Ents::send`],
+//! `restart` send [`LoadLevel`], `save`/`load` go to `saves.rs`, `fire` queues an input with [`Ents::send`],
 //! `give`/`upgrade_portalgun` go to the map console handler
 //! ([`crate::vscripts::ConsoleCommand`]), `cl_showfps`/`cl_showpos`/`fov`
 //! change [`Settings`]. Cheats (`noclip`, `god`, `setpos`, `host_timescale`,
@@ -156,6 +156,7 @@ pub const COMMANDS: &[CommandDef] = &[
     def("god", "", "Toggle invulnerability.", true, ArgKind::None),
     def("help", "[command]", "Help for a command.", false, ArgKind::Command),
     def("host_timescale", "[scale]", "Game speed (1 is normal).", true, ArgKind::None),
+    def("load", "[name]", "Load a saved game (default: the quick save).", false, ArgKind::None),
     def("map", "<name>", "Start a map (campaign, community or a .bsp path).", false, ArgKind::Map),
     def("maps", "[filter]", "List the maps you can start.", false, ArgKind::None),
     def("mod_disable", "<id>", "Turn a mod off in the active mod profile (from the next start).", false, ArgKind::Mod),
@@ -171,6 +172,7 @@ pub const COMMANDS: &[CommandDef] = &[
     def("practice_save", "[name]", "Save a practice checkpoint here (default name: the current slot).", false, ArgKind::None),
     def("quit", "", "Quit the game.", false, ArgKind::None),
     def("restart", "", "Start the current map again.", false, ArgKind::None),
+    def("save", "[name]", "Save the game (default: the quick save).", false, ArgKind::None),
     def("setang", "<pitch> <yaw> [roll]", "Set your view angles (degrees, Source convention).", true, ArgKind::None),
     def("setpos", "<x> <y> <z>", "Move your feet to a Source position (units).", true, ArgKind::None),
     def("speedrun_reset", "", "Reset the speedrun timer (the next map start begins a run).", false, ArgKind::None),
@@ -216,6 +218,9 @@ pub enum Cmd {
     PracticeLoad(Option<String>),
     PracticeSave(Option<String>),
     Restart,
+    /// `save` / `load`: a named save, `None` the quick save.
+    Save(Option<String>),
+    Load(Option<String>),
     SetAng(f32, f32, f32),
     SetPos(Vec3),
     SpeedrunReset,
@@ -281,6 +286,17 @@ pub fn parse(words: &[String]) -> Result<Cmd, String> {
         "practice_load" => Cmd::PracticeLoad(args.first().cloned()),
         "practice_save" => Cmd::PracticeSave(args.first().cloned()),
         "restart" => Cmd::Restart,
+        "save" | "load" => {
+            let name = match args.first() {
+                Some(a) => Some(crate::saves::save_name(a).ok_or_else(|| "Save names are one word (letters, digits, _ - .)".to_string())?),
+                None => None,
+            };
+            if d.name == "save" {
+                Cmd::Save(name)
+            } else {
+                Cmd::Load(name)
+            }
+        }
         "setang" => match args {
             [p, y] => Cmd::SetAng(num(p)?, num(y)?, 0.0),
             [p, y, r, ..] => Cmd::SetAng(num(p)?, num(y)?, num(r)?),
@@ -822,6 +838,8 @@ struct Outbox<'w> {
     load: MessageWriter<'w, LoadLevel>,
     map_console: MessageWriter<'w, crate::vscripts::ConsoleCommand>,
     practice: MessageWriter<'w, crate::speedrun::PracticeRequest>,
+    save: MessageWriter<'w, crate::saves::SaveGame>,
+    load_game: MessageWriter<'w, crate::saves::LoadGame>,
     exit: MessageWriter<'w, AppExit>,
 }
 
@@ -1065,6 +1083,14 @@ fn execute(cmd: Cmd, console: &mut Console, w: &mut World1, out: &mut Outbox) {
         }
         Cmd::SpeedrunReset => {
             out.practice.write(crate::speedrun::PracticeRequest::ResetTimer);
+        }
+        Cmd::Save(name) => {
+            out.save.write(crate::saves::SaveGame(name.map_or(crate::saves::Slot::Quick, crate::saves::Slot::Named)));
+        }
+        Cmd::Load(name) => {
+            out.load_game.write(crate::saves::LoadGame(name.map_or(crate::saves::Slot::Quick, crate::saves::Slot::Named)));
+            *w.screen = Screen::None;
+            console.open = false;
         }
         Cmd::Restart => match &w.map {
             Some(m) if !m.menu => {
@@ -1436,6 +1462,10 @@ mod tests {
         assert_eq!(p("maps *a1*"), Ok(Cmd::Maps(Some("a1".into()))));
         assert_eq!(p("practice_save start"), Ok(Cmd::PracticeSave(Some("start".into()))));
         assert_eq!(p("practice_load"), Ok(Cmd::PracticeLoad(None)));
+        assert_eq!(p("save"), Ok(Cmd::Save(None)));
+        assert_eq!(p("save before_jump"), Ok(Cmd::Save(Some("before_jump".into()))));
+        assert_eq!(p("load quick"), Ok(Cmd::Load(Some("quick".into()))));
+        assert!(p("load ../x").is_err());
     }
 
     #[test]

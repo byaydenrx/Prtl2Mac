@@ -27,9 +27,39 @@ impl Plugin for TemplatesPlugin {
     }
 }
 
-/// Template entity index -> the prototype entity indices it spawns.
+/// Template entity index -> the prototype entity indices it spawns, and
+/// each copy made so far -> its prototype (saved games make them again).
 #[derive(Resource, Default)]
-struct Templates(std::collections::HashMap<usize, Vec<usize>>);
+pub struct Templates(std::collections::HashMap<usize, Vec<usize>>, std::collections::HashMap<usize, usize>);
+
+impl Templates {
+    /// The prototype entity `i` was copied from, if it is a template's copy.
+    pub fn prototype_of(&self, i: usize) -> Option<usize> {
+        self.1.get(&i).copied()
+    }
+
+    /// Note that `copy` was made from `proto` (a saved game putting it back).
+    pub fn note_copy(&mut self, copy: usize, proto: usize) {
+        self.1.insert(copy, proto);
+    }
+}
+
+/// Make the render/physics entity of a copy of prototype `proto` (entity
+/// index `idx`) at `tf`. `None` when the prototype has no entity.
+pub fn spawn_copy(commands: &mut Commands, ents: &Ents, proto: usize, idx: usize, tf: Transform, props: &Query<&Prop>) -> Option<Entity> {
+    let e = ents.list[proto].entity?;
+    let copy = commands
+        .entity(e)
+        .clone_and_spawn_with_opt_out(|b| {
+            b.linked_cloning(true).deny::<(RigidBodyDisabled, ColliderDisabled, ColliderOf, RigidBodyColliders)>();
+        })
+        .id();
+    commands.entity(copy).insert((tf, Visibility::Inherited, crate::level::LevelOwned));
+    if let Ok(p) = props.get(e) {
+        commands.entity(copy).insert((Prop { ent: idx, half: p.half }, Position(tf.translation), Rotation(tf.rotation), LinearVelocity::ZERO, AngularVelocity::ZERO));
+    }
+    Some(copy)
+}
 
 /// The `TemplateNN` entities of a `point_template`.
 fn members(ents: &Ents, t: usize) -> Vec<usize> {
@@ -54,6 +84,7 @@ fn take_prototypes(
         return;
     }
     templates.0.clear();
+    templates.1.clear();
     let Some(mut ents) = ents else { return };
     for t in 0..ents.list.len() {
         if ents.list[t].class != "point_template" {
@@ -83,7 +114,7 @@ fn spawn_inputs(
     mut commands: Commands,
     mut inputs: MessageReader<EntInput>,
     ents: Option<ResMut<Ents>>,
-    templates: Res<Templates>,
+    mut templates: ResMut<Templates>,
     props: Query<&Prop>,
     mut fire: MessageWriter<FireOutput>,
 ) {
@@ -116,7 +147,7 @@ fn spawn_inputs(
             continue;
         };
         let origin = ents.list[t].transform;
-        for &proto in templates.0.get(&t).map(Vec::as_slice).unwrap_or(&[]) {
+        for proto in templates.0.get(&t).cloned().unwrap_or_default() {
             let placed = ents.list[proto].transform;
             let tf = match place {
                 // Keep its pose relative to the template, moved to the maker.
@@ -132,26 +163,9 @@ fn spawn_inputs(
             ent.bounds = ent.bounds.map(|(lo, hi)| (lo - placed.translation + tf.translation, hi - placed.translation + tf.translation));
             ent.transform = tf;
             let idx = ents.list.len();
-            if let Some(e) = ents.list[proto].entity {
-                let copy = commands
-                    .entity(e)
-                    .clone_and_spawn_with_opt_out(|b| {
-                        b.linked_cloning(true).deny::<(RigidBodyDisabled, ColliderDisabled, ColliderOf, RigidBodyColliders)>();
-                    })
-                    .id();
-                commands.entity(copy).insert((tf, Visibility::Inherited, crate::level::LevelOwned));
-                if let Ok(p) = props.get(e) {
-                    commands.entity(copy).insert((
-                        Prop { ent: idx, half: p.half },
-                        Position(tf.translation),
-                        Rotation(tf.rotation),
-                        LinearVelocity::ZERO,
-                        AngularVelocity::ZERO,
-                    ));
-                }
-                ent.entity = Some(copy);
-            }
+            ent.entity = spawn_copy(&mut commands, &ents, proto, idx, tf, &props);
             ents.add(ent);
+            templates.1.insert(idx, proto);
             debug!("portal2: spawned {} {:?} from template {:?}", ents.list[idx].class, ents.list[idx].name, ents.list[t].name);
         }
         fire.write(FireOutput { ent: msg.target, event: "OnEntitySpawned".into(), activator: msg.activator });

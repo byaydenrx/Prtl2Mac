@@ -59,6 +59,19 @@ pub struct Held {
 #[derive(Component, Default)]
 struct HeldColliders(Vec<Entity>);
 
+/// Put prop `body` in the player's hands: the player stops colliding with
+/// its colliders and it floats (saved games put a held prop back this way).
+pub fn start_holding(commands: &mut Commands, body: Entity, held: Held, children: &Query<&Children>, colliders: &Query<(), With<Collider>>, ignore: &mut IgnoreColliders) {
+    let mut cols: Vec<Entity> = children.iter_descendants(body).filter(|c| colliders.contains(*c)).collect();
+    if colliders.contains(body) {
+        cols.push(body);
+    }
+    for c in &cols {
+        ignore.insert(*c);
+    }
+    commands.entity(body).insert((held, HeldColliders(cols), GravityScale(0.0)));
+}
+
 /// Map props become dynamic bodies once the level is up.
 pub fn make_props_dynamic(
     mut commands: Commands,
@@ -216,24 +229,20 @@ fn use_key(
         if is_core {
             commands.entity(body).insert(RigidBody::Dynamic);
         }
-        let mut cols: Vec<Entity> = children.iter_descendants(body).filter(|c| colliders.contains(*c)).collect();
-        if colliders.contains(body) {
-            cols.push(body);
-        }
-        for c in &cols {
-            ignore.insert(*c);
-        }
         let (prop_yaw, _, _) = tf.rotation.to_euler(EulerRot::YXZ);
         let radius = prop.half.length();
         // A held reflection cube turns its lens the way the player looks
         // (its +X out along the view), so its beam goes where you aim.
         let reflective = ents.as_deref().is_some_and(|e| crate::lasers::reflective(e, prop.ent));
-        let yaw_offset = if reflective { std::f32::consts::FRAC_PI_2 } else { prop_yaw - view.yaw };
-        commands.entity(body).insert((
-            Held { stuck_for: 0.0, yaw_offset, distance: hold_distance(radius) },
-            HeldColliders(cols),
-            GravityScale(0.0),
-        ));
+        let yaw_offset = if reflective {
+            std::f32::consts::FRAC_PI_2
+        } else if is_core {
+            CORE_CARRY_YAW
+        } else {
+            prop_yaw - view.yaw
+        };
+        let held = Held { stuck_for: 0.0, yaw_offset, distance: hold_distance(radius) };
+        start_holding(&mut commands, body, held, &children, &colliders, &mut ignore);
         if let Some(mut ents) = ents {
             ents.fire(prop.ent, "onplayerpickup", Some(PLAYER));
             ents.fire(prop.ent, "onphysgunpickup", Some(PLAYER));
@@ -281,6 +290,11 @@ fn hold_point(eye: Vec3, view: &ViewAngles, distance: f32) -> Vec3 {
 /// Carry: float the held prop in front of the eye. Looking through a
 /// portal, the hold point is carried through it (Portal 2 lets you hold a
 /// cube on the far side of a portal you're looking into).
+/// Carried personality cores face the player, as in Portal 2: their eye
+/// looks along the body's local -Z (the rig's root bone turns the model's
+/// +X front to +Y), so turn them half way round from the view.
+const CORE_CARRY_YAW: f32 = std::f32::consts::PI;
+
 fn carry(
     mut commands: Commands,
     time: Res<Time>,
@@ -543,7 +557,7 @@ fn core_inputs(
                 let distance = hold_distance(prop.half.length());
                 let at = hold_point(feet.curr + Vec3::Y * crouch.eye_height, view, distance);
                 // Facing the player, as Wheatley is carried.
-                let yaw_offset = -std::f32::consts::FRAC_PI_2;
+                let yaw_offset = CORE_CARRY_YAW;
                 let rot = Quat::from_rotation_y(view.yaw + yaw_offset);
                 commands.entity(e).insert((
                     RigidBody::Dynamic,
