@@ -18,6 +18,7 @@ pub mod config;
 pub mod entities;
 pub mod fs;
 pub mod geometry;
+pub mod glass;
 pub mod kv;
 pub mod map;
 pub mod material;

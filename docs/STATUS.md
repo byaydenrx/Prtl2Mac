@@ -174,6 +174,66 @@ sp_a1_wakeup, checked with scripted runs:
    at 60 fps (95-103 with a 120/240 cap); check in a focused window.
    Enhanced graphics does nothing yet; model textures ignore the AF setting.
 
+## cloud/glass branch (untested in game)
+
+Glass (`Refract`) and water (`Water`) materials, built without the game
+(unit tests, `glass.wgsl` validated with naga against stubs of Bevy's
+imports; no Portal 2 assets or GPU in the cloud). Nothing here has been
+seen running. Before, both were a faint tinted pane ("shader refract not
+translated yet"); they no longer appear in that fallback list.
+
+How it works (`source_assets/src/glass.rs`, `shaders/glass.wgsl`):
+- `GlassMaterial` reads Bevy's screen-space transmission texture, so Bevy
+  draws it in its transmissive pass after copying the opaque scene once per
+  view (Camera3d already requires `ScreenSpaceTransmission`, 1 step). The
+  Valve main pass and the projected-light pass are now ordered before that
+  pass so the copy includes them. Cost: one colour copy per view with glass
+  or water in it, plus the material's own fragment work.
+- Refract: scene behind offset by the normal map's xy * `$refractamount`
+  (falling off beyond 128 units), `$bluramount` 5-tap blur, `$refracttint`
+  and `$refracttinttexture`, `+ $envmap * $envmaptint` when the material has
+  its own cubemap (`env_cubemap` is skipped: there are no per-map cubemaps
+  yet), `$basetexture` over it by its alpha, lit by the lightmap (brushes)
+  or vertex light (models) and the exposure.
+- Water: the same refraction, faded into `$fogcolor` between `$fogstart`
+  and `$fogend` along the view ray through an assumed 64 units of water
+  (scene depth isn't readable in this pass), mixed with a reflection
+  (`$envmap`, else the map's sky) by a Schlick Fresnel term times
+  `$reflecttint`. Goo is water with a short, murky fog, so it should come out
+  nearly opaque green-brown with its normal map scrolling.
+- Proxies (TextureScroll on `$bumptransform`, AnimatedTexture on
+  `$bumpframe`/`$frame`) run every frame per glass material; the exposure
+  follows `ValveExposure` (updated when it moves more than 1%).
+- **Estimates** to tune by eye: `REFRACT_SCALE` (0.1, distortion strength
+  per unit of `$refractamount`), `WATER_DEPTH` (64 units), default
+  `$refractamount` 0.5. They're constants in both `glass.rs` and `glass.wgsl`.
+- Not done: real planar water reflections (`_rt_WaterReflection`), the
+  underwater view (`$abovewater 0`, fog when the camera is under the
+  surface), Bevy distance fog on the glass's own reflection/dirt,
+  `LightmappedReflective` and `PortalRefract` (still the pane).
+
+Check in the real game:
+1. **sp_a1_intro1 vault window**: through the relaxation vault's window
+   the room/facility behind is visible and slightly wavy, not a faint
+   flat-coloured pane; the dirt/streaks (if the material has a base texture)
+   sit on it. If the distortion is far too strong or invisible, change
+   `REFRACT_SCALE`; if the image behind is upside down or shifted, the
+   screen UV (`in.position.xy / size`) is the place to look.
+2. **sp_a1_intro3 / sp_a1_intro4 elevator glass**: the elevator tube and
+   doors show the shaft and chamber behind with a slight distortion; things
+   in front of the glass don't smear into it badly (some bleeding at edges is
+   expected, Source has it too); no black flashes when the elevator moves.
+3. **sp_a2_laser_over_goo**: the goo is a murky, mostly opaque
+   green-brown surface whose ripples scroll; looking straight down shows a
+   little of what's below near the edges, grazing angles turn it reflective
+   (sky colour). If it's see-through like clear water, raise `WATER_DEPTH` or
+   check `$fogend`; if it's flat colour with no motion, check that its
+   `$normalmap` loaded and its proxies run.
+4. **sp_a2_bts maps**: flooded areas and observation windows look like 1-3;
+   frame time with large water areas is acceptable.
+5. Portal views: glass and water seen through a portal look the same as
+   directly.
+
 ## cloud/projtex branch (untested in game)
 
 `env_projectedtexture` (shadowed spotlights), built without the game

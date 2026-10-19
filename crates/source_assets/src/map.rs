@@ -894,7 +894,7 @@ pub fn load_map(fs: &GameFs, surfprops: &SurfaceProps, name: &str) -> anyhow::Re
             tex_names.extend(m.base_texture.iter().cloned());
             tex_names.extend(m.base_texture2.iter().cloned());
             // textures the Valve shaders sample too
-            for key in ["$bumpmap", "$bumpmap2", "$envmapmask", "$detail", "$blendmodulatetexture", "$envmap", "$selfillummask"] {
+            for key in ["$bumpmap", "$bumpmap2", "$envmapmask", "$detail", "$blendmodulatetexture", "$envmap", "$selfillummask", "$normalmap", "$refracttinttexture"] {
                 if let Some(t) = vmt::texture_param(&m.params, key) {
                     if t != "env_cubemap" {
                         tex_names.insert(t);
