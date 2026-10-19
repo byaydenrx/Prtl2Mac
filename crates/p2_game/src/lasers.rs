@@ -26,6 +26,9 @@ const U: f32 = shared::SOURCE_UNIT;
 const RANGE: f32 = 8192.0 * U;
 /// Most legs (portals and cubes) one beam follows.
 const MAX_LEGS: usize = 12;
+/// How far off (cosine) a redirected beam may point and still be pulled
+/// onto a catcher, relay or portal (about 10 degrees).
+const AUTOAIM_COS: f32 = 0.985;
 /// Damage per second while standing in a beam.
 const BURN: f32 = 40.0;
 
@@ -158,6 +161,42 @@ fn trace_lasers(
             Some((Portal::frame(t), p.half_size, Portal::frame(exit_t), exit_p.surfaces.clone()))
         })
         .collect();
+    // Auto-aim targets (Portal 2 bends a redirected beam onto a catcher,
+    // relay or portal it nearly points at): (point, facing or zero).
+    let mut aim_targets: Vec<(Vec3, Vec3)> = Vec::new();
+    for e in ents.list.iter().filter(|e| !e.killed) {
+        let r = e.transform.rotation;
+        match e.class.as_str() {
+            "prop_laser_catcher" => aim_targets.push((e.transform.translation + r * Vec3::X * (8.0 * U), r * Vec3::X)),
+            "prop_laser_relay" => aim_targets.push((e.transform.translation + r * Vec3::Y * (32.0 * U), Vec3::ZERO)),
+            _ => {}
+        }
+    }
+    for (frame, _, _, _) in &windows {
+        aim_targets.push((frame.position, frame.normal()));
+    }
+    let autoaim = |o: Vec3, dir: Vec3, skip: &[Entity]| -> Vec3 {
+        let filter = SpatialQueryFilter::from_excluded_entities(skip.iter().copied()).with_mask(LayerMask(!source_assets::plugin::PLAYER_CLIP_LAYER));
+        let mut best: Option<(f32, Vec3)> = None;
+        for &(p, facing) in &aim_targets {
+            let to = p - o;
+            let dist = to.length();
+            if dist < 32.0 * U {
+                continue;
+            }
+            let d = to / dist;
+            let c = d.dot(dir);
+            if c < AUTOAIM_COS || facing.dot(d) > -0.3 && facing != Vec3::ZERO || best.is_some_and(|b| c <= b.0) {
+                continue;
+            }
+            // Only onto targets in plain sight.
+            let clear = spatial.cast_ray(o, Dir3::new(d).unwrap_or(Dir3::X), dist, true, &filter).is_none_or(|h| h.distance > dist - 24.0 * U);
+            if clear {
+                best = Some((c, d));
+            }
+        }
+        best.map_or(dir, |b| b.1)
+    };
     let player = players.single_mut().ok();
     let (player_e, player_box) = match &player {
         Some((e, tf, crouch, _)) => {
@@ -221,6 +260,7 @@ fn trace_lasers(
                 o = pair.map_point(p) + dir * 1e-3;
                 skip = excluded.clone();
                 skip.extend(walls);
+                dir = autoaim(o, dir, &skip);
                 continue;
             }
             let end = o + dir * len;
@@ -252,6 +292,7 @@ fn trace_lasers(
                         skip.push(x);
                     }
                     o += dir * (20.0 * U);
+                    dir = autoaim(o, dir, &skip);
                     continue;
                 }
                 _ => {}

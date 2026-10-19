@@ -306,13 +306,14 @@ const CORE_CARRY_YAW: f32 = std::f32::consts::PI;
 fn carry(
     mut commands: Commands,
     time: Res<Time>,
-    mut players: Query<(Entity, &InterpolatedFeet, &Crouch, &ViewAngles, &mut IgnoreColliders), With<Player>>,
+    mut players: Query<(Entity, &InterpolatedFeet, &Crouch, &ViewAngles, &mut IgnoreColliders, &CharacterVelocity), With<Player>>,
     mut held: Query<(Entity, &mut Held, &HeldColliders, &mut Transform, &mut Position, &mut Rotation, &mut LinearVelocity, &mut AngularVelocity)>,
     portals: Query<(&Portal, &Transform, &PortalLink), Without<Held>>,
     all_portals: Query<&Transform, (With<Portal>, Without<Held>)>,
     mut teleported: MessageReader<PortalTeleported>,
 ) {
-    let Ok((player, feet, crouch, view, mut ignore)) = players.single_mut() else { return };
+    let Ok((player, feet, crouch, view, mut ignore, player_vel)) = players.single_mut() else { return };
+    let player_vel = player_vel.0;
     // The player went through a portal: what they hold comes with them.
     for t in teleported.read() {
         if t.entity != player {
@@ -357,8 +358,10 @@ fn carry(
         }
         // Close the gap in about a tenth of a second, as Source's held-object
         // controller does, instead of snapping every tick (jitter).
+        // On top of the player's own motion, so it keeps up in flight
+        // (faith plates, falls).
         let v = to / dt.max(HOLD_CATCH_UP);
-        lv.0 = v.clamp_length_max(HOLD_MAX_SPEED);
+        lv.0 = player_vel + v.clamp_length_max(HOLD_MAX_SPEED);
         let delta = want * tf.rotation.inverse();
         let (axis, mut angle) = delta.to_axis_angle();
         if angle > std::f32::consts::PI {

@@ -48,26 +48,24 @@ const SPLAT_RADIUS: f32 = 26.0;
 /// Gravity on blobs, u/s^2 (`sv_gravity`).
 const GRAVITY: f32 = 600.0;
 /// Upward speed a blue floor gives at the least (walking or dropping a
-/// little onto it), u/s. Estimate: Portal 2 bounces a player who walks onto
-/// blue gel roughly a crouch-jump's worth of headroom over a standing
-/// player (~170 u, = 450^2 / (2 * 600)); not measured.
-pub const BOUNCE_MIN_SPEED: f32 = 450.0;
+/// little onto it), u/s: Portal 2's `bounce_paint_min_speed` default (500,
+/// Valve Developer Community "Gel-related console commands"), ~208 u up.
+pub const BOUNCE_MIN_SPEED: f32 = 500.0;
 /// Speed kept off a blue floor: Portal 2 gives back the whole speed of the
 /// fall, so a player bounces back to the height they fell from, over and
 /// over (published behaviour, "Repulsion Gel"); 1.0 is that.
 pub const BOUNCE_KEEP: f32 = 1.0;
-/// Upward speed added when bouncing off a blue wall, u/s. Estimate: enough
-/// to clear a little height between wall jumps, as the game does.
-pub const BOUNCE_WALL_UP_SPEED: f32 = 200.0;
+/// Upward speed added when bouncing off a blue wall, u/s:
+/// `bounce_paint_wall_jump_upward_speed` default (275, same page).
+pub const BOUNCE_WALL_UP_SPEED: f32 = 275.0;
 /// Slowest run into a blue wall that bounces, u/s (walking along one doesn't). Estimate.
 pub const BOUNCE_WALL_MIN_SPEED: f32 = 50.0;
-/// Running speed on orange gel, u/s. Estimate: published descriptions put
-/// Propulsion Gel running at several times the 175 u/s walk; 800 u/s is
-/// enough for the speed-ramp jumps in sp_a3_speed_ramp (to be checked there).
+/// Running speed on orange gel, u/s: `sv_speed_paint_max` default (800).
 pub const SPEED_GEL_MAX: f32 = 800.0;
-/// Acceleration factor on orange gel (`sv_accelerate` is 10 off it):
-/// speed builds up over a few seconds instead of at once. Estimate.
-pub const SPEED_GEL_ACCELERATE: f32 = 1.0;
+/// Acceleration factor on orange gel (`sv_accelerate` is 10 off it): Source
+/// accelerates by factor * wishspeed per second, so 500 / 800 gives
+/// `sv_speed_paint_acceleration`'s 500 u/s^2.
+pub const SPEED_GEL_ACCELERATE: f32 = 500.0 / SPEED_GEL_MAX;
 /// Friction on orange gel (`sv_friction` is 4 off it): little, so the
 /// player slides on when they let go. Estimate.
 pub const SPEED_GEL_FRICTION: f32 = 0.3;
@@ -673,10 +671,10 @@ mod tests {
         let out = bounce_off(Vec3::new(0.0, -land, 0.0), Vec3::Y, BOUNCE_MIN_SPEED);
         assert!((out.y - land).abs() < 1e-3);
         assert!((bounce_height(out.y) - 300.0).abs() < 0.01);
-        // Walking on (no fall): the least bounce, about 170 u high.
+        // Walking on (no fall): the least bounce, about 208 u high.
         let walk = bounce_off(Vec3::new(175.0, 0.0, 0.0), Vec3::Y, BOUNCE_MIN_SPEED);
         assert_eq!(walk, Vec3::new(175.0, BOUNCE_MIN_SPEED, 0.0));
-        assert!((bounce_height(walk.y) - 168.75).abs() < 0.01);
+        assert!((bounce_height(walk.y) - 208.33).abs() < 0.01);
         // Speed along the surface is kept.
         let run = bounce_off(Vec3::new(400.0, -700.0, 0.0), Vec3::Y, BOUNCE_MIN_SPEED);
         assert_eq!(run, Vec3::new(400.0, 700.0, 0.0));
