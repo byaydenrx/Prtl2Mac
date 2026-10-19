@@ -86,16 +86,89 @@ fn campaign_const(c: &Campaign, name: &str) -> Option<String> {
 }
 
 /// Brush model boxes in world space (Source mins/maxs, axes swapped).
-fn model_bounds(game: &source_assets::GameFs, map: &str) -> HashMap<usize, (Vec3, Vec3)> {
+fn model_bounds(game: &source_assets::GameFs, map: &str) -> (HashMap<usize, (Vec3, Vec3)>, BrushShapes) {
     let mut out = HashMap::new();
-    let Some(data) = game.read(&format!("maps/{map}.bsp")) else { return out };
-    let Ok(bsp) = vbsp::Bsp::read(&data) else { return out };
+    let mut shapes = BrushShapes::default();
+    let Some(data) = game.read(&format!("maps/{map}.bsp")) else { return (out, shapes) };
+    let Ok(bsp) = vbsp::Bsp::read(&data) else { return (out, shapes) };
     for (i, m) in bsp.models.iter().enumerate() {
         let a = source_to_world(Vec3::new(m.mins.x, m.mins.y, m.mins.z));
         let b = source_to_world(Vec3::new(m.maxs.x, m.maxs.y, m.maxs.z));
         out.insert(i, (a.min(b), a.max(b)));
+        if i > 0 {
+            shapes.0.insert(i, model_brush_planes(&data, i));
+        }
     }
-    out
+    (out, shapes)
+}
+
+/// The convex brushes of each brush model (not the world), as Source
+/// planes (normal, distance) relative to the model's origin: trigger
+/// volumes are often several brushes whose box covers far more than they
+/// do (sp_a3_crazy_box's bottomless-pit trigger boxes in the entry lift).
+#[derive(Resource, Default, Clone)]
+pub struct BrushShapes(pub HashMap<usize, Vec<Vec<(Vec3, f32)>>>);
+
+impl BrushShapes {
+    /// Does a Source-space box (relative to the model origin) touch any of
+    /// model `m`'s brushes? `None` when the model's brushes are unknown.
+    pub fn box_touches(&self, m: usize, lo: Vec3, hi: Vec3) -> Option<bool> {
+        let brushes = self.0.get(&m).filter(|b| !b.is_empty())?;
+        let (c, h) = ((lo + hi) * 0.5, (hi - lo) * 0.5);
+        Some(brushes.iter().any(|planes| planes.iter().all(|(n, d)| n.dot(c) - n.abs().dot(h) <= d + 0.01)))
+    }
+}
+
+/// Reads the brush lumps straight from the file (vbsp's leaves don't line up
+/// with Portal 2's 32-byte `dleaf_t`): planes 1, nodes 5, leaves 10,
+/// models 14, leaf brushes 17, brushes 18, brush sides 19.
+fn model_brush_planes(data: &[u8], model: usize) -> Vec<Vec<(Vec3, f32)>> {
+    let i32_at = |o: usize| data.get(o..o + 4).map(|b| i32::from_le_bytes(b.try_into().unwrap()));
+    let u16_at = |o: usize| data.get(o..o + 2).map(|b| u16::from_le_bytes(b.try_into().unwrap()));
+    let f32_at = |o: usize| data.get(o..o + 4).map(|b| f32::from_le_bytes(b.try_into().unwrap()));
+    let lump = |i: usize| -> Option<(usize, usize)> { Some((i32_at(8 + i * 16)? as usize, i32_at(8 + i * 16 + 4)? as usize)) };
+    let (Some(planes), Some(nodes), Some(leaves), Some(models), Some(leaf_brushes), Some(brushes), Some(sides)) =
+        (lump(1), lump(5), lump(10), lump(14), lump(17), lump(18), lump(19))
+    else {
+        return Vec::new();
+    };
+    let Some(head) = (model * 48 + 48 <= models.1).then(|| i32_at(models.0 + model * 48 + 36)).flatten() else { return Vec::new() };
+    let mut found = std::collections::BTreeSet::new();
+    let mut stack = vec![head];
+    let mut guard = 0;
+    while let Some(n) = stack.pop() {
+        guard += 1;
+        if guard > 100_000 {
+            break;
+        }
+        if n < 0 {
+            let l = leaves.0 + (-1 - n) as usize * 32;
+            let (Some(first), Some(count)) = (u16_at(l + 24), u16_at(l + 26)) else { continue };
+            for k in 0..count as usize {
+                if let Some(b) = u16_at(leaf_brushes.0 + (first as usize + k) * 2) {
+                    found.insert(b as usize);
+                }
+            }
+        } else if (n as usize) * 32 + 32 <= nodes.1 {
+            let o = nodes.0 + n as usize * 32;
+            stack.extend([i32_at(o + 4), i32_at(o + 8)].into_iter().flatten());
+        }
+    }
+    found
+        .into_iter()
+        .filter(|&b| b * 12 + 12 <= brushes.1)
+        .filter_map(|b| {
+            let (first, count) = (i32_at(brushes.0 + b * 12)? as usize, i32_at(brushes.0 + b * 12 + 4)? as usize);
+            let planes: Vec<(Vec3, f32)> = (first..first + count)
+                .filter(|s| s * 8 + 8 <= sides.1)
+                .filter_map(|s| {
+                    let p = planes.0 + u16_at(sides.0 + s * 8)? as usize * 20;
+                    Some((Vec3::new(f32_at(p)?, f32_at(p + 4)?, f32_at(p + 8)?), f32_at(p + 12)?))
+                })
+                .collect();
+            (!planes.is_empty()).then_some(planes)
+        })
+        .collect()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -150,7 +223,8 @@ fn load_level(
         }
     }
     commands.insert_resource(ClearColor(info.fog.as_ref().map(|f| f.color).unwrap_or(Color::BLACK)));
-    let bounds = model_bounds(&game.0, &req.map);
+    let (bounds, shapes) = model_bounds(&game.0, &req.map);
+    commands.insert_resource(shapes);
     commands.insert_resource(Ents::from_map(&info, &bounds));
     commands.insert_resource(CurrentMap { info, menu: req.menu, model_bounds: bounds });
     loaded.write(LevelLoaded { map: req.map.clone(), menu: req.menu });
@@ -273,5 +347,22 @@ fn trace_player(
         for (c, gt) in &cams {
             info!("TRACE camera active {} at {:.2?} rot {:.3?}", c.is_active, gt.translation(), gt.rotation());
         }
+    }
+}
+
+#[cfg(test)]
+mod brush_shape_tests {
+    use super::*;
+
+    #[test]
+    fn boxes_touch_only_the_brushes() {
+        // Two 10-unit cubes side by side with a gap: their model box spans the gap.
+        let cube = |x: f32| vec![(Vec3::X, x + 10.0), (Vec3::NEG_X, -x), (Vec3::Y, 10.0), (Vec3::NEG_Y, 0.0), (Vec3::Z, 10.0), (Vec3::NEG_Z, 0.0)];
+        let mut s = BrushShapes::default();
+        s.0.insert(1, vec![cube(0.0), cube(30.0)]);
+        assert_eq!(s.box_touches(1, Vec3::splat(2.0), Vec3::splat(4.0)), Some(true));
+        assert_eq!(s.box_touches(1, Vec3::new(14.0, 2.0, 2.0), Vec3::new(18.0, 4.0, 4.0)), Some(false));
+        assert_eq!(s.box_touches(1, Vec3::new(8.0, 2.0, 2.0), Vec3::new(18.0, 4.0, 4.0)), Some(true));
+        assert_eq!(s.box_touches(2, Vec3::ZERO, Vec3::ONE), None);
     }
 }

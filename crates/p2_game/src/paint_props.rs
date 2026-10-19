@@ -31,7 +31,7 @@ pub struct PaintPropsPlugin;
 
 impl Plugin for PaintPropsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (painted_from_map, cleansers, bombs, paint_spheres, coat_props, props_on_blue).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic));
+        app.add_systems(Update, (painted_from_map, free_new_bombs, cleansers, bombs, paint_spheres, coat_props, props_on_blue).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic));
     }
 }
 
@@ -102,17 +102,73 @@ pub fn impacted(before: Vec3, now: Vec3, threshold: f32) -> bool {
     (now - before).length() > threshold
 }
 
-/// Map props that start painted (`paintpower`), including droppers' copies.
-fn painted_from_map(ents: Option<Res<Ents>>, added: Query<(Entity, &Prop), Added<Prop>>, mut paint: MessageWriter<PaintProp>) {
+/// Radius of a paint bomb's gel ball, u (`paintbomb_draw_sphere_radius` 25).
+const BOMB_DRAW_RADIUS: f32 = 25.0;
+
+/// Map props that start painted (`paintpower`), including droppers' copies;
+/// paint bombs get their gel look.
+#[allow(clippy::too_many_arguments)]
+fn painted_from_map(
+    mut commands: Commands,
+    ents: Option<Res<Ents>>,
+    added: Query<(Entity, &Prop), Added<Prop>>,
+    children: Query<&Children>,
+    drawn: Query<(), With<Mesh3d>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut paint: MessageWriter<PaintProp>,
+) {
     let Some(ents) = ents else { return };
     for (e, prop) in &added {
         let Some(ent) = ents.list.get(prop.ent) else { continue };
         if ent.class == "prop_paint_bomb" {
+            // Its stand-in model's mesh goes; a ball of its gel shows instead.
+            for c in children.iter_descendants(e).filter(|c| drawn.contains(*c)) {
+                commands.entity(c).insert(Visibility::Hidden);
+            }
+            let gel = Gel::from_type(ent.get_f32("painttype").unwrap_or(0.0) as i32);
+            let c = gel.color().to_srgba();
+            let mat = materials.add(StandardMaterial { base_color: Color::srgb(c.red, c.green, c.blue), perceptual_roughness: 0.15, reflectance: 0.6, ..default() });
+            let mesh = meshes.add(Sphere::new(BOMB_DRAW_RADIUS * U).mesh().uv(24, 16));
+            commands.spawn((Name::new("paint bomb gel"), Mesh3d(mesh), MeshMaterial3d(mat), Transform::IDENTITY, ChildOf(e), LevelOwned));
             continue;
         }
         if let Some(gel) = ent.get("paintpower").and_then(|v| v.trim().parse::<f32>().ok()).and_then(|t| Gel::from_power(t as i32)) {
             paint.write(PaintProp { entity: e, gel });
         }
+    }
+}
+
+/// Bombs spawn inside the paint tubes that feed them (sp_a3_bomb_flings:
+/// at 688, in a `tube_paint_256a` whose physics is one solid box). VPhysics
+/// lets an object that starts inside static geometry fall out of it; here
+/// a new bomb that overlaps something drops straight down to the first
+/// free spot, as it would fall.
+fn free_new_bombs(
+    mut commands: Commands,
+    ents: Option<Res<Ents>>,
+    added: Query<(Entity, &Prop, &Transform), Added<Prop>>,
+    children: Query<&Children>,
+    spatial: SpatialQuery,
+    sensors: Query<(), With<Sensor>>,
+) {
+    let Some(ents) = ents else { return };
+    for (e, prop, tf) in &added {
+        if ents.list.get(prop.ent).is_none_or(|x| x.class != "prop_paint_bomb") {
+            continue;
+        }
+        let mut own: Vec<Entity> = children.iter_descendants(e).collect();
+        own.push(e);
+        let filter = SpatialQueryFilter::from_excluded_entities(own);
+        let ball = Collider::sphere(prop.half.max_element());
+        let blocked = |p: Vec3| spatial.shape_intersections(&ball, p, Quat::IDENTITY, &filter).into_iter().any(|c| !sensors.contains(c));
+        let start = tf.translation;
+        if !blocked(start) {
+            continue;
+        }
+        let Some(free) = (1..=100).map(|k| start - Vec3::Y * (k as f32 * 4.0 * U)).find(|p| !blocked(*p)) else { continue };
+        commands.entity(e).insert((Transform { translation: free, ..*tf }, Position(free)));
+        debug!("portal2: paint bomb dropped out of its tube to {:.0?}", shared::world_to_source(free));
     }
 }
 
@@ -194,7 +250,9 @@ fn bombs(
         seen.push(e);
         let v = vel.0 / U;
         if let Some(before) = last.insert(e, v) {
-            if held.is_none() && impacted(before, v, BOMB_IMPACT) {
+            // It must have been flying: a bomb nudged out of its dropper as
+            // it spawns changes speed sharply too.
+            if held.is_none() && before.length() > BOMB_IMPACT && impacted(before, v, BOMB_IMPACT) {
                 burst_now.push((e, prop.ent, pos.0));
             }
         }

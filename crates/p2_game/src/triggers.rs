@@ -83,6 +83,7 @@ fn touch_triggers(
     mut loaded: MessageReader<LevelLoaded>,
     time: Res<Time>,
     mut damage: MessageWriter<crate::health::DamagePlayer>,
+    shapes: Option<Res<crate::level::BrushShapes>>,
 ) {
     if loaded.read().count() > 0 {
         touching.0.clear();
@@ -119,8 +120,19 @@ fn touch_triggers(
         // spawnflags 2: NPCs (the personality cores, turrets).
         let wants_npcs = flags & 2 != 0;
         let filter = e.get("filtername").filter(|f| !f.is_empty()).map(str::to_string);
+        // Past the box, the trigger's own brushes (Source space, relative
+        // to its origin; its rotation is ignored).
+        let origin = shared::world_to_source(e.transform.translation);
+        let model = e.brush_model;
+        let in_brushes = |a: Vec3, b: Vec3| -> bool {
+            let (sa, sb) = (shared::world_to_source(a), shared::world_to_source(b));
+            match (model, shapes.as_deref()) {
+                (Some(m), Some(s)) => s.box_touches(m, sa.min(sb) - origin, sa.max(sb) - origin).unwrap_or(true),
+                _ => true,
+            }
+        };
         let mut touchers: Vec<usize> = Vec::new();
-        if wants_player && overlaps(lo, hi, p_lo, p_hi) {
+        if wants_player && overlaps(lo, hi, p_lo, p_hi) && in_brushes(p_lo, p_hi) {
             touchers.push(PLAYER);
         }
         if wants_props || wants_npcs {
@@ -130,7 +142,7 @@ fn touch_triggers(
                 if !(if is_npc { wants_npcs || wants_props } else { wants_props }) {
                     continue;
                 }
-                if overlaps(lo, hi, pos.0 - prop.half, pos.0 + prop.half) {
+                if overlaps(lo, hi, pos.0 - prop.half, pos.0 + prop.half) && in_brushes(pos.0 - prop.half, pos.0 + prop.half) {
                     touchers.push(prop.ent);
                     if class == "trigger_portal_cleanser" {
                         dissolve.push((pe, prop.ent));
