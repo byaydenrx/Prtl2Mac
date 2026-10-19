@@ -26,6 +26,7 @@ mod health;
 mod io;
 mod lasers;
 mod level;
+mod map_particles;
 mod mods_page;
 mod mounts;
 mod movers;
@@ -41,6 +42,8 @@ mod scenes;
 mod settings;
 mod speedrun;
 mod splits;
+mod sprites;
+mod tanks;
 mod tool_settings;
 #[cfg(test)]
 mod tools_tests;
@@ -102,6 +105,7 @@ fn main() {
             captions::CaptionsPlugin,
         ))
         .add_plugins(bindings::BindingsPlugin)
+        .add_plugins((tanks::TanksPlugin, sprites::SpritesPlugin))
         .add_plugins((
             templates::TemplatesPlugin,
             health::HealthPlugin,
@@ -112,6 +116,7 @@ fn main() {
             exposure::ExposurePlugin,
             paint::PaintPlugin,
             paint_props::PaintPropsPlugin,
+            map_particles::MapParticlesPlugin,
             texture_toggle::TextureTogglePlugin,
             movies::MoviesPlugin,
             projected_lights::ProjectedLightsPlugin,

@@ -45,7 +45,8 @@ pub(crate) fn build(app: &mut App) {
             projected_light_pass
                 .in_set(Core3dSystems::MainPass)
                 .after(valve_main_pass)
-                .before(main_transparent_pass_3d),
+                .before(main_transparent_pass_3d)
+                .before(bevy::pbr::main_transmissive_pass_3d),
         );
 }
 

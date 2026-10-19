@@ -311,7 +311,7 @@ fn drive_camera(
 
 /// Entities parented to an animated attachment keep their pose relative to
 /// it every frame (the container ride's camera proxy, Wheatley's rail).
-fn follow_attachments(
+pub(crate) fn follow_attachments(
     mut ents: Option<ResMut<Ents>>,
     game: Res<GameFsRes>,
     mut anims: ResMut<PropAnims>,

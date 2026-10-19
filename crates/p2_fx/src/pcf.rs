@@ -66,8 +66,27 @@ pub struct SystemDef {
     pub children: Vec<ChildDef>,
 }
 
+/// The `.pcf` files a particle manifest lists (`particles/particles_manifest.txt`,
+/// or a map's `maps/<map>_particles.txt`): every `"file" "..."` line, in
+/// order, without the `!` that marks precached files.
+pub fn manifest_files(text: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for line in text.lines() {
+        let line = line.split("//").next().unwrap_or("");
+        let parts: Vec<&str> = line.split('"').collect();
+        // `"file" "value"` splits into ["", file, " ", value, ...].
+        if parts.len() >= 4 && parts[1].trim().eq_ignore_ascii_case("file") {
+            let f = parts[3].trim().trim_start_matches('!').replace('\\', "/").to_ascii_lowercase();
+            if f.ends_with(".pcf") && !out.contains(&f) {
+                out.push(f);
+            }
+        }
+    }
+    out
+}
+
 /// All particle systems from a set of `.pcf` files, by name.
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct ParticleLibrary {
     pub systems: HashMap<String, Arc<SystemDef>>,
 }
@@ -75,6 +94,21 @@ pub struct ParticleLibrary {
 impl ParticleLibrary {
     pub fn get(&self, name: &str) -> Option<Arc<SystemDef>> {
         self.systems.get(name).cloned()
+    }
+
+    /// Load every file a manifest lists through `read`. Returns the files
+    /// loaded and the ones missing or broken (with why).
+    pub fn load_manifest(&mut self, text: &str, read: &dyn Fn(&str) -> Option<Vec<u8>>) -> (usize, Vec<String>) {
+        let mut loaded = 0;
+        let mut problems = Vec::new();
+        for f in manifest_files(text) {
+            match read(&f).map(|d| self.load_pcf(&d)) {
+                Some(Ok(_)) => loaded += 1,
+                Some(Err(e)) => problems.push(format!("{f}: {e}")),
+                None => problems.push(format!("{f}: missing")),
+            }
+        }
+        (loaded, problems)
     }
 
     /// Add every `DmeParticleSystemDefinition` in a pcf. Later files win.
@@ -152,5 +186,36 @@ fn system_def(els: &[Element], e: &Element) -> SystemDef {
         forces: ops(els, e, "forces"),
         constraints: ops(els, e, "constraints"),
         children,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn manifest_lists_files_in_order() {
+        let text = r#"particles_manifest
+{
+	"file"	"!particles/portals.pcf"
+	"file"	"particles/Environment.pcf"   // a comment
+	// "file" "particles/disabled.pcf"
+	"file"	"particles\steam.pcf"
+	"file"	"particles/portals.pcf"
+	"other"	"particles/nope.pcf"
+	"file"	"readme.txt"
+}
+"#;
+        assert_eq!(manifest_files(text), ["particles/portals.pcf", "particles/environment.pcf", "particles/steam.pcf"]);
+        assert!(manifest_files("").is_empty());
+    }
+
+    #[test]
+    fn missing_files_are_reported() {
+        let mut lib = ParticleLibrary::default();
+        let (n, problems) = lib.load_manifest("\"file\" \"particles/a.pcf\"\n\"file\" \"particles/b.pcf\"", &|f| (f == "particles/b.pcf").then(|| b"not dmx".to_vec()));
+        assert_eq!(n, 0);
+        assert_eq!(problems.len(), 2);
+        assert!(problems[0].contains("missing") && problems[1].starts_with("particles/b.pcf"));
     }
 }

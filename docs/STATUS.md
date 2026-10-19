@@ -174,6 +174,138 @@ sp_a1_wakeup, checked with scripted runs:
    at 60 fps (95-103 with a 120/240 cap); check in a focused window.
    Enhanced graphics does nothing yet; model textures ignore the AF setting.
 
+## cloud/aimers branch (untested in game)
+
+Built in the cloud with unit tests only (no game files, no GPU).
+
+What's new:
+- `tanks.rs`, **func_tank** (any `func_tank*` class): a tank turns about
+  its own origin, relative to its unturned pose (its spawn pose, or where
+  its parent / animated attachment puts it this tick):
+  - yaw within +-`yawrange` (180 and more = all the way round, the short
+    way), pitch within +-`pitchrange`, at `yawrate` / `pitchrate` deg/s;
+  - it aims its barrel (`barrel`/`barrely`/`barrelz`) at the target.
+  - Inputs: `Activate`, `Deactivate`, `SetTargetEntity` /
+    `SetTargetEntityName` (a point_viewproxy, point_viewcontrol or
+    `!player` = the main camera, otherwise the entity's origin),
+    `SetTargetPosition`, `SetTargetDir`, `ClearTargetEntity` /
+    `ClearTarget` (holds its aim). Spawnflag 1 = starts active.
+  - Children: `movers.rs` `follow_parents` places a tank child from its
+    parent and then adds the tank's own turn (`Tanks::place`), and the
+    tank's children follow it the same tick. A tank on an animated
+    attachment is turned again after `follow_attachments` each frame.
+  - Not saved in save games yet (tanks restart unturned on a load).
+- `sprites.rs`, **env_sprite** (and env_glow, env_sprite_oriented):
+  - Drawn as camera-facing quads of the sprite material's `$basetexture`.
+    Size = texels x `scale` units; colour = `rendercolor` x
+    `HDRColorScale` (linear), alpha = `renderamt`.
+  - Additive for `rendermode` 3/5/9, blended otherwise. Each sprite is
+    pulled `GlowProxySize` units toward the camera so its fixture doesn't
+    clip it.
+  - Starts on with spawnflag 1, or when it has no name.
+  - Inputs: ShowSprite / HideSprite / ToggleSprite, ColorRedValue /
+    ColorGreenValue / ColorBlueValue, Color, Alpha, SetScale.
+  - Placed from the entity's transform every frame, so parented sprites
+    follow their parent.
+- **point_spotlight**: a camera-facing additive cone from the lamp along
+  its forward, `spotlightlength` long. It is `spotlightwidth` wide at the
+  lamp and twice that at the far end (`SPOTLIGHT_SPREAD`, a guess). Its
+  texture is a generated gradient fading along the cone and to the
+  edges. Takes `rendercolor` x `HDRColorScale`; LightOn / LightOff;
+  spawnflag 1 = on.
+- **env_beam**: a camera-facing ribbon from `LightningStart` to
+  `LightningEnd` (or to itself), `BoltWidth` wide, with its `texture`
+  material. TurnOn / TurnOff / Toggle. No noise.
+
+Verify in game:
+1. **sp_a1_intro1, Wheatley's rail**:
+   - `top_swivel_1` and `bottom_swivel_1` turn toward the player's view
+     once activated (`SetTargetEntity camera_1`), quickly (600 / 300
+     deg/s).
+   - Wheatley (@sphere, under bottom_swivel_1) swings with them and stays
+     attached, while the rail (actor_railing_1) moves.
+   - If a swivel turns the wrong way (mirror), check `angles_to`'s axis
+     change.
+   - If it turns about the wrong point, the brush's origin isn't its
+     pivot.
+   - If the children lag a frame behind the rail, the chain mixes an
+     animated attachment (Update) with plain parenting (FixedUpdate).
+2. **Other tank users**: sp_a1_intro3, sp_a2_bts2 and others: the turrets
+   / cameras built from func_tank face their targets and stop at their
+   yaw/pitch limits.
+3. **sp_a3_01 glows** (64 env_sprites):
+   - right size and colour, additive;
+   - not cut by the lamps they sit on;
+   - hidden ones appear on ShowSprite.
+   - Not done: occlusion fading. Glows show through nothing (they are
+     depth-tested), but don't fade behind thin geometry as Source's
+     `GlowProxySize` query does.
+   - `rendermode 3` (constant screen size) is approximated: world size at
+     256 units, growing with distance.
+4. **Spotlights**: point_spotlight cones look like Portal 2's soft light
+   shafts (length, width, brightness, the far-end width) and switch with
+   LightOn/LightOff.
+5. **env_beam** ribbons span their two ends with the right texture.
+## cloud/glass branch (untested in game)
+
+Glass (`Refract`) and water (`Water`) materials, built without the game
+(unit tests, `glass.wgsl` validated with naga against stubs of Bevy's
+imports; no Portal 2 assets or GPU in the cloud). Nothing here has been
+seen running. Before, both were a faint tinted pane ("shader refract not
+translated yet"); they no longer appear in that fallback list.
+
+How it works (`source_assets/src/glass.rs`, `shaders/glass.wgsl`):
+- `GlassMaterial` reads Bevy's screen-space transmission texture, so Bevy
+  draws it in its transmissive pass after copying the opaque scene once per
+  view (Camera3d already requires `ScreenSpaceTransmission`, 1 step). The
+  Valve main pass and the projected-light pass are now ordered before that
+  pass so the copy includes them. Cost: one colour copy per view with glass
+  or water in it, plus the material's own fragment work.
+- Refract: scene behind offset by the normal map's xy * `$refractamount`
+  (falling off beyond 128 units), `$bluramount` 5-tap blur, `$refracttint`
+  and `$refracttinttexture`, `+ $envmap * $envmaptint` when the material has
+  its own cubemap (`env_cubemap` is skipped: there are no per-map cubemaps
+  yet), `$basetexture` over it by its alpha, lit by the lightmap (brushes)
+  or vertex light (models) and the exposure.
+- Water: the same refraction, faded into `$fogcolor` between `$fogstart`
+  and `$fogend` along the view ray through an assumed 64 units of water
+  (scene depth isn't readable in this pass), mixed with a reflection
+  (`$envmap`, else the map's sky) by a Schlick Fresnel term times
+  `$reflecttint`. Goo is water with a short, murky fog, so it should come out
+  nearly opaque green-brown with its normal map scrolling.
+- Proxies (TextureScroll on `$bumptransform`, AnimatedTexture on
+  `$bumpframe`/`$frame`) run every frame per glass material; the exposure
+  follows `ValveExposure` (updated when it moves more than 1%).
+- **Estimates** to tune by eye: `REFRACT_SCALE` (0.1, distortion strength
+  per unit of `$refractamount`), `WATER_DEPTH` (64 units), default
+  `$refractamount` 0.5. They're constants in both `glass.rs` and `glass.wgsl`.
+- Not done: real planar water reflections (`_rt_WaterReflection`), the
+  underwater view (`$abovewater 0`, fog when the camera is under the
+  surface), Bevy distance fog on the glass's own reflection/dirt,
+  `LightmappedReflective` and `PortalRefract` (still the pane).
+
+Check in the real game:
+1. **sp_a1_intro1 vault window**: through the relaxation vault's window
+   the room/facility behind is visible and slightly wavy, not a faint
+   flat-coloured pane; the dirt/streaks (if the material has a base texture)
+   sit on it. If the distortion is far too strong or invisible, change
+   `REFRACT_SCALE`; if the image behind is upside down or shifted, the
+   screen UV (`in.position.xy / size`) is the place to look.
+2. **sp_a1_intro3 / sp_a1_intro4 elevator glass**: the elevator tube and
+   doors show the shaft and chamber behind with a slight distortion; things
+   in front of the glass don't smear into it badly (some bleeding at edges is
+   expected, Source has it too); no black flashes when the elevator moves.
+3. **sp_a2_laser_over_goo**: the goo is a murky, mostly opaque
+   green-brown surface whose ripples scroll; looking straight down shows a
+   little of what's below near the edges, grazing angles turn it reflective
+   (sky colour). If it's see-through like clear water, raise `WATER_DEPTH` or
+   check `$fogend`; if it's flat colour with no motion, check that its
+   `$normalmap` loaded and its proxies run.
+4. **sp_a2_bts maps**: flooded areas and observation windows look like 1-3;
+   frame time with large water areas is acceptable.
+5. Portal views: glass and water seen through a portal look the same as
+   directly.
+
 ## cloud/projtex branch (untested in game)
 
 `env_projectedtexture` (shadowed spotlights), built without the game
@@ -899,3 +1031,70 @@ trigger you stand in doesn't fire again; a floor button whose cube comes
 back onto it fires OnPressed once more), attachments from SetParentAttachment (viewcontrol), laser /
 bridge / funnel / turret internals (they rebuild from entity state),
 script locals and class instances.
+
+## cloud/particles branch (untested in game)
+
+Map particle effects, from `main` f1aa706, built in a cloud session without
+the game or its `.pcf` files: `cargo test -p p2_fx` (24) and `-p p2_game`
+pass, including a headless run of the new plugin with a panicking error
+handler; nothing has been seen on screen. Files: `p2_fx` (`pcf.rs` manifest
+loading, `sim.rs` operators, `render.rs` loading/culling/stop), new
+`p2_game/src/map_particles.rs`, one plugin line in `main.rs`.
+
+What's new:
+- **All the game's particle files load** (`particles/particles_manifest.txt`
+  at startup, then the three portal files as before), plus the map's own
+  `maps/<map>_particles.txt` on each load (dropped again on the next map).
+  Not read: particle files packed inside a map's BSP.
+- **info_particle_system**: `effect_name`, `start_active`, CP0 at the entity
+  with its Source axes (follows `parentname`; `name,attachment` parents use
+  just the entity), `cpoint1`..`cpoint63` on the named entities every frame,
+  `cpointN_parent` keeps CP N fixed relative to CP M from the moment it
+  starts. Inputs `Start` (no-op while already emitting), `Stop` (no new
+  particles, live ones finish, no end cap), `StopPlayEndCap`,
+  `DestroyImmediately`, `Kill`.
+- **Operators**: the common ones map effects use are added to the simulator
+  (list in `crates/p2_fx/README.md`, "Map effects"). I couldn't scan the
+  campaign's `.pcf` files from the cloud, so the list comes from what Source
+  effects generally use; every system logs what it still lacks once:
+  `p2_fx: <system> uses unsupported ...`. Please grep a play-through log for
+  that line and send the most common ones back for the next round
+  (`Collision via traces` and `Position Modify Place On Ground` are the
+  likely big ones: they need world traces).
+- **env_spark**: bursts every 0.1 s + random(0..`MaxDelay`) while on; count
+  and speed grow with `Magnitude`; `TrailLength` 1-3 sets the streak; 64 start
+  on, 128 glow (a short flash sprite), 256 silent, 512 along the entity's
+  forward; sound `DoSpark` (soundscript). Inputs StartSpark/StopSpark/
+  ToggleSpark/SparkOnce. Drawn here (Source's sparks aren't a `.pcf`):
+  additive streak quads, yellow to orange, gravity 600.
+- **env_steam**: puffs at `Rate`/s moving at `Speed` (+ `SpreadSpeed`
+  sideways) for `JetLength`, growing `StartSize`->`EndSize`, `rendercolor`/
+  `renderamt`, `rollspeed`; spawnflag 1 unlit, else lit. `InitialState`;
+  inputs TurnOn/TurnOff/Toggle and JetLength/Rate/Speed/SpreadSpeed <n>.
+  `type 1` (heat shimmer) isn't drawn. A soft round puff texture is made
+  in code. No sound (Source's steam has none of its own).
+- **Cost**: effects farther than 60 m or behind the camera beyond 10 m pause
+  and hide (no simulation, no mesh rebuild); at most 64 `.pcf` map effects
+  run at once (nearest first); sparks are capped at 96 and steam puffs at
+  120 per emitter.
+
+Verify in the real game (`ent_list info_particle_system`, `ent_list
+env_spark`, `ent_list env_steam` in the console list them; `fire <name>
+Start`/`Stop` to poke one; `cl_showfps 1` for cost):
+1. sp_a1_intro1: the dust/debris effects in the relaxation vault and the
+   container ride run (look for floating dust in light beams and falling
+   debris); nothing piles up after a minute.
+2. sp_a2_bts1: the broken-panel sparks spark at random with a crackle
+   (`DoSpark`), streaks fall to the floor; glow flashes where flagged.
+3. sp_a2_laser_intro: the chamber's ambient effects (and anything at the
+   laser emitter/catcher) start with the map; nothing drawn at the wrong
+   place or with wrong orientation (CP0 axes).
+4. sp_a3_01: the big-room effects (falling water/dust, steam) run and stop
+   when the map stops them; turning away and back resumes them.
+5. Effects on moving things (parented) follow them; control points on
+   other entities (beams between two points) span the right points.
+6. Frame rate with many effects in view stays near what it is without them;
+   tell us the worst map.
+7. Log: `p2_fx: <system> uses unsupported ...` lines (see above), and any
+   `particle system X not found` for a map's `effect_name`.
+
