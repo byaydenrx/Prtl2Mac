@@ -42,7 +42,7 @@ possible. New options only inside Settings (no extra main/pause menu buttons).
   outside the container (camera shake / proxy); walls don't break away
   (actor_wall_destruction_* / endwalldestruction models).
 
-## sp_a1_wakeup socket blocker (chapter 1 can't be finished yet)
+## sp_a1_wakeup socket blocker (FIXED 2026-10-19: CORE_TRIGGER_REACH in triggers.rs)
 basement_breakers_socket_trigger (trigger_once, spawnflags 2 = NPCs,
 filter_sphere) ends ~10 units behind an invisible solid toolsnodraw face of
 breaker_train (func_tracktrain *50, y=1100, x~8945-9005), so held Wheatley

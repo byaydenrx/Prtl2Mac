@@ -130,7 +130,12 @@ fn touch_triggers(
                 if !(if is_npc { wants_npcs || wants_props } else { wants_props }) {
                     continue;
                 }
-                if overlaps(lo, hi, pos.0 - prop.half, pos.0 + prop.half) {
+                // Personality cores plug into sockets whose triggers sit just
+                // inside the wall (sp_a1_wakeup's breaker socket is ~10 units
+                // behind breaker_train's face): in Portal 2 pushing the core
+                // against the slot is enough, so cores reach a little further.
+                let reach = if is_npc && pent.class == "npc_personality_core" { Vec3::splat(CORE_TRIGGER_REACH) } else { Vec3::ZERO };
+                if overlaps(lo, hi, pos.0 - prop.half - reach, pos.0 + prop.half + reach) {
                     touchers.push(prop.ent);
                     if class == "trigger_portal_cleanser" {
                         dissolve.push((pe, prop.ent));
@@ -301,6 +306,13 @@ fn touch_triggers(
         vel.0 = Vec3::ZERO;
     }
 }
+
+/// How far past its box a personality core counts as touching an NPC
+/// trigger. sp_a1_wakeup's breaker socket trigger sits behind the breaker
+/// train's face and the room's player clip keeps the player ~100 units
+/// away, so a held core stops ~38 units short of it; in Portal 2 holding him
+/// up to the slot plugs him in.
+const CORE_TRIGGER_REACH: f32 = 40.0 * shared::SOURCE_UNIT;
 
 /// Faith plate launch velocity (m/s). With a target, `speed` is the speed
 /// across the ground toward it and the upward speed is whatever makes the
