@@ -62,6 +62,15 @@ pub struct SourceMaterial {
     #[texture(5)]
     #[sampler(6)]
     pub base_texture2: Option<Handle<Image>>,
+    /// Projected texture lights ([`crate::projected::ProjectedLightAssets`]),
+    /// the same for every material.
+    #[storage(7, read_only)]
+    pub proj_lights: Handle<bevy::render::storage::ShaderBuffer>,
+    #[texture(8, dimension = "2d_array")]
+    #[sampler(9)]
+    pub proj_cookies: Option<Handle<Image>>,
+    #[texture(10, dimension = "2d_array", sample_type = "float", filterable = false)]
+    pub proj_shadows: Option<Handle<Image>>,
     pub alpha_mode: AlphaMode,
     pub double_sided: bool,
 }

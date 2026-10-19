@@ -4,6 +4,7 @@
     pbr_types,
     pbr_functions::main_pass_post_lighting_processing,
 }
+#import source_assets::projected::{ProjLights, projected_light}
 
 struct SourceMaterialParams {
     color: vec4<f32>,
@@ -32,9 +33,14 @@ const FLAG_LIGHT_ONLY: u32 = 64u;
 @group(#{MATERIAL_BIND_GROUP}) @binding(4) var lm_samp: sampler;
 @group(#{MATERIAL_BIND_GROUP}) @binding(5) var base2_tex: texture_2d<f32>;
 @group(#{MATERIAL_BIND_GROUP}) @binding(6) var base2_samp: sampler;
+// projected texture lights (env_projectedtexture), see projected.rs
+@group(#{MATERIAL_BIND_GROUP}) @binding(7) var<storage, read> proj_lights: ProjLights;
+@group(#{MATERIAL_BIND_GROUP}) @binding(8) var proj_cookies: texture_2d_array<f32>;
+@group(#{MATERIAL_BIND_GROUP}) @binding(9) var proj_cookie_samp: sampler;
+@group(#{MATERIAL_BIND_GROUP}) @binding(10) var proj_shadows: texture_2d_array<f32>;
 
 @fragment
-fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
+fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location(0) vec4<f32> {
 #ifdef VERTEX_UVS_A
     let uv = in.uv;
 #else
@@ -80,7 +86,25 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     if (params.flags & FLAG_ALPHA_TEST) != 0u && alpha < params.alpha_cutoff {
         discard;
     }
-    var color = vec4<f32>(albedo.rgb * params.color.rgb * light, alpha);
+    // Projected lights add to the baked light (brushes only when the light
+    // lights the world), scaled like it.
+    var projected = vec3<f32>(0.0);
+    if (params.flags & FLAG_UNLIT) == 0u {
+        var n = normalize(in.world_normal);
+        if !is_front {
+            n = -n;
+        }
+        let brush = (params.flags & FLAG_LIGHTMAP) != 0u;
+        let count = min(proj_lights.info.x, 8u);
+        for (var i = 0u; i < count; i++) {
+            let l = proj_lights.lights[i];
+            if brush && l.params.z < 0.5 {
+                continue;
+            }
+            projected += projected_light(l, in.world_position.xyz, n, proj_cookies, proj_cookie_samp, proj_shadows);
+        }
+    }
+    var color = vec4<f32>(albedo.rgb * params.color.rgb * (light + projected * params.light_scale), alpha);
     if (params.flags & FLAG_LIGHT_ONLY) != 0u {
         color = vec4<f32>(light, 1.0);
     }

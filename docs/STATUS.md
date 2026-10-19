@@ -125,6 +125,73 @@ Owner's feature wishlist: docs/ROADMAP.md.
    at 60 fps (95-103 with a 120/240 cap); check in a focused window.
    Enhanced graphics does nothing yet; model textures ignore the AF setting.
 
+## cloud/projtex branch (untested in game)
+
+`env_projectedtexture` (shadowed spotlights), built without the game
+(unit tests, WGSL validated with naga; no Portal 2 assets or GPU in the
+cloud). Nothing here has been seen running. `P2_NOPROJTEX=1` turns every
+projected light off for before/after comparisons.
+
+What changed:
+- `source_assets/src/projected.rs`: `ProjectedLight` component (colour,
+  FOV, near/far, cookie, shadows, lightworld); the light sits at the
+  entity's GlobalTransform and shines along its local +X (Source forward),
+  local +Y up. Each frame the 8 enabled lights nearest the main camera go
+  into one storage buffer; the nearest 4 with shadows get a 1024² shadow
+  map. Cookies (`texturename`) are read from the VTF, resampled to 256²
+  into a texture array (white if missing, with a warning).
+- Light maths (`shaders/projected_common.wgsl`): `albedo * colour * cookie *
+  N.L * atten * shadow`, added on top of the baked light and scaled by the
+  exposure like it. Colour = lightcolor rgb/255 * intensity/255 *
+  brightnessscale. Attenuation: Source flashlight constants as publicly
+  described for this entity (constant 0, linear 100, quadratic 0: full
+  within 100 units, then 100/d), faded out from 60% of farz to farz.
+  **These are estimates**; if lights look too bright/dim or too short,
+  change `LINEAR_ATTEN`/`light_color` and `projected_attenuation` together.
+- Valve path (`projected_render.rs`): after the Valve main pass, each
+  lit opaque/alpha-tested surface inside a light frustum is drawn again
+  additively (same depth, small bias toward the camera). Shadow maps are
+  rendered from the same Valve meshes (alpha-tested ones cut out) and
+  submitted before the frame's passes; 2x2 bilinear PCF with a slope bias.
+- Fallback `SourceMaterial`: the same lights in its fragment shader (the
+  light buffer, cookies and shadow maps are bound in every material).
+- `p2_game/src/projected_lights.rs`: one light per `env_projectedtexture`
+  at level load, on if spawnflag 1 is set (`startactive 1` also counts);
+  follows its entity's transform every frame (parented lights ride trains
+  and attachments through movers/viewcontrol), faces `target` if set,
+  colour fades by `colortransitiontime` (taken as a rate: 255*rate per
+  second per channel; an estimate). Inputs: TurnOn, TurnOff, LightColor,
+  FOV, EnableShadows, SpotlightTexture, SetNearZ, SetFarZ, LightWorld,
+  Target.
+
+Not done / known limits: translucent surfaces and decals/overlays get no
+projected light (decals would be lit twice); unlit surfaces aren't lit (they
+still cast shadows); fallback-material meshes are lit but cast no shadows;
+`lightonlytarget` lights everything; no volumetric light shafts.
+
+Check in the real game (compare with `P2_NOPROJTEX=1`):
+1. **sp_a1_intro1, wrecked relaxation vault (after the second wake-up)**:
+   the room is lit by `light_room_00` (a soft cone with the
+   flashlight cookie's pattern, furniture throwing shadows on the walls and
+   floor) instead of being far too dark. When Wheatley opens the door,
+   `light_door_00` turns on (TurnOn from the map) and lights the doorway.
+   Look for: the cookie upside down or mirrored (flip the `vec2(0.5, -0.5)`
+   in `projected_light` in projected_common.wgsl), the light pointing the
+   wrong way (forward axis), shadow acne (stripes; raise the bias) or
+   detached shadows (lower it), surfaces flickering between lit and unlit
+   (depth bias of the light pass).
+2. **sp_a1_intro1 container ride**: the `light_track_*` lights move with
+   the vault/train and sweep across the walls; nothing stays lit behind.
+3. **sp_a1_intro4 elevator** (`departure_elevator_shadowed_light`): the
+   elevator interior is lit with shadows of the elevator's bars, and the
+   light moves with the elevator.
+4. **sp_a2_core** (7 lights; finales 4-9): no missing lights (only the 8
+   nearest are drawn and 4 have shadows: check nothing pops on and off as you
+   walk), frame time acceptable, `RUST_LOG=info` shows no "cookie not found"
+   warnings.
+5. Brightness overall: lit areas near a light shouldn't burn to white; if
+   they do, the colour/attenuation estimate is too strong.
+
 ## cloud/proxies branch (untested in game)
 
 Source material proxies, built without the game (unit tests only; no
