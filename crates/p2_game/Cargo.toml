@@ -29,3 +29,6 @@ p2_transit = { path = "../p2_transit" }
 p2_body = { path = "../p2_body" }
 vscript = { path = "../vscript" }
 p2_mods = { path = "../p2_mods" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+libc = "0.2"

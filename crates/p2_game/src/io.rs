@@ -90,14 +90,27 @@ pub struct FireOutput {
     pub activator: Option<usize>,
 }
 
-#[derive(Clone, Debug)]
-struct Pending {
-    at: f32,
-    target: String,
-    input: String,
-    param: String,
-    caller: usize,
-    activator: Option<usize>,
+/// An input on its way (an output's delay, `EntFire`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Pending {
+    /// Game time ([`Ents::now`]) it arrives.
+    pub at: f32,
+    pub target: String,
+    pub input: String,
+    pub param: String,
+    pub caller: usize,
+    pub activator: Option<usize>,
+}
+
+/// The I/O system's own run-time state besides the entity list (saved games).
+#[derive(Clone, Debug, PartialEq)]
+pub struct IoState {
+    pub now: f32,
+    pub queue: Vec<Pending>,
+    pub script_hooks: Vec<(usize, String, String)>,
+    pub script_calls: Vec<(usize, String, Option<usize>, usize)>,
+    pub started: bool,
+    pub rng: u32,
 }
 
 /// Index of the player in [`Ents::list`].
@@ -118,6 +131,8 @@ pub struct Ents {
     pub script_calls: Vec<(usize, String, Option<usize>, usize)>,
     started: bool,
     rng: u32,
+    /// Nothing runs while set: a saved game is being put back.
+    pub hold: bool,
 }
 
 impl Ents {
@@ -193,7 +208,44 @@ impl Ents {
             rng: 0x2545_f491,
             script_hooks: Vec::new(),
             script_calls: Vec::new(),
+            hold: false,
         }
+    }
+
+    /// The queue, clock and hooks (for a saved game).
+    pub fn io_state(&self) -> IoState {
+        IoState {
+            now: self.now,
+            queue: self.queue.clone(),
+            script_hooks: self.script_hooks.clone(),
+            script_calls: self.script_calls.clone(),
+            started: self.started,
+            rng: self.rng,
+        }
+    }
+
+    /// Put back what [`Ents::io_state`] took. Inputs sent straight to an
+    /// entity this frame are dropped.
+    pub fn set_io_state(&mut self, s: IoState) {
+        self.now = s.now;
+        self.queue = s.queue;
+        self.script_hooks = s.script_hooks;
+        self.script_calls = s.script_calls;
+        self.started = s.started;
+        self.rng = s.rng;
+        self.direct.clear();
+    }
+
+    /// Drop every entity from `len` on (made at run time), names included.
+    pub fn truncate(&mut self, len: usize) {
+        if self.list.len() <= len {
+            return;
+        }
+        self.list.truncate(len);
+        for v in self.by_name.values_mut() {
+            v.retain(|&i| i < len);
+        }
+        self.by_name.retain(|_, v| !v.is_empty());
     }
 
     /// Entities named `target` (wildcard `*` suffix, `!player`/`!activator`/`!self`/`!caller`).
@@ -547,7 +599,9 @@ impl Ents {
                 true
             }
             "logic_auto" | "logic_script" | "logic_choreographed_scene_disabled" | "info_target" | "info_landmark_entry"
-            | "info_landmark_exit" | "logic_autosave" | "info_overlay_accessor" => true,
+            | "info_landmark_exit" | "info_overlay_accessor" => true,
+            // Save / SaveDangerous go on to `saves.rs`.
+            "logic_autosave" => false,
             _ => {
                 let _ = caller;
                 false
@@ -656,6 +710,10 @@ pub fn run_io(
         fired.clear();
         return;
     };
+    if ents.hold {
+        fired.clear();
+        return;
+    }
     ents.now += time.delta_secs();
     if !ents.started {
         ents.started = true;

@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use p2_core::*;
+use serde::{Deserialize, Serialize};
 use shared::{source_to_world, SOURCE_UNIT};
 
 use crate::io::{EntInput, Ents, FireOutput, GameEnt};
@@ -57,6 +58,77 @@ pub struct Movers {
     /// Trains carrying the player: the player's offset from the train
     /// origin (`None` until checked on the next tick).
     riders: HashMap<usize, Option<Vec3>>,
+}
+
+/// [`Movers`] as plain data, for saved games.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct MoversSave {
+    pub movers: Vec<MoverSave>,
+    /// (child, parent, offset translation, offset rotation).
+    pub parented: Vec<(usize, usize, Vec3, Quat)>,
+    pub pending_show: Vec<(f32, usize, bool)>,
+    pub riders: Vec<(usize, Option<Vec3>)>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MoverSave {
+    pub ent: usize,
+    pub pos: Vec3,
+    pub home: Vec3,
+    pub node: Option<usize>,
+    pub motion: Option<MotionSave>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum MotionSave {
+    To { target: Vec3, speed: f32, done: String },
+    Path { nodes: Vec<usize>, speed: f32, dest: Option<usize> },
+}
+
+impl Movers {
+    pub fn save(&self) -> MoversSave {
+        let mut movers: Vec<MoverSave> = self
+            .movers
+            .iter()
+            .map(|(&ent, m)| MoverSave {
+                ent,
+                pos: m.pos,
+                home: m.home,
+                node: m.node,
+                motion: m.motion.as_ref().map(|mo| match mo {
+                    Motion::To { target, speed, done } => MotionSave::To { target: *target, speed: *speed, done: done.to_string() },
+                    Motion::Path { nodes, speed, dest } => MotionSave::Path { nodes: nodes.clone(), speed: *speed, dest: *dest },
+                }),
+            })
+            .collect();
+        movers.sort_by_key(|m| m.ent);
+        let mut riders: Vec<(usize, Option<Vec3>)> = self.riders.iter().map(|(k, v)| (*k, *v)).collect();
+        riders.sort_by_key(|r| r.0);
+        MoversSave {
+            movers,
+            parented: self.parented.iter().map(|(c, p, t)| (*c, *p, t.translation, t.rotation)).collect(),
+            pending_show: self.pending_show.clone(),
+            riders,
+        }
+    }
+
+    /// Put back a [`MoversSave`]; movers it doesn't name keep their state.
+    pub fn restore(&mut self, s: &MoversSave) {
+        for m in &s.movers {
+            let motion = m.motion.as_ref().map(|mo| match mo {
+                MotionSave::To { target, speed, done } => {
+                    let done = if done == "onfullyclosed" { "onfullyclosed" } else { "onfullyopen" };
+                    Motion::To { target: *target, speed: *speed, done }
+                }
+                MotionSave::Path { nodes, speed, dest } => Motion::Path { nodes: nodes.clone(), speed: *speed, dest: *dest },
+            });
+            self.movers.insert(m.ent, Mover { pos: m.pos, home: m.home, motion, node: m.node });
+        }
+        self.parented = s.parented.iter().map(|&(c, p, t, r)| (c, p, Transform::from_translation(t).with_rotation(r))).collect();
+        self.pending_show = s.pending_show.clone();
+        self.riders = s.riders.iter().copied().collect();
+        self.moved.clear();
+    }
 }
 
 const MOVER_CLASSES: &[&str] = &["func_tracktrain", "func_door", "func_movelinear", "func_train", "func_platrot"];
