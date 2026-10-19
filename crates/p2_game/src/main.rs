@@ -43,6 +43,7 @@ mod settings;
 mod speedrun;
 mod splits;
 mod sprites;
+mod rotators;
 mod tanks;
 mod tool_settings;
 #[cfg(test)]
@@ -105,7 +106,7 @@ fn main() {
             captions::CaptionsPlugin,
         ))
         .add_plugins(bindings::BindingsPlugin)
-        .add_plugins((tanks::TanksPlugin, sprites::SpritesPlugin))
+        .add_plugins((tanks::TanksPlugin, sprites::SpritesPlugin, rotators::RotatorsPlugin))
         .add_plugins((
             templates::TemplatesPlugin,
             health::HealthPlugin,
