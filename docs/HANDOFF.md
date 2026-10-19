@@ -32,6 +32,9 @@ possible. New options only inside Settings (no extra main/pause menu buttons).
 - Door opens, Wheatley enters on his rail and faces the player, the ride
   scenes play, "press space to talk" works (logic_playerproxy OnJump),
   apple nags, "close enough". DisableDraw/EnableDraw work on all entities.
+- Wake-up finding: frames at 0.4 s steps from 14-20 s alternate between two
+  camera poses (one nearer the lamp): two systems fight over the camera
+  (wake-up point_viewcontrol vs player view?). Fix that first.
 - Still open (owner's report): the first wake-up animation looks wrong and
   teleports the player at the end; the exercise hints (look up/down) show
   no icons (env_instructor_hint icons); lying down to sleep and the second
