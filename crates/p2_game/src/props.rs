@@ -120,6 +120,9 @@ pub fn make_props_dynamic(
             Restitution::new(0.05),
             LinearDamping(0.05),
             AngularDamping(0.3),
+            // Never asleep: world pieces they rest on move without waking
+            // them (a dropper's iris opening, a func_brush switched off).
+            SleepingDisabled,
             Prop { ent: i, half },
             LevelOwned,
         ));

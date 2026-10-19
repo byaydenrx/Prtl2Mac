@@ -72,7 +72,7 @@ fn trace_bones(time: Res<Time>, mut next: Local<f32>, q: Query<(&Name, &GlobalTr
     let key = std::env::var("P2_TRACE_BONE").unwrap_or_default();
     for (name, g, t, vis) in &q {
         if name.as_str().contains(&key) {
-            info!("TRACE bone {name}: world {} local {} scale {} visible {}", g.translation(), t.translation, t.scale, vis.get());
+            info!("TRACE bone {name}: world {} rot {} local {} scale {} visible {}", g.translation(), g.rotation(), t.translation, t.scale, vis.get());
         }
     }
 }
@@ -1128,6 +1128,12 @@ fn spawn_collider(commands: &mut Commands, c: &ColliderData, parent: Entity) {
     }
     if c.shot_passthrough() {
         ec.insert(PortalShotPassthrough);
+    }
+    if c.player_clip_only() {
+        // Player clips (toolsclip, toolsplayerclip) only stop the player,
+        // whose movement is a shape cast: physics objects fall through them
+        // (cube droppers have one across their chute).
+        ec.insert(CollisionLayers::new(LayerMask(1 << 1), LayerMask::NONE));
     }
 }
 
