@@ -36,6 +36,21 @@ fn main() {
             println!("  seq {i} {} delta {} post {} grid params {grid:?} autolayers {:?}", s.label, s.delta, s.post, s.autolayers);
         }
     }
+    if std::env::var_os("AIMTEST").is_some() {
+        // Where the eye light (bone eyelight_aimjoint, +X) points, in the root bone's frame,
+        // for aim_yaw/aim_pitch at -1/0/+1 over sphere_idle_neutral.
+        let base = a.find("sphere_idle_neutral").unwrap_or(0);
+        let layer = a.find("sphere_aimmatrix_neutral");
+        let eye = a.skeleton.bones.iter().position(|b| b.name == "eyelight_aimjoint").unwrap_or(0);
+        for pose in [[0.0f32, 0.0], [1.0, 0.0], [-1.0, 0.0], [0.0, 1.0], [0.0, -1.0]] {
+            let extra: Vec<(usize, f32, f32)> = layer.into_iter().map(|l| (l, 0.0, 1.0)).collect();
+            let local = a.evaluate(base, 0.0, &pose, &extra);
+            let m = a.bone_to_model(&local);
+            let root = m[0].matrix3;
+            let f = root.inverse() * (m[eye].matrix3 * bevy::math::Vec3A::X);
+            println!("aim {pose:?}: eye dir in root frame {:.2?} (yaw {:.1} pitch {:.1})", f, f.y.atan2(f.x).to_degrees(), f.z.atan2((f.x * f.x + f.y * f.y).sqrt()).to_degrees());
+        }
+    }
     if let Some(i) = a.find_activity("ACT_IDLE") {
         println!("ACT_IDLE = seq {i} {}", a.sequences[i].label);
     }

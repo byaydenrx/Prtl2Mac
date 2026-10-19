@@ -168,6 +168,90 @@ struct PoseState {
     aim: Vec<f32>,
     /// Layers or aim were on last time (one more pose puts them away).
     layered: bool,
+    /// How this model's aim parameters turn its eye (measured once).
+    aim_cal: Option<Option<AimCal>>,
+}
+
+/// What each aim pose parameter does to a model's eye, measured from its
+/// own aim matrix: the eye bone's forward (+X) in the root bone's frame at
+/// rest, and for each aim parameter the direction it turns it and how far
+/// (radians) at +1 and -1 of its range. Wheatley's `aim_yaw` turns his eye
+/// right ~29 degrees and `aim_pitch` down ~26 / up ~42, in a frame where
+/// his handles are up; measuring avoids assuming names, signs or units.
+#[derive(Clone, Debug)]
+pub struct AimCal {
+    pub rest: Vec3,
+    /// (pose parameter, unit direction of motion, angle at range end, angle at range start)
+    pub axes: Vec<(usize, Vec3, f32, f32)>,
+}
+
+/// The bone a model looks with: its eye light/eyeball, else the root.
+fn eye_bone(anim: &Animator) -> usize {
+    let names = ["eyelight_aimjoint", "eyeball_eye", "eyeball", "eye"];
+    names
+        .iter()
+        .find_map(|n| anim.skeleton.bones.iter().position(|b| b.name.eq_ignore_ascii_case(n)))
+        .or_else(|| anim.skeleton.bones.iter().position(|b| b.name.to_ascii_lowercase().contains("eye")))
+        .unwrap_or(0)
+}
+
+/// Eye forward in the root bone's frame for a pose.
+fn eye_dir(anim: &Animator, local: &[(Vec3, Quat)], eye: usize) -> Vec3 {
+    let m = anim.bone_to_model(local);
+    let (Some(root), Some(e)) = (m.first(), m.get(eye)) else { return Vec3::X };
+    (Mat3::from(root.matrix3).inverse() * (Mat3::from(e.matrix3) * Vec3::X)).normalize_or(Vec3::X)
+}
+
+pub fn calibrate_aim(anim: &Animator, base: usize, layer: usize) -> Option<AimCal> {
+    let eye = eye_bone(anim);
+    let n = anim.pose_params.len();
+    let pose_with = |j: usize, v: f32| {
+        let mut p = vec![0.0; n];
+        if let Some(x) = p.get_mut(j) {
+            *x = v;
+        }
+        p
+    };
+    let rest_pose = vec![0.0; n];
+    let rest = eye_dir(anim, &anim.evaluate(base, 0.0, &rest_pose, &[(layer, 0.0, 1.0)]), eye);
+    let mut axes = Vec::new();
+    for (j, p) in anim.pose_params.iter().enumerate() {
+        if aim_axis(&p.name).is_none() {
+            continue;
+        }
+        let (lo, hi) = (p.start.min(p.end), p.start.max(p.end));
+        let up = eye_dir(anim, &anim.evaluate(base, 0.0, &pose_with(j, hi), &[(layer, 0.0, 1.0)]), eye);
+        let down = eye_dir(anim, &anim.evaluate(base, 0.0, &pose_with(j, lo), &[(layer, 0.0, 1.0)]), eye);
+        let m = (up - down).reject_from(rest).normalize_or_zero();
+        if m == Vec3::ZERO {
+            continue;
+        }
+        let ang = |d: Vec3| d.dot(m).atan2(d.dot(rest));
+        axes.push((j, m, ang(up), ang(down)));
+    }
+    (!axes.is_empty()).then_some(AimCal { rest, axes })
+}
+
+/// Aim parameter values that turn the eye toward `dir` (root bone frame),
+/// at weight `w`.
+pub fn calibrated_aim(params: &[p2_assets::anim::PoseParam], cal: &AimCal, dir: Option<Vec3>, w: f32) -> Vec<f32> {
+    let mut out: Vec<f32> = params.iter().map(|p| 0.0f32.clamp(p.start.min(p.end), p.start.max(p.end))).collect();
+    let Some(d) = dir.and_then(|d| d.try_normalize()) else { return out };
+    for &(j, m, a_hi, a_lo) in &cal.axes {
+        let Some(p) = params.get(j) else { continue };
+        let (lo, hi) = (p.start.min(p.end), p.start.max(p.end));
+        let theta = d.dot(m).atan2(d.dot(cal.rest));
+        // Linear between the rest pose (0) and each end of the range.
+        let v = if theta.signum() == a_hi.signum() && a_hi.abs() > 1e-4 {
+            hi * (theta / a_hi)
+        } else if a_lo.abs() > 1e-4 {
+            lo * (theta / a_lo)
+        } else {
+            0.0
+        };
+        out[j] = v.clamp(lo, hi) * w.clamp(0.0, 1.0);
+    }
+    out
 }
 
 #[derive(Resource, Default)]
@@ -473,14 +557,30 @@ fn pose_parts(
         if fade.is_some_and(|w| w >= 1.0) {
             st.fade = None;
         }
-        let sa = scene.remove(&i).unwrap_or_default();
+        let mut sa = scene.remove(&i).unwrap_or_default();
+        // Personality cores keep their eye on the player unless a scene
+        // tells them to look somewhere else.
+        if sa.look.is_none() && e.class == "npc_personality_core" {
+            sa.look = eye.map(|p| (p, 1.0));
+        }
         // Aim: the lookat target in Source model space, through the pose
         // parameters (smoothed, so the eye turns rather than jumps).
         let dir = sa.look.map(|(p, w)| {
             let local = model_tf.affine().inverse().transform_point3(p);
             (Vec3::new(local.x, -local.z, local.y), w)
         });
-        let target = aim_pose(&anim.pose_params, dir.map(|d| d.0), dir.map_or(0.0, |d| d.1));
+        if st.aim_cal.is_none() {
+            st.aim_cal = Some(aim_layer(&anim, seq).and_then(|l| calibrate_aim(&anim, seq, l)));
+        }
+        let target = match st.aim_cal.clone().flatten() {
+            Some(cal) => {
+                // Into the root bone's frame of the pose last drawn.
+                let root = if st.local.is_empty() { None } else { anim.bone_to_model(&st.local).first().map(|m| Mat3::from(m.matrix3)) };
+                let d = dir.map(|(d, _)| root.map_or(d, |r| r.inverse() * d));
+                calibrated_aim(&anim.pose_params, &cal, d, dir.map_or(0.0, |d| d.1))
+            }
+            None => aim_pose(&anim.pose_params, dir.map(|d| d.0), dir.map_or(0.0, |d| d.1)),
+        };
         let before = st.aim.clone();
         smooth_toward(&mut st.aim, &target, dt);
         let aiming = st.aim != aim_pose(&anim.pose_params, None, 0.0) || before != st.aim;

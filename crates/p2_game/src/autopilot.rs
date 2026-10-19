@@ -71,7 +71,7 @@ fn drive(
     collider_of: Query<(Option<&avian3d::prelude::ColliderOf>, Has<avian3d::prelude::Collider>, Has<avian3d::prelude::ColliderDisabled>)>,
     bodies: Query<&avian3d::prelude::RigidBody>,
     mut settings: ResMut<crate::settings::Settings>,
-    names: Query<(Option<&Name>, Option<&ChildOf>)>,
+    (names, globals): (Query<(Option<&Name>, Option<&ChildOf>)>, Query<&GlobalTransform>),
 ) {
     // The script clock is real time: menus pause the world's clock.
     // It starts with the first level (the menu's too, for menu tests) and
@@ -139,7 +139,13 @@ fn drive(
                     warn!("autopilot: no entity {key}");
                     continue;
                 };
-                let target = props.iter().find(|(p, _)| p.ent == i).map(|(_, t)| t.translation).unwrap_or(ents.list[i].transform.translation);
+                // Where it is drawn now (props move, cores ride rails).
+                let target = props
+                    .iter()
+                    .find(|(p, _)| p.ent == i)
+                    .map(|(_, t)| t.translation)
+                    .or_else(|| ents.list[i].entity.and_then(|r| globals.get(r).ok()).map(|g| g.translation()))
+                    .unwrap_or(ents.list[i].transform.translation);
                 if step.cmd == "goto" {
                     // Stand `dist` units away on the side with the most room.
                     let dist = a.get(1).and_then(|d| d.parse::<f32>().ok()).unwrap_or(64.0) * shared::SOURCE_UNIT;
