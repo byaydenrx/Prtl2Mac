@@ -612,6 +612,24 @@ fn tile_piece(c: usize, r: usize, tab: usize, wide: usize, tall: usize) -> Optio
 /// upper case, black on the tiles, white on a black cursor bar; disabled
 /// rows grey (HybridButton.DisabledColor 140). The Back button sits below.
 fn tiled_dialog(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, title: &str, wide: usize, tall: usize, rows: &[(&str, Option<Action>)]) {
+    tile_frame(p, fonts, art, title, wide, tall, &[("Back", Action::Back)], |d| {
+        for (i, (label, action)) in rows.iter().enumerate() {
+            match action {
+                Some(a) => {
+                    d.spawn(dialog_row(fonts, label, *a, false, 25.0 * (i as f32 + 1.0)));
+                }
+                None => {
+                    d.spawn(disabled_row(fonts, label, 25.0 * (i as f32 + 1.0)));
+                }
+            }
+        }
+    });
+}
+
+/// The tiles of a Portal 2 dialog ([`tiled_dialog`]): `content` is laid out
+/// in units from the body's top left (under the title tab); the footer
+/// buttons sit below the frame (FooterPanel.OffsetY 12).
+fn tile_frame(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, title: &str, wide: usize, tall: usize, footer: &[(&str, Action)], content: impl FnOnce(&mut ChildSpawnerCommands)) {
     const T: f32 = 50.0;
     let tab = ((title.len() as f32 * 13.0 + 20.0) / T).ceil().max(3.0) as usize;
     let tab = tab.min(wide);
@@ -643,33 +661,58 @@ fn tiled_dialog(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&Menu
             Node { position_type: PositionType::Absolute, left: units(10.0), top: units(9.0), ..default() },
             children![(Text::new(title.to_uppercase()), TextFont { font: (&fonts.title).into(), font_size: TITLE_FONT, ..default() }, TextColor(Color::BLACK))],
         ));
-        for (i, (label, action)) in rows.iter().enumerate() {
-            let node = Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(0.0),
-                width: Val::Percent(100.0),
-                top: units(T + 25.0 * (i as f32 + 1.0) - 2.5),
-                height: units(25.0),
-                padding: UiRect::left(units(10.0)),
-                align_items: AlignItems::Center,
-                ..default()
-            };
-            let font = TextFont { font: (&fonts.title).into(), font_size: DIALOG_ITEM_FONT, ..default() };
-            match action {
-                Some(a) => {
-                    d.spawn((Button, *a, DIALOG_LOOK, node, BackgroundColor(Color::NONE), children![(Text::new(label.to_uppercase()), font, TextColor(DIALOG_LOOK.text))]));
-                }
-                None => {
-                    d.spawn((node, children![(Text::new(label.to_uppercase()), font, TextColor(theme::DISABLED))]));
-                }
-            }
-        }
+        d.spawn(Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: units(T), width: units(wide as f32 * T), height: units(tall as f32 * T), ..default() })
+            .with_children(content);
         // FooterPanel: OffsetY 12 below the dialog.
-        d.spawn(Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: units((tall as f32 + 1.0) * T + 12.0), ..default() })
+        d.spawn(Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: units((tall as f32 + 1.0) * T + 12.0), column_gap: units(6.0), ..default() })
             .with_children(|f| {
-                f.spawn(button(&fonts.menu, "Back", Action::Back, 16.0, BUTTON_LOOK));
+                for (label, action) in footer {
+                    f.spawn(button(&fonts.menu, *label, *action, 16.0, BUTTON_LOOK));
+                }
             });
     });
+}
+
+/// A DefaultButton row of a tiled dialog, 25 units tall at `y` units below
+/// the body's top: upper case, black, white on the black cursor bar
+/// (`lit`: the picked row, kept on the bar).
+fn dialog_row(fonts: &UiFonts, label: &str, action: Action, lit: bool, y: f32) -> impl Bundle + use<> {
+    let look = if lit { Look { text: DIALOG_LOOK.text_hover, bg: DIALOG_LOOK.bg_hover, ..DIALOG_LOOK } } else { DIALOG_LOOK };
+    let font = TextFont { font: (&fonts.title).into(), font_size: DIALOG_ITEM_FONT, ..default() };
+    (Button, action, look, row_node(y), BackgroundColor(look.bg), children![(Text::new(label.to_uppercase()), font, TextColor(look.text))])
+}
+
+/// A greyed row (HybridButton.DisabledColor 140) of a tiled dialog.
+fn disabled_row(fonts: &UiFonts, label: &str, y: f32) -> impl Bundle + use<> {
+    let font = TextFont { font: (&fonts.title).into(), font_size: DIALOG_ITEM_FONT, ..default() };
+    (row_node(y), children![(Text::new(label.to_uppercase()), font, TextColor(theme::DISABLED))])
+}
+
+fn row_node(y: f32) -> Node {
+    Node {
+        position_type: PositionType::Absolute,
+        left: Val::Px(0.0),
+        width: Val::Percent(100.0),
+        top: units(y - 2.5),
+        height: units(25.0),
+        padding: UiRect::left(units(10.0)),
+        align_items: AlignItems::Center,
+        ..default()
+    }
+}
+
+/// The Portal 2 logo, top left: basemodui_scheme.res Logo.X 75, Logo.Y 35,
+/// 240 x 60 units.
+fn menu_logo(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>) {
+    let logo_node = Node { position_type: PositionType::Absolute, left: units(75.0), top: units(35.0), width: units(240.0), height: units(60.0), ..default() };
+    match art.and_then(|a| a.logo.clone()) {
+        Some(img) => {
+            p.spawn((ImageNode::new(img), logo_node));
+        }
+        None => {
+            p.spawn((logo_node, children![text(&fonts.menu, 72.0, "PORTAL 2", theme::TITLE)]));
+        }
+    }
 }
 
 /// A dialog panel at the left of the screen: title, rule, then the
@@ -1109,17 +1152,7 @@ fn rebuild_menu(
         Screen::Main => {
             let mut root = commands.spawn(layer(10));
             root.with_children(|p| {
-                // The logo, top left.
-                // basemodui_scheme.res: Logo.X 75, Logo.Y 35, 240 x 60 units.
-                let logo_node = Node { position_type: PositionType::Absolute, left: units(75.0), top: units(35.0), width: units(240.0), height: units(60.0), ..default() };
-                match art.as_ref().and_then(|a| a.logo.clone()) {
-                    Some(img) => {
-                        p.spawn((ImageNode::new(img), logo_node));
-                    }
-                    None => {
-                        p.spawn((logo_node, children![text(&fonts.menu, 72.0, "PORTAL 2", theme::TITLE)]));
-                    }
-                }
+                menu_logo(p, &fonts, art.as_deref());
                 if menu.flyout == Some(Flyout::SinglePlayer) {
                     // singleplayer.res: a dialog in place of the menu column,
                     // body 5 x 4 tiles; Continue and Load are disabled
@@ -1159,13 +1192,65 @@ fn rebuild_menu(
                 );
             });
         }
+        Screen::Chapters if !(tab.community && !community.maps.is_empty()) => {
+            // newgamedialog.res: a tiled dialog, body 9 x 4 tiles; the
+            // ChapterList (newgame_chapteritem rows, 25 units) at 0,25,
+            // 200 x 150, scrolling; the picked chapter's picture
+            // (ChapterImage 212,15, 225 x 152) with its ChapterLabel at
+            // 212,170: the chapter in UniversLTStd-Cn, its name in BoldCn
+            // (NewGameChapter / NewGameChapterName, 18 units).
+            let sel = tab.chapter.min(campaign.chapters.len().saturating_sub(1));
+            let mut foot = vec![("Start New Game", Action::Chapter(sel)), ("Back", Action::Back)];
+            if !community.maps.is_empty() {
+                foot.insert(1, ("Community Maps", Action::ChapterTab(true)));
+            }
+            commands.spawn(layer(10)).with_children(|p| {
+                menu_logo(p, &fonts, art.as_deref());
+                tile_frame(p, &fonts, art.as_deref(), "New Game", 9, 4, &foot, |d| {
+                    d.spawn((
+                        ScrollList,
+                        ScrollPosition(Vec2::new(0.0, scroll.0)),
+                        Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: units(25.0 - 2.5), width: units(200.0), height: units(150.0), overflow: Overflow::scroll_y(), ..default() },
+                    ))
+                    .with_children(|list| {
+                        for (i, c) in campaign.chapters.iter().enumerate() {
+                            let y = 25.0 * i as f32 + 2.5;
+                            // Chapters not reached yet: greyed, not clickable.
+                            if progress.is_unlocked(i) {
+                                list.spawn(dialog_row(&fonts, &c.title, Action::SelectChapter(i), i == sel, y));
+                            } else {
+                                list.spawn(disabled_row(&fonts, &c.title, y));
+                            }
+                        }
+                    });
+                    let pic = Node { position_type: PositionType::Absolute, left: units(212.0), top: units(15.0), width: units(225.0), height: units(152.0), ..default() };
+                    match chapter_pics.get(sel) {
+                        Some(Some(img)) => {
+                            d.spawn((ImageNode { image: img.clone(), image_mode: bevy::ui::widget::NodeImageMode::Stretch, ..default() }, pic));
+                        }
+                        _ => {
+                            d.spawn((pic, BackgroundColor(Color::BLACK)));
+                        }
+                    }
+                    if let Some(c) = campaign.chapters.get(sel) {
+                        let size = bevy::text::FontSize::Vh(18.0 / 1.265 * 100.0 / 480.0);
+                        d.spawn((
+                            Node { position_type: PositionType::Absolute, left: units(212.0), top: units(170.0), width: units(225.0), height: units(20.0), align_items: AlignItems::Center, ..default() },
+                            children![(
+                                Text::new(format!("{}  ", c.title.to_uppercase())),
+                                TextFont { font: (&fonts.menu).into(), font_size: size, ..default() },
+                                TextColor(Color::BLACK),
+                                children![(TextSpan::new(c.subtitle.to_uppercase()), TextFont { font: (&fonts.title).into(), font_size: size, ..default() }, TextColor(Color::BLACK))],
+                            )],
+                        ));
+                    }
+                });
+            });
+        }
         Screen::Chapters => {
-            let show_community = tab.community && !community.maps.is_empty();
             let panel = dialog(&mut commands, &fonts, "NEW GAME", 980.0);
             commands.entity(panel).with_children(|p| {
-                if !community.maps.is_empty() {
-                    chapter_tabs(p, &fonts, show_community);
-                }
+                chapter_tabs(p, &fonts, true);
                 let grid = Node {
                     display: Display::Grid,
                     grid_template_columns: RepeatedGridTrack::flex(3, 1.0),
@@ -1175,63 +1260,24 @@ fn rebuild_menu(
                     ..default()
                 };
                 let tile = Node { flex_direction: FlexDirection::Column, padding: UiRect::all(Val::Px(6.0)), row_gap: Val::Px(2.0), overflow: Overflow::clip(), ..default() };
-                if show_community {
-                    let pages = community.maps.len().div_ceil(COMMUNITY_PER_PAGE);
-                    let page = tab.page.min(pages - 1);
-                    p.spawn(grid).with_children(|g| {
-                        for (i, m) in community.maps.iter().enumerate().skip(page * COMMUNITY_PER_PAGE).take(COMMUNITY_PER_PAGE) {
-                            let folder = m.path.parent().map(|f| f.display().to_string()).unwrap_or_default();
-                            g.spawn((Button, Action::CommunityMap(i), VALUE_LOOK, tile.clone(), BackgroundColor(Color::NONE))).with_children(|b| {
-                                b.spawn(text(&fonts.menu, 17.0, m.name.to_uppercase(), theme::VALUE));
-                                b.spawn(text(&fonts.regular, 12.0, folder, theme::LABEL));
-                            });
-                        }
-                    });
-                    if pages > 1 {
-                        p.spawn(Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, justify_content: JustifyContent::Center, column_gap: Val::Px(12.0), margin: UiRect::top(Val::Px(8.0)), ..default() })
-                            .with_children(|r| {
-                                r.spawn(button(&fonts.bold, "\u{25C0}", Action::CommunityPage(-1), 13.0, VALUE_LOOK));
-                                r.spawn(text(&fonts.menu, 16.0, format!("PAGE {} / {pages}", page + 1), theme::VALUE));
-                                r.spawn(button(&fonts.bold, "\u{25B6}", Action::CommunityPage(1), 13.0, VALUE_LOOK));
-                            });
+                let pages = community.maps.len().div_ceil(COMMUNITY_PER_PAGE);
+                let page = tab.page.min(pages - 1);
+                p.spawn(grid).with_children(|g| {
+                    for (i, m) in community.maps.iter().enumerate().skip(page * COMMUNITY_PER_PAGE).take(COMMUNITY_PER_PAGE) {
+                        let folder = m.path.parent().map(|f| f.display().to_string()).unwrap_or_default();
+                        g.spawn((Button, Action::CommunityMap(i), VALUE_LOOK, tile.clone(), BackgroundColor(Color::NONE))).with_children(|b| {
+                            b.spawn(text(&fonts.menu, 17.0, m.name.to_uppercase(), theme::VALUE));
+                            b.spawn(text(&fonts.regular, 12.0, folder, theme::LABEL));
+                        });
                     }
-                } else {
-                    // As in Portal 2's New Game: the chapter list on the left,
-                    // the picked chapter's picture and title on the right.
-                    let sel = tab.chapter.min(campaign.chapters.len().saturating_sub(1));
-                    p.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(24.0), width: Val::Percent(100.0), ..default() }).with_children(|r| {
-                        r.spawn(Node { flex_direction: FlexDirection::Column, width: Val::Percent(44.0), row_gap: Val::Px(1.0), ..default() }).with_children(|list| {
-                            for (i, c) in campaign.chapters.iter().enumerate() {
-                                let row = Node { padding: UiRect::axes(Val::Px(8.0), Val::Px(5.0)), ..default() };
-                                let label = format!("{}: {}", c.title.to_uppercase(), c.subtitle.to_uppercase());
-                                // Chapters not reached yet: greyed, not clickable.
-                                if !progress.is_unlocked(i) {
-                                    list.spawn(row).with_child(text(&fonts.menu, 17.0, label, theme::HINT));
-                                } else if i == sel {
-                                    let look = Look { text: Color::WHITE, text_hover: Color::WHITE, bg: theme::SELECTED, bg_hover: theme::ROW_HOVER };
-                                    list.spawn((Button, Action::SelectChapter(i), look, row, BackgroundColor(theme::SELECTED))).with_child(text(&fonts.menu, 17.0, label, Color::WHITE));
-                                } else {
-                                    list.spawn((Button, Action::SelectChapter(i), VALUE_LOOK, row, BackgroundColor(Color::NONE))).with_child(text(&fonts.menu, 17.0, label, theme::VALUE));
-                                }
-                            }
+                });
+                if pages > 1 {
+                    p.spawn(Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, justify_content: JustifyContent::Center, column_gap: Val::Px(12.0), margin: UiRect::top(Val::Px(8.0)), ..default() })
+                        .with_children(|r| {
+                            r.spawn(button(&fonts.bold, "\u{25C0}", Action::CommunityPage(-1), 13.0, VALUE_LOOK));
+                            r.spawn(text(&fonts.menu, 16.0, format!("PAGE {} / {pages}", page + 1), theme::VALUE));
+                            r.spawn(button(&fonts.bold, "\u{25B6}", Action::CommunityPage(1), 13.0, VALUE_LOOK));
                         });
-                        r.spawn(Node { flex_direction: FlexDirection::Column, flex_grow: 1.0, row_gap: Val::Px(6.0), ..default() }).with_children(|pic| {
-                            match chapter_pics.get(sel) {
-                                Some(Some(img)) => {
-                                    pic.spawn((ImageNode::new(img.clone()), Node { width: Val::Percent(100.0), aspect_ratio: Some(16.0 / 9.0), ..default() }));
-                                }
-                                _ => {
-                                    pic.spawn((Node { width: Val::Percent(100.0), aspect_ratio: Some(16.0 / 9.0), ..default() }, BackgroundColor(theme::EDGE)));
-                                }
-                            }
-                            if let Some(c) = campaign.chapters.get(sel) {
-                                pic.spawn(text(&fonts.regular, 14.0, c.title.to_uppercase(), theme::LABEL));
-                                pic.spawn(text(&fonts.menu, 20.0, c.subtitle.to_uppercase(), theme::VALUE));
-                            }
-                        });
-                    });
-                    footer_buttons(p, &fonts, "", &[("START NEW GAME", Action::Chapter(sel)), (Footer::Back.label(), Action::Back)]);
-                    return;
                 }
                 footer(p, &fonts, "", &[Footer::Back]);
             });
@@ -1536,6 +1582,7 @@ fn buttons(
             }
             Action::NewGame => {
                 menu.flyout = None;
+                scroll.0 = 0.0;
                 *screen = Screen::Chapters;
                 // Maps copied in since the game started show up too.
                 community.rescan();
