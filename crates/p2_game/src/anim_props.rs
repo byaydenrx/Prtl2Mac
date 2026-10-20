@@ -402,7 +402,7 @@ fn anim_inputs(
             ("prop_testchamber_door", "close") => ("door", "close"),
             (_, input) => (input, param),
         };
-        if !matches!(input, "setanimation" | "setanimationnoreset" | "setdefaultanimation" | "setplaybackrate" | "door" | "scenesequence") {
+        if !matches!(input, "setanimation" | "setanimationnoreset" | "setdefaultanimation" | "setplaybackrate" | "door" | "scenesequence" | "floorbutton") {
             continue;
         }
         let anim = anims.model_of(i, e).and_then(|m| anims.animator(&game, &m));
@@ -436,9 +436,37 @@ fn anim_inputs(
                 }
                 anims.playing.insert(i, Playback::new(param, true));
             }
+            // Sent by `props::floor_buttons` ("down" / "up"): the button's
+            // own press and release, then its pressed or rest idle.
+            "floorbutton" => {
+                let Some((play, idle)) = floor_button_sequences(&e.class, param == "down") else { continue };
+                match idle.filter(|s| known(s)) {
+                    Some(idle) => anims.defaults.insert(i, idle.to_string()),
+                    None => anims.defaults.remove(&i),
+                };
+                if known(play) {
+                    anims.playing.insert(i, Playback::new(play, false));
+                }
+            }
             _ => {}
         }
     }
+}
+
+/// A floor button model's (press or release sequence, idle afterwards);
+/// no idle means the model's sequence 0 (its up pose).
+pub fn floor_button_sequences(class: &str, down: bool) -> Option<(&'static str, Option<&'static str>)> {
+    Some(match (class, down) {
+        ("prop_floor_button", true) => ("down", Some("idledown")),
+        ("prop_floor_button", false) => ("up", None),
+        ("prop_floor_cube_button", true) => ("down", Some("idledown")),
+        ("prop_floor_cube_button", false) => ("up", Some("idle")),
+        ("prop_floor_ball_button", true) => ("down", Some("downIdle")),
+        ("prop_floor_ball_button", false) => ("idle", None),
+        ("prop_under_floor_button", true) => ("press", Some("press_idle")),
+        ("prop_under_floor_button", false) => ("release", Some("release_idle")),
+        _ => return None,
+    })
 }
 
 /// Props drawn animated start their default sequence.
@@ -714,6 +742,14 @@ mod tests {
         pb.set_rate(1.0);
         step(&mut pb, 0.25, &t, None, true);
         assert!(!pb.finished && (pb.time - 0.25).abs() < 1e-6);
+    }
+
+    #[test]
+    fn floor_buttons_press_and_release() {
+        assert_eq!(super::floor_button_sequences("prop_floor_button", true), Some(("down", Some("idledown"))));
+        assert_eq!(super::floor_button_sequences("prop_floor_button", false), Some(("up", None)));
+        assert_eq!(super::floor_button_sequences("prop_under_floor_button", false), Some(("release", Some("release_idle"))));
+        assert_eq!(super::floor_button_sequences("prop_dynamic", true), None);
     }
 
     #[test]

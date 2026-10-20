@@ -863,20 +863,39 @@ pub fn dissolved(ents: &mut Ents, ent: usize) {
     }
 }
 
-/// Floor buttons go down under a cube or the player and up again when it leaves.
+/// Seconds a floor button must stay clear before it lets go, so a cube
+/// bouncing as it settles doesn't press and release it again.
+const BUTTON_RELEASE_DELAY: f32 = 0.15;
+
+/// Whether a pressed button lets go now: clear for long enough. `clear_since`
+/// tracks when it last became clear.
+fn button_released(down: bool, now: f32, clear_since: &mut Option<f32>) -> bool {
+    if down {
+        *clear_since = None;
+        return false;
+    }
+    now - *clear_since.get_or_insert(now) >= BUTTON_RELEASE_DELAY
+}
+
+/// Floor buttons go down under a cube or the player and up again when it
+/// leaves, playing their model's press and release.
 #[allow(clippy::too_many_arguments)]
 fn floor_buttons(
     ents: Option<ResMut<Ents>>,
     map: Option<Res<CurrentMap>>,
     props: Query<(&Prop, &Position)>,
     players: Query<&Transform, With<Player>>,
-    mut pressed: Local<std::collections::HashSet<usize>>,
+    time: Res<Time>,
+    mut pressed: Local<std::collections::HashMap<usize, Option<f32>>>,
     mut fire: MessageWriter<FireOutput>,
+    mut anim: MessageWriter<crate::io::EntInput>,
     mut loaded: MessageReader<LevelLoaded>,
 ) {
     if loaded.read().count() > 0 {
         pressed.clear();
     }
+    let now = time.elapsed_secs();
+    let button = |ent: usize, param: &str| crate::io::EntInput { target: ent, input: "floorbutton".into(), param: param.into(), activator: None };
     let (Some(ents), Some(_)) = (ents, map) else { return };
     let u = shared::SOURCE_UNIT;
     let player = players.single().ok().map(|t| t.translation);
@@ -898,13 +917,20 @@ fn floor_buttons(
         if !is_cube_button {
             down |= player.is_some_and(|p| on(p, 24.0 * u));
         }
-        let was = pressed.contains(&i);
-        if down && !was {
-            pressed.insert(i);
-            fire.write(FireOutput { ent: i, event: "OnPressed".into(), activator: Some(PLAYER) });
-        } else if !down && was {
-            pressed.remove(&i);
-            fire.write(FireOutput { ent: i, event: "OnUnPressed".into(), activator: Some(PLAYER) });
+        match pressed.get_mut(&i) {
+            None if down => {
+                pressed.insert(i, None);
+                fire.write(FireOutput { ent: i, event: "OnPressed".into(), activator: Some(PLAYER) });
+                anim.write(button(i, "down"));
+            }
+            Some(clear_since) => {
+                if button_released(down, now, clear_since) {
+                    pressed.remove(&i);
+                    fire.write(FireOutput { ent: i, event: "OnUnPressed".into(), activator: Some(PLAYER) });
+                    anim.write(button(i, "up"));
+                }
+            }
+            None => {}
         }
     }
 }
@@ -956,6 +982,16 @@ fn player_proxy_outputs(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn button_waits_before_letting_go() {
+        let mut clear = None;
+        assert!(!super::button_released(true, 0.0, &mut clear));
+        assert!(!super::button_released(false, 1.0, &mut clear), "a bounce doesn't release");
+        assert!(!super::button_released(true, 1.05, &mut clear), "landing again resets the wait");
+        assert!(!super::button_released(false, 1.1, &mut clear));
+        assert!(super::button_released(false, 1.3, &mut clear), "clear for longer than the delay");
+    }
+
     #[test]
     fn cores_pickable_until_disabled() {
         let mut cores = super::CoreState::default();
