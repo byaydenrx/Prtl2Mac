@@ -6,6 +6,8 @@ checked by autopilot only; the owner's replay is the real verification
 (see TASKS.md "Awaiting owner replay").
 
 Outcomes: FIXED (pushed, app rebuilt), PARTIAL (some of it fixed),
+ATTEMPT (not reproduced; a best-guess fix sits on the local, unpushed
+branch `attempt/T-<n>` for the owner's next session to review),
 NOT REPRODUCED / STUCK (findings written into the task, moved on),
 UNFINISHED (stopped mid-task; the next run continues it).
 

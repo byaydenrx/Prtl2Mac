@@ -89,6 +89,15 @@ sessions, only for independent tasks with separate files.
   shrink with `sips -Z 1000` before reading.
 - Package: `sh scripts/make_app.sh` -> `dist/Prtl2Mac.app`.
 
+## Unattended runs (scheduled task `prtl2mac-auto-resume`)
+- One task per fresh session; lock in ~/Library/Application Support/
+  Portal2Rust/autopilot-session.lock; one row per run in docs/AUTORUN_LOG.md.
+- Only reproduced, verified fixes reach main. A bug a run could not
+  reproduce gets a best-guess fix on a local, never-pushed branch
+  `attempt/T-<n>`, noted in the task and the handoff. Owner sessions review
+  them: `git branch --list 'attempt/*'`, `git log -p wheatley..attempt/T-<n>`;
+  merge with `git merge attempt/T-<n>` after a replay, or delete the branch.
+
 ## Gotchas (map logic)
 - Departure elevators only arrive after the player walks through
   `departure_elevator-source_elevator_door_open_trigger`; some exits are
