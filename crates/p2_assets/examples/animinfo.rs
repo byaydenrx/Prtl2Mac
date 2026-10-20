@@ -68,6 +68,14 @@ fn main() {
         }
         println!("smooth {att}: worst step {:.2} deg at t {:.2}", worst.0, worst.1);
     }
+    if let (Ok(_), Some(sq)) = (std::env::var("BONES"), argv.get(1).and_then(|n| a.find(n))) {
+        // Parent-space pose of every bone at the start and end of a sequence.
+        for t in [0.0, a.duration(sq)] {
+            for (b, (p, q)) in a.sample(sq, t).iter().enumerate() {
+                println!("t {t:.2} bone {b} {} pos {p:.1?} quat {q:.3?}", a.skeleton.bones[b].name);
+            }
+        }
+    }
     if std::env::var_os("AIMTEST").is_some() {
         // Where the eye light (bone eyelight_aimjoint, +X) points, in the root bone's frame,
         // for aim_yaw/aim_pitch at -1/0/+1 over sphere_idle_neutral.

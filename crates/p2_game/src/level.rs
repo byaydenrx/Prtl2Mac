@@ -65,14 +65,9 @@ fn gun_for(campaign: &Campaign, map: &str, info: &MapInfo) -> [bool; 2] {
     let hands_out_gun = info.entities.iter().any(|e| e.classname == "weapon_portalgun");
     match (here, first_gun, upgrade) {
         (Some(h), Some(g), _) if h < g => [false, false],
-        (Some(h), _, Some(u)) if h < u && hands_out_gun => {
-            // The upgrade map (sp_a2_intro) starts with blue and picks up orange.
-            if h + 1 >= u || map.starts_with("sp_a2") {
-                [true, false]
-            } else {
-                [false, false]
-            }
-        }
+        // A map handing out the gun starts without one: sp_a2_intro begins
+        // after GLaDOS's claw took it, and the dual gun is on its pedestal.
+        (Some(h), _, Some(u)) if h < u && hands_out_gun => [false, false],
         (Some(h), _, Some(u)) if h < u => [true, false],
         // A gun lying in a later map is the one the player lost: sp_a3_01
         // starts after the fall without it (the knockout scene drops it).

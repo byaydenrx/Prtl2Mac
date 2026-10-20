@@ -73,12 +73,16 @@ fn quat48s(d: &[u8], o: usize) -> Option<Quat> {
     if w2 >> 15 != 0 {
         m = -m;
     }
-    // The stored three fill the other slots in order, skipping the rebuilt one.
+    // The stored three go to the slots after the rebuilt one, wrapping
+    // round (Source's Quaternion48S: ib = (ia+1)%4, ic = (ia+2)%4,
+    // id = (ia+3)%4), not to the others in order: for a rebuilt y or z
+    // that put the components in the wrong places (sp_a2_intro's fall
+    // camera flew sideways out of the shaft instead of down it).
     let mut q = [0.0f32; 4];
-    let mut vals = [a, b, c].into_iter();
-    for (k, slot) in q.iter_mut().enumerate() {
-        *slot = if k == id { m } else { vals.next().unwrap_or(0.0) };
-    }
+    q[id] = m;
+    q[(id + 1) % 4] = a;
+    q[(id + 2) % 4] = b;
+    q[(id + 3) % 4] = c;
     Some(Quat::from_xyzw(q[0], q[1], q[2], q[3]))
 }
 

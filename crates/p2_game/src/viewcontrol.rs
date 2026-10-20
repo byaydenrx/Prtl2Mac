@@ -325,9 +325,11 @@ fn drive_camera(
     ents: Option<Res<Ents>>,
     game: Res<GameFsRes>,
     mut anims: ResMut<PropAnims>,
-    mut cams: Query<&mut Transform, With<MainCamera>>,
+    mut cams: Query<&mut Transform, (With<MainCamera>, Without<Player>)>,
     mut locked: ResMut<InputLocked>,
     mut was_on: Local<bool>,
+    mut players: Query<(&mut Transform, &mut InterpolatedFeet, &mut CharacterVelocity), With<Player>>,
+    mut frozen_at: Local<Option<Vec3>>,
 ) {
     // Only a camera with a pose takes the view (and the controls).
     let pose = match (vc.active.last(), ents.as_ref()) {
@@ -343,6 +345,22 @@ fn drive_camera(
         if std::env::var_os("P2_SCRIPT").is_none() {
             locked.0 = on;
         }
+    }
+    // "Freeze player" (4): the body stays where the camera found it. In
+    // sp_a2_intro the incinerator drop is a camera riding an animation; a
+    // free player fell down the shaft meanwhile, into the pit trigger that
+    // kills and fades to white, before TeleportToView could place them.
+    let freeze = pose.as_ref().zip(ents.as_ref()).is_some_and(|((i, _), ents)| ents.list[*i].spawnflags & 4 != 0);
+    if freeze {
+        if let Ok((mut tf, mut feet, mut vel)) = players.single_mut() {
+            let at = *frozen_at.get_or_insert(tf.translation);
+            trace!("viewcontrol: player frozen at {at:.2?} (was {:.2?})", tf.translation);
+            tf.translation = at;
+            *feet = InterpolatedFeet { prev: at, curr: at };
+            vel.0 = Vec3::ZERO;
+        }
+    } else {
+        *frozen_at = None;
     }
     let (Some((i, (pos, fwd, up))), Some(ents)) = (pose, ents) else { return };
     if std::env::var_os("P2_TRACE").is_some() {
