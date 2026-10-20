@@ -770,7 +770,9 @@ pub fn spawn_loaded_map(
             .spawn((
                 Name::new(format!("{} *{m}", e.classname)),
                 Transform::from_translation(source_to_world(e.origin)).with_rotation(source_angles_to_world(e.angles)),
-                Visibility::default(),
+                // Start-disabled brushes (func_brush & co.) wait hidden for
+                // an Enable input; their colliders spawn disabled below.
+                if map::starts_disabled(e) { Visibility::Hidden } else { Visibility::default() },
                 ChildOf(root),
             ))
             .id();
@@ -949,7 +951,14 @@ pub fn spawn_loaded_map(
 
     // Colliders.
     for c in &map.colliders {
-        spawn_collider(commands, c, model_parent.get(&(c.model as usize)).copied().unwrap_or(root));
+        let parent = model_parent.get(&(c.model as usize)).copied().unwrap_or(root);
+        let off = map
+            .brush_model_entity
+            .get(&(c.model as usize))
+            .is_some_and(|&ei| map::brush_starts_nonsolid(&map.entities[ei]));
+        if let (Some(col), true) = (spawn_collider(commands, c, parent), off) {
+            commands.entity(col).insert(ColliderDisabled);
+        }
     }
     // Displacement terrain: one triangle mesh, not portalable.
     let dc = &map.displacement_collision;
@@ -1207,7 +1216,7 @@ fn model_bounds(model: &ModelData) -> (Vec3, Vec3) {
 /// them (lasers) mask it out (`LayerMask(!PLAYER_CLIP_LAYER)`).
 pub const PLAYER_CLIP_LAYER: u32 = 1 << 1;
 
-fn spawn_collider(commands: &mut Commands, c: &ColliderData, parent: Entity) {
+fn spawn_collider(commands: &mut Commands, c: &ColliderData, parent: Entity) -> Option<Entity> {
     let collider = if c.pieces.len() == 1 {
         Collider::convex_hull(c.pieces[0].clone())
     } else {
@@ -1218,7 +1227,7 @@ fn spawn_collider(commands: &mut Commands, c: &ColliderData, parent: Entity) {
             .collect();
         (!parts.is_empty()).then(|| Collider::compound(parts))
     };
-    let Some(collider) = collider else { return };
+    let collider = collider?;
     let mut ec = commands.spawn((
         Name::new(if c.portalable { "portalable brush" } else { "brush" }),
         collider,
@@ -1247,6 +1256,7 @@ fn spawn_collider(commands: &mut Commands, c: &ColliderData, parent: Entity) {
         // (cube droppers have one across their chute).
         ec.insert(CollisionLayers::new(LayerMask(PLAYER_CLIP_LAYER), LayerMask::NONE));
     }
+    Some(ec.id())
 }
 
 

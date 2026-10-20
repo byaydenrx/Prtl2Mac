@@ -321,8 +321,15 @@ fn brush_entity_drawn(e: &SourceEntity) -> bool {
     true
 }
 
-fn starts_disabled(e: &SourceEntity) -> bool {
+pub fn starts_disabled(e: &SourceEntity) -> bool {
     e.get("startdisabled") == Some("1")
+}
+
+/// A brush entity whose collision is off at spawn: it starts disabled,
+/// unless it is an "Always Solid" func_brush (solidity 2), which stays
+/// solid while disabled (only hidden).
+pub fn brush_starts_nonsolid(e: &SourceEntity) -> bool {
+    starts_disabled(e) && !(e.classname == "func_brush" && e.get("solidity") == Some("2"))
 }
 
 fn texdata_name(bsp: &vbsp::Bsp, td: usize) -> String {
@@ -590,7 +597,9 @@ pub fn load_map(fs: &GameFs, surfprops: &SurfaceProps, name: &str) -> anyhow::Re
     let mut drawn_models = vec![0usize];
     for (&m, &ei) in &brush_model_entity {
         let e = &entities[ei];
-        if m < bsp.models.len() && brush_entity_drawn(e) && !starts_disabled(e) {
+        // Start-disabled brushes are built too and spawned hidden (plugin.rs):
+        // an Enable input shows them later.
+        if m < bsp.models.len() && brush_entity_drawn(e) {
             drawn_models.push(m);
         }
     }
@@ -715,7 +724,10 @@ pub fn load_map(fs: &GameFs, surfprops: &SurfaceProps, name: &str) -> anyhow::Re
     let mut shot_only_models = std::collections::HashSet::new();
     for (&m, &ei) in &brush_model_entity {
         let e = &entities[ei];
-        if m > 0 && m < bsp.models.len() && brush_entity_solid(e) && !starts_disabled(e) {
+        // Start-disabled ones too: their colliders spawn disabled until an
+        // Enable input (sp_a1_wakeup's basement_breakers_upper_blocker caps
+        // the breaker shaft once the sphere is socketed, T-163).
+        if m > 0 && m < bsp.models.len() && brush_entity_solid(e) {
             collide_models.push((m, DVec3::ZERO));
         } else if m > 0 && m < bsp.models.len() && e.classname == "func_brush" && e.get("solidity") == Some("1") && e.get("parentname").is_some() {
             collide_models.push((m, DVec3::ZERO));
@@ -1005,6 +1017,24 @@ mod tests {
         let fs = GameFs::mount(cfg).unwrap();
         let sp = SurfaceProps::load(&fs);
         Some((fs, sp))
+    }
+
+    #[test]
+    fn start_disabled_brushes_spawn_nonsolid() {
+        let ent = |class: &str, kv: &[(&str, &str)]| SourceEntity {
+            classname: class.into(),
+            targetname: None,
+            origin: Vec3::ZERO,
+            angles: Vec3::ZERO,
+            keyvalues: kv.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+        };
+        // sp_a1_wakeup's basement_breakers_upper_blocker: built solid, off until Enable.
+        let upper = ent("func_brush", &[("startdisabled", "1"), ("solidity", "0")]);
+        assert!(brush_entity_solid(&upper) && brush_entity_drawn(&upper));
+        assert!(brush_starts_nonsolid(&upper));
+        assert!(!brush_starts_nonsolid(&ent("func_brush", &[("startdisabled", "0"), ("solidity", "0")])));
+        // "Always Solid" stays solid while disabled.
+        assert!(!brush_starts_nonsolid(&ent("func_brush", &[("startdisabled", "1"), ("solidity", "2")])));
     }
 
     #[test]
