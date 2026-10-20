@@ -17,15 +17,14 @@ reads it first (via `sh scripts/resume.sh`).
   is now the install's own UniversLTStd-Cn (decoded from
   vgui/fonts/universc.vfont), MainMenuButton colours/size/inset from
   basemodui_scheme.res, flyout owner stays lit. T-162 stays open.
-- dist/Prtl2Mac.app = 0.1.0+3ca8329.20261020T2006Z.
+- dist/Prtl2Mac.app = 0.1.0+47757a0.20261020T2014Z.
 
 ## Next action
-1. T-162 next screen: Load Game (resource/ui/basemodui/saveloadgamedialog.res
-   or loadgamedialog.res + its list item .res, SaveLoadGameDialog scheme
-   keys; reuse tile_frame()/dialog_row() from New Game, 3ca8329). Then
-   Options (incl. the Options flyout, still a light grey box), pause menu,
-   HUD/hints/subtitles, loading screens; one screen per run, new
-   crashes/softlocks still first.
+1. T-162 next screen: Options (the Options flyout, still a light grey box,
+   and the Options/Settings panels: resource/ui/basemodui/options*.res,
+   audio/video/keyboard/mouse .res; reuse tile_frame()/dialog_row(); Load/
+   Save Game done 47757a0). Then pause menu, HUD/hints/subtitles, loading
+   screens; one screen per run, new crashes/softlocks still first.
    Then T-170 carry regression, T-145 cubes black/spikes/jitter, T-172 late
    VO, T-135, T-139, T-112, T-144, T-149, T-147, T-113, then P3/P4.
    Skip T-116 (owner screenshots coming), T-164 and T-151 (attempt branches

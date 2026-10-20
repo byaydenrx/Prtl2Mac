@@ -25,9 +25,9 @@ P1:
 2. (none; T-169 fixed a1cd026, awaiting owner replay.)
 P2:
 3. T-162 OWNER PRIORITY: the UI as close to Portal 2's as possible, one
-   screen per run until all match (main menu, SP flyout, New Game, Load
-   Game, Options, pause menu, HUD/crosshair/hints/subtitles, loading
-   screens); T-162's entry lists done/left screens. Any new crash or
+   screen per run until all match (done: main menu, SP dialog, New Game,
+   Load/Save Game; left: Options, pause menu, HUD/crosshair/hints/
+   subtitles, loading screens); T-162's entry lists done/left screens. Any new crash or
    softlock still goes first.
 4. T-170 carrying regressed (pushed back at walls, can't push a cube up a wall).
 5. T-145 lit cubes turn black, spikes under buttons, cubes jitter on buttons.
@@ -123,7 +123,7 @@ Then the Backlog (prove and sweep the campaign).
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
 
 ### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
-- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), see below. Left: Load Game, Options/Settings, pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), see below. Left: Options/Settings (incl. the Options flyout), pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
 - Visual reference (owner, 2026-10-20): https://interfaceingame.com/games/portal-2/
   has screenshots of the real Portal 2 UI: start screen, main menu, options,
   video, keyboard/mouse, edit keys, extras, loading, chapter title, save
@@ -192,6 +192,22 @@ Then the Backlog (prove and sweep the campaign).
   drawn scrollbar (ScrollBar.Wide 12, nob black), Back returns to the main
   menu rather than the Single Player dialog, double-click to start, the
   0.3 s fade; the Community tab keeps its old grid.
+- 2026-10-20 autorun, Load Game DONE (47757a0, autopilot shots only, not
+  owner-checked). Portal 2 uses saveloadgamedialog.res for both Load and
+  Save Game (loadgamedialog.res is an unused L4D leftover): same 9 x 4
+  tiled frame as New Game (tile_frame), SaveGameList at 0,25, 200 x 150,
+  savegameitem rows 25 tall, label inset 10, scrolling; SaveGameImage
+  212,15 225 x 152 stretched; AutoSaveLabel 210,9 223 wide, east aligned,
+  NewGameChapterName (BoldCn 18) white alpha 200 for auto/quick saves;
+  SaveGameInfo 212,170. First click picks a row, a second loads/saves;
+  footer Load Game (or Save Game) + Back; Load starts on the newest save,
+  Save on a New Save row; Back from the main menu returns to the Single
+  Player dialog. Guesses: rows show the save time (the .res doesn't say
+  what the label holds) and SaveGameInfo shows the chapter; the picture is
+  the chapter's (we save no screenshots). Evidence: autopilot `click
+  SinglePlayer; click LoadGame`, `click PickSave(Some(1))`, `click Back`
+  shots, before (dist 3ca8329: grey list panel) vs after. Not done: save
+  screenshots for the picture, Delete, the cloud icon, the 0.3 s fade.
 
 ### T-172 Voice lines start late  (P2, TODO)
 - Owner playtest 9: "sometimes voicelines activate late and when I'm going
