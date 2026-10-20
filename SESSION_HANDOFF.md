@@ -34,12 +34,18 @@ reads it first (via `sh scripts/resume.sh`).
   (8f8c8b1, autopilot only; all maps' startdisabled func_brushes affected).
   T-136 wakeup incinerator drop: linked_portal_doors now draw seamless (no
   oval/rim/hum; SeamlessPortal marker, 3f96088, autopilot shots only).
-  dist/Prtl2Mac.app = 0.1.0+badb7a9.20261020T1656Z.
+  dist/Prtl2Mac.app = 0.1.0+cc04a74.20261020T1719Z.
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-148 Portals behind glass (next in the owner's order:
-   T-148, T-140, T-151, T-155, T-150, ...).
+1. T-140 shake and sound for game-placed portals (next in the owner's
+   order: T-140, T-151, T-155, T-150, T-152, ...).
+   T-148 portals behind glass FIXED 2026-10-20 (cc04a74): live portal
+   surfaces are now drawn before glass/water copy the scene (new
+   portal_surface_pass in p2_render; ValveScenePasses set in
+   source_assets). Autopilot: intro2 portal now visible through the broken
+   pane; the intact-glass case not isolated, owner replay needed.
+   dist build: 0.1.0+cc04a74.20261020T1719Z.
    T-165 intro7 rail connector BLOCKED (needs owner) 2026-10-20: not
    reproduced; wheatley_arm_base/main props load and draw (P2_HIDE_MAT
    comparison); needs an owner screenshot of what is missing. No code

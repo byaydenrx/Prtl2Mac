@@ -39,7 +39,7 @@ P3:
 15. (T-161 menu movie and music by act, f6f129e, awaiting owner replay; T-162 logo/item layout and hover flash, b39fff3, awaiting owner replay, panel fades still open.)
 16. (T-020 intro1 ride BLOCKED: not reproduced, needs the camera proxy path or an owner recording; T-164 spiky debris BLOCKED: untested fix on attempt/T-164); T-116 intro1 room BLOCKED: not reproduced, needs a Windows screenshot; (T-117 shadows fixed, d1df637, awaiting owner replay); T-115 wake-up BLOCKED: not reproduced, the map has no get-up/lie-down rig in normal play (blackout is a removed template), needs a Windows recording.
 17. T-153 GLaDOS wake-up: portal gun drop fixed (c64a60b, awaiting owner replay); particles, floating arms, look direction still open (PARTIAL); T-157 fall transition: 3.6 s black wait cut to 0.25 s (badb7a9, awaiting owner replay), a ~2.5 s frame hitch after the load still open (PARTIAL); T-165 Wheatley rail connector BLOCKED: not reproduced, arm props drawn, needs an owner screenshot.
-18. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
+18. (T-148 portals behind glass fixed, cc04a74, awaiting owner replay); T-140 shake and sound for game-placed portals.
 P4:
 19. T-151 water, T-155 lasers, T-150 particles, T-152 lighting/textures,
     T-143 clock blink, T-146 half-stuck door, T-154 floating moss, T-166 intro5 wall panel.
@@ -298,9 +298,6 @@ Then the Backlog (prove and sweep the campaign).
   branch. Needs an owner screenshot (or Windows reference) showing which part
   is missing and from where.
 
-### T-148 Portals behind glass  (P3, TODO)
-- Drawn as if on top of the glass; behind broken glass not at all (section 1).
-
 ### T-140 Game-placed portals: no screen shake or sound  (P3, TODO)
 - The first orange portal should shake the screen a little and play its sound.
 
@@ -321,6 +318,25 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-148 Portals behind glass  (P3, FIXED 2026-10-20, cc04a74, autopilot only)
+- Owner section 1 (intro2): portals behind glass look on top of the glass;
+  behind broken glass not drawn at all.
+- Cause: glass/water (Refract) read Bevy's transmission copy, taken once
+  before the transmissive pass, and live portal surfaces were drawn in that
+  same pass. Broken pane (glass_fracture_128x128_b, its Refract mesh sorted
+  after the portal) refracted a copy of the bare wall over the portal;
+  glass sorted before a portal was overdrawn by it.
+- Fix: live surfaces sort first (depth_bias) and p2_render's
+  portal_surface_pass draws them after the Valve scene passes, before the
+  copy; Bevy's second draw fails a strict depth test. Unit test
+  portal_prefix_len.
+- Evidence (autopilot, sp_a1_intro2, portal_blue_1/red_1 activated,
+  `setpos -450 -60 -60; lookat portal_blue_1`): before, no portal behind the
+  cracked pane; after, the portal shows through it with cracks and
+  refraction over it. A view through the intact pane (setpos -100 -40 -60)
+  looks the same before and after; the "on top of normal glass" case was not
+  isolated by autopilot, owner replay needed.
 
 ### T-157 Transition into the sp_a2_intro fall not smooth  (P3, PARTIAL 2026-10-20, badb7a9, autopilot only)
 - Owner playtest section 5: the fall works and lands right, but the
