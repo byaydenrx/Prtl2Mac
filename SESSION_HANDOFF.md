@@ -38,10 +38,14 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-144 props (in progress, reproduced 2026-10-20 autorun: intro1 vault
-   radio rocks from spawn and falls through the floor at ~1.8 s; it starts
-   0.2 u inside func_wall glass_floor_brush; see the TASKS.md entry for the
-   next steps), then T-147 intro2 black screen. T-145 cube lit skins fixed
+1. T-147 intro2 black screen as the first door opens (next TODO).
+   T-144 props fixed 2026-10-20 (89f2bf5: physics props' colliders now
+   weigh the prop's 40 kg, so their inertia matches; the intro1 radio and
+   clipboard stay put instead of sinking through the vault floor; every
+   physics prop tumbles less, intro2's spawn cube now lies flat), awaiting
+   owner replay (autopilot-checked only).
+   dist build: 0.1.0+89f2bf5.20261020T1444Z.
+   T-145 cube lit skins fixed
    2026-10-20 (2e8df1a: cubes on a pressed button switch to metal_box's lit
    skin and back), button press fixed (feb5072); both awaiting owner replay
    (autopilot-checked only).

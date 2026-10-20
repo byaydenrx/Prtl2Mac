@@ -29,7 +29,7 @@ P2:
 6. (T-136 wakeup tube portal fixed, awaiting owner replay.)
 7. (T-137 portal spacing and T-102 cube exit-side drawing fixed, awaiting owner replay.) T-125 turn-away delay is BLOCKED (map's own timing; not reproduced, needs owner).
 8. (T-145 button press and cube lit skins fixed, awaiting owner replay.)
-9. T-144 Missing props; T-147 black screen as intro2's first door opens.
+9. (T-144 props fixed, awaiting owner replay.) T-147 black screen as intro2's first door opens.
 10. T-139 Ambient audio, button sounds, music cut-offs, loud glass.
 11. T-149 Chamber signs blank; screens and lights.
 12. T-112 Missing/flat textures (GLaDOS chamber floor, hallways).
@@ -159,22 +159,6 @@ Then the Backlog (prove and sweep the campaign).
   Needs the owner: how long it took and when they turned (during or after
   "could you just turn around"), ideally a Windows timing reference.
 
-### T-144 Missing props: intro1 portal room clipboard and movable clock  (P2, TODO)
-- Reproduced 2026-10-20 (autorun, dist 2e8df1a): the vault props are the
-  physics `radio` (radio_reference.mdl, spawnflags 262) and an unnamed
-  prop_physics_override bts_clipboard.mdl (8196) on table_reference.mdl;
-  the clocks (prop_dynamic clock.mdl) do draw. `info radio` shows the radio
-  rocking from spawn (up tilts +-0.4) and sinking through the floor at
-  ~1.8 s (z 2692 -> 1136 at 4 s -> -602659 by 71 s). Its base (z 2704.8)
-  starts 0.2 u inside func_wall `glass_floor_brush` (*29, top z 2705, on a
-  thin world floor 2696..2703). Suspected: spawn overlap with that brush
-  (and/or a debris prop colliding with things debris ignores) makes avian
-  depenetrate it until it tunnels; clipboard not traced yet (unnamed:
-  needs `info` by class or a ray at -1285 4336). "Movable clock" not
-  identified (the radio may be what the owner meant). Next: trace the
-  clipboard, try spawning physics props lifted out of initial overlap or
-  ignoring glass_floor_brush, check other maps' resting props.
-
 ### T-147 intro2: the screen goes black right as the first door opens  (P2, TODO)
 - Section 1; compare T-119. Screenshot 7 (intro2): a dark shard in a door.
 
@@ -267,6 +251,23 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-144 Missing props: intro1 portal room clipboard and movable clock  (P2, FIXED 2026-10-20, 89f2bf5, autopilot only)
+- Cause: physics props had Mass(40) but their rotational inertia came from
+  the collider at avian's default density (1 kg/m3). The radio's hull weighs
+  37 g at that density, so it got about 1/1000 of a 40 kg box's inertia: contacts
+  spun it, it rocked from spawn and sank through the vault floor at ~1.8 s.
+  The unnamed bts_clipboard on the table fell too. Fix: the prop's colliders
+  get the density that makes them weigh 40 kg (unit test
+  prop_colliders_weigh_the_prop_mass).
+- Evidence (autopilot, sp_a1_intro1): dist 2e8df1a radio z 2705 -> 2691 at
+  1.8 s -> 2180 at 3 s; clipboard z 2639 at 0.5 s. New build: radio at
+  (-1208 4324 2705) upright at 0.5/1.6/3/6 s, clipboard at 2727 on the table
+  at 1 and 6 s. Side effect: intro2's spawn cube now settles flat on a face
+  (z -43) instead of leaning at 24 deg (z -39); every prop now has a 40 kg
+  box's inertia (cubes tumble less). "Movable clock" still not identified
+  (the clocks are prop_dynamic and draw); owner to say if anything is still
+  missing.
 ### T-145 Buttons don't animate; cubes don't change colour on a button  (P2, fixed feb5072 + 2e8df1a, autopilot only)
 - Section 0: no press-down when used or when a cube lands; cubes kept their
   off skin; cubes twitched on buttons (press/unpress flicker as they settle).
