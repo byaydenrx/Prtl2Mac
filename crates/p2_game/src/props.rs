@@ -387,7 +387,7 @@ fn carry(
     mut commands: Commands,
     time: Res<Time>,
     mut players: Query<(Entity, &InterpolatedFeet, &Crouch, &ViewAngles, &mut IgnoreColliders, &CharacterVelocity), With<Player>>,
-    mut held: Query<(Entity, &mut Held, &HeldColliders, &mut Transform, &mut Position, &mut Rotation, &mut LinearVelocity, &mut AngularVelocity)>,
+    mut held: Query<(Entity, &mut Held, &HeldColliders, &Prop, &mut Transform, &mut Position, &mut Rotation, &mut LinearVelocity, &mut AngularVelocity)>,
     portals: Query<(&Portal, &Transform, &PortalLink), Without<Held>>,
     all_portals: Query<&Transform, (With<Portal>, Without<Held>)>,
     mut teleported: MessageReader<PortalTeleported>,
@@ -402,7 +402,7 @@ fn carry(
         if t.entity != player {
             continue;
         }
-        for (_, _, _, mut tf, mut pos, mut rot, mut lv, _) in &mut held {
+        for (_, _, _, _, mut tf, mut pos, mut rot, mut lv, _) in &mut held {
             // Only what is still on the player's side: a prop that went
             // through ahead of the player (pulled into the portal) is already
             // at the exit and would be mapped a second time.
@@ -419,9 +419,10 @@ fn carry(
         }
     }
     let dt = time.delta_secs().max(1e-4);
-    for (e, mut h, hc, tf, _, _, mut lv, mut av) in &mut held {
+    for (e, mut h, hc, prop, tf, _, _, mut lv, mut av) in &mut held {
         let eye = feet.curr + Vec3::Y * crouch.eye_height;
         let mut target = hold_point(eye, view, h.distance);
+        let above = target.y > eye.y;
         let mut want = Quat::from_rotation_y(view.yaw + h.yaw_offset);
         // The hold line passes through a portal: the hold point has a copy on
         // the far side. Like Source's grab controller, pull the prop toward
@@ -449,6 +450,11 @@ fn carry(
         // pinning it there until it drops (T-105).
         if let (false, Some(&(hit, support))) = (through_portal, obstructions.0.get(&e)) {
             target = in_front_of_obstruction(eye, target, Some(hit), support);
+        }
+        if !through_portal {
+            let flat = Vec3::new(target.x - feet.curr.x, 0.0, target.z - feet.curr.z).normalize_or(Vec3::X);
+            let fwd = Vec3::new(-view.yaw.sin(), 0.0, -view.yaw.cos());
+            target = clear_of_hull(target, feet.curr, above, crouch.ducked, box_support(prop.half, tf.rotation, Vec3::Y), box_support(prop.half, tf.rotation, flat), fwd);
         }
         let reach = target - tf.translation;
         targets.0.insert(e, target);
@@ -494,13 +500,6 @@ fn in_front_of_obstruction(eye: Vec3, target: Vec3, hit: Option<f32>, support: f
     if len <= 1e-6 { target } else { eye + to * (keep / len) }
 }
 
-/// Room the player keeps from a wall ahead while holding a prop: their own
-/// radius plus the prop's depth along the view, so the prop fits in front
-/// of the eye (T-167).
-fn hold_wall_clearance(support: f32) -> f32 {
-    (16.0 + 1.0) * shared::SOURCE_UNIT + 2.0 * support
-}
-
 /// Player velocity `v` with its part toward a wall of normal `n` (facing
 /// the player) limited so the player stops `gap` metres further on, or
 /// backs off when `gap` is negative (at most 60 u/s).
@@ -510,27 +509,79 @@ fn blocked_by_held(v: Vec3, n: Vec3, gap: f32, dt: f32) -> Vec3 {
     if toward > max { v + n * (toward - max) } else { v }
 }
 
+/// Room along the level view `fwd` between the player's hull (16 u round)
+/// and a held prop at `flat` (prop centre minus feet, level) reaching
+/// `support` back toward the player; negative when they overlap.
+fn hull_gap(flat: Vec3, fwd: Vec3, support: f32) -> f32 {
+    flat.dot(fwd) - 16.0 * shared::SOURCE_UNIT - support
+}
+
+/// The prop's box from `bottom` to `top` overlaps the player's hull
+/// standing (or ducked) on `feet`.
+fn overlaps_hull(bottom: f32, top: f32, feet: f32, ducked: bool) -> bool {
+    let height = if ducked { 36.0 } else { 72.0 } * shared::SOURCE_UNIT;
+    top > feet && bottom < feet + height
+}
+
+/// The hold point `target` kept out of the player's hull (the held prop is
+/// solid to the player in Portal 2): a prop reaching `up` above and below
+/// its centre and `side` toward the player, inside the hull standing on
+/// `feet`, goes up over the head when held `above` the eye (looking up:
+/// pushed up a wall), or out in front along the view `fwd` otherwise.
+fn clear_of_hull(target: Vec3, feet: Vec3, above: bool, ducked: bool, up: f32, side: f32, fwd: Vec3) -> Vec3 {
+    let height = if ducked { 36.0 } else { 72.0 } * shared::SOURCE_UNIT;
+    let flat = Vec3::new(target.x - feet.x, 0.0, target.z - feet.z);
+    let need = 16.0 * shared::SOURCE_UNIT + side + shared::SOURCE_UNIT;
+    if flat.length() >= need || !overlaps_hull(target.y - up, target.y + up, feet.y, ducked) {
+        return target;
+    }
+    if above {
+        return Vec3::new(target.x, feet.y + height + up + shared::SOURCE_UNIT, target.z);
+    }
+    let fwd = Vec3::new(fwd.x, 0.0, fwd.z).normalize_or_zero();
+    target + fwd * (need - flat.dot(fwd)).max(0.0)
+}
+
 /// Portal 2's held prop is solid to the player: walking into a wall with a
-/// cube stops the player where the cube meets the wall, instead of the
-/// prop coming back over the camera. Here the player ignores the prop's
-/// colliders, so the stop comes from a horizontal ray along the view
-/// against the static world (not when it goes into a portal).
+/// cube stops the player where the hull meets the cube pressed against the
+/// wall, instead of the prop coming back over the camera (T-167). Here the
+/// player ignores the prop's colliders, so the stop is worked out from the
+/// prop itself: only when it is level with the hull, touching it, and
+/// can't move on (a shape cast against the static world). A cube held up
+/// a wall is above the hull and lets the player walk up to the wall, and
+/// nothing ever pushes the player back (T-170; the earlier view ray
+/// stopped the player 50-60 u from any wall ahead and backed them off).
 fn held_prop_blocks_player(
     time: Res<Time>,
     mut players: Query<(Entity, &InterpolatedFeet, &Crouch, &ViewAngles, &IgnoreColliders, &mut CharacterVelocity), With<Player>>,
     held: Query<(Entity, &HeldColliders, &Prop, &Transform, Option<&PassingThrough>), With<Held>>,
-    portals: Query<(&Portal, &Transform), With<PortalLink>>,
     spatial: SpatialQuery,
     bodies: Query<&RigidBody>,
     body_of: Query<&ColliderOf>,
 ) {
     let Ok((player, feet, crouch, view, ignore, mut vel)) = players.single_mut() else { return };
-    let eye = feet.curr + Vec3::Y * crouch.eye_height;
-    let fwd = Vec3::new(-view.yaw.sin(), 0.0, -view.yaw.cos());
-    let Ok(dir) = Dir3::new(fwd) else { return };
+    // The prop is held along the view, so that is the way it pushes back.
+    let Ok(dir) = Dir3::new(Vec3::new(-view.yaw.sin(), 0.0, -view.yaw.cos())) else { return };
+    let dt = time.delta_secs().max(1e-4);
+    let feet = feet.curr;
     for (e, hc, prop, tf, passing) in &held {
-        let need = hold_wall_clearance(box_support(prop.half, tf.rotation, fwd));
-        if portals.iter().any(|(p, ptf)| segment_crosses_opening(&Portal::frame(ptf), p.half_size, eye, eye + fwd * need).is_some()) {
+        let up = box_support(prop.half, tf.rotation, Vec3::Y);
+        if !overlaps_hull(tf.translation.y - up, tf.translation.y + up, feet.y, crouch.ducked) {
+            continue;
+        }
+        let flat = Vec3::new(tf.translation.x - feet.x, 0.0, tf.translation.z - feet.z);
+        let side = flat - *dir * flat.dot(*dir);
+        if side.length() >= 16.0 * shared::SOURCE_UNIT + box_support(prop.half, tf.rotation, side.normalize_or_zero()) {
+            continue;
+        }
+        let toward = vel.0.dot(*dir);
+        let gap = hull_gap(flat, *dir, box_support(prop.half, tf.rotation, *dir));
+        // Walking away from it, or not yet in it: free.
+        if toward <= 0.0 && gap >= 0.0 {
+            continue;
+        }
+        let step = toward.max(0.0) * dt;
+        if gap > step + shared::SOURCE_UNIT {
             continue;
         }
         let mut skip: Vec<Entity> = hc.0.clone();
@@ -542,13 +593,28 @@ fn held_prop_blocks_player(
             let body = body_of.get(c).map_or(c, |b| b.body);
             !matches!(bodies.get(body), Ok(RigidBody::Dynamic)) && !walls.contains(&c) && !walls.contains(&body)
         };
-        let reach = need + 64.0 * shared::SOURCE_UNIT;
-        let Some(hit) = spatial.cast_ray_predicate(eye, dir, reach, true, &filter, &solid) else { continue };
-        let n = Vec3::new(hit.normal.x, 0.0, hit.normal.z);
-        if n.length() < 0.5 {
+        // A little smaller than the prop, so resting on the floor or
+        // sliding along a wall beside it doesn't count; carry keeps it a
+        // couple of units off a wall it is pressed against.
+        let half = (prop.half - Vec3::splat(shared::SOURCE_UNIT)).max(Vec3::splat(shared::SOURCE_UNIT));
+        let shape = Collider::cuboid(half.x * 2.0, half.y * 2.0, half.z * 2.0);
+        let config = ShapeCastConfig { max_distance: step + 4.0 * shared::SOURCE_UNIT, ignore_origin_penetration: true, ..default() };
+        let hit = spatial.cast_shape_predicate(&shape, tf.translation, tf.rotation, dir, &config, &filter, &solid);
+        let Some(hit) = hit else { continue };
+        // Only a wall ahead pins it: the floor or a lip it is dragged over
+        // doesn't stop the player (carry lifts it).
+        if hit.normal1.y.abs() > 0.5 || hit.normal1.dot(*dir).abs() < 0.7 {
             continue;
         }
-        vel.0 = blocked_by_held(vel.0, n.normalize(), hit.distance - need, time.delta_secs());
+        // Overlapping it (the move's acceleration creeps in each tick, or
+        // the player turned to a wall closer than the prop fits) eases the
+        // player back out, as the solid prop would.
+        // Against the wall's normal only, so the player still slides along
+        // the wall with the cube pressed to it.
+        let free = (hit.distance - 1.25 * shared::SOURCE_UNIT).max(0.0);
+        let n = Vec3::new(hit.normal1.x, 0.0, hit.normal1.z).normalize_or_zero();
+        let n = if n.dot(*dir) > 0.0 { -n } else { n };
+        vel.0 = blocked_by_held(vel.0, n, (gap + free) * -n.dot(*dir), dt);
     }
 }
 
@@ -1155,8 +1221,25 @@ mod tests {
         assert!((b.z - 60.0 * shared::SOURCE_UNIT).abs() < 1e-4, "{b}");
         // Walking away is never slowed.
         assert_eq!(blocked_by_held(-v, n, -0.5, 0.015).z, 3.0);
-        // A 50 u cube needs 17 + 50 u from the eye.
-        assert!((hold_wall_clearance(25.0 * shared::SOURCE_UNIT) - 67.0 * shared::SOURCE_UNIT).abs() < 1e-5);
+        // A 48 u cube 60 u ahead touches the hull 20 u on.
+        let u = shared::SOURCE_UNIT;
+        assert!((hull_gap(Vec3::new(5.0 * u, 0.0, -60.0 * u), Vec3::NEG_Z, 24.0 * u) - 20.0 * u).abs() < 1e-5);
+        // Swung in behind the player's axis at a wall: overlapping.
+        assert!(hull_gap(Vec3::new(0.0, 0.0, 13.0 * u), Vec3::NEG_Z, 24.0 * u) < -50.0 * u);
+        // Held up a wall above the head it isn't in the way; at chest height it is.
+        assert!(!overlaps_hull(80.0 * u, 128.0 * u, 0.0, false));
+        assert!(overlaps_hull(40.0 * u, 88.0 * u, 0.0, false));
+        assert!(!overlaps_hull(40.0 * u, 88.0 * u, 0.0, true));
+        // Pushed up a wall onto the eye: goes over the head instead.
+        let f = Vec3::ZERO;
+        let t = clear_of_hull(Vec3::new(0.0, 66.0 * u, -5.0 * u), f, true, false, 18.0 * u, 24.0 * u, Vec3::NEG_Z);
+        assert!((t.y - 91.0 * u).abs() < 1e-5 && t.z == -5.0 * u, "{t}");
+        // Level and inside the hull: out in front of the player.
+        let t = clear_of_hull(Vec3::new(0.0, 56.0 * u, -10.0 * u), f, false, false, 18.0 * u, 24.0 * u, Vec3::NEG_Z);
+        assert!((t.z + 41.0 * u).abs() < 1e-4 && t.y == 56.0 * u, "{t}");
+        // Held normally, untouched.
+        let t = Vec3::new(0.0, 56.0 * u, -79.0 * u);
+        assert_eq!(clear_of_hull(t, f, false, false, 18.0 * u, 24.0 * u, Vec3::NEG_Z), t);
     }
 
     #[test]
