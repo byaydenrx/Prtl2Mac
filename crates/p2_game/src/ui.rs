@@ -16,7 +16,7 @@ use bevy::window::{CursorGrabMode, CursorOptions, Monitor, PrimaryMonitor, Prima
 use p2_assets::GameFsRes;
 use p2_core::*;
 
-use crate::audio::{GameSound, PlayGameSound};
+use crate::audio::PlayGameSound;
 use crate::bindings::{DefaultBinds, KeyAction, KeyActions};
 use crate::campaign::Campaign;
 use crate::community::CommunityMaps;
@@ -2290,7 +2290,40 @@ fn menu_music(mut loaded: MessageReader<LevelLoaded>, mut play: MessageWriter<Pl
     play.write(PlayGameSound { looped: true, ..PlayGameSound::music(track.trim_start_matches("sound/")) });
 }
 
-/// "Chapter N / Title" when a chapter's first map starts.
+/// One line of the chapter title card: a map's `@chapter_title_text` /
+/// `@chapter_subtitle_text` game_text, whose characters are its `TextSpan`
+/// children.
+#[derive(Component)]
+struct TitleScanLine;
+
+/// game_text "effect 2" (scan out) as the maps' chapter title texts set it:
+/// characters appear `fadein` apart, each starting in `color2` and reaching
+/// `color` over `fxtime`; the whole line holds `holdtime` after the scan and
+/// fades over `fadeout`. Both title lines use the same numbers.
+const TITLE_FADEIN: f32 = 0.06;
+const TITLE_FXTIME: f32 = 0.5;
+const TITLE_HOLD: f32 = 5.0;
+const TITLE_FADEOUT: f32 = 0.5;
+const TITLE_COLOR2: f32 = 205.0 / 255.0;
+
+/// Grey level and alpha of character `i` of an `n`-character line `t`
+/// seconds after it starts (None: not shown yet or faded out).
+fn title_scan(t: f32, i: usize, n: usize) -> Option<(f32, f32)> {
+    let appear = i as f32 * TITLE_FADEIN;
+    if t < appear {
+        return None;
+    }
+    let k = ((t - appear) / TITLE_FXTIME).min(1.0);
+    let grey = TITLE_COLOR2 + (1.0 - TITLE_COLOR2) * k;
+    let fade_at = n as f32 * TITLE_FADEIN + TITLE_HOLD;
+    let alpha = if t < fade_at { 1.0 } else { 1.0 - (t - fade_at) / TITLE_FADEOUT };
+    (alpha > 0.0).then_some((grey, alpha))
+}
+
+/// "CHAPTER N / TITLE" when a chapter's first map starts: Portal 2's two
+/// game_text lines (centred, y .55 and .6 of the screen), drawn by its HUD
+/// message in InGameChapterTitle (UniversLTStd-Cn 19) and
+/// InGameChapterSubtitle (UniversLTStd-BoldCn 34), basemodui_scheme.res.
 fn title_card(
     mut commands: Commands,
     mut loaded: MessageReader<LevelLoaded>,
@@ -2301,9 +2334,8 @@ fn title_card(
     time: Res<Time<Real>>,
     mut card: ResMut<TitleCard>,
     roots: Query<Entity, With<TitleCardRoot>>,
+    lines: Query<&Children, With<TitleScanLine>>,
     mut colors: Query<&mut TextColor>,
-    children: Query<&Children>,
-    music: Query<(), With<GameSound>>,
 ) {
     let Some(fonts) = fonts else { return };
     // A chapter's first map shows its card on spawn, or when the map asks.
@@ -2323,58 +2355,102 @@ fn title_card(
             show = Some((i, 0.0));
         }
     }
-    {
-        if let Some((i, delay)) = show {
-            let c = &campaign.chapters[i];
-            // The game's own strings: "Chapter 1" / "The Courtesy Call".
-            card.lines = Some((String::new(), c.title.clone(), c.subtitle.to_uppercase()));
-            card.shown_at = time.elapsed_secs() + delay;
-            for r in &roots {
-                commands.entity(r).despawn();
+    if let Some((i, delay)) = show {
+        let c = &campaign.chapters[i];
+        // The game's own strings ("Chapter 1" / "The Courtesy Call"), upper
+        // case as the HUD shows them.
+        card.lines = Some((String::new(), c.title.to_uppercase(), c.subtitle.to_uppercase()));
+        card.shown_at = time.elapsed_secs() + delay;
+        for r in &roots {
+            commands.entity(r).despawn();
+        }
+        // vgui `tall` is the Windows cell (1.265 em for Univers Cn).
+        let mut line = |font: &Handle<Font>, tall: f32, y: f32, s: &str| {
+            let size = bevy::text::FontSize::Vh(tall / 1.265 * 100.0 / 480.0);
+            let spans: Vec<_> = s
+                .chars()
+                .map(|ch| (TextSpan::new(ch.to_string()), TextFont { font: font.into(), font_size: size, ..default() }, TextColor(Color::NONE)))
+                .collect();
+            let id = commands
+                .spawn((
+                    TitleScanLine,
+                    Text::new(""),
+                    TextFont { font: font.into(), font_size: size, ..default() },
+                    bevy::text::LineHeight::RelativeToFont(1.265),
+                    TextLayout::new(Justify::Center, LineBreak::NoWrap),
+                ))
+                .id();
+            for span in spans {
+                let child = commands.spawn(span).id();
+                commands.entity(id).add_child(child);
             }
-            let (a, b, s) = card.lines.clone().unwrap_or_default();
-            commands.spawn((
+            // x -1: centred on the screen.
+            let row = Node {
+                position_type: PositionType::Absolute,
+                top: Val::Percent(y * 100.0),
+                width: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                ..default()
+            };
+            commands.spawn(row).add_child(id).id()
+        };
+        let (_, a, b) = card.lines.clone().unwrap_or_default();
+        let title = line(&fonts.menu, 19.0, 0.55, &a);
+        let subtitle = line(&fonts.title, 34.0, 0.6, &b);
+        commands
+            .spawn((
                 TitleCardRoot,
-                Node {
-                    position_type: PositionType::Absolute,
-                    width: Val::Percent(100.0),
-                    height: Val::Percent(100.0),
-                    flex_direction: FlexDirection::Column,
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    row_gap: Val::Px(8.0),
-                    ..default()
-                },
+                Node { position_type: PositionType::Absolute, width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
                 GlobalZIndex(5),
                 bevy::picking::Pickable::IGNORE,
-                children![
-                    text(&fonts.regular, 26.0, a, Color::NONE),
-                    text(&fonts.bold, 54.0, b, Color::NONE),
-                    text(&fonts.regular, 20.0, s, Color::NONE),
-                ],
-            ));
-        }
+            ))
+            .add_children(&[title, subtitle]);
     }
-    let _ = music;
-    let Some(_) = &card.lines else { return };
+    if card.lines.is_none() {
+        return;
+    }
     let t = time.elapsed_secs() - card.shown_at;
-    let alpha = if t < 0.0 { 0.0 } else if t < 1.0 { t } else if t < 5.0 { 1.0 } else { (6.0 - t).max(0.0) };
-    for r in &roots {
-        for c in children.iter_descendants(r) {
-            if let Ok(mut tc) = colors.get_mut(c) {
-                tc.0 = Color::srgba(1.0, 1.0, 1.0, alpha);
+    let mut alive = false;
+    for spans in &lines {
+        let n = spans.len();
+        for (i, span) in spans.iter().enumerate() {
+            let c = title_scan(t, i, n);
+            alive |= c.is_some() || t < 0.0;
+            if let Ok(mut tc) = colors.get_mut(span) {
+                let (g, a) = c.unwrap_or((1.0, 0.0));
+                let want = Color::srgba(g, g, g, a);
+                if tc.0 != want {
+                    tc.0 = want;
+                }
             }
         }
-        if t > 6.5 {
+    }
+    if !alive && !lines.is_empty() {
+        for r in &roots {
             commands.entity(r).despawn();
-            card.lines = None;
         }
+        card.lines = None;
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn chapter_title_scans_out_like_game_text_effect_2() {
+        // The first character starts in color2 and reaches white after fxtime.
+        assert_eq!(title_scan(0.0, 0, 9), Some((205.0 / 255.0, 1.0)));
+        assert_eq!(title_scan(0.5, 0, 9), Some((1.0, 1.0)));
+        // Later characters wait their turn, fadein apart.
+        assert_eq!(title_scan(0.1, 2, 9), None);
+        assert!(title_scan(0.13, 2, 9).is_some());
+        // Hold 5 s after the scan, then fade out over 0.5 s.
+        let fade_at = 9.0 * 0.06 + 5.0;
+        assert_eq!(title_scan(fade_at - 0.01, 8, 9).unwrap().1, 1.0);
+        assert!((title_scan(fade_at + 0.25, 8, 9).unwrap().1 - 0.5).abs() < 1e-4);
+        assert_eq!(title_scan(fade_at + 0.5, 8, 9), None);
+    }
 
     #[test]
     fn title_tabs_fit_their_titles() {
