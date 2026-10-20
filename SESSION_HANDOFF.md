@@ -8,15 +8,15 @@ reads it first (via `sh scripts/resume.sh`).
 `wheatley`, pushes to `main`).
 
 ## Where things stand
-- Owner playtest 3 (build 2cf59a9) reached sp_a1_intro7 (owner counts maps by
-  elevators: 0 = intro1 ... 6 = intro7). Stopped by: no portal under a
-  resting cube (intro6) and no portal detector (intro7). Both fixed in
-  autopilot (T-121, T-122), NEEDS_VERIFICATION. All other reports are in
-  TASKS.md "Owner playtest 3", by map.
-- `cargo test --release --workspace`: 341 passed, 0 failed.
+- Owner reached sp_a1_wakeup (playtest 5). Fixed since, autopilot-verified,
+  owner replay pending: T-125 (turn away from Wheatley), T-126 (half
+  portal), T-103 (breaker lift), T-106 (crouch into breaker room).
+- Every owner report is in TASKS.md (T-1xx entries and the "Owner playtest
+  N" sections, by map). Keep adding new reports there even when not fixed.
+- `cargo test --release --workspace`: 342 passed, 0 failed.
 
 ## Next action
-1. Owner replays intro6 and intro7 (T-121, T-122), then on to sp_a1_wakeup.
+1. Owner replays intro7 and sp_a1_wakeup to sp_a2_intro (T-103/106/125/126).
 2. T-103 (wakeup breaker lift), T-105 (Wheatley re-pickup), T-106, T-104,
    then T-120 (elevators). Reproduce with autopilot first.
 

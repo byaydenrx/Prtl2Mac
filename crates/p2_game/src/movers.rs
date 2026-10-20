@@ -316,6 +316,20 @@ fn mover_inputs(
                         }
                     }
                     "stop" => m.motion = None,
+                    // The train's top speed: later moves use it and a move
+                    // under way speeds up (sp_a1_wakeup's breaker lift goes
+                    // 1 -> 52 -> 155 u/s this way; at 1 u/s it barely rose).
+                    "setmaxspeed" => {
+                        let p = source_assets::kv::parse_f32(&msg.param).unwrap_or(0.0).abs();
+                        if p > 0.0 {
+                            if let Some(Motion::Path { speed: s, .. }) = &mut m.motion {
+                                *s = u(p);
+                            }
+                            let kv = &mut ents.list[i].keyvalues;
+                            kv.retain(|(k, _)| k != "startspeed");
+                            kv.push(("startspeed".into(), p.to_string()));
+                        }
+                    }
                     "setspeed" | "setspeedreal" | "setspeeddir" => {
                         let p = source_assets::kv::parse_f32(&msg.param).unwrap_or(0.0);
                         let want = if input == "setspeed" { speed * p } else { u(p.abs()) };

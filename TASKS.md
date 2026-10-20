@@ -42,7 +42,12 @@ date. Any engine bug found becomes its own task (P1 if it blocks the route).
   Unit test held_prop_maps_with_the_player_only_once. Workspace tests pass.
 - Not yet: the owner's play of intro2-intro4 by hand; thrown cubes.
 
-### T-103 sp_a1_wakeup: breaker lift doesn't carry the player  (P1, TODO)
+### T-103 sp_a1_wakeup: breaker lift doesn't carry the player  (P1, NEEDS_VERIFICATION)
+- Cause: the lift (func_tracktrain breaker_train, max speed 1) is sped up
+  by SetMaxSpeed 52 / 155 from the map; SetMaxSpeed wasn't handled, so it
+  crawled at 1 u/s while the shaft animation rose. Now handled (movers.rs).
+- Autopilot: basement_breakers_start -> the player rides from -476 to 351,
+  path 3 fires basement_elevator_complete_rl.
 - Owner: when the pod moves up switching the breakers, you don't move with it. Unplayable.
 - Verify: stand on the lift and ride it to the top without setpos.
 
@@ -54,7 +59,12 @@ date. Any engine bug found becomes its own task (P1 if it blocks the route).
 - Owner: if he gets stuck and you drop him, you can't pick him up; the original allows drop and pick up.
 - Verify: drop and pick up in sp_a1_intro7 and sp_a1_wakeup.
 
-### T-106 sp_a1_wakeup: crouch needed to enter the breaker room  (P1, TODO)
+### T-106 sp_a1_wakeup: crouch needed to enter the breaker room  (P1, NEEDS_VERIFICATION)
+- Two causes: a full-height step up onto the lift's 4 u lip lifted the head
+  into the lintel (lower steps are tried now), and the raised door leaves
+  exactly 72 u, which the movement skin made impassable (hulls are now
+  2 * SKIN shorter, as Source lets an exact fit through). Autopilot: walks
+  in standing. Regression: intro2 carry and intro4 doors unchanged.
 - Owner: you have to crouch to get in (then Wheatley drops and auto-plugs since he's close).
 
 ### T-107 Cubes and floor buttons invisible (they work)  (P1, CAN'T REPRODUCE)

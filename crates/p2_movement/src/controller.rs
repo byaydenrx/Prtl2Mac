@@ -149,7 +149,6 @@ fn near_edge(m: &Mover, feet: Vec3, v: Vec3) -> bool {
 /// Walk move (§3, StepMove): slide along the ground. If something blocked us,
 /// also try stepping up `step_height` and keep whichever went farther.
 fn walk_move(m: &Mover, ducked: bool, feet: Vec3, vel: Vec3, dt: f32, touched: &mut Vec<Vec3>) -> (Vec3, Vec3) {
-    let mut step_touched = Vec::new();
     let (down_pos, down_vel) = m.slide(ducked, feet, vel, dt, touched);
     let wanted = feet + vel * dt;
     if down_pos.distance(wanted) < 1e-4 {
@@ -160,21 +159,38 @@ fn walk_move(m: &Mover, ducked: bool, feet: Vec3, vel: Vec3, dt: f32, touched: &
     if up <= 1e-4 {
         return (down_pos, down_vel);
     }
-    let (over_pos, over_vel) = m.slide(ducked, feet + Vec3::Y * up, Vec3::new(vel.x, 0.0, vel.z), dt, &mut step_touched);
-    let Some(hit) = m.cast(ducked, over_pos, Vec3::NEG_Y * (up + 0.01)) else {
-        return (down_pos, down_vel);
-    };
-    if hit.normal1.y < m.cfg.min_walk_normal {
-        return (down_pos, down_vel);
+    // Step over at full height first. A full-height step can lift the head
+    // into a lintel the low ledge in front doesn't need (sp_a1_wakeup's
+    // breaker lift: a 4 u lip under a doorway 77 u high), so lower steps
+    // are tried too; the one that gets farthest wins.
+    let mut best: Option<(f32, Vec3, Vec3, Vec<Vec3>)> = None;
+    for lift in [up, up * 0.5, up * 0.25] {
+        if lift < 1.0 * U {
+            break;
+        }
+        let mut step_touched = Vec::new();
+        let (over_pos, over_vel) = m.slide(ducked, feet + Vec3::Y * lift, Vec3::new(vel.x, 0.0, vel.z), dt, &mut step_touched);
+        let Some(hit) = m.cast(ducked, over_pos, Vec3::NEG_Y * (lift + 0.01)) else { continue };
+        if hit.normal1.y < m.cfg.min_walk_normal {
+            continue;
+        }
+        let step_pos = over_pos - Vec3::Y * hit.distance;
+        let d = Vec2::new(step_pos.x - feet.x, step_pos.z - feet.z).length_squared();
+        if best.as_ref().is_none_or(|b| d > b.0) {
+            best = Some((d, step_pos, over_vel, step_touched));
+        }
+        // A full step that already goes the whole way needs no lower try.
+        if (step_pos - feet).xz().distance(vel.xz() * dt) < 1e-4 {
+            break;
+        }
     }
-    let step_pos = over_pos - Vec3::Y * hit.distance;
     let d_down = Vec2::new(down_pos.x - feet.x, down_pos.z - feet.z).length_squared();
-    let d_step = Vec2::new(step_pos.x - feet.x, step_pos.z - feet.z).length_squared();
-    if d_down >= d_step {
-        (down_pos, down_vel)
-    } else {
-        *touched = step_touched;
-        (step_pos, Vec3::new(over_vel.x, down_vel.y, over_vel.z))
+    match best {
+        Some((d_step, step_pos, over_vel, step_touched)) if d_step > d_down => {
+            *touched = step_touched;
+            (step_pos, Vec3::new(over_vel.x, down_vel.y, over_vel.z))
+        }
+        _ => (down_pos, down_vel),
     }
 }
 
@@ -283,8 +299,12 @@ pub(crate) fn move_players(
         return;
     }
     let cfg = *cfg;
-    let stand = Collider::cuboid(HULL_STAND.x, HULL_STAND.y, HULL_STAND.z);
-    let duck_shape = Collider::cuboid(HULL_DUCK.x, HULL_DUCK.y, HULL_DUCK.z);
+    // The casts keep SKIN off every surface, above and below: a hull of the
+    // full height then fails a gap of exactly that height, which Source's
+    // traces let through (sp_a1_wakeup's breaker room door leaves exactly
+    // 72 u over the lift floor). The hulls are 2 * SKIN shorter to match.
+    let stand = Collider::cuboid(HULL_STAND.x, HULL_STAND.y - 2.0 * SKIN, HULL_STAND.z);
+    let duck_shape = Collider::cuboid(HULL_DUCK.x, HULL_DUCK.y - 2.0 * SKIN, HULL_DUCK.z);
     let portals: Vec<FunnelPortal> = if cfg.funnel_into_portals {
         portal_q.iter().map(FunnelPortal::from_transform).collect()
     } else {
