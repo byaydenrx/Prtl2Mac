@@ -26,7 +26,8 @@ P1:
 P2:
 3. T-162 OWNER PRIORITY: the UI as close to Portal 2's as possible, one
    screen per run until all match (done: main menu, SP dialog, New Game,
-   Load/Save Game; left: Options, pause menu, HUD/crosshair/hints/
+   Load/Save Game, Options dialog, Audio; left: Video (+ advanced),
+   Keyboard/Mouse, Controller, pause menu, HUD/crosshair/hints/
    subtitles, loading screens); T-162's entry lists done/left screens. Any new crash or
    softlock still goes first.
 4. T-170 carrying regressed (pushed back at walls, can't push a cube up a wall).
@@ -123,7 +124,7 @@ Then the Backlog (prove and sweep the campaign).
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
 
 ### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
-- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), see below. Left: the Settings panels (Audio, Video, Keyboard/Mouse, Controller), pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), see below. Left: the Settings panels Video (+ advanced), Keyboard/Mouse, Controller, pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
 - Visual reference (owner, 2026-10-20): https://interfaceingame.com/games/portal-2/
   has screenshots of the real Portal 2 UI: start screen, main menu, options,
   video, keyboard/mouse, edit keys, extras, loading, chapter title, save
@@ -219,6 +220,26 @@ Then the Backlog (prove and sweep the campaign).
   flyout box) vs after; `click Page(Audio); click Done` lands back on the
   dialog; pause (`click pause; click Options; click Back`) in intro2.
   Not done: the Settings panels themselves (next), the 0.3 s fade.
+- 2026-10-20 autorun, Audio DONE (802802d, autopilot shots only, not
+  owner-checked). audio.res is a tiled CBaseModFrame dialog, body 7 x 5
+  (tall 6 for localized audio), controls every 25 units from 0 (it packs
+  10 rows, so unlike Video/Keyboard it starts at 0): SldGameVolume,
+  SldMusicVolume (LeftDialogButton + SliderControl), DrpSpeakerConfiguration,
+  DrpSoundQuality, DrpPuzzlemakerSounds, DrpCaptioning, DrpCaptionLanguage,
+  DrpLanguage, voice, microphone (DialogListButton). We show ours in that
+  order packed from 0 (no sound quality/puzzlemaker/voice/mic rows: not
+  built) and our Subtitle style link last. Label at TextInsetX 10, value
+  or slider at the right edge (SliderControl.InsetX -10), DialogButton font
+  = UniversLTStd-LightCn tall 18 weight 700 on PC HiDef, drawn with the Cn
+  face (Light Cn + synthetic bold is close to Cn); black on the tiles;
+  SliderControl track 150 grey, fill black, no number; hovered row on the
+  HybridButton cursor bar (black 240, text 240, fill white). Footer Done/
+  Cancel under the frame. Evidence: autopilot `click Options; click
+  Page(Audio)` shots, before (dist 2a6921d: grey panel with % numbers) vs
+  after; `click Page(Subtitles); click Done` returns to Audio. The hover
+  bar colours were NOT autopilot-checked (autopilot has no mouse-move
+  command). Not done: the Subtitles sub-page (ours) keeps the old panel,
+  labels are ours, not the localized "#L4D360UI_AudioOptions_*" strings.
 
 ### T-172 Voice lines start late  (P2, TODO)
 - Owner playtest 9: "sometimes voicelines activate late and when I'm going
