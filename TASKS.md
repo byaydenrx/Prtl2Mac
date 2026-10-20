@@ -24,9 +24,13 @@ P0:
 P1:
 2. T-169 sp_a2_laser_over_goo walls never move (softlock).
 P2:
-3. T-170 carrying regressed (pushed back at walls, can't push a cube up a wall).
-4. T-145 lit cubes turn black, spikes under buttons, cubes jitter on buttons.
-5. T-162 style the UI like Portal 2 (owner: "big for me").
+3. T-162 OWNER PRIORITY: the UI as close to Portal 2's as possible, one
+   screen per run until all match (main menu, SP flyout, New Game, Load
+   Game, Options, pause menu, HUD/crosshair/hints/subtitles, loading
+   screens); T-162's entry lists done/left screens. Any new crash or
+   softlock still goes first.
+4. T-170 carrying regressed (pushed back at walls, can't push a cube up a wall).
+5. T-145 lit cubes turn black, spikes under buttons, cubes jitter on buttons.
 6. T-172 voice lines start late (stretches elevator rides; T-120's VO part).
 7. T-135 things fall through elevators (turrets, rubble).
 8. T-139 music not playing with ambience; soundscapes.
@@ -126,7 +130,7 @@ Then the Backlog (prove and sweep the campaign).
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
 
 ### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
-- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: none yet. Left: main menu, Single Player flyout, New Game, Load Game, Options/Settings, pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
 - Panel/flyout transitions flip oddly; the Portal 2 logo is misaligned.
 - Cause: the logo and item column were placed by eye (logo 6%/9%, 34% wide;
   items 6% left, 12% from the bottom, 2 px apart). Now from the install:

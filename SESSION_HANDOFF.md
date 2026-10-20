@@ -23,9 +23,9 @@ autopilot-session.lock).
 ## Next action
 1. T-169 sp_a2_laser_over_goo: GLaDOS never moves the walls at the entry
    (P1 softlock; owner screenshot 2026-10-20 2.45.36 PM, sign 04/22).
-   Then the TASKS.md "Priority order": T-170 carry regression, T-145 cubes
-   black/spikes/jitter, T-162 UI styled like Portal 2 (owner priority),
-   T-172 late VO, T-135, T-139, T-112, T-144, T-149, T-147, T-113, then P3/P4.
+   Then T-162 (owner priority: the UI as close to Portal 2's as possible,
+   one screen per run until all match; new crashes/softlocks still first),
+   then T-170 carry regression, T-145 cubes black/spikes/jitter, T-172 late VO, T-135, T-139, T-112, T-144, T-149, T-147, T-113, then P3/P4.
    Skip T-116 (owner screenshots coming), T-164 and T-151 (attempt branches
    await the owner).
 
