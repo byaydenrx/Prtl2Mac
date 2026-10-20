@@ -149,13 +149,21 @@ pub struct UiFonts {
     pub regular: Handle<Font>,
     /// Menu items and titles: the game's own menu font when found, else `bold`.
     pub menu: Handle<Font>,
+    /// Dialog titles and items: UniversLTStd-BoldCn (univercb.vfont), else `menu`.
+    pub title: Handle<Font>,
 }
 
 /// The game's menu art.
 #[derive(Resource, Default)]
 struct MenuArt {
     logo: Option<Handle<Image>>,
+    /// materials/vgui/menu_tiles: the 50-unit tiles Portal 2 builds its
+    /// dialogs from, in [`TILES`] order.
+    tiles: Option<Vec<Handle<Image>>>,
 }
+
+/// The dialog tile pieces (materials/vgui/menu_tiles/ui_tile_128_*).
+const TILES: [&str; 9] = ["crnr_topl", "top", "crnr_topr", "left", "interior1", "right", "crnr_bottoml", "bottom", "crnr_bottomr"];
 
 /// The chapter title card shown when a chapter starts.
 #[derive(Resource, Default)]
@@ -276,6 +284,8 @@ mod theme {
     pub const FILL_HOT: Color = Color::srgb(0.9, 0.9, 0.91);
     /// A problem line (the Mods page).
     pub const ERROR: Color = Color::srgb(0.62, 0.12, 0.1);
+    /// HybridButton.DisabledColor 140 140 140.
+    pub const DISABLED: Color = Color::srgb(140.0 / 255.0, 140.0 / 255.0, 140.0 / 255.0);
     /// The chosen chapter-dialog tab.
     pub const TAB_ON: Color = Color::srgb(0.12, 0.12, 0.13);
 }
@@ -293,6 +303,9 @@ const ITEM_LOOK: Look = Look { text: theme::ITEM, text_hover: theme::ITEM_HOVER,
 /// Rows and items on a light dialog panel.
 const VALUE_LOOK: Look = Look { text: theme::VALUE, text_hover: Color::WHITE, bg: Color::NONE, bg_hover: theme::ROW_HOVER };
 /// BACK / DONE / USE DEFAULTS.
+/// DefaultButton on a tiled dialog: HybridButton TextColor black,
+/// FocusColor 240, CursorColor 0 0 0 240.
+const DIALOG_LOOK: Look = Look { text: Color::BLACK, text_hover: Color::srgb(240.0 / 255.0, 240.0 / 255.0, 240.0 / 255.0), bg: Color::NONE, bg_hover: Color::srgba(0.0, 0.0, 0.0, 240.0 / 255.0) };
 const BUTTON_LOOK: Look = Look { text: theme::BUTTON_TEXT, text_hover: Color::WHITE, bg: theme::BUTTON, bg_hover: theme::BUTTON_HOVER };
 
 /// The main menu, as in Portal 2 (Co-op, Extras and Challenge Mode are
@@ -305,6 +318,11 @@ const MAIN_ITEMS: [(&str, Action, Option<Flyout>); 6] = [
     ("EXTRAS", Action::Extras, None),
     ("QUIT", Action::Quit, None),
 ];
+
+/// DialogTitle: UniversLTStd-BoldCn tall 33; DialogMenuItem: tall 18
+/// weight 700 (drawn here with the Bold Cn face).
+const TITLE_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(33.0 / 1.265 * 100.0 / 480.0);
+const DIALOG_ITEM_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(18.0 / 1.265 * 100.0 / 480.0);
 
 /// Menu item text size; dialogs scale from it.
 const ITEM_SIZE: f32 = 24.0;
@@ -348,7 +366,8 @@ fn load_fonts(mut commands: Commands, game: Res<GameFsRes>, mut fonts: ResMut<As
         }
         None => bold.clone(),
     };
-    commands.insert_resource(UiFonts { bold, regular, menu });
+    let title = game.read("vgui/fonts/univercb.vfont").and_then(|b| decode_vfont(&b)).map(|b| fonts.add(Font::from_bytes(b))).unwrap_or_else(|| menu.clone());
+    commands.insert_resource(UiFonts { bold, regular, menu, title });
 }
 
 /// A Valve `.vfont` as the TrueType file it wraps. The file is the font,
@@ -401,7 +420,17 @@ fn load_menu_art(mut commands: Commands, game: Res<GameFsRes>, mut images: ResMu
         info!("portal2: menu logo {p}");
         Some(images.add(vtf.into_image(false, true)))
     });
-    commands.insert_resource(MenuArt { logo });
+    let tiles = TILES
+        .iter()
+        .map(|t| {
+            let vtf = source_assets::vtf::VtfTexture::parse(&game.read(&format!("materials/vgui/menu_tiles/ui_tile_128_{t}.vtf"))?).ok()?;
+            Some(images.add(vtf.into_image(false, true)))
+        })
+        .collect::<Option<Vec<_>>>();
+    if tiles.is_none() {
+        warn!("portal2: materials/vgui/menu_tiles missing; dialogs use plain panels");
+    }
+    commands.insert_resource(MenuArt { logo, tiles });
 }
 
 fn pick_logo(files: &[String]) -> Option<&String> {
@@ -550,6 +579,96 @@ fn item_list(p: &mut ChildSpawnerCommands, fonts: &UiFonts, items: &[(&str, Acti
                 }
             });
         }
+    });
+}
+
+/// Which [`TILES`] piece sits at column `c`, row `r` of a tiled dialog:
+/// a title tab `tab` tiles wide on row 0 over a body `wide` x `tall`
+/// (rows 1..=tall). `None`: empty (beside the tab).
+fn tile_piece(c: usize, r: usize, tab: usize, wide: usize, tall: usize) -> Option<usize> {
+    let last_c = if r == 0 { tab - 1 } else { wide - 1 };
+    if r == 0 && c >= tab {
+        return None;
+    }
+    let col = if c == 0 { 0 } else if c == last_c { 2 } else { 1 };
+    let row = if r == tall {
+        2
+    } else if r == 0 || (r == 1 && c >= tab) {
+        0
+    } else {
+        1
+    };
+    // Under the tab the body continues the tab's sides; its own top edge
+    // starts past the tab (the left corner there is plain top edge).
+    let col = if r == 1 && c >= tab && c != last_c { 1 } else { col };
+    Some(row * 3 + col)
+}
+
+/// A Portal 2 dialog (CBaseModFrame, dialogstyle 1) as singleplayer.res
+/// and coopmode.res lay it out: pinned 100 units from the left and 75 from
+/// the bottom (Dialog.PinFromLeft/PinFromBottom), a body `wide` x `tall`
+/// tiles of 50 units under a title tab (DialogTitle, offset 10,9), built
+/// from the menu_tiles art; DefaultButton rows every 25 units from 25,
+/// upper case, black on the tiles, white on a black cursor bar; disabled
+/// rows grey (HybridButton.DisabledColor 140). The Back button sits below.
+fn tiled_dialog(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, title: &str, wide: usize, tall: usize, rows: &[(&str, Option<Action>)]) {
+    const T: f32 = 50.0;
+    let tab = ((title.len() as f32 * 13.0 + 20.0) / T).ceil().max(3.0) as usize;
+    let tab = tab.min(wide);
+    let top = 480.0 - 75.0 - (tall as f32 + 1.0) * T;
+    p.spawn(Node {
+        position_type: PositionType::Absolute,
+        left: units(100.0),
+        top: units(top),
+        width: units(wide as f32 * T),
+        height: units((tall as f32 + 1.0) * T),
+        ..default()
+    })
+    .with_children(|d| {
+        for r in 0..=tall {
+            for c in 0..wide {
+                let Some(piece) = tile_piece(c, r, tab, wide, tall) else { continue };
+                let node = Node { position_type: PositionType::Absolute, left: units(c as f32 * T), top: units(r as f32 * T), width: units(T), height: units(T), ..default() };
+                match art.and_then(|a| a.tiles.as_ref()) {
+                    Some(t) => {
+                        d.spawn((ImageNode::new(t[piece].clone()), node));
+                    }
+                    None => {
+                        d.spawn((node, BackgroundColor(theme::PANEL)));
+                    }
+                }
+            }
+        }
+        d.spawn((
+            Node { position_type: PositionType::Absolute, left: units(10.0), top: units(9.0), ..default() },
+            children![(Text::new(title.to_uppercase()), TextFont { font: (&fonts.title).into(), font_size: TITLE_FONT, ..default() }, TextColor(Color::BLACK))],
+        ));
+        for (i, (label, action)) in rows.iter().enumerate() {
+            let node = Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(0.0),
+                width: Val::Percent(100.0),
+                top: units(T + 25.0 * (i as f32 + 1.0) - 2.5),
+                height: units(25.0),
+                padding: UiRect::left(units(10.0)),
+                align_items: AlignItems::Center,
+                ..default()
+            };
+            let font = TextFont { font: (&fonts.title).into(), font_size: DIALOG_ITEM_FONT, ..default() };
+            match action {
+                Some(a) => {
+                    d.spawn((Button, *a, DIALOG_LOOK, node, BackgroundColor(Color::NONE), children![(Text::new(label.to_uppercase()), font, TextColor(DIALOG_LOOK.text))]));
+                }
+                None => {
+                    d.spawn((node, children![(Text::new(label.to_uppercase()), font, TextColor(theme::DISABLED))]));
+                }
+            }
+        }
+        // FooterPanel: OffsetY 12 below the dialog.
+        d.spawn(Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: units((tall as f32 + 1.0) * T + 12.0), ..default() })
+            .with_children(|f| {
+                f.spawn(button(&fonts.menu, "Back", Action::Back, 16.0, BUTTON_LOOK));
+            });
     });
 }
 
@@ -1001,20 +1120,23 @@ fn rebuild_menu(
                         p.spawn((logo_node, children![text(&fonts.menu, 72.0, "PORTAL 2", theme::TITLE)]));
                     }
                 }
-                // As in Portal 2: Continue and Load Game once there is a save.
-                let sp: Vec<(&str, Action)> = if read_save().is_some() {
-                    vec![("CONTINUE GAME", Action::Continue), ("NEW GAME", Action::NewGame), ("LOAD GAME", Action::LoadGame), ("CHALLENGE MODE", Action::ChallengeMode)]
+                if menu.flyout == Some(Flyout::SinglePlayer) {
+                    // singleplayer.res: a dialog in place of the menu column,
+                    // body 5 x 4 tiles; Continue and Load are disabled
+                    // without a save.
+                    let save = read_save().is_some();
+                    let on = |a: Action| if save { Some(a) } else { None };
+                    let rows = [
+                        ("Continue Game", on(Action::Continue)),
+                        ("New Game", Some(Action::NewGame)),
+                        ("Load Game", on(Action::LoadGame)),
+                        ("Challenge Mode", Some(Action::ChallengeMode)),
+                        ("Developer Commentary", None),
+                    ];
+                    tiled_dialog(p, &fonts, art.as_deref(), "Single Player", 5, 4, &rows);
                 } else {
-                    vec![("NEW GAME", Action::NewGame), ("CHALLENGE MODE", Action::ChallengeMode)]
-                };
-                let fly = if menu.flyout == Some(Flyout::Options) { &options_flyout } else { &sp };
-                item_list(
-                    p,
-                    &fonts,
-                    &MAIN_ITEMS,
-                    menu.flyout,
-                    fly,
-                );
+                    item_list(p, &fonts, &MAIN_ITEMS, menu.flyout, &options_flyout);
+                }
             });
         }
         Screen::Pause => {
@@ -1474,6 +1596,7 @@ fn buttons(
                 open_page(&mut menu, &mut scroll, &settings, p);
             }
             Action::Back if menu.saves.is_some() => menu.saves = None,
+            Action::Back if matches!(*screen, Screen::Main) && menu.flyout.is_some() => menu.flyout = None,
             Action::Back | Action::Done if matches!(*screen, Screen::Options { .. }) => close_page(&mut screen, &mut menu, &mut scroll, &mut settings, true),
             Action::Cancel => close_page(&mut screen, &mut menu, &mut scroll, &mut settings, false),
             Action::Back | Action::Done => *screen = Screen::Main,
@@ -1959,5 +2082,19 @@ mod tests {
         assert_eq!(parse_save("version 7\nchecksum abc\nmap sp_a4_finale1\nslot 2\n").as_deref(), Some("sp_a4_finale1"));
         assert_eq!(parse_save(""), None);
         assert_eq!(parse_save("version 2\n"), None);
+    }
+}
+
+#[cfg(test)]
+mod tiled_dialog_tests {
+    use super::tile_piece;
+
+    #[test]
+    fn tab_over_body_pieces() {
+        // A 3-tile tab over a 5 x 2 body (coopmode.res).
+        let grid: Vec<Vec<Option<usize>>> = (0..=2).map(|r| (0..5).map(|c| tile_piece(c, r, 3, 5, 2)).collect()).collect();
+        assert_eq!(grid[0], vec![Some(0), Some(1), Some(2), None, None]);
+        assert_eq!(grid[1], vec![Some(3), Some(4), Some(4), Some(1), Some(2)]);
+        assert_eq!(grid[2], vec![Some(6), Some(7), Some(7), Some(7), Some(8)]);
     }
 }
