@@ -30,8 +30,9 @@ None outside what this file's commit contains.
   one commit reached main as f2d9b71; a stash holds a 15-line animinfo
   debug addition). Leave it alone.
 - `Portal2-ch35`, `Portal2-ch6-9`: clean, behind main, nothing unpushed.
-- Disk: other checkouts' target/ dirs hold ~60 GB, regenerable; deleting
-  them needs the owner's OK.
+- Disk: the other checkouts' target/ dirs (63 GB) were deleted 2026-10-20
+  with the owner's OK; ~/Documents/Claude is ~9 GB (this checkout's target
+  kept). Those checkouts rebuild from scratch if ever used again.
 - GitHub branches: the 11 `cloud/*` branches (all merged into main) were
   deleted 2026-10-20. Tips, to recreate one with `git push origin
   <sha>:refs/heads/cloud/<name>`: aimers 0f09c0f, anim 1bb3e03, gels ac6b4a3,
