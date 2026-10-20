@@ -219,7 +219,6 @@ enum Action {
     ClearKey,
     Quit,
     Resume,
-    Restart,
     MainMenu,
     ConfirmOk,
     ConfirmCancel,
@@ -645,6 +644,42 @@ fn tiled_dialog(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&Menu
 fn options_dialog(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, pages: &[(&str, Action)]) {
     let rows: Vec<(&str, Option<Action>)> = pages.iter().map(|(l, a)| (*l, Some(*a))).collect();
     tiled_dialog(p, fonts, art, "Options", 5, dialog_tall(rows.len()), &rows);
+}
+
+/// The pause menu as ingamemainmenu.res lays it out for single player: a
+/// tiled dialog (dialogstyle 1), body 5 x 4, DefaultButton rows every 25
+/// units from 25: Return to Game, Save Game, Load Last Save, Options, Exit
+/// to Main Menu (Restart Level and the rest only show in challenge,
+/// community and puzzle maker maps). No footer: Return to Game or Esc
+/// closes it. The title tab is left blank: neither the .res nor the
+/// localization files give the frame a title.
+fn pause_dialog(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, have_save: bool) {
+    let rows = pause_rows(have_save);
+    tile_frame(p, fonts, art, "", 5, 4, &[], |d| {
+        for (i, (label, action)) in rows.iter().enumerate() {
+            let y = 25.0 * (i as f32 + 1.0);
+            match action {
+                Some(a) => {
+                    d.spawn(dialog_row(fonts, label, *a, false, y));
+                }
+                None => {
+                    d.spawn(disabled_row(fonts, label, y));
+                }
+            }
+        }
+    });
+}
+
+/// The pause dialog's rows (Portal 2's English labels); Load Last Save is
+/// greyed without a save.
+fn pause_rows(have_save: bool) -> [(&'static str, Option<Action>); 5] {
+    [
+        ("Return to Game", Some(Action::Resume)),
+        ("Save Game", Some(Action::SaveGame)),
+        ("Load Last Save", have_save.then_some(Action::Continue)),
+        ("Options", Some(Action::Options)),
+        ("Exit to Main Menu", Some(Action::MainMenu)),
+    ]
 }
 
 /// Body tiles (50 units) for `rows` DefaultButton rows every 25 units from
@@ -1395,21 +1430,7 @@ fn rebuild_menu(
                     options_dialog(p, &fonts, art.as_deref(), &options_flyout);
                     return;
                 }
-                item_list(
-                    p,
-                    &fonts,
-                    &[
-                        ("RESUME GAME", Action::Resume, None),
-                        ("SAVE GAME", Action::SaveGame, None),
-                        ("LOAD GAME", Action::LoadGame, None),
-                        ("RESTART LEVEL", Action::Restart, None),
-                        ("OPTIONS", Action::Options, Some(Flyout::Options)),
-                        ("QUIT TO MAIN MENU", Action::MainMenu, None),
-                        ("QUIT GAME", Action::Quit, None),
-                    ],
-                    menu.flyout,
-                    &options_flyout,
-                );
+                pause_dialog(p, &fonts, art.as_deref(), read_save().is_some());
             });
         }
         Screen::Chapters if !(tab.community && !community.maps.is_empty()) => {
@@ -1792,7 +1813,6 @@ fn buttons(
     (mut screen, mut menu, mut scroll, eaten): (ResMut<Screen>, ResMut<MenuState>, ResMut<MenuScroll>, Res<InputEaten>),
     mut settings: ResMut<Settings>,
     (campaign, defaults, actions): (Res<Campaign>, Res<DefaultBinds>, Res<KeyActions>),
-    map: Option<Res<CurrentMap>>,
     (monitors, windows): (Query<&Monitor, With<PrimaryMonitor>>, Query<&Window, With<PrimaryWindow>>),
     (mut tab, mut community, mut mods, mounts): (ResMut<ChapterTab>, ResMut<CommunityMaps>, ResMut<ModsPage>, Res<Mounts>),
     mut load: MessageWriter<LoadLevel>,
@@ -1977,12 +1997,6 @@ fn buttons(
                 None => {}
             },
             Action::Resume => *screen = Screen::None,
-            Action::Restart => {
-                if let Some(m) = &map {
-                    load.write(LoadLevel { map: m.info.name.clone(), menu: false });
-                }
-                *screen = Screen::None;
-            }
             Action::Adjust(s, d) => step_setting(&mut menu, &mut settings, native, s, if d < 0.0 { -1 } else { 1 }, false),
             Action::Toggle(s) => step_setting(&mut menu, &mut settings, native, s, 1, true),
             Action::Slide(s) => {
@@ -2369,6 +2383,13 @@ mod tests {
         assert_eq!(title_tab_tiles("OPTIONS"), 3);
         assert_eq!(title_tab_tiles("SINGLE PLAYER"), 4);
         assert_eq!(title_tab_tiles("KEYBOARD/MOUSE"), 5);
+    }
+
+    #[test]
+    fn pause_dialog_is_portal2s() {
+        let labels: Vec<_> = pause_rows(true).iter().map(|r| r.0).collect();
+        assert_eq!(labels, ["Return to Game", "Save Game", "Load Last Save", "Options", "Exit to Main Menu"]);
+        assert!(pause_rows(false)[2].1.is_none());
     }
 
     #[test]
