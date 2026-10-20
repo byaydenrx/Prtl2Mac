@@ -18,14 +18,15 @@ reads it first (via `sh scripts/resume.sh`).
   pending, as for T-128. T-105 wall drop fixed (fd9c086, autopilot only).
   T-167 Wheatley re-pickup fixed (636fc3f, autopilot only, wakeup); held
   cube no longer covers the camera at walls (342b5b1, autopilot only, intro2).
-  dist/Prtl2Mac.app = 0.1.0+342b5b1.20261020T0956Z.
+  T-132 fizzler field drawn (99392c0, autopilot only, intro2 exit; startdisabled
+  cleansers still unmeshed, see its entry).
+  dist/Prtl2Mac.app = 0.1.0+99392c0.20261020T1008Z.
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-132 fizzler field not drawn / maybe not working (next P1).
-2. T-131 (intro3 floors/roofs) is BLOCKED: the 2026-10-20 hourly run could
-   not reproduce it with autopilot at any of the reported spots (details in
-   its TASKS.md entry). Needs owner screenshots plus console `getpos`.
+1. T-114 intro1: Wheatley's door waits for the announcer (top open P2).
+2. T-131 (intro3 floors/roofs) is BLOCKED: not reproduced by autopilot;
+   needs owner screenshots plus console `getpos`.
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.

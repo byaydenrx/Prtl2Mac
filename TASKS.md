@@ -20,29 +20,28 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 
 ## Priority order (2026-10-20)
 P1:
-1. T-132 Fizzler field not drawn, maybe not working.
-2. T-131 sp_a1_intro3 floors and roofs missing (BLOCKED: not reproduced, needs owner screenshots).
+1. T-131 sp_a1_intro3 floors and roofs missing (BLOCKED: not reproduced, needs owner screenshots).
 P2:
-3. T-114 intro1: Wheatley's door waits for the announcer.
-4. T-120 Elevators (jitter, VO timing, thumps) and T-135 turrets falling through them.
-5. T-133 intro7 Wheatley floats after the wall panel; panel vanishes.
-6. T-134 sp_a1_wakeup pod: the player doesn't turn with the floor; T-163 hatch.
-7. T-136 sp_a1_wakeup end: a portal in the tube before the drop.
-8. T-137 Portal spacing; T-102 seamless cube carry; T-125 turn-away delay.
-9. T-145 Buttons don't animate, cubes don't light up.
-10. T-144 Missing props; T-147 black screen as intro2's first door opens.
-11. T-139 Ambient audio, button sounds, music cut-offs, loud glass.
-12. T-149 Chamber signs blank; screens and lights.
-13. T-112 Missing/flat textures (GLaDOS chamber floor, hallways).
-14. T-123 Security cameras knocked off by portal shots.
-15. T-160 Main menu like Portal 2's.
+2. T-114 intro1: Wheatley's door waits for the announcer.
+3. T-120 Elevators (jitter, VO timing, thumps) and T-135 turrets falling through them.
+4. T-133 intro7 Wheatley floats after the wall panel; panel vanishes.
+5. T-134 sp_a1_wakeup pod: the player doesn't turn with the floor; T-163 hatch.
+6. T-136 sp_a1_wakeup end: a portal in the tube before the drop.
+7. T-137 Portal spacing; T-102 seamless cube carry; T-125 turn-away delay.
+8. T-145 Buttons don't animate, cubes don't light up.
+9. T-144 Missing props; T-147 black screen as intro2's first door opens.
+10. T-139 Ambient audio, button sounds, music cut-offs, loud glass.
+11. T-149 Chamber signs blank; screens and lights.
+12. T-112 Missing/flat textures (GLaDOS chamber floor, hallways).
+13. T-123 Security cameras knocked off by portal shots.
+14. T-160 Main menu like Portal 2's.
 P3:
-16. T-161 Menu video and music; T-162 menu animation, logo, styling.
-17. T-020 intro1 ride; T-164 spiky debris; T-116 intro1 room; T-117 shadows; T-115 wake-up.
-18. T-153 GLaDOS wake-up; T-157 smoother fall transition; T-165 Wheatley rail connector.
-19. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
+15. T-161 Menu video and music; T-162 menu animation, logo, styling.
+16. T-020 intro1 ride; T-164 spiky debris; T-116 intro1 room; T-117 shadows; T-115 wake-up.
+17. T-153 GLaDOS wake-up; T-157 smoother fall transition; T-165 Wheatley rail connector.
+18. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
 P4:
-20. T-151 water, T-155 lasers, T-150 particles, T-152 lighting/textures,
+19. T-151 water, T-155 lasers, T-150 particles, T-152 lighting/textures,
     T-143 clock blink, T-146 half-stuck door, T-154 floating moss, T-166 intro5 wall panel.
 Then the Backlog (prove and sweep the campaign).
 
@@ -66,11 +65,6 @@ Then the Backlog (prove and sweep the campaign).
   and oblique clip only apply to portal cameras. Ask the owner for
   screenshots with the console `getpos` (or the exact spot); "until the
   next gun use" hints at something tied to portal placement/rendering.
-
-### T-132 Fizzler field not drawn, maybe not working  (P1, TODO)
-- Section 0: the "incandescent particle field" never showed. Check that
-  trigger_portal_cleanser fizzles portals and props, then draw the field.
-  Needed by sp_a2_fizzler_intro (T-007).
 
 ### T-108 A chamber door had an invisible barrier, needed noclip  (P1, NEEDS INFO)
 - intro4 doors pass both ways in a walk test. Need the door and map from the owner.
@@ -220,6 +214,16 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+- T-132 Fizzler field not drawn: every trigger_* brush was skipped, so
+  visible trigger_portal_cleansers never drew their effects/fizzler faces
+  (SolidEnergy, a green-only ripple mask, wasn't translated either). Now
+  (99392c0) visible cleansers draw, SolidEnergy is unlit additive with the
+  mask tinted by a quarter of $FLOW_VORTEX_COLOR (no flow animation yet),
+  Enable/Disable shows/hides it. Autopilot only (intro2 exit, `setpos -320
+  740 -60 0 -90`): before no field, after a blue field, hidden on
+  FireUser1, back on FireUser2; unit test visible_cleansers_draw_their_field.
+  Not checked: fizzling through it (logic unchanged); startdisabled
+  cleansers still get no mesh (check at sp_a2_fizzler_intro, T-007).
 - T-167 (rest) A held cube at a wall surrounded the camera: the player
   ignores the held prop's colliders, so walking on pulled the hold point
   back onto the eye. Now (342b5b1), as in Portal 2 where the held prop is
