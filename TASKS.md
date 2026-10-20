@@ -36,7 +36,7 @@ P2:
 13. (T-123 security cameras knocked off by portal shots, 2bb0015, awaiting owner replay.)
 14. (T-160 main menu like Portal 2's, ab64b84, awaiting owner replay.)
 P3:
-15. (T-161 menu movie and music by act, f6f129e, awaiting owner replay.) T-162 menu animation, logo, styling.
+15. (T-161 menu movie and music by act, f6f129e, awaiting owner replay; T-162 logo/item layout and hover flash, b39fff3, awaiting owner replay, panel fades still open.)
 16. T-020 intro1 ride; T-164 spiky debris; T-116 intro1 room; T-117 shadows; T-115 wake-up.
 17. T-153 GLaDOS wake-up; T-157 smoother fall transition; T-165 Wheatley rail connector.
 18. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
@@ -186,8 +186,6 @@ Then the Backlog (prove and sweep the campaign).
 
 ## Open: P3
 
-### T-162 Menu animations, logo alignment, styling  (P3, TODO)
-- Panel/flyout transitions flip oddly; the Portal 2 logo is misaligned.
 
 ### T-020 sp_a1_intro1 ride  (P3, TODO)
 - Walls flash away and back before breaking off; Wheatley a black box above
@@ -241,6 +239,22 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-162 Menu animations, logo alignment, styling  (P3, PARTIAL 2026-10-20, b39fff3, autopilot only)
+- Panel/flyout transitions flip oddly; the Portal 2 logo is misaligned.
+- Cause: the logo and item column were placed by eye (logo 6%/9%, 34% wide;
+  items 6% left, 12% from the bottom, 2 px apart). Now from the install:
+  basemodui_scheme.res Logo.X/Y 75,35, 240x60 units; mainmenu.res items at
+  x 88, 20 tall every 30 units, last at y 378 (480-unit layout, Vh-scaled;
+  pause menu uses the same column). Also every menu change rebuilt the
+  buttons, which only learn they are hovered a frame later, so the clicked
+  item flashed unlit for a frame; carry_hover now keeps them lit.
+- Evidence: autopilot main menu + `click SinglePlayer` shots, before (dist
+  89f2bf5-era) vs after b39fff3; Quit row centre at 80.8% of the height as
+  the .res gives. The one-frame flash was found by reading the code, not
+  captured in a shot. Still open: Portal 2's panel fade/slide timings are
+  not implemented (no Windows reference of what the owner saw as "flip");
+  the main/pause font size was not checked against the scheme.
 
 ### T-161 Menu background video and music  (P3, FIXED 2026-10-20, f6f129e, autopilot only)
 - Cause: the menu only showed the act's still (background0N_widescreen),
