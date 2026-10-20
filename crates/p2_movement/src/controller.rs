@@ -76,6 +76,9 @@ impl Mover<'_, '_, '_> {
             &self.config,
             &self.filter,
             |hit| {
+                if hit.normal.y.abs() < 0.7 {
+                    trace!("movement: wall {:?} normal {:.2?}", hit.entity, hit.normal);
+                }
                 touched.push(hit.normal.as_vec3());
                 self.hits.borrow_mut().push((hit.entity, hit.normal.as_vec3()));
                 MoveAndSlideHitResponse::Accept

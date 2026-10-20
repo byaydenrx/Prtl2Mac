@@ -200,10 +200,42 @@ struct Running {
     started: f32,
     done: Vec<bool>,
     paused_at: Option<f32>,
+    /// The entities playing its actors.
+    actors: Vec<usize>,
 }
 
 #[derive(Resource, Default)]
 pub struct Playing(Vec<Running>);
+
+/// What a scene does when one of its actors is already in a running scene
+/// (`logic_choreographed_scene` "busyactor"). Source only makes NPC actors
+/// wait (1, the default); Portal 2's cores and GLaDOS aren't NPCs, so it
+/// starts, and the actor's voice channel cuts the line before
+/// (`PlayGameSound::voice`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BusyActor {
+    StartNow,
+    /// Stop the actor's current scene ("interrupt at next interrupt event"
+    /// and "cancel current scenes").
+    Cancel,
+}
+
+impl BusyActor {
+    fn of(value: Option<&str>) -> Self {
+        match value.map(str::trim) {
+            Some("2") | Some("3") => BusyActor::Cancel,
+            _ => BusyActor::StartNow,
+        }
+    }
+}
+
+/// The entities a scene's actors name.
+fn scene_actor_ents(ents: &Ents, ent: usize, scene: &Scene) -> Vec<usize> {
+    let mut v: Vec<usize> = scene.actors.iter().flat_map(|a| actor_ents(ents, ent, a)).collect();
+    v.sort_unstable();
+    v.dedup();
+    v
+}
 
 impl Playing {
     /// Is scene entity `ent` playing (not paused)?
@@ -261,9 +293,15 @@ fn scene_inputs(
                 let scene = parse_vcd(&text);
                 debug!("portal2: scene {path}: {:.2} s, {} events", scene.length, scene.events.len());
                 playing.0.retain(|r| r.ent != msg.target);
-                let n = scene.events.len();
-                playing.0.push(Running { ent: msg.target, scene, started: now, done: vec![false; n], paused_at: None });
-                fire.write(FireOutput { ent: msg.target, event: "OnStart".into(), activator: msg.activator });
+                let actors = scene_actor_ents(&ents, msg.target, &scene);
+                let busy: Vec<usize> = playing.0.iter().filter(|r| r.actors.iter().any(|a| actors.contains(a))).map(|r| r.ent).collect();
+                if BusyActor::of(e.get("busyactor")) == BusyActor::Cancel {
+                    for b in busy {
+                        fire.write(FireOutput { ent: b, event: "OnCanceled".into(), activator: None });
+                        playing.0.retain(|r| r.ent != b);
+                    }
+                }
+                start(&mut playing, &mut fire, msg.target, scene, actors, now, msg.activator);
             }
             "cancel" | "kill" => {
                 if playing.0.iter().any(|r| r.ent == msg.target) {
@@ -286,6 +324,12 @@ fn scene_inputs(
             _ => {}
         }
     }
+}
+
+fn start(playing: &mut Playing, fire: &mut MessageWriter<FireOutput>, ent: usize, scene: Scene, actors: Vec<usize>, now: f32, activator: Option<usize>) {
+    let n = scene.events.len();
+    playing.0.push(Running { ent, scene, started: now, done: vec![false; n], paused_at: None, actors });
+    fire.write(FireOutput { ent, event: "OnStart".into(), activator });
 }
 
 fn run_scenes(
@@ -311,7 +355,8 @@ fn run_scenes(
             r.done[i] = true;
             match ev.kind {
                 SceneEventKind::Speak => {
-                    play.write(PlayGameSound { sound: ev.param.clone(), at: None, looped: false, owner: None, music: false, volume: 1.0 });
+                    let voice = ev.actor.as_ref().and_then(|a| actor_ents(&ents, r.ent, a).first().copied());
+                    play.write(PlayGameSound { sound: ev.param.clone(), at: None, looped: false, owner: None, music: false, volume: 1.0, voice });
                     caption.write(crate::captions::ShowCaption { sound: ev.param.clone(), seconds: ev.end - ev.start });
                 }
                 SceneEventKind::FireTrigger => {
@@ -373,6 +418,13 @@ fn speaking_lights(ents: Option<Res<Ents>>, playing: Res<Playing>, mut speaking:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn busy_actor_modes() {
+        assert_eq!(BusyActor::of(None), BusyActor::StartNow);
+        assert_eq!(BusyActor::of(Some("1")), BusyActor::StartNow);
+        assert_eq!(BusyActor::of(Some("3")), BusyActor::Cancel);
+    }
 
     #[test]
     fn reads_speak_and_trigger_events() {

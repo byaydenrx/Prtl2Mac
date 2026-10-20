@@ -295,6 +295,20 @@ fn drive(
                     info!("autopilot: ray hit nothing");
                 }
             }
+            "who" => {
+                // who <index>: an entity's name and parents (ids from logs, `3257v0` -> 3257).
+                let Some(mut e) = a.first().and_then(|v| v.trim_end_matches("v0").parse::<u32>().ok()).and_then(Entity::from_raw_u32) else { continue };
+                let mut chain = Vec::new();
+                loop {
+                    let (n, p) = names.get(e).unwrap_or((None, None));
+                    chain.push(format!("{e}:{}", n.map(|n| n.as_str()).unwrap_or("-")));
+                    match p {
+                        Some(p) => e = p.parent(),
+                        None => break,
+                    }
+                }
+                info!("autopilot: who {}", chain.join(" < "));
+            }
             "portalable" => {
                 // portalable x y z r: portal surfaces within r units (Source
                 // boxes and the directions their portalable faces look).

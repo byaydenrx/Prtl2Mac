@@ -85,7 +85,7 @@ pub fn run_turrets(
     let now = ents.now;
     let dt = time.delta_secs();
     let say = |play: &mut MessageWriter<PlayGameSound>, sound: &str, at: Vec3| {
-        play.write(PlayGameSound { sound: sound.into(), at: Some(at), looped: false, owner: None, music: false, volume: 1.0 });
+        play.write(PlayGameSound { sound: sound.into(), at: Some(at), looped: false, owner: None, music: false, volume: 1.0, voice: None });
     };
     for msg in inputs.read() {
         if ents.list[msg.target].class != "npc_portal_turret_floor" {

@@ -51,11 +51,15 @@ pub struct PlayGameSound {
     pub owner: Option<usize>,
     pub music: bool,
     pub volume: f32,
+    /// The actor speaking it: Source plays speech on the actor's voice
+    /// channel, so a new line from the same actor stops the one before
+    /// (jumping or saying "apple" while Wheatley talks no longer overlaps).
+    pub voice: Option<usize>,
 }
 
 impl PlayGameSound {
     pub fn music(sound: impl Into<String>) -> Self {
-        Self { sound: sound.into(), at: None, looped: false, owner: None, music: true, volume: 1.0 }
+        Self { sound: sound.into(), at: None, looped: false, owner: None, music: true, volume: 1.0, voice: None }
     }
 }
 
@@ -68,6 +72,7 @@ pub struct GameSound {
     pub base: f32,
     pub owner: Option<usize>,
     pub music: bool,
+    pub voice: Option<usize>,
 }
 
 fn load_soundscripts(game: Res<GameFsRes>, mut scripts: ResMut<SoundScripts>) {
@@ -160,6 +165,7 @@ fn play_sounds(
     settings: Res<Settings>,
     listener: Query<&GlobalTransform, With<MainCamera>>,
     mut missing: Local<std::collections::HashSet<String>>,
+    voices: Query<(Entity, &GameSound)>,
 ) {
     let ear = listener.iter().next().map(|t| t.translation());
     for req in requests.read() {
@@ -193,6 +199,14 @@ fn play_sounds(
                 h
             }
         };
+        if let Some(v) = req.voice {
+            for (e, s) in &voices {
+                if s.voice == Some(v) {
+                    debug!("portal2: {} cuts off the actor's previous line", req.sound);
+                    commands.entity(e).despawn();
+                }
+            }
+        }
         let base = volume * req.volume;
         let mix = if req.music { settings.music_volume } else { settings.effects_volume } * settings.master_volume;
         let level = if req.music || req.at.is_none() { 0.0 } else { soundlevel };
@@ -208,7 +222,7 @@ fn play_sounds(
                 volume: Volume::Linear(base * mix * g),
                 ..default()
             },
-            GameSound { at: req.at, soundlevel: level, base, owner: req.owner, music: req.music },
+            GameSound { at: req.at, soundlevel: level, base, owner: req.owner, music: req.music, voice: req.voice },
             LevelOwned,
         ));
     }
@@ -246,6 +260,7 @@ fn ambient_request(ents: &Ents, i: usize) -> Option<PlayGameSound> {
         owner: Some(i),
         music,
         volume: e.get_f32("health").map(|h| (h / 10.0).clamp(0.0, 1.0)).unwrap_or(1.0),
+        voice: None,
     })
 }
 

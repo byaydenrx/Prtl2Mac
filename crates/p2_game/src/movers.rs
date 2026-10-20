@@ -163,6 +163,7 @@ fn door_travel(e: &GameEnt, map: &CurrentMap) -> (Vec3, f32) {
 }
 
 fn setup_movers(
+    mut commands: Commands,
     mut loaded: MessageReader<LevelLoaded>,
     ents: Option<ResMut<Ents>>,
     map: Option<Res<CurrentMap>>,
@@ -174,6 +175,18 @@ fn setup_movers(
     }
     let (Some(mut ents), Some(map)) = (ents, map) else { return };
     *movers = Movers::default();
+    // The brush of a func_areaportalwindow is only drawn where the engine
+    // fades the area portal out at a distance (black, seen from far away);
+    // with no fade (Portal 2's door instances) it is never seen. Drawn, it
+    // was a black plane in every open doorway.
+    let windows: Vec<String> = ents.list.iter().filter(|e| e.class == "func_areaportalwindow").filter_map(|e| e.get("target").map(str::to_string)).collect();
+    for w in &windows {
+        for &t in &ents.find(w, 0, None) {
+            if let Some(r) = ents.list[t].entity {
+                commands.entity(r).insert(Visibility::Hidden);
+            }
+        }
+    }
     for (i, e) in ents.list.iter().enumerate() {
         if MOVER_CLASSES.contains(&e.class.as_str()) {
             let pos = e.transform.translation;
@@ -406,7 +419,10 @@ fn mover_inputs(
     });
     for (i, show) in due {
         let e = &ents.list[i];
-        if let Some(r) = e.entity {
+        // A test chamber door plays its open/close sequence (anim_props.rs)
+        // and stays drawn; only its collision goes. Hiding it showed the
+        // black area-portal window behind it mid-animation.
+        if let (Some(r), false) = (e.entity, e.class == "prop_testchamber_door") {
             commands.entity(r).insert(if show { Visibility::Inherited } else { Visibility::Hidden });
         }
         set_solid(&mut commands, e, &children, &colliders, show);

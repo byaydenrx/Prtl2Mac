@@ -466,7 +466,7 @@ impl Host for GameHost<'_> {
             }
             "EmitSound" => {
                 let at = Some(self.origin(i)).filter(|_| i != PLAYER);
-                self.sounds.push(PlayGameSound { sound: s(&a(0)), at, looped: false, owner: None, music: false, volume: 1.0 });
+                self.sounds.push(PlayGameSound { sound: s(&a(0)), at, looped: false, owner: None, music: false, volume: 1.0, voice: None });
                 Value::Null
             }
             "ConnectOutput" => {

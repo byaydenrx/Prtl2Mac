@@ -57,8 +57,28 @@ date. Any engine bug found becomes its own task (P1 if it blocks the route).
 ### T-106 sp_a1_wakeup: crouch needed to enter the breaker room  (P1, TODO)
 - Owner: you have to crouch to get in (then Wheatley drops and auto-plugs since he's close).
 
+### T-107 Cubes and floor buttons invisible (they work)  (P1, CAN'T REPRODUCE)
+- Owner playtest of 0.1.0+4858bee (intro2..intro6): cubes and buttons can't be seen but collide and press.
+- 2026-10-19: screenshots show them drawn in intro2 and intro4, held, after a
+  portal, after a level change, and from the packaged app run like Finder.
+  Owner later saw them drawn too. Need the map and moment if it happens again.
+### T-108 A chamber door had an invisible barrier, needed noclip  (P1, NEEDS INFO)
+- Door walk test (every prop_testchamber_door in intro4, opened by its own
+  relay, walked through both ways): door_2 and the middle door pass; door_0
+  and door_1 close again because the test teleports into the map's
+  close-behind-you triggers (correct). Need which door/map from the owner.
+- Door changes in T-119 keep the open door drawn, so the doorway shows what blocks it.
+### T-119 Door open animation cuts to black; a black plane you can walk through  (P2, NEEDS_VERIFICATION)
+- Cause: an opening prop_testchamber_door was hidden 0.35 s in (from before
+  doors animated), showing its func_areaportalwindow brush, which we drew
+  always. Fix: doors stay drawn (their open sequence and idleopen play) and
+  only lose collision; area-portal window brushes are not drawn (Source draws
+  them only for distance fades, none in door instances). Screenshots of
+  intro4 door_2 opening show the room beyond, no black plane.
+### T-120 Elevators: the trash rising with the elevator is buggy; one ride went to the bottom before the next map loaded  (P2, TODO)
+
 ## Owner playtest issues (P2)
-- T-110 Voice lines overlap: jumping/saying "apple" while Wheatley talks, opening the door early; Portal 2 queues or interrupts by scene priority.
+- T-110 (NEEDS_VERIFICATION) Fix: speech plays on its actor's voice channel, so an actor's new line cuts the previous one (Source CHAN_VOICE); busyactor 2/3 cancel the actor's running scene. Verified by log in intro1 (Wheatley and announcer lines). Different speakers can still overlap, as in Source. Report: jumping/saying "apple" while Wheatley talks, opening the door early; Portal 2 queues or interrupts by scene priority.
 - T-111 Music stops at the stairs (wakeup, way to GLaDOS).
 - T-112 Missing textures: hallway to GLaDOS, after the jumps (plus a black wall you can walk through), GLaDOS chamber floor drawn as a warm sky, a blue flat wall behind the intro4 elevator.
 - T-113 Instructor hints vanish after a few seconds if not done; the key icons have no label ("E", "SPACE").
