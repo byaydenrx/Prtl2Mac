@@ -38,8 +38,13 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-123 security cameras knocked off by portal shots (next in the owner's
-   order: T-123, T-160, T-161, T-162, T-020, ...).
+1. T-160 main menu like Portal 2's (next in the owner's order: T-160,
+   T-161, T-162, T-020, T-164, ...).
+   T-123 FIXED 2026-10-20 (2bb0015): security cameras tear off and fall as
+   physics props on a portal shot through them, a portal opened over their
+   wall, or the Ragdoll input. Awaiting owner replay (autopilot intro6
+   only; laser_stairs not run; no wall decal or sound yet).
+   dist build: 0.1.0+2bb0015.20261020T1520Z.
    T-112 PARTIAL 2026-10-20 (991441d): the wakeup GLaDOS chamber floor
    (shallow water_glados_01, $fogend 30) fogged through an assumed 64 units
    and drew as a flat yellow sheet; map water now fogs by its measured depth

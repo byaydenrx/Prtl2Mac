@@ -33,7 +33,7 @@ P2:
 10. T-139 Audio: loud intro4 glass fixed (503406e, awaiting owner replay); soundscapes, button clicks, music cut-offs still open (PARTIAL, next run skips to T-149).
 11. (T-149 chamber progress signs drawn, d314ea7, awaiting owner replay); intro5 screens and lights still open.
 12. T-112 Missing/flat textures: GLaDOS chamber floor water fixed (991441d, awaiting owner replay); hallway to GLaDOS, black walk-through wall, intro4 blue wall still open (PARTIAL, next run skips to T-123).
-13. T-123 Security cameras knocked off by portal shots.
+13. (T-123 security cameras knocked off by portal shots, 2bb0015, awaiting owner replay.)
 14. T-160 Main menu like Portal 2's.
 P3:
 15. T-161 Menu video and music; T-162 menu animation, logo, styling.
@@ -181,9 +181,6 @@ Then the Backlog (prove and sweep the campaign).
   when autopilot walks into the ramp trigger (`goto glass_shard`), with the
   pane door opening. Unit test `only_looping_audible_ambients_autostart`.
 
-### T-123 Portal shots should knock security cameras off  (P2, TODO)
-- intro6 and sp_a2_laser_stairs: in Portal 2 the camera falls off.
-
 ### T-160 Main menu like Portal 2's  (P2, TODO)
 - Top level: Play Single Player, Play Cooperative Game, Community Test
   Chambers, Options, Extras, Quit (unbuilt ones may do nothing yet).
@@ -256,6 +253,23 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-123 Portal shots should knock security cameras off  (P2, FIXED 2026-10-20, 2bb0015, autopilot only)
+- intro6 and sp_a2_laser_stairs: in Portal 2 the camera falls off.
+- Cause: npc_security_camera was only a static model; nothing handled its
+  `Ragdoll` input (server.dll CNPC_SecurityCamera::InputRagdoll) or portal
+  shots. Now (crates/p2_game/src/cameras.rs) a camera tears off and becomes
+  a dynamic physics prop (insert_prop_body, shared with props.rs) on
+  `Ragdoll`, when a portal shot's path passes within 20 u of its body, or
+  when a portal opens over its wall (opening + 16 u). Unit tests cover both
+  checks.
+- Evidence (autopilot, sp_a1_intro6, `3 setpos 464 -420 0; 5 lookat 458
+  -270 40; 6.5 fire blue`): dist 89f2bf5 shot fails, camera stays on the
+  wall; new build logs "security camera 563 detached" and later shots show
+  the wall bare and the camera lying on the floor below. laser_stairs not
+  run. Not done: the wall decal left behind (decals_subrect
+  "SecurityCamera.Detachment"), whether the torn-off camera can be carried
+  (it can here, like any prop), detach sound, saves keeping it detached.
 
 ### T-112 Missing or flat textures  (P2, PARTIAL 2026-10-20, 991441d, autopilot only)
 - GLaDOS chamber floor brown and flat like the old intro3 water (section 5);
