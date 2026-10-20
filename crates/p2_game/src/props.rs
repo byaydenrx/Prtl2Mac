@@ -181,6 +181,7 @@ fn use_key(
     mut players: Query<(Entity, &mut MoveInput, &InterpolatedFeet, &Crouch, &ViewAngles, &mut IgnoreColliders), With<Player>>,
     held: Query<(Entity, &HeldColliders), With<Held>>,
     props: Query<(&Prop, &Transform)>,
+    prop_bodies: Query<(Entity, &Prop, &Transform)>,
     body_of: Query<&ColliderOf>,
     children: Query<&Children>,
     colliders: Query<(), With<Collider>>,
@@ -266,9 +267,29 @@ fn use_key(
     if std::env::var_os("P2_TRACE").is_some() {
         info!("TRACE use: eye {:.2?} dir {:.2?} hit {:?}", eye, dir, hit.map(|h| (h.entity, h.distance, body_of.get(h.entity).ok().map(|c| c.body))));
     }
-    let Some(hit) = hit else { return };
-    let body = body_of.get(hit.entity).map_or(hit.entity, |c| c.body);
-    if let Ok((prop, tf)) = props.get(body) {
+    // A prop under the crosshair, else (like Source's FindUseEntity) the
+    // one nearest the crosshair in a cone within reach and in plain view:
+    // a falling cube or Wheatley can't be hit with a thin ray (T-176).
+    let ray_body = hit.map(|h| body_of.get(h.entity).map_or(h.entity, |c| c.body));
+    let target = ray_body.filter(|b| props.contains(*b)).or_else(|| {
+        let hit_dist = hit.map_or(f32::MAX, |h| h.distance);
+        let candidates: Vec<(Entity, Vec3, f32)> = prop_bodies
+            .iter()
+            .filter(|(_, p, _)| !ents.as_deref().is_some_and(|e| e.list[p.ent].killed))
+            .map(|(e, p, tf)| (e, tf.translation, p.half.min_element()))
+            .collect();
+        let (body, centre, radius) = cone_pick(eye, *dir, &candidates)?;
+        let to = centre - eye;
+        let d = to.length();
+        if d - radius > hit_dist + 0.1 {
+            return None;
+        }
+        // Nothing between the eye and it.
+        let sight = spatial.cast_ray(eye, Dir3::new(to).ok()?, d, true, &filter)?;
+        (body_of.get(sight.entity).map_or(sight.entity, |c| c.body) == body).then_some(body)
+    });
+    if let Some(body) = target {
+        let Ok((prop, tf)) = props.get(body) else { return };
         let is_core = ents.as_deref().is_some_and(|e| e.list[prop.ent].class == "npc_personality_core");
         if is_core && !cores.can_pick_up(prop.ent) {
             return;
@@ -296,6 +317,8 @@ fn use_key(
         }
         return;
     }
+    let Some(hit) = hit else { return };
+    let body = ray_body.unwrap_or(hit.entity);
     // Pedestal buttons and other usable entities: the map entity whose
     // render entity owns the hit collider.
     if let Some(ents) = ents {
@@ -319,6 +342,24 @@ fn use_key(
             e = body_of.get(cur).ok().map(|c| c.body);
         }
     }
+}
+
+/// Half-angle cosine of the use cone (about 26 degrees).
+const USE_CONE_COS: f32 = 0.9;
+
+/// The prop (body, centre, radius) nearest the view line among those whose
+/// near side is within reach and whose centre is inside the use cone.
+fn cone_pick(eye: Vec3, fwd: Vec3, candidates: &[(Entity, Vec3, f32)]) -> Option<(Entity, Vec3, f32)> {
+    candidates
+        .iter()
+        .filter_map(|&(e, c, r)| {
+            let to = c - eye;
+            let d = to.length();
+            let cos = if d > 1e-4 { to.dot(fwd) / d } else { 1.0 };
+            (d - r <= USE_RANGE && cos >= USE_CONE_COS).then_some(((e, c, r), cos))
+        })
+        .max_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(c, _)| c)
 }
 
 /// How far in front of the eye a prop of this size is held.
@@ -1040,6 +1081,24 @@ fn player_proxy_outputs(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn use_cone_picks_the_prop_nearest_the_crosshair_in_reach() {
+        use bevy::prelude::{Entity, Vec3};
+        let eye = Vec3::ZERO;
+        let fwd = Vec3::NEG_Z;
+        let a = Entity::from_raw_u32(1).unwrap();
+        let b = Entity::from_raw_u32(2).unwrap();
+        // 20 degrees off at 1.5 m (a cube falling past the crosshair), and
+        // 10 degrees off but out of reach.
+        let off20 = Vec3::new(20f32.to_radians().sin(), 0.0, -20f32.to_radians().cos()) * 1.5;
+        let off10 = Vec3::new(10f32.to_radians().sin(), 0.0, -10f32.to_radians().cos()) * 4.0;
+        let picked = super::cone_pick(eye, fwd, &[(a, off20, 0.3), (b, off10, 0.3)]);
+        assert_eq!(picked.map(|p| p.0), Some(a));
+        // Behind or 40 degrees off: nothing.
+        let off40 = Vec3::new(40f32.to_radians().sin(), 0.0, -40f32.to_radians().cos()) * 1.5;
+        assert!(super::cone_pick(eye, fwd, &[(a, off40, 0.3), (b, Vec3::Z, 0.3)]).is_none());
+    }
+
     #[test]
     fn prop_colliders_weigh_the_prop_mass() {
         use avian3d::prelude::*;
