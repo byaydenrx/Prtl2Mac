@@ -20,30 +20,29 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 
 ## Priority order (2026-10-20)
 P1:
-1. T-167 A held prop at a wall surrounds the camera (re-pickup part fixed, awaiting replay).
-2. T-132 Fizzler field not drawn, maybe not working.
-3. T-131 sp_a1_intro3 floors and roofs missing (BLOCKED: not reproduced, needs owner screenshots).
+1. T-132 Fizzler field not drawn, maybe not working.
+2. T-131 sp_a1_intro3 floors and roofs missing (BLOCKED: not reproduced, needs owner screenshots).
 P2:
-4. T-114 intro1: Wheatley's door waits for the announcer.
-5. T-120 Elevators (jitter, VO timing, thumps) and T-135 turrets falling through them.
-6. T-133 intro7 Wheatley floats after the wall panel; panel vanishes.
-7. T-134 sp_a1_wakeup pod: the player doesn't turn with the floor; T-163 hatch.
-8. T-136 sp_a1_wakeup end: a portal in the tube before the drop.
-9. T-137 Portal spacing; T-102 seamless cube carry; T-125 turn-away delay.
-10. T-145 Buttons don't animate, cubes don't light up.
-11. T-144 Missing props; T-147 black screen as intro2's first door opens.
-12. T-139 Ambient audio, button sounds, music cut-offs, loud glass.
-13. T-149 Chamber signs blank; screens and lights.
-14. T-112 Missing/flat textures (GLaDOS chamber floor, hallways).
-15. T-123 Security cameras knocked off by portal shots.
-16. T-160 Main menu like Portal 2's.
+3. T-114 intro1: Wheatley's door waits for the announcer.
+4. T-120 Elevators (jitter, VO timing, thumps) and T-135 turrets falling through them.
+5. T-133 intro7 Wheatley floats after the wall panel; panel vanishes.
+6. T-134 sp_a1_wakeup pod: the player doesn't turn with the floor; T-163 hatch.
+7. T-136 sp_a1_wakeup end: a portal in the tube before the drop.
+8. T-137 Portal spacing; T-102 seamless cube carry; T-125 turn-away delay.
+9. T-145 Buttons don't animate, cubes don't light up.
+10. T-144 Missing props; T-147 black screen as intro2's first door opens.
+11. T-139 Ambient audio, button sounds, music cut-offs, loud glass.
+12. T-149 Chamber signs blank; screens and lights.
+13. T-112 Missing/flat textures (GLaDOS chamber floor, hallways).
+14. T-123 Security cameras knocked off by portal shots.
+15. T-160 Main menu like Portal 2's.
 P3:
-17. T-161 Menu video and music; T-162 menu animation, logo, styling.
-18. T-020 intro1 ride; T-164 spiky debris; T-116 intro1 room; T-117 shadows; T-115 wake-up.
-19. T-153 GLaDOS wake-up; T-157 smoother fall transition; T-165 Wheatley rail connector.
-20. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
+16. T-161 Menu video and music; T-162 menu animation, logo, styling.
+17. T-020 intro1 ride; T-164 spiky debris; T-116 intro1 room; T-117 shadows; T-115 wake-up.
+18. T-153 GLaDOS wake-up; T-157 smoother fall transition; T-165 Wheatley rail connector.
+19. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
 P4:
-21. T-151 water, T-155 lasers, T-150 particles, T-152 lighting/textures,
+20. T-151 water, T-155 lasers, T-150 particles, T-152 lighting/textures,
     T-143 clock blink, T-146 half-stuck door, T-154 floating moss, T-166 intro5 wall panel.
 Then the Backlog (prove and sweep the campaign).
 
@@ -67,16 +66,6 @@ Then the Backlog (prove and sweep the campaign).
   and oblique clip only apply to portal cameras. Ask the owner for
   screenshots with the console `getpos` (or the exact spot); "until the
   next gun use" hints at something tied to portal placement/rendering.
-
-### T-167 Held prop surrounds the camera at a wall  (P1, TODO)
-- Split from T-105. Earlier report: once dropped or stuck, Wheatley can't be
-  picked up again (Portal 2 allows it). FIXED 636fc3f (see Awaiting owner
-  replay); intro7 re-pickup not autopilot-checked yet.
-- Since fd9c086 a held prop comes toward the player at a wall instead of
-  dropping, but with the eye ~16u from the wall a cube (half 25u) ends up
-  around the camera: the view shows the inside ring of its face. Portal 2
-  keeps it in view; check how (player blocked by the held prop, or the hold
-  distance floor) in depot 624's grab controller before changing movement.
 
 ### T-132 Fizzler field not drawn, maybe not working  (P1, TODO)
 - Section 0: the "incandescent particle field" never showed. Check that
@@ -231,6 +220,15 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+- T-167 (rest) A held cube at a wall surrounded the camera: the player
+  ignores the held prop's colliders, so walking on pulled the hold point
+  back onto the eye. Now (342b5b1), as in Portal 2 where the held prop is
+  solid to the player, a ray along the view stops the player 17 u plus the
+  prop's depth from a wall (skipped into portals). intro2 box walked into
+  two walls: before (dist) box centre at the eye (36 398 28, feet 36 400),
+  view = inside ring of its face; after the player stops ~41-49 u back and
+  the whole cube shows. Autopilot only; walking into a portal while holding
+  and Wheatley in intro7 not checked.
 - T-167 (part) Wheatley can't be picked up again after a drop: cores were
   pickable only after an EnablePickup input, which sp_a1_wakeup never sends
   (he starts force-picked), so once dropped (or stuck-dropped) he was lost.

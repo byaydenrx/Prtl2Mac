@@ -18,3 +18,4 @@ UNFINISHED (stopped mid-task; the next run continues it).
 | 2026-10-20 ~05:30 | T-131 intro3 missing floors/roofs | NOT REPRODUCED: blocked on owner screenshots + `getpos` (see TASKS.md) | 1a5f58d | unchanged |
 | 2026-10-20 05:40 | T-105 held objects dropped at walls | PARTIAL: wall drop fixed (hold point pulled in front of walls); Wheatley re-pickup and camera overlap split to T-167 | fd9c086 | 0.1.0+fd9c086.20261020T0938Z |
 | 2026-10-20 05:47 | T-167 Wheatley re-pickup; held prop at a wall around the camera | PARTIAL: re-pickup fixed (cores pickable until DisablePickup; wakeup never sends EnablePickup); camera overlap still open | 636fc3f | 0.1.0+636fc3f.20261020T0945Z |
+| 2026-10-20 05:57 | T-167 held prop at a wall surrounds the camera | FIXED: player now stopped by the held prop at walls (ray along view, prop depth + 17 u); intro2 before/after autopilot shots | 342b5b1 | 0.1.0+342b5b1.20261020T0956Z |
