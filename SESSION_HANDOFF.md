@@ -19,12 +19,11 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-131 sp_a1_intro3 floors/roofs. Leads: the first elevator room's exit
-   is `door_0-testchamber_door` (-160,144,1104); arrival elevator at
-   (-160,-512), leaving trigger (-160,-336,1040). `setpos -160 40 1040`
-   dropped the player to z 913 (under the room, all fog), so arrive by the
-   elevator (wait ~20 s from map start) and walk +y through the door,
-   shooting down and up. Then T-105, T-132.
+1. T-105 held objects dropped when pushed into a wall; Wheatley re-pickup
+   (P1). Then T-132 fizzler field.
+2. T-131 (intro3 floors/roofs) is BLOCKED: the 2026-10-20 hourly run could
+   not reproduce it with autopilot at any of the reported spots (details in
+   its TASKS.md entry). Needs owner screenshots plus console `getpos`.
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.

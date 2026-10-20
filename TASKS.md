@@ -20,9 +20,9 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 
 ## Priority order (2026-10-20)
 P1:
-1. T-131 sp_a1_intro3 floors and roofs missing.
-2. T-105 Held objects dropped when pushed into a wall; Wheatley re-pickup.
-3. T-132 Fizzler field not drawn, maybe not working.
+1. T-105 Held objects dropped when pushed into a wall; Wheatley re-pickup.
+2. T-132 Fizzler field not drawn, maybe not working.
+3. T-131 sp_a1_intro3 floors and roofs missing (BLOCKED: not reproduced, needs owner screenshots).
 P2:
 4. T-114 intro1: Wheatley's door waits for the announcer.
 5. T-120 Elevators (jitter, VO timing, thumps) and T-135 turrets falling through them.
@@ -49,11 +49,24 @@ Then the Backlog (prove and sweep the campaign).
 
 ## Open: P1
 
-### T-131 sp_a1_intro3: floors and roofs missing  (P1, TODO)
+### T-131 sp_a1_intro3: floors and roofs missing  (P1, BLOCKED: not reproduced, needs owner screenshots)
 - Section 2: the floor right in front of the door leaving the arrival
   elevator room and the roof outside it; the roof after the gun climb until
   the next gun use, then the floor there; the floor entering the exit
   elevator room. Check drawn vs solid (visibility, areaportals, brush entities).
+- 2026-10-20 autopilot (HEAD 314cb7a), not reproduced: walking out of the
+  arrival elevator (feet -160,-142,1051 -> -160,481,1104; corridor floor
+  z 1104, its underside/ceiling ray-hit at 1072, white_wall_tile004b) shows
+  floor and roof on both sides of door_0, looking +-40..75 deg both ways;
+  `goto portalgun 120` and `goto emitter_orange_2 200` (first gun use)
+  floors drawn, overhead is the map's open ruin (foliage, dark void);
+  exit room (`goto departure_elevator-source_elevator_door_open_trigger
+  200`) stairs, floor and the entry door drawn. No PVS/areaportal culling
+  exists in our renderer (all world faces always drawn), so a hole would be
+  a missing face or a frustum-culling error; PortalProjection's far plane
+  and oblique clip only apply to portal cameras. Ask the owner for
+  screenshots with the console `getpos` (or the exact spot); "until the
+  next gun use" hints at something tied to portal placement/rendering.
 
 ### T-105 Held objects: dropped when pushed into a wall; Wheatley re-pickup  (P1, TODO)
 - Section 5: walking into the breaker room with Wheatley against the wall
