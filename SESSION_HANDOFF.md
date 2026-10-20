@@ -38,7 +38,13 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-147 intro2 black screen as the first door opens (next TODO).
+1. T-149 chamber signs blank; screens and lights (next in the owner's order).
+   T-139 audio PARTIAL 2026-10-20 (503406e): intro4's ramp glass break no
+   longer plays at load (one-shot ambient_generics wait for PlaySound),
+   awaiting owner replay (autopilot-checked only); soundscapes (no support
+   at all yet), button clicks and music cut-offs still open.
+   dist build: 0.1.0+503406e.20261020T1449Z.
+   T-147 intro2 black screen as the first door opens (TODO, after the list).
    T-144 props fixed 2026-10-20 (89f2bf5: physics props' colliders now
    weigh the prop's 40 kg, so their inertia matches; the intro1 radio and
    clipboard stay put instead of sinking through the vault floor; every

@@ -30,7 +30,7 @@ P2:
 7. (T-137 portal spacing and T-102 cube exit-side drawing fixed, awaiting owner replay.) T-125 turn-away delay is BLOCKED (map's own timing; not reproduced, needs owner).
 8. (T-145 button press and cube lit skins fixed, awaiting owner replay.)
 9. (T-144 props fixed, awaiting owner replay.) T-147 black screen as intro2's first door opens.
-10. T-139 Ambient audio, button sounds, music cut-offs, loud glass.
+10. T-139 Audio: loud intro4 glass fixed (503406e, awaiting owner replay); soundscapes, button clicks, music cut-offs still open (PARTIAL, next run skips to T-149).
 11. T-149 Chamber signs blank; screens and lights.
 12. T-112 Missing/flat textures (GLaDOS chamber floor, hallways).
 13. T-123 Security cameras knocked off by portal shots.
@@ -162,10 +162,24 @@ Then the Backlog (prove and sweep the campaign).
 ### T-147 intro2: the screen goes black right as the first door opens  (P2, TODO)
 - Section 1; compare T-119. Screenshot 7 (intro2): a dark shard in a door.
 
-### T-139 Audio  (P2, TODO)
+### T-139 Audio  (P2, PARTIAL: glass fixed 503406e, rest TODO)
 - No soundscapes/ambience (water drips), no button clicks (sections 1, 5).
+  Still open: the engine has no env_soundscape / soundscape script support
+  at all (grep finds nothing), so this is a feature to build.
 - Music stops abruptly sometimes; stopped at the wakeup stairs (old T-111).
-- Glass break far too loud entering intro4 while still in the elevator (old T-118).
+  Still open, not looked at this run.
+- Glass break far too loud entering intro4 while still in the elevator
+  (old T-118). FIXED 2026-10-20 (503406e, autopilot only): cause was
+  `aud_ramp_break_glass` (ambient_generic, flags 33 = everywhere + not
+  looped, ScriptedSequence.RampGlassBreak, 150 dB) autostarting at map
+  load because only flag 16 suppressed autostart. One-shot (flag 32)
+  ambients now wait for PlaySound; 12 of 13 such ambients in the sp_a1/a2
+  maps are PlaySound-triggered by their maps (the 13th, bts5
+  `grinder_noise` world.grinderlp, now stays silent: replay bts5 too).
+  Evidence: dist 89f2bf5 logs `play scriptedsequence.rampglassbreak` at
+  intro4 load before the elevator arrives; 503406e does not, and plays it
+  when autopilot walks into the ramp trigger (`goto glass_shard`), with the
+  pane door opening. Unit test `only_looping_audible_ambients_autostart`.
 
 ### T-149 Chamber signs blank; screens and lights wrong  (P2, TODO)
 - The white chamber-number screens ("02") are blank in every level;
