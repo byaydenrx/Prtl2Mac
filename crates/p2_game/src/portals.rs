@@ -14,7 +14,7 @@ impl Plugin for MapPortalsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LinkedDoors>().add_systems(
             Update,
-            (spawn_active_portals, portal_inputs, linked_door_inputs, sync_linked_doors, sync_noportal_volumes, sync_placement_helpers, log_shots)
+            (spawn_active_portals, portal_inputs, linked_door_inputs, sync_linked_doors, sync_noportal_volumes, sync_placement_helpers, log_shots, clear_portal_tunnels)
                 .chain()
                 .after(crate::io::run_io)
                 .in_set(crate::level::GameSet::Logic),
@@ -44,6 +44,7 @@ fn spawn_active_portals(
     time: Res<Time>,
     mut players: Query<(Entity, &mut PortalGun), With<Player>>,
     mut placed: MessageWriter<PortalPlaced>,
+    walls: WallBodies,
 ) {
     let Some(ev) = loaded.read().last().cloned() else { return };
     if ev.menu {
@@ -53,20 +54,88 @@ fn spawn_active_portals(
     let Ok((player, mut gun)) = players.single_mut() else { return };
     for i in 0..ents.list.len() {
         if ents.list[i].class == "prop_portal" && ents.list[i].get("activated").is_some_and(|v| v.trim() == "1") {
-            open_portal(&mut commands, &ents, i, &spatial, time.elapsed_secs(), player, &mut gun, &mut placed, None);
+            open_portal(&mut commands, &ents, i, &spatial, time.elapsed_secs(), player, &mut gun, &mut placed, None, &walls);
         }
     }
 }
 
+/// Which colliders can be a portal's wall: anything but a dynamic body. A
+/// cube sitting in the opening when a map portal (re)opens is not the wall:
+/// listed as one, its motion would fizzle the portal and the player would
+/// pass through it.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(crate) struct WallBodies<'w, 's> {
+    bodies: Query<'w, 's, &'static RigidBody>,
+    body_of: Query<'w, 's, &'static ColliderOf>,
+}
+
+impl WallBodies<'_, '_> {
+    pub(crate) fn can_be_wall(&self, c: Entity) -> bool {
+        let body = self.body_of.get(c).map_or(c, |o| o.body);
+        !matches!(self.bodies.get(body), Ok(RigidBody::Dynamic))
+    }
+}
+
+/// How far behind an opening the world is cut away: a standing player's
+/// whole hull (72 u) passes before anything behind the wall can hold it.
+const TUNNEL_DEPTH: f32 = 80.0 * shared::SOURCE_UNIT;
+/// The tunnel stays this far inside the opening's edges, so the floor a wall
+/// portal stands on (its bottom edge) is not cut away.
+const TUNNEL_INSET: f32 = 2.0 * shared::SOURCE_UNIT;
+
+/// Source cuts the world out of a portal's hole, not only the face the portal
+/// sits on: a floor made of two brush layers held the player and cubes on the
+/// lower one, 6 u under a floor portal (sp_a1_intro4). Every static collider
+/// in the tunnel behind a new portal's opening joins its `surfaces`, which the
+/// player and props ignore while in the hole. Only static world: a mover
+/// listed there would fizzle the portal when it moves.
+fn clear_portal_tunnels(
+    mut placed: MessageReader<PortalPlaced>,
+    mut pending: Local<Vec<(Entity, u8)>>,
+    mut portals: Query<(&mut Portal, &Transform)>,
+    spatial: SpatialQuery,
+    world: Query<(Option<&ColliderOf>, Has<Sensor>, Has<PortalHelperCollider>)>,
+    bodies: Query<&RigidBody>,
+) {
+    pending.extend(placed.read().map(|p| (p.portal, 0)));
+    let mut retry = Vec::new();
+    for (e, tries) in pending.drain(..) {
+        let Ok((mut portal, tf)) = portals.get_mut(e) else {
+            // Spawned by a command that hasn't applied yet (or closed again).
+            if tries < 3 {
+                retry.push((e, tries + 1));
+            }
+            continue;
+        };
+        let frame = Portal::frame(tf);
+        let half = (portal.half_size - Vec2::splat(TUNNEL_INSET)).max(Vec2::splat(TUNNEL_INSET));
+        let centre = frame.to_world(Vec3::new(0.0, 0.0, -(TUNNEL_INSET + TUNNEL_DEPTH * 0.5)));
+        let shape = Collider::cuboid(2.0 * half.x, 2.0 * half.y, TUNNEL_DEPTH);
+        let mut added = 0;
+        for c in spatial.shape_intersections(&shape, centre, frame.rotation, &SpatialQueryFilter::default()) {
+            let Ok((of, sensor, helper)) = world.get(c) else { continue };
+            let is_static = of.map_or(true, |o| matches!(bodies.get(o.body), Ok(RigidBody::Static) | Err(_)));
+            if !sensor && !helper && is_static && !portal.surfaces.contains(&c) {
+                portal.surfaces.push(c);
+                added += 1;
+            }
+        }
+        if added > 0 {
+            debug!("portal2: {added} more colliders cut out of the hole behind {e:?}");
+        }
+    }
+    *pending = retry;
+}
+
 /// The wall colliders just behind an opening at `tf` (what the player must
 /// pass through while inside the hole).
-pub(crate) fn surfaces_behind(spatial: &SpatialQuery, tf: &Transform, half: Vec2, player: Entity) -> Vec<Entity> {
+pub(crate) fn surfaces_behind(spatial: &SpatialQuery, tf: &Transform, half: Vec2, player: Entity, walls: &WallBodies) -> Vec<Entity> {
     let frame = Portal::frame(tf);
     let mut surfaces = Vec::new();
     for (x, y) in [(0.0, 0.0), (-0.8, -0.8), (0.8, -0.8), (-0.8, 0.8), (0.8, 0.8), (0.0, -0.9), (0.0, 0.9), (-0.9, 0.0), (0.9, 0.0)] {
         let from = frame.to_world(Vec3::new(half.x * x, half.y * y, 0.05));
         for hit in spatial.ray_hits(from, Dir3::new(-frame.normal()).unwrap_or(Dir3::NEG_Z), 0.3, 8, true, &SpatialQueryFilter::from_excluded_entities([player])) {
-            if !surfaces.contains(&hit.entity) {
+            if !surfaces.contains(&hit.entity) && walls.can_be_wall(hit.entity) {
                 surfaces.push(hit.entity);
             }
         }
@@ -86,6 +155,7 @@ fn open_portal(
     gun: &mut PortalGun,
     placed: &mut MessageWriter<PortalPlaced>,
     at: Option<Transform>,
+    walls: &WallBodies,
 ) {
     let kind = kind_of(ents, i);
     let e = &ents.list[i];
@@ -97,7 +167,7 @@ fn open_portal(
     let frame = Portal::frame(&tf);
     let half = PORTAL_HALF_SIZE;
     // The wall behind it, and the frame prop the map puts around the portal.
-    let surfaces = surfaces_behind(spatial, &tf, half, player);
+    let surfaces = surfaces_behind(spatial, &tf, half, player, walls);
     let wall_count = surfaces.len();
     if let Some(old) = gun.portals[kind.index()].take() {
         commands.entity(old).despawn();
@@ -131,6 +201,7 @@ fn portal_inputs(
     portals: Query<(Entity, &Portal, &Transform, Option<&MapPortal>)>,
     mut placed: MessageWriter<PortalPlaced>,
     mut closed: MessageWriter<PortalClosed>,
+    walls: WallBodies,
 ) {
     let Some(ents) = ents else {
         inputs.clear();
@@ -162,19 +233,19 @@ fn portal_inputs(
         match msg.input.as_str() {
             "setactivatedstate" => {
                 if msg.param.trim() == "1" {
-                    open_portal(&mut commands, &ents, i, &spatial, time.elapsed_secs(), player, &mut gun, &mut placed, None);
+                    open_portal(&mut commands, &ents, i, &spatial, time.elapsed_secs(), player, &mut gun, &mut placed, None, &walls);
                 } else {
                     close(&mut commands, &mut gun, &mut closed);
                 }
             }
-            "open" => open_portal(&mut commands, &ents, i, &spatial, time.elapsed_secs(), player, &mut gun, &mut placed, None),
+            "open" => open_portal(&mut commands, &ents, i, &spatial, time.elapsed_secs(), player, &mut gun, &mut placed, None, &walls),
             "fizzle" | "close" => close(&mut commands, &mut gun, &mut closed),
             "newlocation" => {
                 let v: Vec<f32> = msg.param.split_whitespace().filter_map(|x| x.parse().ok()).collect();
                 if v.len() >= 6 {
                     let at = Transform::from_translation(shared::source_to_world(Vec3::new(v[0], v[1], v[2])))
                         .with_rotation(source_assets::entities::source_angles_to_world(Vec3::new(v[3], v[4], v[5])));
-                    open_portal(&mut commands, &ents, i, &spatial, time.elapsed_secs(), player, &mut gun, &mut placed, Some(at));
+                    open_portal(&mut commands, &ents, i, &spatial, time.elapsed_secs(), player, &mut gun, &mut placed, Some(at), &walls);
                 }
             }
             _ => {}
@@ -282,6 +353,7 @@ fn sync_linked_doors(
     spatial: SpatialQuery,
     time: Res<Time>,
     players: Query<Entity, With<Player>>,
+    walls: WallBodies,
 ) {
     let Some(ents) = ents else { return };
     if !doors.dirty {
@@ -320,7 +392,7 @@ fn sync_linked_doors(
         let h = e.get_f32("height").unwrap_or(64.0);
         let half = Vec2::new(w, h) * 0.5 * shared::SOURCE_UNIT;
         let tf = Transform::from_translation(e.transform.translation).with_rotation(e.transform.rotation * Quat::from_rotation_y(std::f32::consts::FRAC_PI_2));
-        let surfaces = surfaces_behind(&spatial, &tf, half, player);
+        let surfaces = surfaces_behind(&spatial, &tf, half, player, &walls);
         let kind = if order.iter().position(|x| *x == i).unwrap_or(0) % 2 == 0 { PortalKind::Blue } else { PortalKind::Orange };
         let id = commands
             .spawn((Name::new(format!("linked portal door {}", e.name)), Portal { kind, half_size: half, surfaces, placed_at: time.elapsed_secs() }, tf, LinkedPortalDoor { ent: i }, LevelOwned))

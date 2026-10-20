@@ -265,7 +265,8 @@ fn update_regions(
     mut characters: Query<(&Transform, &Crouch, &CharacterVelocity, &mut IgnoreColliders, &mut TransitState), Character>,
     portals: Query<(Entity, &Portal, &Transform, Option<&PortalLink>)>,
     helpers: Query<&PortalHelpers>,
-    colliders: Query<(Entity, &Collider, &GlobalTransform, Option<&RigidBody>, Has<PortalHelperCollider>)>,
+    colliders: Query<(Entity, &Collider, &GlobalTransform, Option<&RigidBody>, Has<PortalHelperCollider>, Has<Sensor>, Option<&ColliderOf>)>,
+    bodies: Query<&RigidBody>,
     spatial: SpatialQuery,
     cfg: Res<TransitConfig>,
 ) {
@@ -352,6 +353,7 @@ fn update_regions(
                         &mut commands,
                         &spatial,
                         &colliders,
+                        &bodies,
                         e,
                         &frame,
                         portal,
@@ -377,7 +379,8 @@ fn update_regions(
 fn mirror_exit_geometry(
     commands: &mut Commands,
     spatial: &SpatialQuery,
-    colliders: &Query<(Entity, &Collider, &GlobalTransform, Option<&RigidBody>, Has<PortalHelperCollider>)>,
+    colliders: &Query<(Entity, &Collider, &GlobalTransform, Option<&RigidBody>, Has<PortalHelperCollider>, Has<Sensor>, Option<&ColliderOf>)>,
+    bodies: &Query<&RigidBody>,
     entry_e: Entity,
     entry: &PortalFrame,
     entry_portal: &Portal,
@@ -398,8 +401,12 @@ fn mirror_exit_geometry(
         if hit == entry_e || hit == exit_e || entry_portal.surfaces.contains(&hit) || exit_portal.surfaces.contains(&hit) {
             continue;
         }
-        let Ok((_, col, gtf, rb, is_helper)) = colliders.get(hit) else { continue };
-        if is_helper || rb.is_some_and(|r| !r.is_static()) {
+        let Ok((_, col, gtf, rb, is_helper, sensor, of)) = colliders.get(hit) else { continue };
+        // The body may be the collider's parent (a cube's "prop collider"):
+        // a moving object copied as static would stay behind as an
+        // invisible wall. Triggers are not walls either.
+        let body = of.and_then(|o| bodies.get(o.body).ok()).or(rb);
+        if is_helper || sensor || body.is_some_and(|r| !r.is_static()) {
             continue;
         }
         // World pose (colliders may be children of other entities).
@@ -409,6 +416,7 @@ fn mirror_exit_geometry(
         let Some((c_world, rot_world, shape)) = front_piece(col, &tf, exit.position, n, &tunnel) else { continue };
         let pos = back.map_point(c_world);
         let rot = back.map_rotation(rot_world);
+        trace!("transit: remote piece of {hit:?} at {pos:.2?} aabb {:.2?}", shape.aabb(pos, rot));
         let id = commands
             .spawn((
                 Name::new("Portal remote geometry"),

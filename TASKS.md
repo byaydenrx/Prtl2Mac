@@ -14,31 +14,33 @@ date. Any engine bug found becomes its own task (P1 if it blocks the route).
 
 ## Active
 
-### T-101 sp_a1_intro1: ride ending blocks progress  (P1, NEEDS_VERIFICATION, owner replay)
-- Owner playtest 2026-10-19: after "seriously, do hold on this time" no more
-  lines, the wall doesn't break, an invisible barrier stops you.
-- Cause (2026-10-19): the ride is driven by animation events in
-  `container_ride/mastertransform.mdl` (event 1100 `FireUser1..4`): impacts,
-  the wall hit, and three `FireUser4` that count `@exit_wall_hit_counter` up to
-  `exit_wall_break_case`, which breaks the wall, opens the blocking doors
-  (`@modify_collision_2_rl`), starts the third section and Wheatley's lines.
-  We never fired model animation events, and math_counter's OutValue passed
-  no value, so the case never matched.
-- Fix: anim.rs parses sequence events; anim_props.rs fires 1100 events as
-  inputs on the prop and plays sound events; io.rs passes counter values on
-  outputs with no parameter (`fire_value`) and logic_case matches numbers.
-- Evidence: unit tests (crossed_events_by_cycle, counter_values_match_cases);
-  autopilot run (ride started with `input @rl_container_ride_second_section
-  trigger`, timescale 4) logs oncase01..03, @modify_collision_2_rl,
-  third section, wheatley_back_inside. NOT yet walked by a player off the
-  container to the map change.
-- Verify: owner plays intro1 from New Game through the ride to sp_a1_intro2.
-
 ## Owner playtest blockers (P1, play order)
 
-### T-102 sp_a1_intro4: player can't walk through portals; cubes don't pass portals normally  (P1, TODO)
-- Owner: got a cube through once, then couldn't walk through a portal. Core mechanic.
-- Verify: walk through a placed portal pair, and carry and throw a cube through, in intro4 (and intro3).
+### T-102 Portal traversal: cubes and player through portals  (P1, NEEDS_VERIFICATION, owner replay)
+- Owner (intro4, intro2 after the 2026-10-19 build): cubes don't go through
+  portals; after a cube got through once, a portal stopped working.
+- Causes found 2026-10-19 (all reproduced with autopilot first):
+  1. A cube in a map portal's hole when the map re-activates it (intro2 does
+     on approach) was listed as the portal's wall; the cube moving then
+     fizzled the portal ("portal on a moving surface"). Walls are now static
+     colliders only (portals.rs `WallBodies`).
+  2. Carrying a cube into a portal: the hold point jumped to the far side at
+     once, dragging the cube into the wall, and the player's teleport mapped
+     a cube already through a second time; it fell out of the world. Now the
+     cube is pulled to the hold point's copy on its own side and only carried
+     with the player if still at the entry (props.rs).
+  3. Floor portals: only the brush the portal sits on was cut out, so a
+     second brush layer 6 u below held the player and cubes (intro4). Static
+     world in the 80 u tunnel behind a new portal is now cut out too
+     (portals.rs `clear_portal_tunnels`).
+  4. Exit-side mirroring copied dynamic props (collider child of the body)
+     and triggers as static walls behind the entry (p2_transit).
+- Evidence (autopilot, no setpos across portals): intro2 carry cube through
+  red->blue, turn, carry back blue->red, cube stays in front; intro4 player
+  falls through a gun floor portal out of the ceiling portal; two loose cubes
+  fall through it; walking into a floor-level wall portal keeps the floor.
+  Unit test held_prop_maps_with_the_player_only_once. Workspace tests pass.
+- Not yet: the owner's play of intro2-intro4 by hand; thrown cubes.
 
 ### T-103 sp_a1_wakeup: breaker lift doesn't carry the player  (P1, TODO)
 - Owner: when the pod moves up switching the breakers, you don't move with it. Unplayable.
@@ -113,6 +115,7 @@ date. Any engine bug found becomes its own task (P1 if it blocks the route).
 - Their checklists are in docs/STATUS.md.
 
 ## Done
+- 2026-10-19 T-101 sp_a1_intro1 ride end: the wall breaks, the player walks on, the elevator to sp_a1_intro2 works (owner playtest of build 0.1.0+921edff). Cause: model animation events and math_counter values (921edff).
 - 2026-10-19 make_app.sh keeps dist/Prtl2Mac-previous.app and stamps a build id (BUILD.txt, CFBundleVersion).
 - 2026-10-19 Workflow docs (WORKFLOW.md, TASKS.md, PROJECT_STATE.md, SESSION_HANDOFF.md, CLAUDE.md, scripts/resume.sh).
 - 2026-10-19 sp_a2_intro logic: gun pickup, both portals, exit door, next map (autopilot) - 01c83ec.

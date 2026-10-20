@@ -1136,6 +1136,7 @@ fn restore_late(
     props: Query<(Entity, &Prop)>,
     children: Query<&Children>,
     colliders: Query<(), With<Collider>>,
+    walls: crate::portals::WallBodies,
 ) {
     if restoring.stage != Stage::Late {
         return;
@@ -1151,7 +1152,7 @@ fn restore_late(
     for p in &state.portals {
         let kind = if p.kind == 1 { PortalKind::Orange } else { PortalKind::Blue };
         let tf = Transform::from_translation(p.pos).with_rotation(p.rot);
-        let surfaces = crate::portals::surfaces_behind(&spatial, &tf, p.half, player);
+        let surfaces = crate::portals::surfaces_behind(&spatial, &tf, p.half, player, &walls);
         let mut ec = commands.spawn((Name::new(format!("{kind:?} portal")), Portal { kind, half_size: p.half, surfaces, placed_at: time.elapsed_secs() }, tf));
         if let Some(ent) = p.map_ent {
             ec.insert((MapPortal { ent }, LevelOwned));

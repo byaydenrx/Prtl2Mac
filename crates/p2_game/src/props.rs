@@ -328,6 +328,12 @@ fn carry(
             continue;
         }
         for (_, _, _, mut tf, mut pos, mut rot, mut lv, _) in &mut held {
+            // Only what is still on the player's side: a prop that went
+            // through ahead of the player (pulled into the portal) is already
+            // at the exit and would be mapped a second time.
+            if !still_at_entry(&t.pair, tf.translation) {
+                continue;
+            }
             let p = t.pair.map_point(tf.translation);
             let r = t.pair.map_rotation(tf.rotation);
             tf.translation = p;
@@ -342,14 +348,21 @@ fn carry(
         let eye = feet.curr + Vec3::Y * crouch.eye_height;
         let mut target = hold_point(eye, view, h.distance);
         let mut want = Quat::from_rotation_y(view.yaw + h.yaw_offset);
-        // The hold line passes through a portal: carry the point through.
+        // The hold line passes through a portal: the hold point has a copy on
+        // the far side. Like Source's grab controller, pull the prop toward
+        // the copy on its own side: still on the player's side it heads into
+        // the opening (and goes through), already through it follows the
+        // far copy.
         for (p, ptf, link) in &portals {
             let Ok(exit) = all_portals.get(link.0) else { continue };
             let frame = Portal::frame(ptf);
             if segment_crosses_opening(&frame, p.half_size, eye, target).is_some() {
                 let pair = PortalPair::new(frame, Portal::frame(exit));
-                target = pair.map_point(target);
-                want = pair.map_rotation(want);
+                let far = pair.map_point(target);
+                if far.distance_squared(tf.translation) < target.distance_squared(tf.translation) {
+                    target = far;
+                    want = pair.map_rotation(want);
+                }
                 break;
             }
         }
@@ -381,6 +394,12 @@ fn carry(
     }
 }
 
+/// A held prop is still on the entry side of `pair` (nearer the entry
+/// portal than the exit), so it goes through with the player.
+fn still_at_entry(pair: &PortalPair, p: Vec3) -> bool {
+    p.distance_squared(pair.entry.position) <= p.distance_squared(pair.exit.position)
+}
+
 /// Where each held prop is being pulled this tick ([`carry`]).
 #[derive(Resource, Default)]
 struct HoldTargets(std::collections::HashMap<Entity, Vec3>);
@@ -392,14 +411,14 @@ fn hold_clearance(
     targets: Res<HoldTargets>,
     time: Res<Time>,
     players: Query<Entity, With<Player>>,
-    mut held: Query<(Entity, &Prop, &HeldColliders, &Transform, &mut LinearVelocity), With<Held>>,
+    mut held: Query<(Entity, &Prop, &HeldColliders, &Transform, &mut LinearVelocity, Option<&PassingThrough>), With<Held>>,
     spatial: SpatialQuery,
     bodies: Query<&RigidBody>,
     body_of: Query<&ColliderOf>,
 ) {
     let dt = time.delta_secs().max(1e-4);
     let player = players.single().ok();
-    for (e, prop, hc, tf, mut lv) in &mut held {
+    for (e, prop, hc, tf, mut lv, passing) in &mut held {
         let Some(&target) = targets.0.get(&e) else { continue };
         let reach = target - tf.translation;
         let Ok(dir) = Dir3::new(reach) else { continue };
@@ -409,9 +428,11 @@ fn hold_clearance(
         skip.extend(player);
         let filter = SpatialQueryFilter::from_excluded_entities(skip);
         let config = ShapeCastConfig { max_distance: reach.length(), ignore_origin_penetration: true, ..default() };
+        // The wall around a portal it is entering doesn't stop it.
+        let walls: &[Entity] = passing.map_or(&[], |p| &p.0);
         let solid = |c: Entity| {
             let body = body_of.get(c).map_or(c, |b| b.body);
-            !matches!(bodies.get(body), Ok(RigidBody::Dynamic))
+            !matches!(bodies.get(body), Ok(RigidBody::Dynamic)) && !walls.contains(&c) && !walls.contains(&body)
         };
         if let Some(hit) = spatial.cast_shape_predicate(&shape, tf.translation, tf.rotation, dir, &config, &filter, &solid) {
             // Up to the surface, then the rest slides along it.
@@ -767,5 +788,24 @@ fn player_proxy_outputs(
                 fire.write(FireOutput { ent: i, event: (*ev).into(), activator: Some(PLAYER) });
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn held_prop_maps_with_the_player_only_once() {
+        // Entry faces +Z at the origin, exit faces +X far away.
+        let entry = PortalFrame::new(Vec3::ZERO, Quat::IDENTITY);
+        let exit = PortalFrame::new(Vec3::new(50.0, 0.0, 0.0), Quat::from_rotation_y(std::f32::consts::FRAC_PI_2));
+        let pair = PortalPair::new(entry, exit);
+        // In front of the entry, on the player's side: goes along.
+        let near = Vec3::new(0.0, 0.0, 1.0);
+        assert!(still_at_entry(&pair, near));
+        // Already through (just out of the exit): left where it is.
+        let through = pair.map_point(Vec3::new(0.0, 0.0, -0.3));
+        assert!(!still_at_entry(&pair, through));
     }
 }

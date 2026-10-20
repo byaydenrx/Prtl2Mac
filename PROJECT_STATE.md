@@ -48,9 +48,9 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 
 | Ch | Map | L | O | S | N | R | Status | Evidence / notes |
 |---|---|---|---|---|---|---|---|---|
-| 1 | sp_a1_intro1 | y | y | - | - | - | IN PROGRESS | ride-end wall break/barrier fixed in logic (animation events, T-101), awaiting owner replay; many P2 issues (T-110..T-117) |
+| 1 | sp_a1_intro1 | y | y | y | y | - | VERIFIED | owner played it to sp_a1_intro2 (2026-10-19, build 921edff); P2 issues remain (T-110..T-117) |
 | 1 | sp_a1_intro2, intro3, intro5, intro6 | y | y | - | y | - | IN PROGRESS | button->door chains and exits (autopilot logic only); portal traversal broken (T-102) |
-| 1 | sp_a1_intro4 | y | y | x | y | - | BLOCKED | owner playtest: can't walk through portals, cubes don't pass portals (T-102) |
+| 1 | sp_a1_intro4 | y | y | - | y | - | IN PROGRESS | portal traversal fixes (T-102): player and cubes through floor/wall portals in autopilot; needs owner replay |
 | 1 | sp_a1_intro7 | y | y | - | y | - | IN PROGRESS | Wheatley pickup, socket, relay, scene (autopilot logic); Wheatley re-pickup broken (T-105) |
 | 1 | sp_a1_wakeup | y | y | x | y | - | BLOCKED | owner playtest: breaker lift doesn't carry the player (T-103); crouch needed to enter (T-106); missing textures, music stops |
 | 2 | sp_a2_intro | y | y | x | y | - | BLOCKED | owner playtest: lands with nowhere to go; blue screen at start (T-104) |
@@ -77,7 +77,7 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 9 | sp_a4_finale1..finale4 | - | - | - | - | - | NOT STARTED | T-015 |
 
 ## Release blockers (open P0/P1)
-- Owner playtest blockers T-102..T-106 (chapter 1 and sp_a2_intro); T-101 fixed, awaiting replay.
+- Owner playtest blockers T-103..T-106 (chapter 1 and sp_a2_intro); T-102 fixed in autopilot, awaiting owner replay.
 - Most chapter 2-3 puzzles unproven (T-001..T-008).
 - Chapters 4-9 not swept (T-010..T-015).
 - Restart/reload never checked per map (T-090).

@@ -124,6 +124,7 @@ fn categorize(m: &Mover, ducked: bool, feet: &mut Vec3, v: Vec3) -> Option<(Enti
     }
     let hit = m.cast(ducked, *feet, Vec3::NEG_Y * GROUND_CHECK * U)?;
     if hit.normal1.y >= m.cfg.min_walk_normal {
+        trace!("movement: ground {:?} at {:.3} below", hit.entity, hit.distance);
         *feet -= Vec3::Y * hit.distance;
         Some((hit.entity, hit.normal1))
     } else {

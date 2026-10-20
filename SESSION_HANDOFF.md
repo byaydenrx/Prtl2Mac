@@ -4,27 +4,27 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-19 evening, sprint session (worktree `Portal2-wheatley`, branch
+2026-10-19 night, sprint session (worktree `Portal2-wheatley`, branch
 `wheatley`, pushes to `main`).
 
 ## Where things stand
-- T-101 (intro1 ride end) fixed in logic: model animation events
-  (`FireUser1..4`, sounds) now fire; math_counter OutValue passes its value,
-  so `exit_wall_break_case` breaks the wall and opens the blocking doors.
-  Autopilot log proves the chain; a player has NOT yet walked off the
-  container to sp_a1_intro2. Status NEEDS_VERIFICATION (owner replay).
-- Animation events are new for every map: re-check verified maps for new
-  sounds/inputs that misbehave (none seen; only intro1 was run).
-- `cargo test --release --workspace` passes (~340 tests, 0 failures).
-- make_app.sh keeps `dist/Prtl2Mac-previous.app` and writes a build id to
-  `Contents/Resources/BUILD.txt`.
+- T-101 DONE: owner played sp_a1_intro1 through the ride to sp_a1_intro2
+  (build 0.1.0+921edff).
+- T-102 (portal traversal) fixed in autopilot, NEEDS_VERIFICATION by the
+  owner: four causes (cube listed as a portal wall then fizzling it; held
+  cube dragged/double-mapped; floor portals left the lower brush layer
+  solid; dynamic props mirrored as static walls). Details and evidence in
+  TASKS.md T-102.
+- `cargo test --release --workspace` passes (0 failures).
+- Owner's earlier bug list is all in TASKS.md (T-102..T-106, T-110..T-118).
 
 ## Next action
-1. If the owner's replay of intro1 passes, mark T-101 DONE; if not, take their report.
-2. T-102 (sp_a1_intro4: player can't walk through portals, cubes don't pass
-   portals): core mechanic, blocks most of the campaign. Then T-103..T-106.
-Verify with walking/portal runs, not setpos/input. Autopilot screenshots can
-come out black when the window is covered; re-take rather than debug.
+1. Owner replays sp_a1_intro2..intro4 with portals and cubes (T-102).
+2. T-103 (wakeup breaker lift doesn't carry the player), then T-105
+   (Wheatley re-pickup), T-106 (crouch into the breaker room), T-104
+   (sp_a2_intro). Reproduce with autopilot first; verify by walking.
+- Debug aids added: `RUST_LOG=p2_movement=trace` logs the ground entity;
+  `p2_transit=trace` logs mirrored exit geometry; `mdlinfo` prints `.phy` pieces.
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.

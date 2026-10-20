@@ -1,4 +1,5 @@
-//! Meshes of a model: material per skin, triangle count, bounds, main bones.
+//! Meshes of a model: material per skin, triangle count, bounds, main bones,
+//! and the bounds of each `.phy` collision piece (Source units).
 //!
 //! cargo run -p source_assets --example mdlinfo -- models/npcs/personality_sphere/personality_sphere.mdl [skin]
 use source_assets::GameFs;
@@ -34,6 +35,13 @@ fn main() -> anyhow::Result<()> {
             hi,
             names
         );
+    }
+    for (i, piece) in m.physics.iter().enumerate() {
+        // Pieces are in world axes and metres: back to Source axes and units.
+        let src: Vec<_> = piece.iter().map(|p| shared::world_to_source(*p)).collect();
+        let lo = src.iter().fold(src[0], |a, b| a.min(*b));
+        let hi = src.iter().fold(src[0], |a, b| a.max(*b));
+        println!("phy piece {i}: {} points lo {:.1?} hi {:.1?}", piece.len(), lo, hi);
     }
     Ok(())
 }
