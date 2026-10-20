@@ -13,11 +13,18 @@ reads it first (via `sh scripts/resume.sh`).
   (blocking_door_2 stayed solid). Trigger boxes now follow entity angles,
   Kill despawns doors. Player walks from the elevator to the chamber landing.
 - T-168 FIXED (98b74ad), owner-confirmed.
-- dist/Prtl2Mac.app = 0.1.0+a1cd026.20261020T1944Z.
+- T-162 main menu screen DONE (e6e5e91), autopilot shots only: menu font
+  is now the install's own UniversLTStd-Cn (decoded from
+  vgui/fonts/universc.vfont), MainMenuButton colours/size/inset from
+  basemodui_scheme.res, flyout owner stays lit. T-162 stays open.
+- dist/Prtl2Mac.app = 0.1.0+e6e5e91.20261020T1951Z.
 
 ## Next action
-1. T-162 (owner priority: the UI as close to Portal 2's as possible,
-   one screen per run until all match; new crashes/softlocks still first).
+1. T-162 next screen: the Single Player flyout (FlyoutMenu style from
+   basemodui_scheme.res / resource/ui/basemodui/*flyout*.res; ours is a
+   light grey box). Then New Game, Load Game, Options, pause menu,
+   HUD/hints/subtitles, loading screens; one screen per run, new
+   crashes/softlocks still first.
    Then T-170 carry regression, T-145 cubes black/spikes/jitter, T-172 late
    VO, T-135, T-139, T-112, T-144, T-149, T-147, T-113, then P3/P4.
    Skip T-116 (owner screenshots coming), T-164 and T-151 (attempt branches

@@ -123,7 +123,7 @@ Then the Backlog (prove and sweep the campaign).
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
 
 ### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
-- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: none yet. Left: main menu, Single Player flyout, New Game, Load Game, Options/Settings, pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91, see below). Left: Single Player flyout, New Game, Load Game, Options/Settings, pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
 - Visual reference (owner, 2026-10-20): https://interfaceingame.com/games/portal-2/
   has screenshots of the real Portal 2 UI: start screen, main menu, options,
   video, keyboard/mouse, edit keys, extras, loading, chapter title, save
@@ -144,6 +144,22 @@ Then the Backlog (prove and sweep the campaign).
   captured in a shot. Still open: Portal 2's panel fade/slide timings are
   not implemented (no Windows reference of what the owner saw as "flip");
   the main/pause font size was not checked against the scheme.
+- 2026-10-20 autorun, main menu DONE (e6e5e91, autopilot shots only, not
+  owner-checked). basemodui_scheme.res: MainMenuButton font MainMenuItem =
+  UniversLTStd-Cn tall 22 (PC), TextColor 120 120 120, FocusColor white,
+  CursorColor 255 255 255 15, TextInsetX 10. We used DIN Alternate Bold at
+  24 px in near-white. The real face ships as platform/vgui/fonts/
+  universc.vfont (CustomFontFiles); its encoding was worked out by known
+  plaintext (XOR, key = previous encoded byte + 0xA7; salt + "VFONT1"
+  trailer) and decode_vfont now loads it (unit test). univercb (Bold Cn)
+  and univercl (Light Cn) decode the same way for later screens. Item em =
+  22 / 1.265 units (vgui tall is the Windows cell, winAscent+winDescent).
+  The cursor bar's alpha is 3/255 because Bevy blends in linear light (15
+  gave grey 72 over 17; vgui's gamma blend gives ~31). The item whose
+  flyout is open stays lit. Evidence: before/after main menu and
+  `click SinglePlayer` shots (dist a1cd026 vs e6e5e91). Note: one harmless
+  "font size <= 0" warning on the first frame (Vh size before the window
+  has a size). Flyout itself (light grey box) is the next screen.
 
 ### T-172 Voice lines start late  (P2, TODO)
 - Owner playtest 9: "sometimes voicelines activate late and when I'm going
