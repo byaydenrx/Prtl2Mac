@@ -59,11 +59,8 @@ fn script_conditions(
         if let Some(t) = target {
             let to = ents.list[t].transform.translation - eye;
             let fov = e.get_f32("playertargetfov").unwrap_or(360.0);
-            if fov < 360.0 {
-                let cos = fwd.dot(to.normalize_or_zero());
-                let half = (fov * 0.5).to_radians();
-                ok &= cos >= half.cos();
-            }
+            let true_cone = e.get("playertargetfovtruecone").is_some_and(|v| v.trim() == "1");
+            ok &= in_fov(fwd, to, fov, true_cone);
             if let Some(r) = e.get_f32("playertargetproximity").filter(|r| *r > 0.0) {
                 ok &= (ents.list[t].transform.translation - feet.curr).length() <= r * shared::SOURCE_UNIT;
             }
@@ -86,6 +83,24 @@ fn script_conditions(
         } else {
             *t = 0.0;
         }
+    }
+}
+
+/// Is a point in direction `to` inside a view cone of `fov` degrees around
+/// `fwd`? A negative `fov` asks the opposite, outside a cone of `-fov`
+/// degrees (sp_a1_intro7: Wheatley waits until the player turns away,
+/// PlayerTargetFOV -100). Without `true_cone` only horizontal directions
+/// count, as in Source.
+fn in_fov(fwd: Vec3, to: Vec3, fov: f32, true_cone: bool) -> bool {
+    if fov.abs() >= 360.0 {
+        return true;
+    }
+    let flat = |v: Vec3| if true_cone { v } else { Vec3::new(v.x, 0.0, v.z) };
+    let cos = flat(fwd).normalize_or_zero().dot(flat(to).normalize_or_zero());
+    if fov >= 0.0 {
+        cos >= (fov * 0.5).to_radians().cos()
+    } else {
+        cos < (-fov * 0.5).to_radians().cos()
     }
 }
 
@@ -278,4 +293,21 @@ fn draw_hints(
                 });
             }
         });
+}
+
+#[cfg(test)]
+mod fov_tests {
+    use super::in_fov;
+    use bevy::prelude::Vec3;
+
+    #[test]
+    fn negative_fov_means_looking_away() {
+        let fwd = Vec3::NEG_Z;
+        let (ahead, behind) = (Vec3::new(0.1, -0.3, -5.0), Vec3::new(0.0, 0.2, 5.0));
+        assert!(in_fov(fwd, ahead, 100.0, false));
+        assert!(!in_fov(fwd, behind, 100.0, false));
+        assert!(!in_fov(fwd, ahead, -100.0, false));
+        assert!(in_fov(fwd, behind, -100.0, false));
+        assert!(in_fov(fwd, behind, 360.0, false));
+    }
 }

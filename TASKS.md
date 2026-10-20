@@ -99,9 +99,18 @@ date. Any engine bug found becomes its own task (P1 if it blocks the route).
   dynamic unless DisableMotion (or spawnflag 8) froze it.
 - Autopilot: sp_a1_intro7_OnThree() -> chain of 4 lines -> Wheatley falls
   from z 1419 to the floor (1239), sphere_impact_trigger fires.
-- Still open: portal_b_rm4 (orange, tilted 75 deg) shows only half for the
-  owner. Its panel is flush with it (rays); autopilot screenshots of intro7
-  come out black, so not seen yet.
+- Owner playtest 5: he falls and can be carried and plugged in (verified).
+### T-125 sp_a1_intro7: turning away from Wheatley doesn't register  (P1, NEEDS_VERIFICATION)
+- ai_script_conditions treated PlayerTargetFOV -100 ("target NOT within
+  100 deg") as a 50 deg cone toward it: it fired while facing him and never
+  after turning. ai.rs in_fov now handles negative cones and the 2D cone
+  (unit test negative_fov_means_looking_away). Autopilot: enabled while
+  facing him it stays quiet; it fires 1.5 s after turning away.
+### T-126 Tilted map portal drawn half (intro7 portal_b_rm4)  (P2, NEEDS_VERIFICATION)
+- The panel's drawn face sits within ~1 u of the portal plane but crosses
+  it; the portal quad stood off 0.16 u. Now 1 u (p2_render quad_standoff),
+  like a depth bias. Screenshots: whole portal from two angles; an intro2
+  wall portal and walking through it look as before.
 
 ## Owner playtest issues (P2)
 - T-110 (NEEDS_VERIFICATION) Fix: speech plays on its actor's voice channel, so an actor's new line cuts the previous one (Source CHAN_VOICE); busyactor 2/3 cancel the actor's running scene. Verified by log in intro1 (Wheatley and announcer lines). Different speakers can still overlap, as in Source. Report: jumping/saying "apple" while Wheatley talks, opening the door early; Portal 2 queues or interrupts by scene priority.

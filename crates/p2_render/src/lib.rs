@@ -50,7 +50,7 @@ pub struct PortalRenderConfig {
 
 impl Default for PortalRenderConfig {
     fn default() -> Self {
-        Self { recursion_depth: 2, target_scale: 1.0, quad_standoff: 0.004, cap_depth: 0.35, cap_margin: 0.02 }
+        Self { recursion_depth: 2, target_scale: 1.0, quad_standoff: 0.0254, cap_depth: 0.35, cap_margin: 0.02 }
     }
 }
 

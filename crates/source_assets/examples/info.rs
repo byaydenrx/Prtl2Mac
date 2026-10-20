@@ -70,7 +70,7 @@ fn main() -> anyhow::Result<()> {
         for s in &map.static_props {
             let d = shared::source_to_world(s.origin).distance(p);
             if d < r {
-                println!("  {:.1}m prop_static {}", d, s.model);
+                println!("  {:.1}m prop_static {} origin {:.1?} angles {:.3?}", d, s.model, s.origin, s.angles);
             }
         }
     }
