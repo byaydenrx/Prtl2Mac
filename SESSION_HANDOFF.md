@@ -25,16 +25,17 @@ reads it first (via `sh scripts/resume.sh`).
 - T-162 all screens DONE (last: loading screens 0bc1dd1, new loading.rs:
   act art, spinner, dot bar; level loads wait 2 frames so it is drawn),
   autopilot shots only. Moved to Awaiting owner replay.
-- dist/Prtl2Mac.app = 0.1.0+0bc1dd1.20261020T2222Z.
+- T-170 carrying at walls FIXED (9f1ed5a), autopilot intro2 only: the held
+  prop blocks the player from its own position (pinned by a wall, along
+  the wall's normal) instead of T-167's view ray; looking up pushes the
+  cube over the head up the wall. Moved to Awaiting owner replay.
+- dist/Prtl2Mac.app = 0.1.0+9f1ed5a.20261020T2241Z.
 
 ## Next action
-1. T-170 carrying regressed by the T-167/T-105 wall fixes (pushed back near
-   walls, can't push a cube up a wall): check carrying in intro2/intro3
-   before and after; a regression is worse than the original bug.
-   Then T-145 cubes black/spikes/jitter, T-172 late VO, T-135, T-139,
-   T-112, T-144, T-149, T-147, T-113, then P3/P4. New crashes/softlocks
-   still first. Skip T-116 (owner screenshots coming), T-164 and T-151
-   (attempt branches await the owner).
+1. T-145 lit cubes turn black, spikes under buttons, cubes jitter on
+   buttons. Then T-172 late VO, T-135, T-139, T-112, T-144, T-149, T-147,
+   T-113, then P3/P4. New crashes/softlocks still first. Skip T-116 (owner
+   screenshots coming), T-164 and T-151 (attempt branches await the owner).
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.

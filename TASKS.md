@@ -25,26 +25,26 @@ P1:
 2. (none; T-176 fixed 2bf3d20 and T-169 fixed a1cd026, awaiting owner replay.)
 P2:
    (T-162 UI styling: every screen done 2026-10-20, awaiting owner replay.)
-3. T-170 carrying regressed (pushed back at walls, can't push a cube up a wall).
-4. T-145 lit cubes turn black, spikes under buttons, cubes jitter on buttons.
-5. T-172 voice lines start late (stretches elevator rides; T-120's VO part).
-6. T-135 things fall through elevators (turrets, rubble).
-7. T-139 music not playing with ambience; soundscapes.
-8. T-112 GLaDOS chamber floor still murky brown (with T-151 water).
-9. T-144 clipboard should turn to face the player.
-10. T-149 intro5 screens/lights; sign big number check.
-11. T-147 intro2 black screen at the first door; T-113 hints vanish.
+   (T-170 carrying at walls fixed 9f1ed5a, awaiting owner replay.)
+3. T-145 lit cubes turn black, spikes under buttons, cubes jitter on buttons.
+4. T-172 voice lines start late (stretches elevator rides; T-120's VO part).
+5. T-135 things fall through elevators (turrets, rubble).
+6. T-139 music not playing with ambience; soundscapes.
+7. T-112 GLaDOS chamber floor still murky brown (with T-151 water).
+8. T-144 clipboard should turn to face the player.
+9. T-149 intro5 screens/lights; sign big number check.
+10. T-147 intro2 black screen at the first door; T-113 hints vanish.
 P3:
-12. T-171 FPS drops looking at portals.
-13. T-148 portals behind glass drawn on top (reopened).
-14. T-117 shadows still blocky.
-15. T-152 lighting/texture quality.
-16. T-153 GLaDOS wake-up particles; T-173 gun hold beam and fizzler spark.
-17. T-140 game-placed portal shake/sound (reopened).
-18. T-174 elevator videos; T-175 intro1 ride outside fog/sky; T-164 debris
+11. T-171 FPS drops looking at portals.
+12. T-148 portals behind glass drawn on top (reopened).
+13. T-117 shadows still blocky.
+14. T-152 lighting/texture quality.
+15. T-153 GLaDOS wake-up particles; T-173 gun hold beam and fizzler spark.
+16. T-140 game-placed portal shake/sound (reopened).
+17. T-174 elevator videos; T-175 intro1 ride outside fog/sky; T-164 debris
     (try attempt/T-164); T-116 window (owner screenshots coming).
 P4:
-19. T-151 water (try attempt/T-151), T-150 particles, T-146 half-stuck door,
+18. T-151 water (try attempt/T-151), T-150 particles, T-146 half-stuck door,
     T-154 floating moss.
 Then the Backlog (prove and sweep the campaign).
 
@@ -65,43 +65,6 @@ Then the Backlog (prove and sweep the campaign).
   button. Playtest 8: cubes and buttons drawn.
 
 ## Open: P2
-
-### T-170 Carrying regressed: pushed back at walls, can't push a cube up a wall, not smooth  (P2, TODO)
-- Owner playtest 9: "trying to move a cube up on a wall or something stops
-  me from moving forward, it's buggy, and carrying them around in general
-  isn't too smooth"; "something about what fixed dropping cubes when pushing
-  them in the wall made carrying stuff around a bit buggy and push me back
-  when close to walls".
-- Suspects: T-167's player stop (342b5b1: a ray along the view stops the
-  player 17 u + the prop's depth from a wall) and T-105's hold point pulled
-  in front of walls (fd9c086). In Portal 2 the held prop is solid to the
-  player but slides along walls; aiming at a wall or floor should not freeze
-  movement.
-- History (the fixes that caused it):
-  - T-167 (rest) A held cube at a wall surrounded the camera: the player
-    ignores the held prop's colliders, so walking on pulled the hold point
-    back onto the eye. Now (342b5b1), as in Portal 2 where the held prop is
-    solid to the player, a ray along the view stops the player 17 u plus the
-    prop's depth from a wall (skipped into portals). intro2 box walked into
-    two walls: before (dist) box centre at the eye (36 398 28, feet 36 400),
-    view = inside ring of its face; after the player stops ~41-49 u back and
-    the whole cube shows. Autopilot only; walking into a portal while holding
-    and Wheatley in intro7 not checked.
-  - T-167 (part) Wheatley can't be picked up again after a drop: cores were
-    pickable only after an EnablePickup input, which sp_a1_wakeup never sends
-    (he starts force-picked), so once dropped (or stuck-dropped) he was lost.
-    Cores now stay pickable until DisablePickup (intro7's map-spawn disable
-    still applies). wakeup: drop enabled via input, `use` drop, goto + lookat,
-    `use`: before (dist fd9c086) the ray hit him and he stayed on the floor
-    (z 401); after (636fc3f) he is held facing the player at z 441. Only
-    autopilot-checked, wakeup only.
-  - T-105 Held props dropped when carried into a wall: the hold point went
-    inside the wall, the prop stayed >64u from it and was dropped after 0.5 s.
-    Now a ray from the eye pulls the hold point in front of static geometry
-    (not through portals). intro2 cube walked into three walls: before
-    (dist build) it fell to the floor (z -46) and stayed; after (fd9c086) it
-    stays held at the wall and returns to its hold distance when backing
-    off. Only the cube was autopilot-checked, not Wheatley in intro7.
 
 ### T-145 Buttons don't animate; cubes don't change colour on a button  (P2, REOPENED: lit cubes turn black, spikes under buttons, jitter)
 - Owner playtest 9 (2026-10-20, build 014ab6e): button press works, but "cubes turn black when they're activated and yellow" and "it adds weird spikes under the button almost like there's grass under it"; "buttons are still juttery/buggy when [cubes are] put on buttons".
@@ -485,6 +448,61 @@ Then the Backlog (prove and sweep the campaign).
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-170 Carrying regressed: pushed back at walls, can't push a cube up a wall, not smooth  (P2, FIXED 9f1ed5a, awaiting owner replay)
+- Owner playtest 9: "trying to move a cube up on a wall or something stops
+  me from moving forward, it's buggy, and carrying them around in general
+  isn't too smooth"; "something about what fixed dropping cubes when pushing
+  them in the wall made carrying stuff around a bit buggy and push me back
+  when close to walls".
+- Suspects: T-167's player stop (342b5b1: a ray along the view stops the
+  player 17 u + the prop's depth from a wall) and T-105's hold point pulled
+  in front of walls (fd9c086). In Portal 2 the held prop is solid to the
+  player but slides along walls; aiming at a wall or floor should not freeze
+  movement.
+- History (the fixes that caused it):
+  - T-167 (rest) A held cube at a wall surrounded the camera: the player
+    ignores the held prop's colliders, so walking on pulled the hold point
+    back onto the eye. Now (342b5b1), as in Portal 2 where the held prop is
+    solid to the player, a ray along the view stops the player 17 u plus the
+    prop's depth from a wall (skipped into portals). intro2 box walked into
+    two walls: before (dist) box centre at the eye (36 398 28, feet 36 400),
+    view = inside ring of its face; after the player stops ~41-49 u back and
+    the whole cube shows. Autopilot only; walking into a portal while holding
+    and Wheatley in intro7 not checked.
+  - T-167 (part) Wheatley can't be picked up again after a drop: cores were
+    pickable only after an EnablePickup input, which sp_a1_wakeup never sends
+    (he starts force-picked), so once dropped (or stuck-dropped) he was lost.
+    Cores now stay pickable until DisablePickup (intro7's map-spawn disable
+    still applies). wakeup: drop enabled via input, `use` drop, goto + lookat,
+    `use`: before (dist fd9c086) the ray hit him and he stayed on the floor
+    (z 401); after (636fc3f) he is held facing the player at z 441. Only
+    autopilot-checked, wakeup only.
+  - T-105 Held props dropped when carried into a wall: the hold point went
+    inside the wall, the prop stayed >64u from it and was dropped after 0.5 s.
+    Now a ray from the eye pulls the hold point in front of static geometry
+    (not through portals). intro2 cube walked into three walls: before
+    (dist build) it fell to the floor (z -46) and stayed; after (fd9c086) it
+    stays held at the wall and returns to its hold distance when backing
+    off. Only the cube was autopilot-checked, not Wheatley in intro7.
+- FIXED 2026-10-20 (9f1ed5a). Cause: T-167's stop used a level ray along
+  the view against any wall (17 u + 2x the prop's depth) instead of the
+  prop: looking up to push a cube up a wall the player froze ~60 u out, and
+  turning toward a wall within ~65 u backed them off at 60 u/s. Now the
+  prop itself blocks the player, like Portal 2's solid held prop: only when
+  level with the hull, touching it along the view and pinned by a wall
+  (shape cast of the prop), and only along that wall's normal (slides along
+  it). Carry keeps the hold point out of the hull: looking up it goes over
+  the head (up the wall), otherwise out in front. intro2 box, before (dist
+  0bc1dd1) / after: walk into the wall level: stops 340 / 349 (whole cube
+  visible, T-167 kept); looking up 55 deg: frozen at 340 / walks to the wall
+  (400), cube over the head at z 27; back to the wall then turn to face it:
+  pushed 62 u / eased out only because the cube doesn't fit (16 u room);
+  looking down 65 deg on open floor: 126 / 127 u in 1.5 s; cube pressed to
+  the glass then walking at 160 deg: slides 150 u / 156 u (an intermediate
+  build that blocked along the view froze here). Autopilot only; intro3
+  (cubes unnamed, dropper) and Wheatley in intro7 not checked.
+
 
 ### T-162 Menu animations, logo alignment, styling  (P2, ALL SCREENS DONE 0bc1dd1, awaiting owner replay)
 - Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), Advanced Video (4ca377c), Keyboard/Mouse (9b0053b), Controller (903118b), pause menu (21f6353), HUD crosshair + chapter title (b417bba), instructor hints (9576999), subtitles (f475223), loading screens (0bc1dd1), see below. Left: none (the 0.3 s dialog fades and other "Not done" notes below remain). Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
