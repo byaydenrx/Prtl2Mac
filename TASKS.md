@@ -27,8 +27,8 @@ P2:
 3. T-162 OWNER PRIORITY: the UI as close to Portal 2's as possible, one
    screen per run until all match (done: main menu, SP dialog, New Game,
    Load/Save Game, Options dialog, Audio, Video, Advanced Video,
-   Keyboard/Mouse, Controller, pause menu; left: HUD/crosshair/hints/
-   subtitles, loading screens); T-162's entry lists done/left screens. Any new crash or
+   Keyboard/Mouse, Controller, pause menu, HUD crosshair + chapter title;
+   left: instructor hints, subtitles, loading screens); T-162's entry lists done/left screens. Any new crash or
    softlock still goes first.
 4. T-170 carrying regressed (pushed back at walls, can't push a cube up a wall).
 5. T-145 lit cubes turn black, spikes under buttons, cubes jitter on buttons.
@@ -124,7 +124,7 @@ Then the Backlog (prove and sweep the campaign).
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
 
 ### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
-- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), Advanced Video (4ca377c), Keyboard/Mouse (9b0053b), Controller (903118b), pause menu (21f6353), see below. Left: HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), Advanced Video (4ca377c), Keyboard/Mouse (9b0053b), Controller (903118b), pause menu (21f6353), HUD crosshair + chapter title (b417bba), see below. Left: instructor hints, subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
 - Visual reference (owner, 2026-10-20): https://interfaceingame.com/games/portal-2/
   has screenshots of the real Portal 2 UI: start screen, main menu, options,
   video, keyboard/mouse, edit keys, extras, loading, chapter title, save
@@ -325,6 +325,26 @@ Then the Backlog (prove and sweep the campaign).
   903118b: grey item column, 7 items) vs after (tiled dialog, Back returns
   to it). Next: in-game HUD/crosshair, then instructor hints, subtitles,
   loading screens.
+- 2026-10-20 autorun, HUD DONE (b417bba, autopilot shots only, not
+  owner-checked). hudlayout.res: in single player the only always-on HUD
+  is the crosshair (HUDQuickInfo/HudPortalCrosshair), already built from
+  the reverse-engineered layout (crosshair.rs: dots 10 px apart, brackets
+  6,10 px off centre, alpha 150; checked in an autopilot shot, unchanged).
+  The visible mismatch was the chapter title card: the maps'
+  @chapter_title_text / @chapter_subtitle_text game_texts (x -1, y .55 /
+  .6, effect 2 scan-out, fadein .06/char, fxtime .5 highlight from color2
+  205 to white, hold 5, fadeout .5) are drawn by client.dll's CHudMessage
+  in InGameChapterTitle (UniversLTStd-Cn 19) and InGameChapterSubtitle
+  (UniversLTStd-BoldCn 34) from basemodui_scheme.res, i.e. a small
+  "CHAPTER 2" above a big bold "THE COLD BOOT". Ours was a generic bold 54
+  px "Chapter 2" over a small regular name with a 1 s fade. Now as the game
+  (upper case, per-character scan-out, unit test). Evidence: autopilot
+  sp_a2_laser_intro shots, before (dist 21f6353) vs after. Not checked:
+  the scan-out mid-way in a shot (unit test only). Next: instructor hints
+  (hudlayout has none; instructor fonts InstructorTitle in
+  basemodui_scheme.res, scripts/instructor_*), then subtitles
+  (HudCloseCaption c-250, y 276, 500x136, BgAlpha 128, CloseCaption_*
+  fonts), loading screens.
 
 ### T-172 Voice lines start late  (P2, TODO)
 - Owner playtest 9: "sometimes voicelines activate late and when I'm going
