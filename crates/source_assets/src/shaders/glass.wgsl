@@ -26,6 +26,7 @@ const FLAG_TINT_TEXTURE: u32 = 8u;
 const FLAG_ENVMAP: u32 = 16u;
 const FLAG_LIGHTMAP: u32 = 32u;
 const FLAG_VERTEX_LIGHT: u32 = 64u;
+const FLAG_LIGHTMAP_FOG: u32 = 128u;
 
 // Estimates, see glass.rs.
 const REFRACT_SCALE: f32 = 0.1;
@@ -61,10 +62,15 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
     let world = in.world_position.xyz;
 
     // tangent-space normal (flat when there is no normal map)
-    let n_sample = textureSample(normal_tex, normal_samp, apply_rows(params.normal_u, params.normal_v, uv)).xyz * 2.0 - 1.0;
+    var normal_uv = apply_rows(params.normal_u, params.normal_v, uv);
+    if params.fog.w > 0.0 {
+        // flowing water: world-space tiling ($flow_normaluvscale)
+        normal_uv = in.world_position.xz / (params.fog.z * params.fog.w);
+    }
+    let n_sample = textureSample(normal_tex, normal_samp, normal_uv).xyz * 2.0 - 1.0;
     var n_ts = vec3<f32>(0.0, 0.0, 1.0);
     if (flags & FLAG_NORMAL) != 0u {
-        n_ts = normalize(n_sample);
+        n_ts = normalize(vec3<f32>(n_sample.xy * params.reflect_tint.w, n_sample.z));
     }
 
     // surface frame from screen derivatives (no tangent attributes needed)
@@ -74,8 +80,8 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
     }
     let dp1 = dpdx(world);
     let dp2 = dpdy(world);
-    let duv1 = dpdx(uv);
-    let duv2 = dpdy(uv);
+    let duv1 = dpdx(normal_uv);
+    let duv2 = dpdy(normal_uv);
     let dp2perp = cross(dp2, n_geo);
     let dp1perp = cross(n_geo, dp1);
     let t = dp2perp * duv1.x + dp1perp * duv2.x;
@@ -120,7 +126,15 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
         let ndv_geo = max(dot(n_geo, v), 0.15);
         let ray = WATER_DEPTH / ndv_geo;
         let fog = clamp((ray - params.fog_color.w) / (params.fog.x - params.fog_color.w), 0.0, 1.0);
-        let body = mix(refracted, params.fog_color.rgb * exposure, fog);
+        // $lightmapwaterfog: the fog is lit by the water's lightmap (murky
+        // water under a dark ceiling stays dark), as in Source's water shader.
+        var fog_rgb = params.fog_color.rgb;
+        if (flags & FLAG_LIGHTMAP_FOG) != 0u && (flags & FLAG_LIGHTMAP) != 0u {
+#ifdef VERTEX_UVS_B
+            fog_rgb *= textureSample(lm_tex, lm_samp, in.uv_b).rgb;
+#endif
+        }
+        let body = mix(refracted, fog_rgb * exposure, fog);
         var reflection = vec3<f32>(0.0);
         if has_env {
             reflection = env * params.reflect_tint.rgb;

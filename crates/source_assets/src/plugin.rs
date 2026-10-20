@@ -477,6 +477,20 @@ fn valve_texture(
     name: &str,
     srgb: bool,
 ) -> Option<crate::valve::EnvTexture> {
+    // `name#alpha`: that texture's alpha as an RGB mask (see VtfTexture::alpha_as_rgb).
+    if let Some(src) = name.strip_suffix(crate::valve::ALPHA_MASK_SUFFIX) {
+        let tex = map.textures.get(src)?;
+        let sampler = crate::valve::SamplerKey::from_vtf_flags(tex.flags);
+        let image = match cache.linear_images.get(name) {
+            Some(h) => h.clone(),
+            None => {
+                let h = images.add(tex.alpha_as_rgb()?.into_image(bc, false));
+                cache.linear_images.insert(name.to_string(), h.clone());
+                h
+            }
+        };
+        return Some(crate::valve::EnvTexture { image, sampler, cube: false, frames: Vec::new() });
+    }
     let tex = map.textures.get(name)?;
     let sampler = crate::valve::SamplerKey::from_vtf_flags(tex.flags);
     let cube = tex.faces == 6;
@@ -775,6 +789,11 @@ pub fn spawn_loaded_map(
 
     // The sky, which water reflects when it has no cubemap of its own.
     let skybox = skybox_image(assets, map);
+    // ...but not on a fogged map: there the sky is never seen (the view
+    // ends in fog), and the white sky of sp_a1_intro3 turned its murky
+    // water white.
+    let fogged = map.entities.iter().any(|e| e.classname == "env_fog_controller" && e.get("fogenable") == Some("1"));
+    let water_sky = skybox.clone().filter(|_| !fogged);
 
     // Brush meshes: one material per texdata for this map.
     let mut mats: HashMap<usize, Handle<SourceMaterial>> = HashMap::new();
@@ -800,7 +819,7 @@ pub fn spawn_loaded_map(
             let (h, proxies) = match glass_mats.get(&bm.material) {
                 Some(g) => g.clone(),
                 None => {
-                    let g = glass_material(assets, map, m, Some(lightmap.clone()), skybox.as_ref());
+                    let g = glass_material(assets, map, m, Some(lightmap.clone()), water_sky.as_ref());
                     glass_mats.insert(bm.material, g.clone());
                     g
                 }

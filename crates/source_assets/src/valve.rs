@@ -775,6 +775,10 @@ pub fn model_vertices(mesh: &crate::models::ModelMesh, light: &dyn Fn(usize) -> 
 /// mask at s11)`. VS static: 0 lit, 16 unlit. VS dynamic 1: static
 /// per-vertex light from COLOR1 (the ambient-cube light of dynamic props is
 /// baked into COLOR1 too). PS dynamic 0.
+/// Texture-name suffix asking the map's texture loader for that texture's
+/// alpha as an RGB mask.
+pub const ALPHA_MASK_SUFFIX: &str = "#alpha";
+
 pub fn vertex_lit_generic(
     lib: &ValveShaderLibrary,
     shaders: &mut Assets<Shader>,
@@ -791,7 +795,14 @@ pub fn vertex_lit_generic(
         .filter(|e| e != "env_cubemap")
         .and_then(|t| tex(&t, false, env))
         .filter(|t| t.cube);
-    let envmask = crate::vmt::texture_param(p, "$envmapmask").and_then(|t| tex(&t, false, env));
+    // $normalmapalphaenvmapmask: the bump map's alpha masks the envmap. The
+    // bumped VertexLitGeneric isn't driven here yet, so that alpha goes in as
+    // the plain shader's mask; without it the envmap covered the whole
+    // surface (sp_a1_intro3's floor rubble came out flat grey).
+    let envmask = crate::vmt::texture_param(p, "$envmapmask").and_then(|t| tex(&t, false, env)).or_else(|| {
+        let bump = crate::vmt::texture_param(p, "$bumpmap").filter(|_| p.get_bool("$normalmapalphaenvmapmask"))?;
+        tex(&format!("{bump}{ALPHA_MASK_SUFFIX}"), false, env)
+    });
     let detail_mode = p.get_f32("$detailblendmode").unwrap_or(0.0) as u32;
     let detail = crate::vmt::texture_param(p, "$detail").and_then(|t| tex(&t, detail_mode == 1, env));
     let selfillum = p.get_bool("$selfillum");

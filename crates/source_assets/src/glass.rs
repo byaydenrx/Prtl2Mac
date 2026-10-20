@@ -55,6 +55,8 @@ pub const FLAG_TINT_TEXTURE: u32 = 8;
 pub const FLAG_ENVMAP: u32 = 16;
 pub const FLAG_LIGHTMAP: u32 = 32;
 pub const FLAG_VERTEX_LIGHT: u32 = 64;
+/// `$lightmapwaterfog`: the water's fog colour is lit by its lightmap.
+pub const FLAG_LIGHTMAP_FOG: u32 = 128;
 
 #[derive(Clone, Copy, Debug, PartialEq, ShaderType)]
 pub struct GlassParams {
@@ -175,18 +177,22 @@ pub fn glass_params(water: bool, v: &MaterialVars, flags: u32, exposure: f32) ->
     let fog = srgb_to_linear(v.vec3("$fogcolor").unwrap_or([0.0; 3]));
     let (fog_start, fog_end) = (v.f32("$fogstart").unwrap_or(0.0), v.f32("$fogend").unwrap_or(512.0));
     let (normal_u, normal_v) = rows(v.transform("$bumptransform"));
+    let flow = water && v.get("$flowmap").is_some();
     let (base_u, base_v) = rows(v.transform("$basetexturetransform"));
     GlassParams {
         refract_tint: Vec4::new(refract[0], refract[1], refract[2], v.f32("$refractamount").unwrap_or(0.5)),
-        reflect_tint: Vec4::new(reflect[0], reflect[1], reflect[2], 0.0),
+        // w: normal strength (flowing water's $flow_bumpstrength).
+        reflect_tint: Vec4::new(reflect[0], reflect[1], reflect[2], if flow { v.f32("$flow_bumpstrength").unwrap_or(1.0) } else { 1.0 }),
         envmap_tint: Vec4::new(envtint[0], envtint[1], envtint[2], v.f32("$bluramount").unwrap_or(0.0)),
         fog_color: fog.extend(fog_start),
-        fog: Vec4::new(fog_end.max(fog_start + 1.0), exposure, shared::SOURCE_UNIT, 0.0),
+        // w: flowing water samples its normal map in world space, one tile
+        // per $flow_normaluvscale units (0: the mesh's texture coordinates).
+        fog: Vec4::new(fog_end.max(fog_start + 1.0), exposure, shared::SOURCE_UNIT, if flow { v.f32("$flow_normaluvscale").unwrap_or(1.0).max(1.0) } else { 0.0 }),
         normal_u,
         normal_v,
         base_u,
         base_v,
-        flags: flags | if water { FLAG_WATER } else { 0 },
+        flags: flags | if water { FLAG_WATER } else { 0 } | if water && v.f32("$lightmapwaterfog").unwrap_or(0.0) != 0.0 { FLAG_LIGHTMAP_FOG } else { 0 },
     }
 }
 
@@ -228,7 +234,7 @@ fn update_glass_proxies(time: Res<Time>, mut materials: ResMut<Assets<GlassMater
         let set = p.program.eval(&p.params, &mut ctx);
         let vars = MaterialVars { base: &p.params, set: &set };
         let water = cur.params.flags & FLAG_WATER != 0;
-        let params = glass_params(water, &vars, cur.params.flags & !FLAG_WATER, cur.params.fog.y);
+        let params = glass_params(water, &vars, cur.params.flags & !(FLAG_WATER | FLAG_LIGHTMAP_FOG), cur.params.fog.y);
         let pick = |frames: &[Handle<Image>], var: &str| {
             (!frames.is_empty()).then(|| frames[vars.f32(var).unwrap_or(0.0).max(0.0) as usize % frames.len()].clone())
         };

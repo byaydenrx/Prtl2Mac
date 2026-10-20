@@ -337,6 +337,27 @@ impl VtfTexture {
         self.format = PixelFormat::Rgba8;
     }
 
+    /// Frame 0 with its alpha copied into red, green and blue (alpha 1), all
+    /// mips: a material that masks with another texture's alpha
+    /// (`$normalmapalphaenvmapmask`) can bind it where an RGB mask goes.
+    /// `None` for formats this can't decode to RGBA8.
+    pub fn alpha_as_rgb(&self) -> Option<VtfTexture> {
+        let mut t = self.frame(0);
+        t.decompress();
+        if t.format != PixelFormat::Rgba8 {
+            return None;
+        }
+        for mip in &mut t.mips {
+            for p in mip.chunks_exact_mut(4) {
+                p[0] = p[3];
+                p[1] = p[3];
+                p[2] = p[3];
+                p[3] = 255;
+            }
+        }
+        Some(t)
+    }
+
     /// Top-level RGBA8 pixels (decompressing if needed). For tests and tools.
     pub fn rgba8_level0(&self) -> Option<Vec<u8>> {
         let mut t = self.frame(0);
