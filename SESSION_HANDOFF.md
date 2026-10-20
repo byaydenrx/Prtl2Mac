@@ -4,8 +4,9 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-20, autonomous session (owner away, no playtests). A one-shot
-scheduled task `prtl2mac-auto-resume` resumes work ~5 h later from this file.
+2026-10-20, autonomous runs (owner away, no playtests). Scheduled task
+`prtl2mac-auto-resume` starts a fresh session hourly; each run does one task
+(lock: ~/Library/Application Support/Portal2Rust/autopilot-session.lock).
 
 ## Where things stand
 - Repo tidied 2026-10-20: TASKS.md is one entry per task with a "Priority
@@ -14,12 +15,16 @@ scheduled task `prtl2mac-auto-resume` resumes work ~5 h later from this file.
   gotchas moved to WORKFLOW.md; PROJECT_STATE map table updated from
   playtest 8 (owner played chapter 1 to sp_a2_laser_stairs).
 - T-130 handrails fixed (grate models pass shots). T-129 fixed (movie screens mirrored; ring covered its exit). Owner replay
-  pending, as for T-128. dist/Prtl2Mac.app = 0.1.0+8ac53a2.
+  pending, as for T-128. dist/Prtl2Mac.app = 0.1.0+0454ed8.20261020T0914Z.
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. TASKS "Priority order" item 1: T-131 intro3 floors and roofs missing.
-   Then T-105, T-132.
+1. T-131 sp_a1_intro3 floors/roofs. Leads: the first elevator room's exit
+   is `door_0-testchamber_door` (-160,144,1104); arrival elevator at
+   (-160,-512), leaving trigger (-160,-336,1040). `setpos -160 40 1040`
+   dropped the player to z 913 (under the room, all fog), so arrive by the
+   elevator (wait ~20 s from map start) and walk +y through the door,
+   shooting down and up. Then T-105, T-132.
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.
