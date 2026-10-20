@@ -70,6 +70,9 @@ pub struct GameSound {
     pub soundlevel: f32,
     /// Soundscript and caller volume, before the player's settings.
     pub base: f32,
+    /// The soundscript's own volume: an `ambient_generic` `Volume` input
+    /// rescales `base` from it.
+    pub script: f32,
     pub owner: Option<usize>,
     pub music: bool,
     pub voice: Option<usize>,
@@ -222,7 +225,7 @@ fn play_sounds(
                 volume: Volume::Linear(base * mix * g),
                 ..default()
             },
-            GameSound { at: req.at, soundlevel: level, base, owner: req.owner, music: req.music, voice: req.voice },
+            GameSound { at: req.at, soundlevel: level, base, script: volume, owner: req.owner, music: req.music, voice: req.voice },
             LevelOwned,
         ));
     }
@@ -290,7 +293,7 @@ fn ambient_inputs(
     mut commands: Commands,
     mut inputs: MessageReader<EntInput>,
     ents: Option<Res<Ents>>,
-    playing: Query<(Entity, &GameSound)>,
+    mut playing: Query<(Entity, &mut GameSound)>,
     mut play: MessageWriter<PlayGameSound>,
 ) {
     let Some(ents) = ents else {
@@ -302,8 +305,8 @@ fn ambient_inputs(
         if e.class != "ambient_generic" {
             continue;
         }
-        let stop = |commands: &mut Commands| {
-            for (pe, s) in &playing {
+        let stop = |commands: &mut Commands, playing: &Query<(Entity, &mut GameSound)>| {
+            for (pe, s) in playing {
                 if s.owner == Some(msg.target) {
                     commands.entity(pe).despawn();
                 }
@@ -311,22 +314,39 @@ fn ambient_inputs(
         };
         match msg.input.as_str() {
             "playsound" => {
-                stop(&mut commands);
+                stop(&mut commands, &playing);
                 if let Some(r) = ambient_request(&ents, msg.target) {
                     play.write(r);
                 }
             }
-            "stopsound" | "fadeout" | "kill" => stop(&mut commands),
+            "stopsound" | "fadeout" | "kill" => stop(&mut commands, &playing),
             "togglesound" => {
                 if playing.iter().any(|(_, s)| s.owner == Some(msg.target)) {
-                    stop(&mut commands);
+                    stop(&mut commands, &playing);
                 } else if let Some(r) = ambient_request(&ents, msg.target) {
                     play.write(r);
+                }
+            }
+            // Volume 0-10 on the playing sound (intro1 turns the announcer's
+            // courtesy call down to 3 as Wheatley knocks, then to 0 when
+            // the door opens).
+            "volume" => {
+                let v = ambient_volume(&msg.param);
+                debug!("portal2: ambient_generic {} volume {v}", e.name);
+                for (_, mut s) in &mut playing {
+                    if s.owner == Some(msg.target) {
+                        s.base = s.script * v;
+                    }
                 }
             }
             _ => {}
         }
     }
+}
+
+/// An `ambient_generic` `Volume` parameter (0-10) as a gain.
+fn ambient_volume(param: &str) -> f32 {
+    (param.trim().parse::<f32>().unwrap_or(10.0) / 10.0).clamp(0.0, 1.0)
 }
 
 /// The pause menu pauses every sound (voice lines pick up where they left
@@ -357,5 +377,19 @@ fn pause_audio(time: Res<Time<Virtual>>, sinks: Query<(Entity, &AudioSink, Optio
         } else {
             sink.play();
         }
+    }
+}
+
+#[cfg(test)]
+mod volume_tests {
+    use super::ambient_volume;
+
+    #[test]
+    fn ambient_volume_input_scales_0_to_10() {
+        assert_eq!(ambient_volume("3"), 0.3);
+        assert_eq!(ambient_volume("0"), 0.0);
+        assert_eq!(ambient_volume(" 10 "), 1.0);
+        assert_eq!(ambient_volume("25"), 1.0);
+        assert_eq!(ambient_volume(""), 1.0);
     }
 }
