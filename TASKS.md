@@ -37,7 +37,7 @@ P2:
 14. (T-160 main menu like Portal 2's, ab64b84, awaiting owner replay.)
 P3:
 15. (T-161 menu movie and music by act, f6f129e, awaiting owner replay; T-162 logo/item layout and hover flash, b39fff3, awaiting owner replay, panel fades still open.)
-16. (T-020 intro1 ride BLOCKED: not reproduced, needs the camera proxy path or an owner recording; T-164 spiky debris BLOCKED: untested fix on attempt/T-164); T-116 intro1 room BLOCKED: not reproduced, needs a Windows screenshot; (T-117 shadows fixed, d1df637, awaiting owner replay); T-115 wake-up.
+16. (T-020 intro1 ride BLOCKED: not reproduced, needs the camera proxy path or an owner recording; T-164 spiky debris BLOCKED: untested fix on attempt/T-164); T-116 intro1 room BLOCKED: not reproduced, needs a Windows screenshot; (T-117 shadows fixed, d1df637, awaiting owner replay); T-115 wake-up BLOCKED: not reproduced, the map has no get-up/lie-down rig in normal play (blackout is a removed template), needs a Windows recording.
 17. T-153 GLaDOS wake-up; T-157 smoother fall transition; T-165 Wheatley rail connector.
 18. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
 P4:
@@ -259,7 +259,27 @@ Then the Backlog (prove and sweep the campaign).
   - Outside lighting on the ride: not checked this run (ride is seen
     through point_viewproxy camera_1, see T-020).
 
-### T-115 intro1: no wake/sleep animation on the bed  (P3, TODO)
+### T-115 intro1: no wake/sleep animation on the bed  (P3, BLOCKED (needs owner))
+- 2026-10-20 autorun: NOT REPRODUCED, no code change, no attempt branch.
+  Autopilot (sp_a1_intro1; shots at 0.5-14 s, then return_to_bed_button
+  unlock+press at 16 s, shots to 31 s): first wake-up plays camera_intro on
+  ghostanim "sp_a1_intro" (13.4 s: ceiling through the white fade, sits up,
+  looks round, TeleportToView at 12 s, continuous handover). Bed press:
+  cryo_fade_out (3 s to white, 5 s hold, 2 s back), relay_start_second_cryo_
+  wakeup at +5 s teleports the player to @knockout_teleport_1 (bed, yaw 10);
+  no camera motion after that.
+- Why no get-up/lie-down here: the only other rig is blackout
+  (models/blackin.mdl, seq exit1 5.33 s, camera blackout_viewcontroller on
+  vehicle_driver_eyes), but both are members of point_template
+  blackout_template (spawnflags 2, i.e. templates removed at load, as Source
+  does and we do); only @debug_skip_to_moving_container ForceSpawns it, and
+  blackout's own OnAnimationDone kills it. So relay_start_cryo_sequence's
+  Enable/SetAnimation hit nothing in normal play, on both wake-ups. Nothing in
+  the map animates lying down on the bed (the press only fades to white).
+  blackin.mdl's material models/blackout/blackout is missing from the game
+  files too.
+- Needs the owner: a Windows recording/screenshots of the wake-up (which
+  moment looks wrong) and of what happens after using the bed.
 
 ### T-153 GLaDOS wake-up  (P3, TODO)
 - White particles hide her; her arms float unattached when grabbing Chell
