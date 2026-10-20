@@ -5,7 +5,9 @@
 //!   for `RequiredTime` seconds, then fires `OnConditionsSatisfied`. The
 //!   intro's "look at the ceiling / the floor / the art" steps run on these.
 //! * `env_instructor_hint`: `ShowHint` puts its caption and key on screen
-//!   until `EndHint` or its timeout.
+//!   until `EndHint` or its timeout, drawn as Portal 2's game instructor
+//!   does: the icon (key cap) and a white InstructorTitle caption, no box,
+//!   over its `hint_target` or, when static, under the crosshair.
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use p2_core::*;
@@ -21,7 +23,7 @@ impl Plugin for AiPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Hints>()
             .init_resource::<HintIcons>()
-            .add_systems(Update, (script_conditions, hint_inputs, draw_hints).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic));
+            .add_systems(Update, (script_conditions, hint_inputs, draw_hints, place_hints).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic));
     }
 }
 
@@ -104,9 +106,23 @@ fn in_fov(fwd: Vec3, to: Vec3, fov: f32, true_cone: bool) -> bool {
     }
 }
 
-/// Hints on screen: (ent, caption, key, until, on-screen icon).
+/// An instructor hint on screen.
+struct Hint {
+    ent: usize,
+    caption: String,
+    /// The bound key's name ("E"), empty for none.
+    key: String,
+    until: f32,
+    /// `hint_icon_onscreen` (`use_binding` = the key cap).
+    icon: String,
+    /// `hint_target` when not `hint_static`: the hint floats over it.
+    target: Option<usize>,
+    /// `hint_icon_offset`: Source units above the target.
+    offset: f32,
+}
+
 #[derive(Resource, Default)]
-struct Hints(Vec<(usize, String, String, f32, String)>);
+struct Hints(Vec<Hint>);
 
 /// The game instructor's icons (`scripts/instructor_textures.txt`): each a
 /// region of an icon sheet texture, loaded when first shown.
@@ -205,27 +221,52 @@ fn hint_inputs(
                 let caption = campaign.text(e.get("hint_caption").unwrap_or(""));
                 let key = binding_key(e.get("hint_binding").unwrap_or("")).to_string();
                 let timeout = e.get_f32("hint_timeout").filter(|t| *t > 0.0).unwrap_or(8.0);
-                hints.0.retain(|h| h.0 != msg.target);
+                hints.0.retain(|h| h.ent != msg.target);
                 let icon = e.get("hint_icon_onscreen").unwrap_or("icon_tip").to_string();
-                hints.0.push((msg.target, caption, key, ents.now + timeout, icon));
+                let target = if e.get("hint_static").is_some_and(|v| v.trim() == "0") {
+                    ents.find(e.get("hint_target").unwrap_or(""), msg.target, msg.activator).into_iter().next()
+                } else {
+                    None
+                };
+                let offset = e.get_f32("hint_icon_offset").unwrap_or(0.0);
+                hints.0.push(Hint { ent: msg.target, caption, key, until: ents.now + timeout, icon, target, offset });
             }
-            "endhint" | "kill" => hints.0.retain(|h| h.0 != msg.target),
+            "endhint" | "kill" => hints.0.retain(|h| h.ent != msg.target),
             _ => {}
         }
     }
+    // Only touch the list when one times out: a change rebuilds the rows,
+    // and rows rebuilt every frame are never laid out.
     let now = ents.now;
-    hints.0.retain(|h| h.3 > now);
+    if hints.0.iter().any(|h| h.until <= now) {
+        hints.0.retain(|h| h.until > now);
+    }
 }
 
+/// One hint's row; the index into [`Hints`].
 #[derive(Component)]
-struct HintRoot;
+struct HintRow(usize);
+
+/// One vgui unit (480 units = the screen height) in `Vh`.
+const UNIT_VH: f32 = 100.0 / 480.0;
+/// The instructor's icon: 32 units square (measured on Portal 2's "Pick Up"
+/// and "Create Blue Portal" hints, 30 px on a 450 px tall screen).
+const HINT_ICON: f32 = 32.0;
+/// InstructorTitle: UniversLTStd-BoldCn tall 18 (basemodui_scheme.res);
+/// vgui `tall` is the Windows cell, 1.265 em for Univers Cn.
+const HINT_CAPTION: f32 = 18.0 / 1.265;
+/// InstructorKeyBindings on PC HiDef: UniversLTStd-BoldCn tall 12.
+const HINT_KEY: f32 = 12.0 / 1.265;
+/// Static hints sit under the crosshair: Portal 2's "Create Blue Portal"
+/// hint is centred two thirds of the way down the screen.
+const HINT_STATIC_Y: f32 = 2.0 / 3.0;
 
 #[allow(clippy::too_many_arguments)]
 fn draw_hints(
     mut commands: Commands,
     hints: Res<Hints>,
     fonts: Option<Res<UiFonts>>,
-    roots: Query<Entity, With<HintRoot>>,
+    rows: Query<Entity, With<HintRow>>,
     game: Res<p2_assets::GameFsRes>,
     mut icons: ResMut<HintIcons>,
     mut images: ResMut<Assets<Image>>,
@@ -235,65 +276,137 @@ fn draw_hints(
     }
     let Some(fonts) = fonts else { return };
     icons.load(&game);
-    for r in &roots {
+    for r in &rows {
         commands.entity(r).despawn();
     }
-    if hints.0.is_empty() {
-        return;
+    let vh = |u: f32| Val::Vh(u * UNIT_VH);
+    let font = |u: f32| TextFont { font: fonts.title.clone().into(), font_size: bevy::text::FontSize::Vh(u * UNIT_VH), ..default() };
+    for (i, hint) in hints.0.iter().enumerate() {
+        // A key hint shows the key on the instructor's key cap; others
+        // their own icon (the tip bulb, mostly).
+        let on_key = hint.icon == "use_binding" && !hint.key.is_empty();
+        let key_icon = if hint.key.chars().count() > 1 { "icon_key_wide" } else { "icon_key_generic" };
+        let art = if on_key { icons.icon(key_icon, &game, &mut images) } else { icons.icon(&hint.icon, &game, &mut images) };
+        commands
+            .spawn((
+                HintRow(i),
+                // Off screen until `place_hints` has its laid-out size
+                // (hidden nodes are not laid out).
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(-10000.0),
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: vh(4.0),
+                    ..default()
+                },
+                GlobalZIndex(4),
+                bevy::picking::Pickable::IGNORE,
+            ))
+            .with_children(|row| {
+                if let Some((image, rect)) = &art {
+                    let w = HINT_ICON * rect.width() / rect.height().max(1.0);
+                    let mut icon = row.spawn((
+                        Node { width: vh(w), height: vh(HINT_ICON), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
+                        ImageNode { image: image.clone(), rect: Some(*rect), ..default() },
+                    ));
+                    if on_key {
+                        // dark on the light key cap
+                        icon.with_child((Text::new(hint.key.clone()), font(HINT_KEY), TextColor(Color::srgb(0.08, 0.08, 0.08))));
+                    }
+                }
+                if !hint.key.is_empty() && !(on_key && art.is_some()) {
+                    row.spawn((
+                        Node { padding: UiRect::axes(vh(4.0), vh(1.0)), ..default() },
+                        BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.9)),
+                        children![(Text::new(hint.key.clone()), font(HINT_KEY), TextColor(Color::BLACK))],
+                    ));
+                }
+                row.spawn((
+                    Text::new(hint.caption.clone()),
+                    font(HINT_CAPTION),
+                    TextColor(Color::WHITE),
+                    TextShadow { offset: Vec2::splat(1.0), color: Color::srgba(0.0, 0.0, 0.0, 0.8) },
+                ));
+            });
     }
-    let font = |size: f32| TextFont { font: fonts.bold.clone().into(), font_size: bevy::text::FontSize::Px(size), ..default() };
-    commands
-        .spawn((
-            HintRoot,
-            Node {
-                position_type: PositionType::Absolute,
-                width: Val::Percent(100.0),
-                bottom: Val::Percent(22.0),
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
-                row_gap: Val::Px(8.0),
-                ..default()
-            },
-            GlobalZIndex(4),
-            bevy::picking::Pickable::IGNORE,
-        ))
-        .with_children(|p| {
-            for (_, caption, key, _, icon) in &hints.0 {
-                // A key hint shows the key on the instructor's key icon;
-                // others their own icon (the tip bulb, mostly).
-                let key_icon = if key.chars().count() > 1 { "icon_key_wide" } else { "icon_key_generic" };
-                let art = if icon == "use_binding" && !key.is_empty() { icons.icon(key_icon, &game, &mut images) } else { icons.icon(icon, &game, &mut images) };
-                p.spawn((
-                    Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(10.0), padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)), ..default() },
-                    BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
-                ))
-                .with_children(|row| {
-                    match (&art, icon == "use_binding" && !key.is_empty()) {
-                        (Some((image, rect)), true) => {
-                            let w = 40.0 * rect.width() / rect.height().max(1.0);
-                            row.spawn((
-                                Node { width: Val::Px(w), height: Val::Px(40.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
-                                ImageNode { image: image.clone(), rect: Some(*rect), ..default() },
-                                // dark on the light key cap (white text vanished into it)
-                                children![(Text::new(key.clone()), font(15.0), TextColor(Color::srgb(0.08, 0.08, 0.08)))],
-                            ));
-                        }
-                        (Some((image, rect)), false) => {
-                            row.spawn((Node { width: Val::Px(40.0), height: Val::Px(40.0), ..default() }, ImageNode { image: image.clone(), rect: Some(*rect), ..default() }));
-                        }
-                        _ => {}
-                    }
-                    if !key.is_empty() && !(icon == "use_binding" && art.is_some()) {
-                        row.spawn((
-                            Node { padding: UiRect::axes(Val::Px(8.0), Val::Px(2.0)), ..default() },
-                            BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.9)),
-                            children![(Text::new(key.clone()), font(18.0), TextColor(Color::BLACK))],
-                        ));
-                    }
-                    row.spawn((Text::new(caption.clone()), font(20.0), TextColor(Color::WHITE)));
-                });
+}
+
+/// Where a hint's row is centred, in logical pixels: over its target while
+/// that is in front of the camera (kept on screen), else under the
+/// crosshair, stacked by `slot`.
+fn hint_anchor(target: Option<Vec2>, screen: Vec2, size: Vec2, slot: usize) -> Vec2 {
+    match target {
+        Some(p) => {
+            let half = size * 0.5;
+            p.clamp(half, (screen - half).max(half))
+        }
+        None => Vec2::new(screen.x * 0.5, screen.y * HINT_STATIC_Y + slot as f32 * size.y * 1.25),
+    }
+}
+
+fn place_hints(
+    hints: Res<Hints>,
+    ents: Option<Res<Ents>>,
+    mut rows: Query<(&HintRow, &mut Node, &ComputedNode)>,
+    camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+    window: Query<&Window, With<bevy::window::PrimaryWindow>>,
+    props: Query<(&crate::props::Prop, &GlobalTransform)>,
+    globals: Query<&GlobalTransform>,
+) {
+    let Some(ents) = ents else { return };
+    let Ok((cam, cam_tf)) = camera.single() else { return };
+    // The view may render offscreen first: project to NDC, then the window.
+    let Ok(window) = window.single() else { return };
+    let screen = window.size();
+    let mut slot = 0usize;
+    for (row, mut node, computed) in &mut rows {
+        let Some(hint) = hints.0.get(row.0) else { continue };
+        let size = computed.size() * computed.inverse_scale_factor();
+        if size.x <= 0.0 {
+            continue;
+        }
+        // The target where it is drawn now (cubes move).
+        let target = hint.target.and_then(|i| {
+            let e = ents.list.get(i)?;
+            let at = props
+                .iter()
+                .find(|(p, _)| p.ent == i)
+                .map(|(_, g)| g.translation())
+                .or_else(|| e.entity.and_then(|r| globals.get(r).ok()).map(|g| g.translation()))
+                .unwrap_or(e.transform.translation);
+            let at = at + Vec3::Y * hint.offset * 0.0254;
+            // Behind the camera: fall back to under the crosshair.
+            if (at - cam_tf.translation()).dot(*cam_tf.forward()) <= 0.0 {
+                return None;
             }
+            let ndc = cam.world_to_ndc(cam_tf, at)?;
+            Some(Vec2::new((ndc.x + 1.0) * 0.5 * screen.x, (1.0 - ndc.y) * 0.5 * screen.y))
         });
+        if target.is_none() {
+            slot += 1;
+        }
+        let c = hint_anchor(target, screen, size, slot.saturating_sub(1));
+        node.left = Val::Px(c.x - size.x * 0.5);
+        node.top = Val::Px(c.y - size.y * 0.5);
+    }
+}
+
+#[cfg(test)]
+mod hint_tests {
+    use super::hint_anchor;
+    use bevy::prelude::Vec2;
+
+    #[test]
+    fn hints_sit_on_target_or_under_crosshair() {
+        let (screen, size) = (Vec2::new(1280.0, 720.0), Vec2::new(200.0, 30.0));
+        assert_eq!(hint_anchor(Some(Vec2::new(500.0, 300.0)), screen, size, 0), Vec2::new(500.0, 300.0));
+        // kept on screen
+        assert_eq!(hint_anchor(Some(Vec2::new(-50.0, 900.0)), screen, size, 0), Vec2::new(100.0, 705.0));
+        // static: centred, two thirds down, stacked
+        assert_eq!(hint_anchor(None, screen, size, 0), Vec2::new(640.0, 480.0));
+        assert_eq!(hint_anchor(None, screen, size, 1).y, 480.0 + 37.5);
+    }
 }
 
 #[cfg(test)]
