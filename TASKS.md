@@ -124,7 +124,7 @@ Then the Backlog (prove and sweep the campaign).
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
 
 ### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
-- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), see below. Left: the Settings panels Advanced Video, Keyboard/Mouse, Controller, pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), Advanced Video (4ca377c), see below. Left: the Settings panels Keyboard/Mouse, Controller, pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
 - Visual reference (owner, 2026-10-20): https://interfaceingame.com/games/portal-2/
   has screenshots of the real Portal 2 UI: start screen, main menu, options,
   video, keyboard/mouse, edit keys, extras, loading, chapter title, save
@@ -257,6 +257,22 @@ Then the Backlog (prove and sweep the campaign).
   mode, Shader, CPU/effect, Model/texture, Paged pool) and a description
   pane at x 360 (LblDescriptionTitle y 25, LblDescription y 60, 180 wide);
   ours has 14 rows, so it needs a scroll or a taller body.
+- 2026-10-20 autorun, Advanced Video DONE (4ca377c, autopilot shots only,
+  not owner-checked). advancedvideo.res order now: Anti-aliasing,
+  Filtering, VSync, Multicore (= DrpQueuedMode), Shader, Effect (=
+  DrpCPUDetail), Model/texture, Paged pool (Portal 2 hides it on $OSX; kept
+  as on Windows), then ours: Motion blur, FOV, Max frame rate, Graphics,
+  Show frame rate, Show movement stats. Tiled frame 11 wide; 14 rows need
+  a 7-tile body packed from 0 (as Audio), rows 350 units wide; description
+  pane at 360: LblDescriptionTitle y 25 (VideoSettingsDescriptionTitle =
+  BoldCn 24) and LblDescription y 60, 180 x 180 wrapped
+  (VideoSettingsDescription = LightCn 17 w700, drawn Cn), black; filled from
+  the hovered row (describe_rows), starting on the first. Description texts
+  are our own (Valve's strings are not in the loose files). Unit test pins
+  the order. Evidence: autopilot `click Options; click Page(Video); click
+  Page(AdvancedVideo)` shots, before (dist 5d16315: grey panel) vs after.
+  Hover updating the pane NOT autopilot-checked (no mouse-move command).
+  Next: keyboardmouse.res, then controller.res.
 
 ### T-172 Voice lines start late  (P2, TODO)
 - Owner playtest 9: "sometimes voicelines activate late and when I'm going
