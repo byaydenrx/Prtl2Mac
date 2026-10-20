@@ -38,8 +38,9 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-137 Portal spacing (portals can't be placed as close together as in
-   Portal 2), then T-102 seamless cube carry, T-125 turn-away delay.
+1. T-102 seamless cube carry, then T-125 turn-away delay.
+   T-137 portal spacing fixed 2026-10-20 (38c09bf, shots overlapping the
+   other portal now bump beside it), awaiting owner replay.
    T-120 Elevators is now BLOCKED (needs owner): thumps, trash and VO timing
    all NOT REPRODUCED by autopilot (see its entry). Trash checked
    2026-10-20 (autorun): it is intro5's departure_elevator-tube_blockage_01
@@ -54,7 +55,7 @@ reads it first (via `sh scripts/resume.sh`).
    T-135 (vac-tube turrets through the exit elevator) is BLOCKED: the model's
    own elevator_0N animation drops them down the shaft through the car;
    needs a Windows Portal 2 reference of that moment (see its entry).
-   dist build: 0.1.0+3f96088.20261020T1137Z (unchanged).
+   dist build: 0.1.0+38c09bf.20261020T1156Z.
 2. T-131 (intro3 floors/roofs) is BLOCKED: not reproduced by autopilot;
    needs owner screenshots plus console `getpos`.
 

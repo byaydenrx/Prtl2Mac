@@ -27,7 +27,7 @@ P2:
 4. (T-133 Wheatley float fixed, awaiting owner replay; panel part not reproduced.)
 5. (T-134 pod turn and T-163 hatch fixed, awaiting owner replay.)
 6. (T-136 wakeup tube portal fixed, awaiting owner replay.)
-7. T-137 Portal spacing; T-102 seamless cube carry; T-125 turn-away delay.
+7. (T-137 portal spacing fixed, awaiting owner replay.) T-102 seamless cube carry; T-125 turn-away delay.
 8. T-145 Buttons don't animate, cubes don't light up.
 9. T-144 Missing props; T-147 black screen as intro2's first door opens.
 10. T-139 Ambient audio, button sounds, music cut-offs, loud glass.
@@ -144,9 +144,6 @@ Then the Backlog (prove and sweep the campaign).
   screenshot/clip of this moment in Windows Portal 2 (or depot 624 RE of
   prop_dynamic root-motion handling). No fix attempt branch.
 
-### T-137 Portals can't be placed as close together as in Portal 2  (P2, TODO)
-- Section 5. Reference: server.dll placement rules.
-
 ### T-102 Cubes through portals not seamless  (P2, TODO)
 - Sections 1-2 (intro2, intro3). Traversal itself works (owner replays).
 
@@ -252,6 +249,15 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+### T-137 Portals can't be placed as close together as in Portal 2  (P2, fixed 38c09bf, autopilot only)
+- Section 5. Cause: a shot overlapping the other portal on the same wall
+  failed with Overlap (fizzle); Portal 2 bumps the new portal off it so they
+  sit side by side. Fix: rules::bump_off_portals pushes it to the nearest
+  free side (1 u gap, still fitted to the surface, within the max slide).
+- Evidence (sp_a2_laser_intro, blue at (-35,-256,173), orange aimed 42 u
+  beside it): before "Orange shot failed: Overlap"; after "Orange portal
+  placed at (30,-256,186)", both visible side by side. Gap size and which
+  side wins are our choice, not checked against Windows Portal 2.
 ### T-136 sp_a1_wakeup end: a portal shows in the tube before GLaDOS drops the player  (P2, fixed 3f96088, autopilot only)
 - Playtests 7 and 8. Cause: relay_incinerator_open links
   incinerator_entry_portal_1 (floor under the incinerator door) to _2 (top
