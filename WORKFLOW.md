@@ -69,7 +69,23 @@ sessions, only for independent tasks with separate files.
   `portalable x y z r`, `ray x y z [dx dy dz]`, `propto <name> x y z`,
   `shot <file.png>`, `log`, `click <Action>`, `quit`.
   `RUST_LOG=info,portal2::io=debug` logs every entity output that fires.
-- Debug env: P2_TRACE, P2_NOCROSSHAIR, P2_HIDE_MAT, P2_LIST_MATS, P2_EXPOSURE.
+- Debug env: P2_TRACE, P2_NOCROSSHAIR, P2_HIDE_MAT (hide materials by name
+  substring: find which material a bad surface is), P2_LIST_MATS,
+  P2_EXPOSURE=1 (fixed exposure), SOURCE_VALVE_DEBUG (shader combo per
+  material).
+- Placing the view: `goto <entity> <dist>` + `lookat <entity>` beats
+  guessing `setpos` (setpos z is the feet; outside the map you fall into the
+  void). `con map <name>` changes level mid-run. `info <name>` prints state,
+  bounds, colliders and face materials.
+- Asset tools (`cargo build --release -p source_assets --example <x>`, run
+  from target/release/examples with PORTAL2_DIR set): `ents <map> [class|name|--all]`
+  (keyvalues and outputs), `ls --cat <path>` (VMTs, scripts), `ls --vtf`,
+  `mdlinfo <mdl> [skin]`, `info <map> --near x,y,z r` (world metres: x, z_src, -y_src
+  times 0.0254), `probe <map> x,y,z`, `pak <map>`; p2_assets `animinfo <mdl>`
+  (sequences; FRAMEANIM/JUMPS/BONES env). BSP lumps can be read directly with
+  python (static props: lump 35 `prps`).
+- Screenshots (owner's in ~/Documents/Screenshots, autopilot 2560x1440):
+  shrink with `sips -Z 1000` before reading.
 - Package: `sh scripts/make_app.sh` -> `dist/Prtl2Mac.app`.
 
 ## Cost rules
