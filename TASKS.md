@@ -36,7 +36,7 @@ P2:
 13. (T-123 security cameras knocked off by portal shots, 2bb0015, awaiting owner replay.)
 14. (T-160 main menu like Portal 2's, ab64b84, awaiting owner replay.)
 P3:
-15. T-161 Menu video and music; T-162 menu animation, logo, styling.
+15. (T-161 menu movie and music by act, f6f129e, awaiting owner replay.) T-162 menu animation, logo, styling.
 16. T-020 intro1 ride; T-164 spiky debris; T-116 intro1 room; T-117 shadows; T-115 wake-up.
 17. T-153 GLaDOS wake-up; T-157 smoother fall transition; T-165 Wheatley rail connector.
 18. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
@@ -186,10 +186,6 @@ Then the Backlog (prove and sweep the campaign).
 
 ## Open: P3
 
-### T-161 Menu background video and music  (P3, TODO)
-- media/menu_act01..05.bik by campaign progress instead of a still (ffmpeg
-  at /opt/homebrew/bin); menu music.
-
 ### T-162 Menu animations, logo alignment, styling  (P3, TODO)
 - Panel/flyout transitions flip oddly; the Portal 2 logo is misaligned.
 
@@ -245,6 +241,20 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-161 Menu background video and music  (P3, FIXED 2026-10-20, f6f129e, autopilot only)
+- Cause: the menu only showed the act's still (background0N_widescreen),
+  and the music indexed the five portal2_background0N tracks by chapter
+  number (chapter 3 played track 3, not act 2's).
+- Fix: Main/New Game/Options play media/menu_act0N.bik for the save's act
+  (ffmpeg streams it looped in real time, newest frame only; still shown
+  until frames arrive or without ffmpeg; stopped in the game). Music uses
+  the same act (unit test `menu_act_by_chapter`).
+- Evidence (autopilot only): dist 89f2bf5 shows the static still; new build
+  logs "menu movie media/menu_act02.bik" (save on laser_over_goo) and shots
+  at 4 s and 6 s show different movie frames; ffmpeg exits after Continue
+  and on quit, never starts on a map launch. Music change not listened to.
+  Owner: check it loops smoothly and the act/track match Windows.
 
 ### T-160 Main menu like Portal 2's  (P2, FIXED 2026-10-20, ab64b84, autopilot only)
 - Top level: Play Single Player, Play Cooperative Game, Community Test

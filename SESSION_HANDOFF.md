@@ -38,8 +38,13 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-161 menu video and music (next in the owner's order: T-161, T-162,
+1. T-162 menu animations, logo, styling (next in the owner's order: T-162,
    T-020, T-164, T-116, ...).
+   T-161 FIXED 2026-10-20 (f6f129e): menus out of the game play the save's
+   act movie media/menu_act0N.bik (ffmpeg stream, still as fallback), music
+   picks portal2_background0N by act. Awaiting owner replay (autopilot
+   shots/log only, music not listened to).
+   dist build: 0.1.0+f6f129e.20261020T1535Z.
    T-160 FIXED 2026-10-20 (ab64b84): main menu is Portal 2's six items,
    Single Player flyout has Challenge Mode, New Game is a vertical chapter
    list with the picked chapter's picture. Co-op, Extras, Challenge Mode do
