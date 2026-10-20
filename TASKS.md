@@ -27,7 +27,7 @@ P2:
 3. T-162 OWNER PRIORITY: the UI as close to Portal 2's as possible, one
    screen per run until all match (done: main menu, SP dialog, New Game,
    Load/Save Game, Options dialog, Audio, Video, Advanced Video,
-   Keyboard/Mouse; left: Controller, pause menu, HUD/crosshair/hints/
+   Keyboard/Mouse, Controller, pause menu; left: HUD/crosshair/hints/
    subtitles, loading screens); T-162's entry lists done/left screens. Any new crash or
    softlock still goes first.
 4. T-170 carrying regressed (pushed back at walls, can't push a cube up a wall).
@@ -124,7 +124,7 @@ Then the Backlog (prove and sweep the campaign).
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
 
 ### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
-- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), Advanced Video (4ca377c), Keyboard/Mouse (9b0053b), Controller (903118b), see below. Left: pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), Advanced Video (4ca377c), Keyboard/Mouse (9b0053b), Controller (903118b), pause menu (21f6353), see below. Left: HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
 - Visual reference (owner, 2026-10-20): https://interfaceingame.com/games/portal-2/
   has screenshots of the real Portal 2 UI: start screen, main menu, options,
   video, keyboard/mouse, edit keys, extras, loading, chapter title, save
@@ -306,6 +306,25 @@ Then the Backlog (prove and sweep the campaign).
   Options; click Page(Controller)` shots, before (dist 2bf3d20: grey panel,
   "Game controller", "Reverse look", 1.0 number) vs after; `click Done`
   returns to the Options dialog. Next: the pause menu (ingamemainmenu.res).
+- 2026-10-20 autorun, pause menu DONE (21f6353, autopilot shots only, not
+  owner-checked). ingamemainmenu.res is a tiled CBaseModFrame dialog
+  (dialogstyle 1), body 5 x 4, DefaultButton rows every 25 from 25; in
+  single player the visible rows are BtnReturnToGame, BtnSaveGame,
+  BtnLoadLastSave, BtnOptions, BtnExitToMainMenu ("RETURN TO GAME", "SAVE
+  GAME", "LOAD LAST SAVE", "OPTIONS", "EXIT TO MAIN MENU" from
+  basemodui_english.txt). Restart Level, Skip, Leaderboards, Rate map and
+  the puzzle maker rows only show in challenge/community/puzzle maker maps,
+  and Portal 2's pause menu has no Quit Game, so our old Load Game, Restart
+  Level and Quit Game items are gone (Load Last Save loads the newest save,
+  greyed without one; Load Game stays on the Single Player dialog).
+  No footer (Return to Game/Esc close it). Guess: the title tab is blank,
+  since neither the .res, the localization files nor client.dll strings give
+  the frame a title (no pause shot in the reference gallery); owner, say if
+  Portal 2 shows text there. Unit test pins the rows. Evidence: autopilot
+  intro2 `click pause`, `click Options; click Back` shots, before (dist
+  903118b: grey item column, 7 items) vs after (tiled dialog, Back returns
+  to it). Next: in-game HUD/crosshair, then instructor hints, subtitles,
+  loading screens.
 
 ### T-172 Voice lines start late  (P2, TODO)
 - Owner playtest 9: "sometimes voicelines activate late and when I'm going
