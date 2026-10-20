@@ -124,6 +124,12 @@ Then the Backlog (prove and sweep the campaign).
 
 ### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
 - Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: none yet. Left: main menu, Single Player flyout, New Game, Load Game, Options/Settings, pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Visual reference (owner, 2026-10-20): https://interfaceingame.com/games/portal-2/
+  has screenshots of the real Portal 2 UI: start screen, main menu, options,
+  video, keyboard/mouse, edit keys, extras, loading, chapter title, save
+  game, quit dialog, tutorial hints (create portal, pick up) and the test
+  chamber evaluation. Compare each screen against it (built-in browser
+  `get_page_text`/screenshots) alongside the install's .res files.
 - Panel/flyout transitions flip oddly; the Portal 2 logo is misaligned.
 - Cause: the logo and item column were placed by eye (logo 6%/9%, 34% wide;
   items 6% left, 12% from the bottom, 2 px apart). Now from the install:
