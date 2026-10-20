@@ -37,7 +37,7 @@ P2:
 14. (T-160 main menu like Portal 2's, ab64b84, awaiting owner replay.)
 P3:
 15. (T-161 menu movie and music by act, f6f129e, awaiting owner replay; T-162 logo/item layout and hover flash, b39fff3, awaiting owner replay, panel fades still open.)
-16. (T-020 intro1 ride BLOCKED: not reproduced, needs the camera proxy path or an owner recording); T-164 spiky debris; T-116 intro1 room; T-117 shadows; T-115 wake-up.
+16. (T-020 intro1 ride BLOCKED: not reproduced, needs the camera proxy path or an owner recording; T-164 spiky debris BLOCKED: untested fix on attempt/T-164); T-116 intro1 room; T-117 shadows; T-115 wake-up.
 17. T-153 GLaDOS wake-up; T-157 smoother fall transition; T-165 Wheatley rail connector.
 18. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
 P4:
@@ -209,10 +209,30 @@ Then the Backlog (prove and sweep the campaign).
   SetAnimation anim2 -> kill timing vs the proxy-enabled container_master
   being disabled. Owner: a short screen recording of the ride would help.
 
-### T-164 Spiky, torn animated debris  (P3, TODO)
+### T-164 Spiky, torn animated debris  (P3, BLOCKED: needs owner)
 - intro1 ride (screenshot 5), sp_a2_intro shaft arms (playtest 7). Animated
   props draw as rigid per-bone triangles (models.rs split_by_bone); soft
   weighted meshes tear. Check the weights, then skin them.
+- 2026-10-20 autorun: weights checked (mdlinfo now prints "soft verts" and
+  "mixed tris" per mesh). intro1 ride: the container_ride finedebris_part1/3/
+  5/9/11/12/13 rebars, rust, crumplebeam/crumplecorner, bed02 and frame2
+  meshes blend 2-3 bones (e.g. part12 crumplebeamcol 1257/3265 soft verts,
+  1846 of 3080 tris mixed), so the rigid split tears them: confirmed cause
+  by data. sp_a2_intro: every model is rigid (arm64x64_interior_rusty,
+  crusher, armrubble_* all 0 soft verts), so the shaft-arm spikes are a
+  different problem, still open (check bone poses/interpolation there).
+- Not visually reproduced: in sp_a1_intro1 autopilot (`input
+  actor_container_05 SetAnimation anim2`, `input camera_intro Disable`,
+  `goto`/`lookat`) the view stays on the bed-room intro camera, so no
+  before/after shot of the debris.
+- Untested fix: local branch attempt/T-164 (c34006e), needs owner
+  review/replay. Soft meshes (vertexlit/unlitgeneric) stay whole under the
+  model and are linear-blend skinned on the CPU from their BonePart
+  transforms when those move (plugin.rs skin_soft_meshes, models.rs
+  skin_vertices with a unit test); valve_render re-uploads the vertex
+  buffer when the SkinnedVertices generation changes. Replay the intro1
+  ride's wall breaking and the room transform after `git merge
+  attempt/T-164`.
 
 ### T-116 intro1 room details  (P3, TODO)
 - The window is a grey block, should be blinds (screenshot 1); the TV

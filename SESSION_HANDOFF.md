@@ -38,8 +38,14 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-164 spiky debris (next in the owner's order: T-164, T-116, T-117,
-   T-115, T-153, ...).
+1. T-116 intro1 room details (next in the owner's order: T-116, T-117,
+   T-115, T-153, T-157, ...).
+   T-164 spiky debris BLOCKED (needs owner) 2026-10-20: cause confirmed by
+   weights (intro1 finedebris rebar/rust/crumple meshes are soft-skinned,
+   the rigid split tears them) but not visually reproduced (intro camera
+   keeps the view). Untested fix on local branch attempt/T-164 (c34006e).
+   sp_a2_intro arms are rigid: separate cause, still open in its entry.
+   dist build unchanged: 0.1.0+b39fff3.20261020T1546Z.
    T-020 intro1 ride BLOCKED (needs owner) 2026-10-20: not reproduced; the
    ride is seen through point_viewproxy camera_1 (enabled by
    relay_start_second_cryo_wakeup), which relay shortcuts skip. No code
@@ -124,7 +130,9 @@ reads it first (via `sh scripts/resume.sh`).
 None outside what this file's commit contains.
 
 ## Fix attempts awaiting the owner
-None.
+- attempt/T-164 (c34006e): CPU skinning for soft-weighted animated meshes
+  (intro1 ride debris). Review `git log -p wheatley..attempt/T-164`, replay
+  the intro1 ride, then `git merge attempt/T-164` or delete the branch.
 
 ## Checkouts (2026-10-20)
 - `Portal2-wheatley` (this one): level with origin/main; work happens here.
