@@ -330,25 +330,85 @@ fn trace_lasers(
     }
 }
 
+/// A laser leg: one camera-facing quad textured like Portal 2's beam.
 #[derive(Component)]
 struct BeamLeg;
 
+/// A turret sight line: two thin cylinders (core and glow).
+#[derive(Component)]
+struct SightLeg;
+
+/// Portal 2's laser material (`sprites/purplelaser1.vmt`, UnlitTwoTexture,
+/// additive), the width its beam is drawn at and an overbright factor (the
+/// texture's red glow is faint; chosen by eye against the old solid beam,
+/// no Windows reference compared yet).
+const BEAM_TEXTURE: &str = "materials/sprites/purplelaser1.vtf";
+const BEAM_WIDTH: f32 = 40.0 * U;
+const BEAM_BRIGHTNESS: f32 = 2.5;
+
+/// The vmt's UniformNoise proxy scales `$color` by 0.9..1.05 each frame;
+/// `seed` steps a small LCG, returning that factor.
+fn beam_flicker(seed: &mut u32) -> f32 {
+    *seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+    0.9 + 0.15 * (*seed >> 8) as f32 / (1u32 << 24) as f32
+}
+
+/// The beam quad: x 0..1 along the beam, y -0.5..0.5 across; the texture
+/// runs across in u (bright core at u = 0.5) and along in v.
+fn beam_quad() -> Mesh {
+    use bevy::asset::RenderAssetUsages;
+    use bevy::mesh::{Indices, PrimitiveTopology};
+    let positions = vec![[0.0, -0.5, 0.0], [1.0, -0.5, 0.0], [1.0, 0.5, 0.0], [0.0, 0.5, 0.0]];
+    Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default())
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 1.0]; 4])
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]])
+        .with_inserted_indices(Indices::U32(vec![0, 1, 2, 0, 2, 3]))
+}
+
 #[derive(Default)]
 struct BeamAssets {
+    quad: Option<Handle<Mesh>>,
+    beam: Option<Handle<StandardMaterial>>,
     mesh: Option<Handle<Mesh>>,
     core: Option<Handle<StandardMaterial>>,
     glow: Option<Handle<StandardMaterial>>,
+    seed: u32,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_beams(
     mut commands: Commands,
     state: Res<LaserState>,
-    mut legs: Query<(Entity, &mut Transform, &mut Visibility), With<BeamLeg>>,
+    mut legs: Query<(Entity, &mut Transform, &mut Visibility), (With<BeamLeg>, Without<SightLeg>)>,
+    mut sights: Query<(Entity, &mut Transform, &mut Visibility), (With<SightLeg>, Without<BeamLeg>)>,
+    cams: Query<&GlobalTransform, With<MainCamera>>,
+    game: Option<Res<p2_assets::GameFsRes>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
     mut assets: Local<BeamAssets>,
 ) {
     if assets.mesh.is_none() {
+        let texture = game
+            .as_ref()
+            .and_then(|g| g.read(BEAM_TEXTURE))
+            .and_then(|d| source_assets::vtf::VtfTexture::parse(&d).ok())
+            .map(|t| images.add(t.into_image(false, true)));
+        if texture.is_none() {
+            warn!("portal2: no laser texture {BEAM_TEXTURE}");
+        }
+        assets.quad = Some(meshes.add(beam_quad()));
+        assets.beam = Some(materials.add(StandardMaterial {
+            base_color: if texture.is_some() { Color::WHITE } else { Color::srgba(1.0, 0.1, 0.05, 0.5) },
+            base_color_texture: texture,
+            unlit: true,
+            alpha_mode: AlphaMode::Add,
+            fog_enabled: false,
+            double_sided: true,
+            cull_mode: None,
+            ..default()
+        }));
         assets.mesh = Some(meshes.add(Cylinder::new(1.0, 1.0)));
         assets.core = Some(materials.add(StandardMaterial { base_color: Color::srgb(1.0, 0.85, 0.75), unlit: true, fog_enabled: false, ..default() }));
         assets.glow = Some(materials.add(StandardMaterial {
@@ -359,15 +419,40 @@ fn draw_beams(
             ..default()
         }));
     }
-    // Two cylinders per leg (core and glow); spawn any missing, reuse the rest.
-    let legs_list = &state.legs;
-    let mut legs_list: Vec<((Vec3, Vec3), f32)> = legs_list.iter().map(|l| (*l, 1.0)).collect();
-    legs_list.extend(state.sights.iter().map(|l| (*l, 0.1)));
-    let want = legs_list.len() * 2;
-    for k in legs.iter().count()..want {
-        let glow = k % 2 == 1;
+    let cam = cams.iter().next().map(|c| c.translation()).unwrap_or_default();
+    let k = beam_flicker(&mut assets.seed);
+    if let Some(mut m) = assets.beam.as_ref().and_then(|h| materials.get_mut(h)) {
+        if m.base_color_texture.is_some() {
+            let b = k * BEAM_BRIGHTNESS;
+            m.base_color = Color::linear_rgb(b, b, b);
+        }
+    }
+    // Laser legs: one quad each; spawn any missing, reuse the rest.
+    for _ in legs.iter().count()..state.legs.len() {
         commands.spawn((
             BeamLeg,
+            Mesh3d(assets.quad.clone().unwrap()),
+            MeshMaterial3d(assets.beam.clone().unwrap()),
+            Transform::from_scale(Vec3::ZERO),
+            Visibility::Hidden,
+            LevelOwned,
+        ));
+    }
+    for (i, (_, mut tf, mut vis)) in legs.iter_mut().enumerate() {
+        match state.legs.get(i).and_then(|(a, b)| crate::sprites::beam_transform(*a, *b, BEAM_WIDTH, cam)) {
+            Some(t) => {
+                *tf = t;
+                *vis = Visibility::Inherited;
+            }
+            None => *vis = Visibility::Hidden,
+        }
+    }
+    // Turret sight lines: two thin cylinders each (core and glow).
+    let want = state.sights.len() * 2;
+    for k in sights.iter().count()..want {
+        let glow = k % 2 == 1;
+        commands.spawn((
+            SightLeg,
             Mesh3d(assets.mesh.clone().unwrap()),
             MeshMaterial3d(if glow { assets.glow.clone().unwrap() } else { assets.core.clone().unwrap() }),
             Transform::from_scale(Vec3::ZERO),
@@ -375,17 +460,14 @@ fn draw_beams(
             LevelOwned,
         ));
     }
-    let mut i = 0;
-    for (_, mut tf, mut vis) in legs.iter_mut() {
-        let leg = i / 2;
+    for (i, (_, mut tf, mut vis)) in sights.iter_mut().enumerate() {
         let glow = i % 2 == 1;
-        i += 1;
-        let Some(((a, b), thick)) = legs_list.get(leg) else {
+        let Some((a, b)) = state.sights.get(i / 2) else {
             *vis = Visibility::Hidden;
             continue;
         };
         let d = *b - *a;
-        let r = if glow { 4.0 * U } else { 1.2 * U } * thick;
+        let r = if glow { 0.4 * U } else { 0.12 * U };
         *tf = Transform::from_translation((*a + *b) * 0.5)
             .with_rotation(Quat::from_rotation_arc(Vec3::Y, d.normalize_or(Vec3::Y)))
             .with_scale(Vec3::new(r, d.length(), r));
@@ -393,7 +475,32 @@ fn draw_beams(
     }
     if std::env::var_os("P2_TRACE").is_some() && !state.legs.is_empty() {
         if let Some((_, tf, vis)) = legs.iter().next() {
-            debug!("TRACE beam entities {} first {:?} {:?}", legs.iter().count(), tf.translation / U, vis);
+            debug!("TRACE beam entities {} first {:?} {:?} flicker {k:.3}", legs.iter().count(), tf.translation / U, vis);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn beam_flickers_like_the_vmt_noise() {
+        let mut seed = 1;
+        let ks: Vec<f32> = (0..1000).map(|_| beam_flicker(&mut seed)).collect();
+        assert!(ks.iter().all(|k| (0.9..=1.05).contains(k)));
+        assert!(ks.iter().any(|k| *k < 0.92) && ks.iter().any(|k| *k > 1.03), "spans the range");
+    }
+
+    #[test]
+    fn beam_texture_runs_across_the_quad() {
+        let m = beam_quad();
+        let Some(bevy::mesh::VertexAttributeValues::Float32x3(p)) = m.attribute(Mesh::ATTRIBUTE_POSITION) else { panic!() };
+        let Some(bevy::mesh::VertexAttributeValues::Float32x2(uv)) = m.attribute(Mesh::ATTRIBUTE_UV_0) else { panic!() };
+        for (p, uv) in p.iter().zip(uv) {
+            // u follows the width (y), v the length (x): the core stays in the middle.
+            assert_eq!(uv[0], p[1] + 0.5);
+            assert_eq!(uv[1], p[0]);
         }
     }
 }
