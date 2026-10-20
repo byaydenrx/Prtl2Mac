@@ -340,12 +340,20 @@ fn ambient_on_load(mut loaded: MessageReader<LevelLoaded>, ents: Option<Res<Ents
     }
     let Some(ents) = ents else { return };
     for (i, e) in ents.list.iter().enumerate() {
-        if e.class == "ambient_generic" && e.spawnflags & 16 == 0 {
+        if e.class == "ambient_generic" && ambient_autostarts(e.spawnflags) {
             if let Some(r) = ambient_request(&ents, i) {
                 play.write(r);
             }
         }
     }
+}
+
+/// Whether an `ambient_generic` starts on map load: not "start silent"
+/// (16) and not a one-shot (32 "not looped"). One-shots wait for a
+/// PlaySound (intro4's ramp glass break, flags 33, used to blast at load
+/// while the player was still riding the elevator).
+fn ambient_autostarts(spawnflags: u32) -> bool {
+    spawnflags & (16 | 32) == 0
 }
 
 fn ambient_inputs(
@@ -447,6 +455,15 @@ mod volume_tests {
     fn elevator_depart_sound_loops_arrive_plays_once() {
         assert!(super::train_sound_looped("world.elevatordepartlp"));
         assert!(!super::train_sound_looped("world.elevatorarrive"));
+    }
+
+    #[test]
+    fn only_looping_audible_ambients_autostart() {
+        assert!(super::ambient_autostarts(0));
+        assert!(super::ambient_autostarts(1));
+        assert!(!super::ambient_autostarts(16));
+        assert!(!super::ambient_autostarts(33));
+        assert!(!super::ambient_autostarts(48));
     }
 
     #[test]
