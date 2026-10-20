@@ -22,12 +22,14 @@ reads it first (via `sh scripts/resume.sh`).
   cleansers still unmeshed, see its entry).
   T-114 intro1 announcer now ducks under Wheatley (ambient_generic Volume
   input, 463757d, autopilot only). T-135 investigated 2026-10-20, not
-  confirmed, BLOCKED (no code change).
-  dist/Prtl2Mac.app = 0.1.0+463757d.20261020T1017Z.
+  confirmed, BLOCKED (no code change). T-120 ride jitter fixed (movers drawn
+  between ticks, c1079f9, autopilot trace only; P2_RIDE_TRACE logs it).
+  dist/Prtl2Mac.app = 0.1.0+c1079f9.20261020T1038Z.
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-120 Elevators (jitter, VO timing, thumps) (top open P2).
+1. T-120 Elevators, remaining parts: VO timing (T-138, intro5), thumps,
+   trash rising with the car, ride reaching the bottom before the map loads.
    T-135 (vac-tube turrets through the exit elevator) is BLOCKED: the model's
    own elevator_0N animation drops them down the shaft through the car;
    needs a Windows Portal 2 reference of that moment (see its entry).

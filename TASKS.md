@@ -79,8 +79,9 @@ Then the Backlog (prove and sweep the campaign).
 
 ## Open: P2
 
-### T-120 Elevators  (P2, TODO)
-- Rides jittery (section 1); the VO after intro5's second button started
+### T-120 Elevators  (P2, TODO; jitter fixed, rest open)
+- Jitter FIXED 2026-10-20 (c1079f9, see Awaiting owner replay). Still open:
+  the VO after intro5's second button started
   halfway down and stretched the ride (T-138); thumping sounds during the
   ride (section 4); the trash rising with the elevator is buggy; one ride
   reached the bottom before the next map loaded.
@@ -229,6 +230,12 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+- T-120 elevator ride jitter (c1079f9): trains and their parented children
+  were drawn at 60 Hz tick positions while the view is interpolated, so the
+  eye swung against the car every tick. Movers now draw between ticks
+  (MoverLerp; tick value restored in FixedFirst). P2_RIDE_TRACE on the
+  intro3 arrival ride: eye-minus-car height 1.374..1.499 m (12.5 cm) before,
+  1.499..1.503 m after; car end state identical in shots. Autopilot only.
 - T-114 intro1 announcer over Wheatley: ambient_generic ignored the
   `Volume` input. The map turns opening_courtesy_vcd down to 3 as the first
   knock plays (8 s after the second wakeup) and to 0 when the vault door
