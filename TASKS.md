@@ -22,7 +22,7 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 P1:
 1. T-131 sp_a1_intro3 floors and roofs missing (BLOCKED: not reproduced, needs owner screenshots).
 P2:
-2. T-114 intro1: Wheatley's door waits for the announcer.
+2. (T-114 fixed, awaiting owner replay.)
 3. T-120 Elevators (jitter, VO timing, thumps) and T-135 turrets falling through them.
 4. T-133 intro7 Wheatley floats after the wall panel; panel vanishes.
 5. T-134 sp_a1_wakeup pod: the player doesn't turn with the floor; T-163 hatch.
@@ -78,11 +78,6 @@ Then the Backlog (prove and sweep the campaign).
   button. Playtest 8: cubes and buttons drawn.
 
 ## Open: P2
-
-### T-114 intro1: Wheatley's door and the announcer  (P2, TODO)
-- Wheatley's first lines overlap the announcer; the door opens on approach.
-  Owner: the door must not open until the announcer has finished. Also:
-  saying "apple" when asked skipped his next line (playtest 3).
 
 ### T-120 Elevators  (P2, TODO)
 - Rides jittery (section 1); the VO after intro5's second button started
@@ -214,6 +209,18 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+- T-114 intro1 announcer over Wheatley: ambient_generic ignored the
+  `Volume` input. The map turns opening_courtesy_vcd down to 3 as the first
+  knock plays (8 s after the second wakeup) and to 0 when the vault door
+  opens; ours stayed at full volume over Wheatley. Fixed (463757d), unit
+  test ambient_volume_input_scales_0_to_10. Autopilot only (intro1,
+  `input @debug_skip_to_second_stasis trigger`, log portal2::audio=debug):
+  before no volume change; after "volume 0.3" at the knock, "volume 0" on
+  door open. Some overlap is original: Windows P2 also starts "Hello?" over
+  the quieted announcer. The door opening on approach is also original
+  (door_open_trigger, enabled 10 s after wakeup via door_hud_hint_trigger;
+  autopilot: closed at 6 s and 9 s, opens on reaching the hint trigger). The
+  "apple" skip was handled earlier by the per-actor voice channel.
 - T-132 Fizzler field not drawn: every trigger_* brush was skipped, so
   visible trigger_portal_cleansers never drew their effects/fizzler faces
   (SolidEnergy, a green-only ripple mask, wasn't translated either). Now
