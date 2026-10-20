@@ -31,7 +31,7 @@ P2:
 8. (T-145 button press and cube lit skins fixed, awaiting owner replay.)
 9. (T-144 props fixed, awaiting owner replay.) T-147 black screen as intro2's first door opens.
 10. T-139 Audio: loud intro4 glass fixed (503406e, awaiting owner replay); soundscapes, button clicks, music cut-offs still open (PARTIAL, next run skips to T-149).
-11. T-149 Chamber signs blank; screens and lights.
+11. (T-149 chamber progress signs drawn, d314ea7, awaiting owner replay); intro5 screens and lights still open.
 12. T-112 Missing/flat textures (GLaDOS chamber floor, hallways).
 13. T-123 Security cameras knocked off by portal shots.
 14. T-160 Main menu like Portal 2's.
@@ -181,10 +181,6 @@ Then the Backlog (prove and sweep the campaign).
   when autopilot walks into the ramp trigger (`goto glass_shard`), with the
   pane door opening. Unit test `only_looping_audible_ambients_autostart`.
 
-### T-149 Chamber signs blank; screens and lights wrong  (P2, TODO)
-- The white chamber-number screens ("02") are blank in every level;
-  intro5's screens and lights wrong (section 4).
-
 ### T-112 Missing or flat textures  (P2, TODO)
 - GLaDOS chamber floor brown and flat like the old intro3 water (section 5);
   hallway to GLaDOS; after the jumps a black wall you can walk through; a
@@ -265,6 +261,32 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-149 Chamber signs blank; screens and lights wrong  (P2, PARTIAL 2026-10-20, d314ea7, autopilot only)
+- The white chamber-number screens ("02") were blank in every level:
+  they are `vgui_screen`s with panelname `sp_progress_sign`, which we never
+  drew (only the dark sign frame model showed). FIXED: new
+  crates/p2_game/src/signs.rs composes the board per map from
+  scripts/vscripts/transitions/sp_lightboard_icons.txt (level_number,
+  total_levels, ten icons, "1" = used) and the art
+  vgui/screens/vgui_coop_progress_board (+_numbers digit sheet 6x2,
+  P2_lightboard_vgui icon sheet 5x5): big two-digit number between the top
+  rules, "NN/TT" and a per-chamber progress bar (played ones dark) in the
+  middle band, the ten icons in two rows of five (used ones dark, others
+  faint). Shown on the prefab's SetActive, hidden on SetInactive (spawnflag
+  1 starts it on). Unit tests: file parsing, lit vs faint icons, bar.
+- Evidence (autopilot, intro2, `input info_sign-info_panel setactive; goto
+  info_sign-info_panel 320; look -38 -12`): old build (dist 503406e) shows
+  an empty dark frame; new build shows "01", "01/19", the first bar segment
+  dark and the cube_button icon dark with the rest faint.
+- Approximations (no Windows reference shot): exact positions/sizes of the
+  number, label, bar and icons are by eye from the board's three rules;
+  the icon sheet's cell order was matched to names by picture (it differs
+  from the file's comment list); the startup flicker sequences
+  (lightboard_startup_sequences.txt) and dirt overlay ("dirt") are not
+  drawn. Owner: compare one sign with Windows Portal 2.
+- Still open: intro5's screens and lights wrong (playtest section 4), not
+  looked at this run.
 
 ### T-144 Missing props: intro1 portal room clipboard and movable clock  (P2, FIXED 2026-10-20, 89f2bf5, autopilot only)
 - Cause: physics props had Mass(40) but their rotational inertia came from

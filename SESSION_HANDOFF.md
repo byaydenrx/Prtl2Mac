@@ -38,7 +38,12 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-149 chamber signs blank; screens and lights (next in the owner's order).
+1. T-112 missing/flat textures (next in the owner's order).
+   T-149 PARTIAL 2026-10-20 (d314ea7): chamber progress signs
+   (sp_progress_sign vgui_screens) are now drawn from sp_lightboard_icons.txt
+   (number, NN/TT, bar, icons), awaiting owner replay (autopilot shots only;
+   layout by eye, no flicker/dirt); intro5 screens and lights still open.
+   dist build: 0.1.0+d314ea7.20261020T1458Z.
    T-139 audio PARTIAL 2026-10-20 (503406e): intro4's ramp glass break no
    longer plays at load (one-shot ambient_generics wait for PlaySound),
    awaiting owner replay (autopilot-checked only); soundscapes (no support
