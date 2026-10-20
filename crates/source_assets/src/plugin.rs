@@ -1172,14 +1172,14 @@ pub fn spawn_loaded_map(
                 if let Some(alt) = alt_skin {
                     commands.entity(ent).insert((ModelSkin(skin), AltSkin { base: skin, alt }));
                 }
-                if e.get("startdisabled") == Some("1") || e.get("rendermode") == Some("10") {
+                if e.get("startdisabled") == Some("1") || e.get("rendermode") == Some("10") || e.classname == "env_shooter" {
                     commands.entity(ent).insert(Visibility::Hidden);
                 }
                 if let Some(tn) = &e.targetname {
                     commands.entity(ent).insert(Name::new(format!("{} {tn}", e.classname)));
                 }
                 // Entity props collide too unless `solid` is 0 (not solid).
-                let solid = e.get("solid").and_then(|v| v.trim().parse().ok()).unwrap_or(6);
+                let solid = if e.classname == "env_shooter" { 0 } else { e.get("solid").and_then(|v| v.trim().parse().ok()).unwrap_or(6) };
                 if solid != 0 {
                     spawn_prop_collider(commands, model, ent, solid, seq, &parts);
                 }

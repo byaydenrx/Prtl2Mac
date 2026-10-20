@@ -551,7 +551,7 @@ pub fn class_animates(classname: &str) -> bool {
 pub fn entity_renders_model(e: &SourceEntity) -> bool {
     let c = e.classname.as_str();
     c.starts_with("prop_") && c != "prop_portal" && c != "prop_static"
-        || matches!(c, "env_portal_laser" | "npc_security_camera" | "npc_portal_turret_floor" | "npc_personality_core")
+        || matches!(c, "env_portal_laser" | "npc_security_camera" | "npc_portal_turret_floor" | "npc_personality_core" | "env_shooter")
 }
 
 pub fn entity_model(e: &SourceEntity) -> Option<String> {
@@ -563,6 +563,11 @@ pub fn entity_model(e: &SourceEntity) -> Option<String> {
         "prop_weighted_cube" | "prop_testchamber_door" | "prop_floor_button" | "prop_floor_cube_button"
         | "prop_floor_ball_button" | "prop_under_floor_button" => {
             return e.studio_model().or_else(|| default_entity_model(e));
+        }
+        // Its gib model (kept hidden; each `Shoot` throws a copy).
+        "env_shooter" => {
+            let m = e.get("shootmodel")?;
+            return m.to_ascii_lowercase().ends_with(".mdl").then(|| crate::fs::normalize_path(m));
         }
         _ => {}
     }

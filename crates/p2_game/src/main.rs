@@ -43,6 +43,7 @@ mod props;
 mod saves;
 mod scenes;
 mod settings;
+mod shooter;
 mod speedrun;
 mod splits;
 mod sprites;
@@ -118,7 +119,7 @@ fn main() {
             captions::CaptionsPlugin,
         ))
         .add_plugins(bindings::BindingsPlugin)
-        .add_plugins((tanks::TanksPlugin, sprites::SpritesPlugin, rotators::RotatorsPlugin))
+        .add_plugins((tanks::TanksPlugin, sprites::SpritesPlugin, rotators::RotatorsPlugin, shooter::ShooterPlugin))
         .add_plugins((
             templates::TemplatesPlugin,
             health::HealthPlugin,
