@@ -22,6 +22,7 @@ mod community;
 mod console;
 mod exposure;
 mod movies;
+mod signs;
 mod health;
 mod io;
 mod lasers;
@@ -130,6 +131,7 @@ fn main() {
             map_particles::MapParticlesPlugin,
             texture_toggle::TextureTogglePlugin,
             movies::MoviesPlugin,
+            signs::SignsPlugin,
             projected_lights::ProjectedLightsPlugin,
         ))
         // Developer, speedrun and modding tools (all off until turned on in Options).

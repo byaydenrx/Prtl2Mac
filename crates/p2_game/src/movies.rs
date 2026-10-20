@@ -118,12 +118,12 @@ fn movie_path(p: &str) -> Option<String> {
     p.ends_with(".bik").then_some(p)
 }
 
-fn kv_vec3(s: Option<&str>) -> Vec3 {
+pub(crate) fn kv_vec3(s: Option<&str>) -> Vec3 {
     let v: Vec<f32> = s.unwrap_or("").split_whitespace().filter_map(|x| x.parse().ok()).collect();
     Vec3::new(v.first().copied().unwrap_or(0.0), v.get(1).copied().unwrap_or(0.0), v.get(2).copied().unwrap_or(0.0))
 }
 
-fn quad_mesh(corners: &[Vec3; 4], uv: [f32; 4]) -> Mesh {
+pub(crate) fn quad_mesh(corners: &[Vec3; 4], uv: [f32; 4]) -> Mesh {
     let [u0, u1, v0, v1] = uv;
     let n = (corners[1] - corners[0]).cross(corners[3] - corners[0]).normalize_or_zero();
     let mut m = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
