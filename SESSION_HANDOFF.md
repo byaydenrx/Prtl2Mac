@@ -18,12 +18,13 @@ reads it first (via `sh scripts/resume.sh`).
   vgui/fonts/universc.vfont), MainMenuButton colours/size/inset from
   basemodui_scheme.res, flyout owner stays lit. T-162 stays open.
 - T-162 Options dialog DONE (2a6921d), autopilot shots only.
-- dist/Prtl2Mac.app = 0.1.0+4ca377c.20261020T2054Z.
+- dist/Prtl2Mac.app = 0.1.0+9b0053b.20261020T2104Z.
 
 ## Next action
-1. T-162 next screen: Keyboard/Mouse (keyboardmouse.res), then
-       Controller (controller.res). Audio 802802d, Video 5d16315 and
-       Advanced Video 4ca377c are done (reuse tile_frame/tile_option_row in
+1. T-162 next screen: Controller (controller.res). Audio 802802d,
+       Video 5d16315, Advanced Video 4ca377c and Keyboard/Mouse 9b0053b
+       are done (English labels: ls --cat resource/basemodui_english.txt
+       | iconv -f UTF-16) (reuse tile_frame/tile_option_row in
        ui.rs; the tiled-page table is in rebuild_menu; description_pane for
        a .res description label). Then pause menu,
    HUD/hints/subtitles, loading

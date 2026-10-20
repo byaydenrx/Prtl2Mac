@@ -26,8 +26,8 @@ P1:
 P2:
 3. T-162 OWNER PRIORITY: the UI as close to Portal 2's as possible, one
    screen per run until all match (done: main menu, SP dialog, New Game,
-   Load/Save Game, Options dialog, Audio; left: Video (+ advanced),
-   Keyboard/Mouse, Controller, pause menu, HUD/crosshair/hints/
+   Load/Save Game, Options dialog, Audio, Video, Advanced Video,
+   Keyboard/Mouse; left: Controller, pause menu, HUD/crosshair/hints/
    subtitles, loading screens); T-162's entry lists done/left screens. Any new crash or
    softlock still goes first.
 4. T-170 carrying regressed (pushed back at walls, can't push a cube up a wall).
@@ -124,7 +124,7 @@ Then the Backlog (prove and sweep the campaign).
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
 
 ### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
-- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), Advanced Video (4ca377c), see below. Left: the Settings panels Keyboard/Mouse, Controller, pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), Advanced Video (4ca377c), Keyboard/Mouse (9b0053b), see below. Left: the Settings panel Controller, pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
 - Visual reference (owner, 2026-10-20): https://interfaceingame.com/games/portal-2/
   has screenshots of the real Portal 2 UI: start screen, main menu, options,
   video, keyboard/mouse, edit keys, extras, loading, chapter title, save
@@ -272,7 +272,24 @@ Then the Backlog (prove and sweep the campaign).
   the order. Evidence: autopilot `click Options; click Page(Video); click
   Page(AdvancedVideo)` shots, before (dist 5d16315: grey panel) vs after.
   Hover updating the pane NOT autopilot-checked (no mouse-move command).
-  Next: keyboardmouse.res, then controller.res.
+- 2026-10-20 autorun, Keyboard/Mouse DONE (9b0053b, autopilot shots only,
+  not owner-checked). keyboardmouse.res (!$OSX): tiled dialog, body 7 x 5,
+  rows every 25 from 25: BtnEditBindings (DefaultButton), DrpMouseYInvert,
+  SldMouseSensitivity, DrpRawMouse, DrpMouseAcceleration,
+  SldMouseAcceleration, DrpDeveloperConsole. Ours in that order (no
+  acceleration-amount slider: m_customaccel_exponent not built), our Mouse
+  Filter last. Labels are Portal 2's English strings, which ARE readable
+  with `ls --cat resource/basemodui_english.txt | iconv -f UTF-16` (also
+  gameui_english.txt): "EDIT KEYS/BUTTONS" (shown "Edit keys/buttons"),
+  "Reverse Mouse", "Mouse Sensitivity", "Raw Mouse Input", "Mouse
+  Acceleration", "Allow Developer Console"; title KEYBOARD/MOUSE
+  (L4D360UI_KeyboardMouse). Unit test pins the order. Evidence: autopilot
+  `click Options; click Page(KeyboardMouse)` shots, before (dist 4ca377c:
+  grey panel, Customize keyboard first, sensitivity number) vs after;
+  `click Page(Keys); click Done` opens the key list and returns. Not done:
+  the key list itself (Portal 2's keybindings dialog) keeps the old grey
+  panel; earlier pages' labels could now be localized from those files.
+  Next: controller.res.
 
 ### T-172 Voice lines start late  (P2, TODO)
 - Owner playtest 9: "sometimes voicelines activate late and when I'm going
