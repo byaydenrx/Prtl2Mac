@@ -38,8 +38,13 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-160 main menu like Portal 2's (next in the owner's order: T-160,
-   T-161, T-162, T-020, T-164, ...).
+1. T-161 menu video and music (next in the owner's order: T-161, T-162,
+   T-020, T-164, T-116, ...).
+   T-160 FIXED 2026-10-20 (ab64b84): main menu is Portal 2's six items,
+   Single Player flyout has Challenge Mode, New Game is a vertical chapter
+   list with the picked chapter's picture. Co-op, Extras, Challenge Mode do
+   nothing yet. Awaiting owner replay (autopilot shots only).
+   dist build: 0.1.0+ab64b84.20261020T1524Z.
    T-123 FIXED 2026-10-20 (2bb0015): security cameras tear off and fall as
    physics props on a portal shot through them, a portal opened over their
    wall, or the Ragdoll input. Awaiting owner replay (autopilot intro6

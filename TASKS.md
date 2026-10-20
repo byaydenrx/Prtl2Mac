@@ -34,7 +34,7 @@ P2:
 11. (T-149 chamber progress signs drawn, d314ea7, awaiting owner replay); intro5 screens and lights still open.
 12. T-112 Missing/flat textures: GLaDOS chamber floor water fixed (991441d, awaiting owner replay); hallway to GLaDOS, black walk-through wall, intro4 blue wall still open (PARTIAL, next run skips to T-123).
 13. (T-123 security cameras knocked off by portal shots, 2bb0015, awaiting owner replay.)
-14. T-160 Main menu like Portal 2's.
+14. (T-160 main menu like Portal 2's, ab64b84, awaiting owner replay.)
 P3:
 15. T-161 Menu video and music; T-162 menu animation, logo, styling.
 16. T-020 intro1 ride; T-164 spiky debris; T-116 intro1 room; T-117 shadows; T-115 wake-up.
@@ -181,14 +181,6 @@ Then the Backlog (prove and sweep the campaign).
   when autopilot walks into the ramp trigger (`goto glass_shard`), with the
   pane door opening. Unit test `only_looping_audible_ambients_autostart`.
 
-### T-160 Main menu like Portal 2's  (P2, TODO)
-- Top level: Play Single Player, Play Cooperative Game, Community Test
-  Chambers, Options, Extras, Quit (unbuilt ones may do nothing yet).
-- Play Single Player: Continue Game, New Game, Load Game, Challenge Mode.
-- New Game: a vertical chapter list, not the gallery.
-- Layouts and art are in the install: resource/ui/basemodui/*.res
-  (mainmenu, campaignflyout, chapter dialogs), materials/vgui.
-
 ### T-113 Instructor hints vanish after a few seconds if not done  (P2, TODO)
 - Key labels fixed (owner confirmed).
 
@@ -253,6 +245,30 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-160 Main menu like Portal 2's  (P2, FIXED 2026-10-20, ab64b84, autopilot only)
+- Top level: Play Single Player, Play Cooperative Game, Community Test
+  Chambers, Options, Extras, Quit (unbuilt ones may do nothing yet).
+- Play Single Player: Continue Game, New Game, Load Game, Challenge Mode.
+- New Game: a vertical chapter list, not the gallery.
+- Layouts and art are in the install: resource/ui/basemodui/*.res
+  (mainmenu, campaignflyout, chapter dialogs), materials/vgui.
+- 2026-10-20 (ab64b84): the main menu had only Play Single Player,
+  Options, Quit, and New Game was a 3-column picture grid. Now: Play Single
+  Player, Play Cooperative Game, Community Test Chambers, Options, Extras,
+  Quit (Co-op and Extras do nothing yet; Community Test Chambers opens New
+  Game's community tab when there are community maps, else nothing). The
+  Single Player flyout is Continue Game, New Game, Load Game, Challenge Mode
+  (Continue/Load only with a save, as before; Challenge Mode does nothing
+  yet). New Game is a vertical chapter list (CHAPTER N: TITLE, locked ones
+  greyed) with the picked chapter's picture and title on the right, as in
+  newgamedialog.res; click picks, a second click or START NEW GAME starts.
+  Community tab unchanged (still the grid). Unit test
+  main_menu_items_are_portal_2s.
+- Evidence: autopilot `click SinglePlayer`, `click NewGame`,
+  `click SelectChapter(1)` shots (before: dist 89f2bf5-era build showed the
+  3-item menu and tile grid). Not owner-checked; layout by eye, not the
+  .res pixel positions, and no Windows side-by-side.
 
 ### T-123 Portal shots should knock security cameras off  (P2, FIXED 2026-10-20, 2bb0015, autopilot only)
 - intro6 and sp_a2_laser_stairs: in Portal 2 the camera falls off.
