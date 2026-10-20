@@ -23,7 +23,8 @@ impl Plugin for PropsPlugin {
             .init_resource::<HoldObstructions>()
             .add_systems(Update, (make_props_dynamic, hook_prop_colliders, sync_prop_transforms, core_inputs, use_key, prop_inputs, floor_buttons).chain().in_set(crate::level::GameSet::Logic))
             .add_systems(Update, player_proxy_outputs.in_set(crate::level::GameSet::Logic))
-            .add_systems(FixedUpdate, (hold_obstructions, carry, hold_clearance, prop_transit, wall_passthrough).chain().after(P2Systems::Transit));
+            .add_systems(FixedUpdate, (hold_obstructions, carry, hold_clearance, prop_transit, wall_passthrough).chain().after(P2Systems::Transit))
+            .add_systems(FixedUpdate, held_prop_blocks_player.before(P2Systems::Move));
     }
 }
 
@@ -419,6 +420,64 @@ fn in_front_of_obstruction(eye: Vec3, target: Vec3, hit: Option<f32>, support: f
     let len = to.length();
     let keep = (d - support - 0.5 * shared::SOURCE_UNIT).clamp(0.0, len);
     if len <= 1e-6 { target } else { eye + to * (keep / len) }
+}
+
+/// Room the player keeps from a wall ahead while holding a prop: their own
+/// radius plus the prop's depth along the view, so the prop fits in front
+/// of the eye (T-167).
+fn hold_wall_clearance(support: f32) -> f32 {
+    (16.0 + 1.0) * shared::SOURCE_UNIT + 2.0 * support
+}
+
+/// Player velocity `v` with its part toward a wall of normal `n` (facing
+/// the player) limited so the player stops `gap` metres further on, or
+/// backs off when `gap` is negative (at most 60 u/s).
+fn blocked_by_held(v: Vec3, n: Vec3, gap: f32, dt: f32) -> Vec3 {
+    let toward = -v.dot(n);
+    let max = (gap / dt.max(1e-4)).max(-60.0 * shared::SOURCE_UNIT);
+    if toward > max { v + n * (toward - max) } else { v }
+}
+
+/// Portal 2's held prop is solid to the player: walking into a wall with a
+/// cube stops the player where the cube meets the wall, instead of the
+/// prop coming back over the camera. Here the player ignores the prop's
+/// colliders, so the stop comes from a horizontal ray along the view
+/// against the static world (not when it goes into a portal).
+fn held_prop_blocks_player(
+    time: Res<Time>,
+    mut players: Query<(Entity, &InterpolatedFeet, &Crouch, &ViewAngles, &IgnoreColliders, &mut CharacterVelocity), With<Player>>,
+    held: Query<(Entity, &HeldColliders, &Prop, &Transform, Option<&PassingThrough>), With<Held>>,
+    portals: Query<(&Portal, &Transform), With<PortalLink>>,
+    spatial: SpatialQuery,
+    bodies: Query<&RigidBody>,
+    body_of: Query<&ColliderOf>,
+) {
+    let Ok((player, feet, crouch, view, ignore, mut vel)) = players.single_mut() else { return };
+    let eye = feet.curr + Vec3::Y * crouch.eye_height;
+    let fwd = Vec3::new(-view.yaw.sin(), 0.0, -view.yaw.cos());
+    let Ok(dir) = Dir3::new(fwd) else { return };
+    for (e, hc, prop, tf, passing) in &held {
+        let need = hold_wall_clearance(box_support(prop.half, tf.rotation, fwd));
+        if portals.iter().any(|(p, ptf)| segment_crosses_opening(&Portal::frame(ptf), p.half_size, eye, eye + fwd * need).is_some()) {
+            continue;
+        }
+        let mut skip: Vec<Entity> = hc.0.clone();
+        skip.extend([e, player]);
+        skip.extend(ignore.0.iter().copied());
+        let filter = SpatialQueryFilter::from_excluded_entities(skip);
+        let walls: &[Entity] = passing.map_or(&[], |p| &p.0);
+        let solid = |c: Entity| {
+            let body = body_of.get(c).map_or(c, |b| b.body);
+            !matches!(bodies.get(body), Ok(RigidBody::Dynamic)) && !walls.contains(&c) && !walls.contains(&body)
+        };
+        let reach = need + 64.0 * shared::SOURCE_UNIT;
+        let Some(hit) = spatial.cast_ray_predicate(eye, dir, reach, true, &filter, &solid) else { continue };
+        let n = Vec3::new(hit.normal.x, 0.0, hit.normal.z);
+        if n.length() < 0.5 {
+            continue;
+        }
+        vel.0 = blocked_by_held(vel.0, n.normalize(), hit.distance - need, time.delta_secs());
+    }
 }
 
 /// A held prop is still on the entry side of `pair` (nearer the entry
@@ -900,6 +959,24 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn held_prop_stops_the_player_at_a_wall() {
+        let n = Vec3::Z; // wall facing +Z, player walking -Z into it
+        let v = Vec3::new(1.0, 0.0, -3.0);
+        // Far away: unchanged.
+        assert_eq!(blocked_by_held(v, n, 1.0, 0.015), v);
+        // 1 cm left: only 0.01 m this tick toward the wall, sideways kept.
+        let b = blocked_by_held(v, n, 0.01, 0.015);
+        assert!((b.z + 0.01 / 0.015).abs() < 1e-4 && b.x == 1.0, "{b}");
+        // Too close: backs off, capped at 60 u/s.
+        let b = blocked_by_held(v, n, -0.5, 0.015);
+        assert!((b.z - 60.0 * shared::SOURCE_UNIT).abs() < 1e-4, "{b}");
+        // Walking away is never slowed.
+        assert_eq!(blocked_by_held(-v, n, -0.5, 0.015).z, 3.0);
+        // A 50 u cube needs 17 + 50 u from the eye.
+        assert!((hold_wall_clearance(25.0 * shared::SOURCE_UNIT) - 67.0 * shared::SOURCE_UNIT).abs() < 1e-5);
+    }
 
     #[test]
     fn hold_point_comes_in_front_of_a_wall() {
