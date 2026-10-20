@@ -24,11 +24,16 @@ reads it first (via `sh scripts/resume.sh`).
   input, 463757d, autopilot only). T-135 investigated 2026-10-20, not
   confirmed, BLOCKED (no code change). T-120 ride jitter fixed (movers drawn
   between ticks, c1079f9, autopilot trace only; P2_RIDE_TRACE logs it).
-  dist/Prtl2Mac.app = 0.1.0+c1079f9.20261020T1038Z.
+  T-120 elevator cars now play their move/stop sounds (5bfaf52, autopilot
+  log only).
+  dist/Prtl2Mac.app = 0.1.0+5bfaf52.20261020T1100Z.
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
 1. T-120 Elevators, remaining parts: thumps, trash rising with the car.
+   Thumps checked 2026-10-20 (autorun): NOT REPRODUCED (no thump-like sound
+   logged on intro5/intro6 rides); car move/stop sounds added (5bfaf52).
+   Next: the trash rising with the car (find which map/props), or T-133.
    VO timing / ride length checked 2026-10-20 (autorun): NOT REPRODUCED,
    the ReadyForTransition/TransitionReady chain works (see T-120 entry);
    needs an owner replay of intro5's second button. Possible lead: our new

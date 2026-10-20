@@ -23,7 +23,7 @@ P1:
 1. T-131 sp_a1_intro3 floors and roofs missing (BLOCKED: not reproduced, needs owner screenshots).
 P2:
 2. (T-114 fixed, awaiting owner replay.)
-3. T-120 Elevators (jitter, VO timing, thumps); T-135 turrets through the exit elevator is BLOCKED (needs owner reference).
+3. T-120 Elevators (thumps, trash; jitter and car sounds fixed); T-135 turrets through the exit elevator is BLOCKED (needs owner reference).
 4. T-133 intro7 Wheatley floats after the wall panel; panel vanishes.
 5. T-134 sp_a1_wakeup pod: the player doesn't turn with the floor; T-163 hatch.
 6. T-136 sp_a1_wakeup end: a portal in the tube before the drop.
@@ -97,6 +97,15 @@ Then the Backlog (prove and sweep the campaign).
   unchecked whether a cube resting on the real button overlaps that trigger
   (owner said the line came only halfway down). Needs an owner replay of
   intro5's second button + `log` timing to go further.
+- 2026-10-20 autorun: thumps NOT REPRODUCED. Every world/player sound during
+  the intro5 and intro6 arrival and departure rides was logged
+  (`RUST_LOG=portal2::audio=debug,p2_fx=debug`): no landing/slam/impact
+  sounds; the only impacts are the chamber's robot arms (World.Robot*,
+  positional, gain 0.05-0.3 by distance). Found instead that the cars were
+  silent: func_tracktrain movesound/stopsound never played. FIXED (5bfaf52,
+  see Awaiting owner replay). Open: thumps (owner: which ride, what it
+  sounded like), trash rising with the car, move-sound pitch by speed
+  (movesoundmin/maxpitch, not done).
 
 ### T-135 Turrets fall through the exit elevator  (P2, BLOCKED: needs owner)
 - Sections 5 (sp_a2_intro) and 6 (sp_a2_laser_intro).
@@ -242,6 +251,13 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+- T-120 elevator car sounds (5bfaf52): func_tracktrain movesound and
+  stopsound were never played, so rides were silent. Now the move sound
+  starts with the train and follows it (World.ElevatorDepartLp looped,
+  World.ElevatorArrive once), the stop sound plays where it stops. intro6
+  autopilot log: before (dist c1079f9) no elevator sounds; after,
+  elevatorarrive at spawn, elevatorarrivestop as the arrival car stops,
+  elevatordepartlp at gain 1.0 through the departure ride. Autopilot only.
 - T-120 elevator ride jitter (c1079f9): trains and their parented children
   were drawn at 60 Hz tick positions while the view is interpolated, so the
   eye swung against the car every tick. Movers now draw between ticks
