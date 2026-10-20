@@ -419,6 +419,15 @@ fn mover_inputs(
                 }
             }
             "func_door" | "func_movelinear" => {
+                // Killed (sp_a2_laser_over_goo's corridor blocking_door_2
+                // kills itself when fully open): its collision must go too.
+                if input == "kill" {
+                    movers.movers.remove(&i);
+                    if let Some(r) = ents.list[i].entity {
+                        commands.entity(r).despawn();
+                    }
+                    continue;
+                }
                 let e = &ents.list[i];
                 let speed = u(e.get_f32("speed").unwrap_or(100.0).max(1.0));
                 let (dir, travel) = door_travel(e, &map);

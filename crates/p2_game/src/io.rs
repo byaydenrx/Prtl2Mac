@@ -138,6 +138,17 @@ pub struct Ents {
     pub prototypes: std::collections::HashSet<usize>,
 }
 
+/// The box around `lo..hi` turned by `rot` (about the origin).
+pub fn turned_box(lo: Vec3, hi: Vec3, rot: Quat) -> (Vec3, Vec3) {
+    if rot.abs_diff_eq(Quat::IDENTITY, 1e-6) {
+        return (lo, hi);
+    }
+    (0..8).fold((Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)), |(a, b), i| {
+        let c = rot * Vec3::new([lo.x, hi.x][i & 1], [lo.y, hi.y][(i >> 1) & 1], [lo.z, hi.z][i >> 2]);
+        (a.min(c), b.max(c))
+    })
+}
+
 impl Ents {
     pub fn from_map(info: &MapInfo, bounds: &HashMap<usize, (Vec3, Vec3)>) -> Self {
         let mut list = vec![GameEnt {
@@ -176,12 +187,18 @@ impl Ents {
                 entity: e.entity,
                 transform: e.transform,
                 brush_model: e.brush_model,
-                // Brush models are stored relative to their entity's origin.
+                // Brush models are stored relative to their entity's origin,
+                // turned by its angles (sp_a2_laser_over_goo's corridor
+                // repair trigger is yawed 90 degrees; unturned, its box sat
+                // beside the corridor and the walls never moved).
                 bounds: e
                     .brush_model
                     .filter(|m| *m > 0)
                     .and_then(|m| bounds.get(&m).copied())
-                    .map(|(lo, hi)| (lo + e.transform.translation, hi + e.transform.translation))
+                    .map(|(lo, hi)| {
+                        let (lo, hi) = if e.classname.starts_with("trigger_") { turned_box(lo, hi, e.transform.rotation) } else { (lo, hi) };
+                        (lo + e.transform.translation, hi + e.transform.translation)
+                    })
                     .or(e.bounds),
                 enabled: !start_disabled,
                 killed: false,
@@ -848,6 +865,21 @@ pub fn run_io(
 #[cfg(test)]
 mod value_tests {
     use super::*;
+
+    #[test]
+    fn trigger_box_turns_with_its_angles() {
+        // sp_a2_laser_over_goo's corridor repair trigger: model *88, angles 0 90 9.
+        let to_w = shared::source_to_world;
+        let (a, b) = (to_w(Vec3::new(-168.0, -256.0, -64.0)), to_w(Vec3::new(-56.0, 0.0, 64.0)));
+        let rot = source_assets::entities::source_angles_to_world(Vec3::new(0.0, 90.0, 9.0));
+        let (lo, hi) = turned_box(a.min(b), a.max(b), rot);
+        let (lo, hi) = (shared::world_to_source(lo), shared::world_to_source(hi));
+        let (lo, hi) = (lo.min(hi), lo.max(hi));
+        // Yawed 90: Source x spans 0..256 and y -168..-56 around the origin.
+        assert!(lo.x > -15.0 && hi.x > 250.0, "{lo} {hi}");
+        assert!(lo.y < -160.0 && hi.y > -60.0 && hi.y < -40.0, "{lo} {hi}");
+        assert_eq!(turned_box(a, b, Quat::IDENTITY), (a, b));
+    }
 
     #[test]
     fn template_prototypes_take_no_inputs() {

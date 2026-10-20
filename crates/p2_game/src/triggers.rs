@@ -121,13 +121,14 @@ fn touch_triggers(
         let wants_npcs = flags & 2 != 0;
         let filter = e.get("filtername").filter(|f| !f.is_empty()).map(str::to_string);
         // Past the box, the trigger's own brushes (Source space, relative
-        // to its origin; its rotation is ignored).
-        let origin = shared::world_to_source(e.transform.translation);
+        // to its origin and unturned by its angles).
+        let (origin, unturn) = (e.transform.translation, e.transform.rotation.inverse());
         let model = e.brush_model;
         let in_brushes = |a: Vec3, b: Vec3| -> bool {
-            let (sa, sb) = (shared::world_to_source(a), shared::world_to_source(b));
+            let (lo, hi) = crate::io::turned_box(a.min(b) - origin, a.max(b) - origin, unturn);
+            let (sa, sb) = (shared::world_to_source(lo), shared::world_to_source(hi));
             match (model, shapes.as_deref()) {
-                (Some(m), Some(s)) => s.box_touches(m, sa.min(sb) - origin, sa.max(sb) - origin).unwrap_or(true),
+                (Some(m), Some(s)) => s.box_touches(m, sa.min(sb), sa.max(sb)).unwrap_or(true),
                 _ => true,
             }
         };
