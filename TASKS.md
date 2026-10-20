@@ -27,7 +27,7 @@ P2:
 4. (T-133 Wheatley float fixed, awaiting owner replay; panel part not reproduced.)
 5. (T-134 pod turn and T-163 hatch fixed, awaiting owner replay.)
 6. (T-136 wakeup tube portal fixed, awaiting owner replay.)
-7. (T-137 portal spacing and T-102 cube exit-side drawing fixed, awaiting owner replay.) T-125 turn-away delay.
+7. (T-137 portal spacing and T-102 cube exit-side drawing fixed, awaiting owner replay.) T-125 turn-away delay is BLOCKED (map's own timing; not reproduced, needs owner).
 8. T-145 Buttons don't animate, cubes don't light up.
 9. T-144 Missing props; T-147 black screen as intro2's first door opens.
 10. T-139 Ambient audio, button sounds, music cut-offs, loud glass.
@@ -144,9 +144,20 @@ Then the Backlog (prove and sweep the campaign).
   screenshot/clip of this moment in Windows Portal 2 (or depot 624 RE of
   prop_dynamic root-motion handling). No fix attempt branch.
 
-### T-125 sp_a1_intro7: the turn-away check is slow to register  (P2, TODO)
+### T-125 sp_a1_intro7: the turn-away check is slow to register  (P2, BLOCKED: not reproduced, needs owner)
 - Works (negative FOV cone fixed) but takes a moment (playtests 5, 7, 8).
-  Compare ai_script_conditions timing (MinTimeout, think rate) with Source.
+- 2026-10-20 autorun, NOT REPRODUCED (autopilot log only): the delay we have
+  is the map's own. glados_scenetable_include sp_a1_intro7NoWatching02
+  ("...turn around for a second?", sphere03 doorwaysequence11.vcd, 3.17 s)
+  enables wheatley_dont_watch_aisc only when the line ends (+0.2 s, glados.nut
+  PlayNextSceneInternal "fire at end"); the aisc needs RequiredTime 1.5 with
+  the target outside a 100 degree cone. Measured: turned away at t=25 (aisc
+  already enabled) -> OnConditionsSatisfied at t=26.51, turnaroundnow01.vcd
+  10 ms later; turned away early (during line 10) -> fired 1.7 s after line
+  11 ended (0.2 + 1.5). So turning during his lines waits for them to finish;
+  Source should do the same. No engine cause found, no attempt branch.
+  Needs the owner: how long it took and when they turned (during or after
+  "could you just turn around"), ideally a Windows timing reference.
 
 ### T-145 Buttons don't animate; cubes don't change colour on a button  (P2, TODO)
 - Section 0: no press-down when used or when a cube lands; cubes keep their

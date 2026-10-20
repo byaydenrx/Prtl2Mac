@@ -38,7 +38,11 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-125 turn-away delay, then T-145 buttons/cube skins.
+1. T-145 buttons/cube skins (then T-144 props, T-147 intro2 black screen).
+   T-125 turn-away delay is BLOCKED (needs owner) 2026-10-20: not reproduced;
+   the aisc fires 1.5 s (RequiredTime) after turning and is only enabled
+   0.2 s after Wheatley's "turn around" line ends, as the scene table says.
+   dist build unchanged: 0.1.0+847a581.20261020T1213Z.
    T-102 cubes through portals fixed 2026-10-20 (847a581: props half in a
    portal are now drawn coming out of the exit), awaiting owner replay.
    T-137 portal spacing fixed 2026-10-20 (38c09bf, shots overlapping the
