@@ -84,6 +84,8 @@ pub(crate) struct ChellData {
     bone_map: Vec<Option<usize>>,
     gun: Option<RigAsset>,
     seqs: ChellSeqs,
+    /// The same without the gun (`nogun_*`), before the player has one.
+    seqs_nogun: ChellSeqs,
     gun_bone: Option<usize>,
 }
 
@@ -131,6 +133,7 @@ pub struct ChellRig {
     /// the gun's own root-bone rest transform (Source bone-merge).
     gun: Option<(Entity, usize, Affine3A)>,
     seqs: ChellSeqs,
+    seqs_nogun: ChellSeqs,
     pose_idx: PoseIdx,
     state: AnimState,
 }
@@ -215,9 +218,24 @@ fn load_body(
         fire: o(names::FIRE),
         fire_crouch: o(names::FIRE_CROUCH),
     };
+    // Unarmed: the `nogun_*` entry of each list, no firing gesture.
+    let nogun = |names: &[&'static str]| names.iter().filter(|n| !n.starts_with("portalgun")).copied().collect::<Vec<_>>();
+    let g = |names: &[&'static str]| find_any(&anims, &nogun(names));
+    let seqs_nogun = ChellSeqs {
+        idle: g(names::IDLE),
+        run: g(names::RUN),
+        crouch_idle: g(names::CROUCH_IDLE),
+        crouch_walk: g(names::CROUCH_WALK),
+        jump: g(names::JUMP),
+        float: g(names::FLOAT),
+        airwalk: g(names::AIRWALK),
+        land: nogun(names::LAND).iter().find_map(|n| anims.find(n)),
+        fire: None,
+        fire_crouch: None,
+    };
     let gun = load_rig(fs, &cfg.gun_model, meshes, images, bindposes);
     let gun_bone = body.skeleton.skeleton.bones.iter().position(|b| b.name == names::GUN_BONE);
-    Some(ChellData { body, anims, bone_map, gun, seqs, gun_bone })
+    Some(ChellData { body, anims, bone_map, gun, seqs, seqs_nogun, gun_bone })
 }
 
 fn load_rig(
@@ -381,6 +399,7 @@ pub(crate) fn spawn(commands: &mut Commands, root: Entity, data: &ChellData, gho
         joints,
         gun,
         seqs: data.seqs,
+        seqs_nogun: data.seqs_nogun,
         pose_idx,
         state: AnimState { seq: data.seqs.idle, cycle: 0.0, prev: None, fade: 1.0, feet_yaw: 0.0, grounded: true, jumped: false, gestures: Vec::new() },
     });
@@ -482,7 +501,7 @@ pub(crate) fn drive_parts(
     time: Res<Time>,
     mut fired: MessageReader<p2_core::GunFired>,
     mut teleported: MessageReader<p2_core::PortalTeleported>,
-    players: Query<(&CharacterVelocity, &Grounded, &Crouch, &ViewAngles), With<Player>>,
+    players: Query<(&CharacterVelocity, &Grounded, &Crouch, &ViewAngles, Option<&p2_core::PortalGun>), With<Player>>,
     mut rigs: Query<(&PlayerBody, &mut ChellRig, &mut Transform)>,
     mut transforms: Query<&mut Transform, Without<ChellRig>>,
 ) {
@@ -491,7 +510,12 @@ pub(crate) fn drive_parts(
     let moved: Vec<Entity> = teleported.read().map(|t| t.entity).collect();
     for (body, mut rig, mut root_tf) in &mut rigs {
         let rig = &mut *rig;
-        let Ok((vel, grounded, crouch, view)) = players.get(body.player) else { continue };
+        let Ok((vel, grounded, crouch, view, gun)) = players.get(body.player) else { continue };
+        // Before the player has a gun (sp_a1_intro1..3) Chell carries none:
+        // no gun in her hand, the unarmed animations (owner screenshot 6:
+        // seen through a portal holding one).
+        let armed = gun.is_some_and(|g| g.can_fire.iter().any(|c| *c));
+        let seqs = if armed { rig.seqs } else { rig.seqs_nogun };
         let st = &mut rig.state;
         let flat = Vec3::new(vel.0.x, 0.0, vel.0.z);
         let speed = flat.length();
@@ -519,26 +543,26 @@ pub(crate) fn drive_parts(
         if st.grounded && !grounded.on_ground {
             st.jumped = vel.0.y > 0.5;
             if st.jumped {
-                st.seq = rig.seqs.jump;
+                st.seq = seqs.jump;
                 st.cycle = 0.0;
             }
         }
         if !st.grounded && grounded.on_ground {
             st.jumped = false;
-            if let Some(land) = rig.seqs.land {
+            if let Some(land) = seqs.land {
                 st.gestures.push((land, 0.0));
             }
         }
         st.grounded = grounded.on_ground;
         if shots.contains(&body.player) {
-            let g = if crouch.ducked { rig.seqs.fire_crouch } else { rig.seqs.fire };
+            let g = if crouch.ducked { seqs.fire_crouch } else { seqs.fire };
             if let Some(g) = g {
                 st.gestures.push((g, 0.0));
             }
         }
 
         // Base sequence, cross-faded.
-        let want = base_sequence(&rig.seqs, st, grounded.on_ground, crouch.ducked, speed);
+        let want = base_sequence(&seqs, st, grounded.on_ground, crouch.ducked, speed);
         if want != st.seq {
             st.prev = Some((st.seq, st.cycle));
             st.fade = 0.0;
@@ -612,6 +636,8 @@ pub(crate) fn drive_parts(
             if let Ok(mut t) = transforms.get_mut(node) {
                 t.translation = pos;
                 t.rotation = rot;
+                // Scaled away rather than hidden: portal ghosts copy transforms.
+                t.scale = if armed { Vec3::ONE } else { Vec3::ZERO };
             }
         }
     }
