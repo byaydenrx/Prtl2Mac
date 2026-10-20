@@ -34,12 +34,17 @@ reads it first (via `sh scripts/resume.sh`).
   (8f8c8b1, autopilot only; all maps' startdisabled func_brushes affected).
   T-136 wakeup incinerator drop: linked_portal_doors now draw seamless (no
   oval/rim/hum; SeamlessPortal marker, 3f96088, autopilot shots only).
-  dist/Prtl2Mac.app = 0.1.0+3f96088.20261020T1137Z.
+  dist/Prtl2Mac.app = 0.1.0+badb7a9.20261020T1656Z.
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-157 smoother fall transition (next in the owner's order:
-   T-157, T-165, T-148, T-140, T-151, ...).
+1. T-165 Wheatley rail connector (next in the owner's order:
+   T-165, T-148, T-140, T-151, T-155, ...).
+   T-157 fall transition PARTIAL 2026-10-20 (badb7a9): wakeup -> sp_a2_intro
+   black wait cut from 3.6 s to 0.25 s (autopilot log only); a ~2.5 s frame
+   hitch right after that load is still open (suspect: valve_render GPU
+   mesh cache never cleared between maps; see its entry).
+   dist build: 0.1.0+badb7a9.20261020T1656Z.
    T-153 GLaDOS wake-up PARTIAL 2026-10-20 (c64a60b): env_shooter added,
    so the portal gun now drops (autopilot `input gun_shooter Shoot` only);
    particles hiding her, floating arms and look direction still open.

@@ -38,7 +38,7 @@ P2:
 P3:
 15. (T-161 menu movie and music by act, f6f129e, awaiting owner replay; T-162 logo/item layout and hover flash, b39fff3, awaiting owner replay, panel fades still open.)
 16. (T-020 intro1 ride BLOCKED: not reproduced, needs the camera proxy path or an owner recording; T-164 spiky debris BLOCKED: untested fix on attempt/T-164); T-116 intro1 room BLOCKED: not reproduced, needs a Windows screenshot; (T-117 shadows fixed, d1df637, awaiting owner replay); T-115 wake-up BLOCKED: not reproduced, the map has no get-up/lie-down rig in normal play (blackout is a removed template), needs a Windows recording.
-17. T-153 GLaDOS wake-up: portal gun drop fixed (c64a60b, awaiting owner replay); particles, floating arms, look direction still open (PARTIAL, next run skips to T-157); T-157 smoother fall transition; T-165 Wheatley rail connector.
+17. T-153 GLaDOS wake-up: portal gun drop fixed (c64a60b, awaiting owner replay); particles, floating arms, look direction still open (PARTIAL); T-157 fall transition: 3.6 s black wait cut to 0.25 s (badb7a9, awaiting owner replay), a ~2.5 s frame hitch after the load still open (PARTIAL, next run skips to T-165); T-165 Wheatley rail connector.
 18. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
 P4:
 19. T-151 water, T-155 lasers, T-150 particles, T-152 lighting/textures,
@@ -282,8 +282,6 @@ Then the Backlog (prove and sweep the campaign).
   moment looks wrong) and of what happens after using the bed.
 
 
-### T-157 Transition into the sp_a2_intro fall not smooth  (P3, TODO)
-
 ### T-165 sp_a1_intro7: Wheatley's rail connector invisible  (P3, TODO)
 
 ### T-148 Portals behind glass  (P3, TODO)
@@ -309,6 +307,26 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-157 Transition into the sp_a2_intro fall not smooth  (P3, PARTIAL 2026-10-20, badb7a9, autopilot only)
+- Owner playtest section 5: the fall works and lands right, but the
+  transition into it isn't smooth.
+- Reproduced (autopilot `input @transition_from_map trigger` in
+  sp_a1_wakeup): the map's exit_fade goes black in 0.3 s, then level_exit
+  waited a fixed 3.5 s, so the screen stayed black 3.6 s before
+  sp_a2_intro loaded (Source changes level as soon as the fade is black).
+- Fixed (badb7a9): when the map already holds an opaque stay-out fade,
+  the next map loads 0.1 s after it is black (unit test
+  level_exit_after_map_fade_loads_once_black). Autopilot after: "leaving"
+  -> "sp_a2_intro loaded" 0.25 s (was 3.65 s). Elevator exits unchanged.
+- Still open: right after the load (only when arriving from wakeup, not
+  when starting sp_a2_intro directly) frames stall ~2.5 s wall clock (was
+  5-8 s before this fix) while the game clock barely moves; `sample` shows
+  threads mostly waiting, prepare_surfaces hot. Suspect: the valve_render
+  GPU mesh cache (PreparedSurfaces.meshes / mesh_index, keyed by Arc
+  pointers) is never cleared between maps, so the old map's buffers stay
+  and a reused pointer could even pick a stale mesh. Not confirmed.
+- dist build 0.1.0+badb7a9.20261020T1656Z.
 
 ### T-153 GLaDOS wake-up  (P3, PARTIAL 2026-10-20, c64a60b, autopilot only)
 - White particles hide her; her arms float unattached when grabbing Chell
