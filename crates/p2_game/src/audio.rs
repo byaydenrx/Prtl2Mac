@@ -21,7 +21,7 @@ impl Plugin for GameAudioPlugin {
         app.init_resource::<SoundScripts>()
             .add_message::<PlayGameSound>()
             .add_systems(Startup, load_soundscripts)
-            .add_systems(Update, (ambient_on_load, ambient_inputs, play_sounds, attenuate).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic))
+            .add_systems(Update, (ambient_on_load, ambient_inputs, train_sounds, play_sounds, attenuate).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic))
             .add_systems(Update, pause_audio);
     }
 }
@@ -217,6 +217,7 @@ fn play_sounds(
             (Some(p), Some(e)) if level > 0.0 => gain(p.distance(e), level),
             _ => 1.0,
         };
+        debug!("portal2: play {} ({wave}) looped {} gain {g:.3}", req.sound, req.looped);
         commands.spawn((
             Name::new(format!("sound {wave}")),
             AudioPlayer(handle),
@@ -272,6 +273,64 @@ fn ambient_request(ents: &Ents, i: usize) -> Option<PlayGameSound> {
 fn looks_looped(name: &str) -> bool {
     let n = name.to_ascii_lowercase();
     n.contains("loop") || n.contains("_lp") || n.contains("amb") || n.contains("hum")
+}
+
+/// Whether a `func_tracktrain` move sound loops: the elevators' depart
+/// sound (`World.ElevatorDepartLp`, a wave with a loop chunk) does, the
+/// arrival one (`World.ElevatorArrive`) plays once.
+fn train_sound_looped(name: &str) -> bool {
+    looks_looped(name) || name.to_ascii_lowercase().ends_with("lp")
+}
+
+/// `func_tracktrain` `movesound` while the train moves (following it) and
+/// its `stopsound` when it stops, like Source's trains: the elevator cars
+/// were silent.
+fn train_sounds(
+    mut commands: Commands,
+    mut loaded: MessageReader<LevelLoaded>,
+    ents: Option<Res<Ents>>,
+    movers: Res<crate::movers::Movers>,
+    mut playing: Query<(Entity, &mut GameSound)>,
+    mut play: MessageWriter<PlayGameSound>,
+    mut moving: Local<std::collections::HashSet<usize>>,
+) {
+    if loaded.read().count() > 0 {
+        moving.clear();
+    }
+    let Some(ents) = ents else { return };
+    for (i, e) in ents.list.iter().enumerate() {
+        if e.class != "func_tracktrain" {
+            continue;
+        }
+        let at = e.transform.translation;
+        let volume = e.get_f32("volume").map(|v| (v / 10.0).clamp(0.0, 1.0)).unwrap_or(1.0);
+        let sound = |key: &str| e.get(key).map(str::trim).filter(|s| !s.is_empty()).map(str::to_string);
+        let now = movers.is_moving(i);
+        let was = moving.contains(&i);
+        if now && !was {
+            moving.insert(i);
+            if let Some(s) = sound("movesound") {
+                let looped = train_sound_looped(&s);
+                play.write(PlayGameSound { sound: s, at: Some(at), looped, owner: Some(i), music: false, volume, voice: None });
+            }
+        } else if !now && was {
+            moving.remove(&i);
+            for (pe, s) in &playing {
+                if s.owner == Some(i) {
+                    commands.entity(pe).despawn();
+                }
+            }
+            if let Some(s) = sound("stopsound") {
+                play.write(PlayGameSound { sound: s, at: Some(at), looped: false, owner: None, music: false, volume, voice: None });
+            }
+        } else if now {
+            for (_, mut s) in &mut playing {
+                if s.owner == Some(i) {
+                    s.at = Some(at);
+                }
+            }
+        }
+    }
 }
 
 fn ambient_on_load(mut loaded: MessageReader<LevelLoaded>, ents: Option<Res<Ents>>, mut play: MessageWriter<PlayGameSound>) {
@@ -383,6 +442,12 @@ fn pause_audio(time: Res<Time<Virtual>>, sinks: Query<(Entity, &AudioSink, Optio
 #[cfg(test)]
 mod volume_tests {
     use super::ambient_volume;
+
+    #[test]
+    fn elevator_depart_sound_loops_arrive_plays_once() {
+        assert!(super::train_sound_looped("world.elevatordepartlp"));
+        assert!(!super::train_sound_looped("world.elevatorarrive"));
+    }
 
     #[test]
     fn ambient_volume_input_scales_0_to_10() {

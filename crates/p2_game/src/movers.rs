@@ -148,6 +148,11 @@ pub enum MotionSave {
 }
 
 impl Movers {
+    /// Whether mover `i` (an ent index) is under way.
+    pub fn is_moving(&self, i: usize) -> bool {
+        self.movers.get(&i).is_some_and(|m| m.motion.is_some())
+    }
+
     pub fn save(&self) -> MoversSave {
         let mut movers: Vec<MoverSave> = self
             .movers
