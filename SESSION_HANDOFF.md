@@ -38,8 +38,13 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-020 intro1 ride (next in the owner's order: T-020, T-164, T-116,
-   T-117, T-115, ...).
+1. T-164 spiky debris (next in the owner's order: T-164, T-116, T-117,
+   T-115, T-153, ...).
+   T-020 intro1 ride BLOCKED (needs owner) 2026-10-20: not reproduced; the
+   ride is seen through point_viewproxy camera_1 (enabled by
+   relay_start_second_cryo_wakeup), which relay shortcuts skip. No code
+   change, no attempt branch; see its entry for the next repro step.
+   dist build unchanged: 0.1.0+b39fff3.20261020T1546Z.
    T-162 PARTIAL 2026-10-20 (b39fff3): menu logo and item column now at
    Portal 2's basemodui_scheme.res / mainmenu.res positions; the clicked
    item no longer flashes unlit when the menu rebuilds. Awaiting owner

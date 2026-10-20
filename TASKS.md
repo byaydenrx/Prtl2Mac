@@ -37,7 +37,7 @@ P2:
 14. (T-160 main menu like Portal 2's, ab64b84, awaiting owner replay.)
 P3:
 15. (T-161 menu movie and music by act, f6f129e, awaiting owner replay; T-162 logo/item layout and hover flash, b39fff3, awaiting owner replay, panel fades still open.)
-16. T-020 intro1 ride; T-164 spiky debris; T-116 intro1 room; T-117 shadows; T-115 wake-up.
+16. (T-020 intro1 ride BLOCKED: not reproduced, needs the camera proxy path or an owner recording); T-164 spiky debris; T-116 intro1 room; T-117 shadows; T-115 wake-up.
 17. T-153 GLaDOS wake-up; T-157 smoother fall transition; T-165 Wheatley rail connector.
 18. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
 P4:
@@ -187,11 +187,27 @@ Then the Backlog (prove and sweep the campaign).
 ## Open: P3
 
 
-### T-020 sp_a1_intro1 ride  (P3, TODO)
+### T-020 sp_a1_intro1 ride  (P3, BLOCKED: needs owner)
 - Walls flash away and back before breaking off; Wheatley a black box above
   (screenshot 4); the room jerks the camera and moves the player; floating
   parts; Wheatley moves oddly after the ride; glitchy screen at the start.
 - Verify: `shot` every 0.2 s during the ride, then the owner.
+- 2026-10-20 autorun, NOT REPRODUCED (no code change, no attempt branch).
+  Tried shortcuts: `input crane_initial_startup_relay trigger` at 21 s, and
+  `input crane_second_startup_relay enable/trigger` (second section, anim2;
+  actor_container_01/03/05/07 OnAnimationDone -> kill fire ~30 s later).
+  Shots every 0.5-1 s (yaw 65/155/245) show only the static bedroom
+  (player feet stay at source -8709 1690 28); no wall flash or break-off seen.
+  Reason: what the player sees during the ride is the point_viewproxy
+  `camera_1` -> `camera_proxy` (parented to actor_container_master
+  attachment vstattachment, offsettype 2, fake acceleration/tilt), enabled
+  only by `@camera_proxy_enable_rl` from `relay_start_second_cryo_wakeup`,
+  which these shortcuts skip. Next try: trigger relay_start_second_cryo_wakeup
+  (or play the full intro: look up/down/painting/space prompts) and shoot
+  through the proxy. Suspects for "jerks the camera / moves the player" and
+  "walls flash": viewcontrol.rs proxy acceleration/tilt, and actors'
+  SetAnimation anim2 -> kill timing vs the proxy-enabled container_master
+  being disabled. Owner: a short screen recording of the ride would help.
 
 ### T-164 Spiky, torn animated debris  (P3, TODO)
 - intro1 ride (screenshot 5), sp_a2_intro shaft arms (playtest 7). Animated
