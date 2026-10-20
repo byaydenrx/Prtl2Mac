@@ -78,6 +78,15 @@ pub fn start_holding(commands: &mut Commands, body: Entity, held: Held, children
 }
 
 /// Map props become dynamic bodies once the level is up.
+/// vphysics cube mass, kg (every physics prop for now).
+const PROP_MASS: f32 = 40.0;
+
+/// Collider density giving `colliders` a total mass of `mass`.
+fn prop_density<'a>(mass: f32, colliders: impl Iterator<Item = &'a Collider>) -> f32 {
+    let volume: f32 = colliders.map(|c| c.mass(1.0)).sum();
+    if volume > 1e-9 { mass / volume } else { 1.0 }
+}
+
 pub fn make_props_dynamic(
     mut commands: Commands,
     mut loaded: MessageReader<LevelLoaded>,
@@ -119,7 +128,7 @@ pub fn make_props_dynamic(
             tf,
             if core { RigidBody::Kinematic } else { RigidBody::Dynamic },
             // vphysics cube: 40 kg-ish, slides a little, rolls very little.
-            Mass(40.0),
+            Mass(PROP_MASS),
             Friction::new(0.6),
             Restitution::new(0.05),
             LinearDamping(0.05),
@@ -135,9 +144,14 @@ pub fn make_props_dynamic(
         ));
         // Its colliders were attached to the map's static body when spawned
         // under it; re-insert them so they attach to this body instead.
-        for c in children.iter_descendants(entity) {
+        // Their density makes them weigh the body's mass, so its rotational
+        // inertia matches it (at avian's default density a radio would spin
+        // off every contact and sink through the floor, T-144).
+        let parts: Vec<Entity> = children.iter_descendants(entity).filter(|&c| colliders.contains(c)).collect();
+        let density = prop_density(PROP_MASS, parts.iter().filter_map(|&c| colliders.get(c).ok()));
+        for c in parts {
             if let Ok(col) = colliders.get(c) {
-                commands.entity(c).remove::<(Collider, ColliderOf)>().insert(col.clone());
+                commands.entity(c).remove::<(Collider, ColliderOf)>().insert((col.clone(), ColliderDensity(density)));
             }
         }
     }
@@ -1010,6 +1024,19 @@ fn player_proxy_outputs(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn prop_colliders_weigh_the_prop_mass() {
+        use avian3d::prelude::*;
+        // A radio-sized box: 0.2 x 0.34 x 0.54 m.
+        let c = Collider::cuboid(0.2, 0.34, 0.54);
+        let d = super::prop_density(40.0, [&c].into_iter());
+        assert!((c.mass(d) - 40.0).abs() < 1e-3);
+        // Its inertia is then a 40 kg box's, not a 37 g one's.
+        let i = c.mass_properties(d).principal_angular_inertia;
+        assert!((i.x - 40.0 * (0.34f32.powi(2) + 0.54f32.powi(2)) / 12.0).abs() < 1e-3, "{i:?}");
+        assert_eq!(super::prop_density(40.0, std::iter::empty()), 1.0);
+    }
+
     #[test]
     fn button_waits_before_letting_go() {
         let mut clear = None;
