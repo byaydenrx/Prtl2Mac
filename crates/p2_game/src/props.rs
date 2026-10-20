@@ -111,48 +111,64 @@ pub fn make_props_dynamic(
         // Its spawn pose under the map root (which sits at the origin), so
         // local is world. (Global transforms aren't propagated yet here.)
         let tf = transforms.get(entity).copied().unwrap_or(e.transform);
-        // Its box, from the collider children.
-        let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
-        for c in children.iter_descendants(entity) {
-            if let Ok(a) = aabbs.get(c) {
-                lo = lo.min(a.min);
-                hi = hi.max(a.max);
-            }
+        insert_prop_body(&mut commands, i, entity, tf, core, &children, &aabbs, &colliders);
+    }
+}
+
+/// Turns map entity `i`'s model (spawned under the map's static body) into a
+/// physics prop of its own at `tf`; `core`s stay kinematic until let go.
+#[allow(clippy::too_many_arguments)]
+pub fn insert_prop_body(
+    commands: &mut Commands,
+    i: usize,
+    entity: Entity,
+    tf: Transform,
+    core: bool,
+    children: &Query<&Children>,
+    aabbs: &Query<&ColliderAabb>,
+    colliders: &Query<&Collider>,
+) {
+    // Its box, from the collider children.
+    let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
+    for c in children.iter_descendants(entity) {
+        if let Ok(a) = aabbs.get(c) {
+            lo = lo.min(a.min);
+            hi = hi.max(a.max);
         }
-        let half = if lo.x <= hi.x { (hi - lo) * 0.5 } else { Vec3::splat(16.0 * shared::SOURCE_UNIT) };
-        if core && lo.x > hi.x {
-            // No collision model: a ball about Wheatley's size.
-            commands.spawn((Name::new("core collider"), Collider::sphere(14.0 * shared::SOURCE_UNIT), Transform::IDENTITY, ChildOf(entity)));
-        }
-        commands.entity(entity).remove::<ChildOf>().insert((
-            tf,
-            if core { RigidBody::Kinematic } else { RigidBody::Dynamic },
-            // vphysics cube: 40 kg-ish, slides a little, rolls very little.
-            Mass(PROP_MASS),
-            Friction::new(0.6),
-            Restitution::new(0.05),
-            LinearDamping(0.05),
-            AngularDamping(0.3),
-            // Never asleep: world pieces they rest on move without waking
-            // them (a dropper's iris opening, a func_brush switched off).
-            SleepingDisabled,
-            // Fast cubes (droppers, faith plates) don't tunnel through thin
-            // things like light bridges.
-            SweptCcd::default(),
-            Prop { ent: i, half },
-            LevelOwned,
-        ));
-        // Its colliders were attached to the map's static body when spawned
-        // under it; re-insert them so they attach to this body instead.
-        // Their density makes them weigh the body's mass, so its rotational
-        // inertia matches it (at avian's default density a radio would spin
-        // off every contact and sink through the floor, T-144).
-        let parts: Vec<Entity> = children.iter_descendants(entity).filter(|&c| colliders.contains(c)).collect();
-        let density = prop_density(PROP_MASS, parts.iter().filter_map(|&c| colliders.get(c).ok()));
-        for c in parts {
-            if let Ok(col) = colliders.get(c) {
-                commands.entity(c).remove::<(Collider, ColliderOf)>().insert((col.clone(), ColliderDensity(density)));
-            }
+    }
+    let half = if lo.x <= hi.x { (hi - lo) * 0.5 } else { Vec3::splat(16.0 * shared::SOURCE_UNIT) };
+    if core && lo.x > hi.x {
+        // No collision model: a ball about Wheatley's size.
+        commands.spawn((Name::new("core collider"), Collider::sphere(14.0 * shared::SOURCE_UNIT), Transform::IDENTITY, ChildOf(entity)));
+    }
+    commands.entity(entity).remove::<ChildOf>().insert((
+        tf,
+        if core { RigidBody::Kinematic } else { RigidBody::Dynamic },
+        // vphysics cube: 40 kg-ish, slides a little, rolls very little.
+        Mass(PROP_MASS),
+        Friction::new(0.6),
+        Restitution::new(0.05),
+        LinearDamping(0.05),
+        AngularDamping(0.3),
+        // Never asleep: world pieces they rest on move without waking
+        // them (a dropper's iris opening, a func_brush switched off).
+        SleepingDisabled,
+        // Fast cubes (droppers, faith plates) don't tunnel through thin
+        // things like light bridges.
+        SweptCcd::default(),
+        Prop { ent: i, half },
+        LevelOwned,
+    ));
+    // Its colliders were attached to the map's static body when spawned
+    // under it; re-insert them so they attach to this body instead.
+    // Their density makes them weigh the body's mass, so its rotational
+    // inertia matches it (at avian's default density a radio would spin
+    // off every contact and sink through the floor, T-144).
+    let parts: Vec<Entity> = children.iter_descendants(entity).filter(|&c| colliders.contains(c)).collect();
+    let density = prop_density(PROP_MASS, parts.iter().filter_map(|&c| colliders.get(c).ok()));
+    for c in parts {
+        if let Ok(col) = colliders.get(c) {
+            commands.entity(c).remove::<(Collider, ColliderOf)>().insert((col.clone(), ColliderDensity(density)));
         }
     }
 }

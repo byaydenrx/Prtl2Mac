@@ -16,6 +16,7 @@ mod audio;
 mod autopilot;
 mod bindings;
 mod bridges;
+mod cameras;
 mod campaign;
 mod captions;
 mod community;
@@ -124,6 +125,7 @@ fn main() {
             lasers::LasersPlugin,
             bridges::BridgesPlugin,
             tractor::TractorPlugin,
+            cameras::CamerasPlugin,
             vscripts::VScriptPlugin,
             exposure::ExposurePlugin,
             paint::PaintPlugin,
