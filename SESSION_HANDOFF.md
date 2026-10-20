@@ -13,13 +13,13 @@ scheduled task `prtl2mac-auto-resume` resumes work ~5 h later from this file.
   to docs/PLAYTESTS.md, finished-fix write-ups to docs/STATUS.md; durable
   gotchas moved to WORKFLOW.md; PROJECT_STATE map table updated from
   playtest 8 (owner played chapter 1 to sp_a2_laser_stairs).
-- T-129 fixed (movie screens mirrored; ring covered its exit). Owner replay
+- T-130 handrails fixed (grate models pass shots). T-129 fixed (movie screens mirrored; ring covered its exit). Owner replay
   pending, as for T-128. dist/Prtl2Mac.app = 0.1.0+8ac53a2.
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. TASKS "Priority order" item 1: T-130 portal shots through cubes and
-   handrails. Then T-131, T-105, T-132.
+1. TASKS "Priority order" item 1: T-131 intro3 floors and roofs missing.
+   Then T-105, T-132.
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.

@@ -71,6 +71,9 @@ pub struct ModelData {
     pub is_static_prop: bool,
     /// `illumposition`: where the engine samples lighting, Source model space.
     pub illum_position: Vec3,
+    /// The header's `contents` (`$contents`): CONTENTS_SOLID by default,
+    /// CONTENTS_GRATE for railings and grates that shots pass through.
+    pub contents: u32,
     /// Eyeballs of every body-part model, in file order.
     pub eyeballs: Vec<Eyeball>,
 }
@@ -526,6 +529,7 @@ fn load_model_inner(
             let f = |o: usize| f32::from_le_bytes(mdl_data[o..o + 4].try_into().unwrap());
             if mdl_data.len() >= 104 { Vec3::new(f(92), f(96), f(100)) } else { Vec3::ZERO }
         },
+        contents: mdl_contents(&mdl_data),
     })
 }
 
@@ -938,4 +942,10 @@ mod part_tests {
             }
         }
     }
+}
+
+/// `studiohdr_t::contents` (after `mass`, byte 332): what `$contents`
+/// compiled in (CONTENTS_SOLID unless the model says otherwise).
+pub fn mdl_contents(mdl: &[u8]) -> u32 {
+    mdl.get(332..336).map_or(crate::collision::CONTENTS_SOLID, |b| u32::from_le_bytes(b.try_into().unwrap()))
 }

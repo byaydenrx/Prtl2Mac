@@ -1252,6 +1252,9 @@ fn spawn_prop_collider(
     sequence: Option<&str>,
     bone_parts: &HashMap<usize, Entity>,
 ) {
+    // Grate models (`$contents grate`: handrails) stop the player but not
+    // portal shots, as grate brushes (T-130).
+    let shot_passthrough = crate::collision::contents_shot_passthrough(model.contents);
     let compound = |pieces: Vec<&Vec<Vec3>>| -> Option<Collider> {
         let parts: Vec<(Vec3, Quat, Collider)> = pieces
             .into_iter()
@@ -1274,7 +1277,10 @@ fn spawn_prop_collider(
         }
         for (b, pieces) in by_bone {
             if let Some(c) = compound(pieces) {
-                commands.spawn((Name::new("prop collider"), c, Transform::IDENTITY, ChildOf(bone_parts[&b])));
+                let mut ec = commands.spawn((Name::new("prop collider"), c, Transform::IDENTITY, ChildOf(bone_parts[&b])));
+                if shot_passthrough {
+                    ec.insert(PortalShotPassthrough);
+                }
             }
         }
         compound(rest)
@@ -1291,7 +1297,10 @@ fn spawn_prop_collider(
         None
     };
     if let Some(c) = collider {
-        commands.spawn((Name::new("prop collider"), c, Transform::IDENTITY, ChildOf(parent)));
+        let mut ec = commands.spawn((Name::new("prop collider"), c, Transform::IDENTITY, ChildOf(parent)));
+        if shot_passthrough {
+            ec.insert(PortalShotPassthrough);
+        }
     }
 }
 

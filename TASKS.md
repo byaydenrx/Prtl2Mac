@@ -20,40 +20,34 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 
 ## Priority order (2026-10-20)
 P1:
-1. T-130 Portal shots through cubes and handrails (intro6 needs noclip).
-2. T-131 sp_a1_intro3 floors and roofs missing.
-3. T-105 Held objects dropped when pushed into a wall; Wheatley re-pickup.
-4. T-132 Fizzler field not drawn, maybe not working.
+1. T-131 sp_a1_intro3 floors and roofs missing.
+2. T-105 Held objects dropped when pushed into a wall; Wheatley re-pickup.
+3. T-132 Fizzler field not drawn, maybe not working.
 P2:
-5. T-114 intro1: Wheatley's door waits for the announcer.
-6. T-120 Elevators (jitter, VO timing, thumps) and T-135 turrets falling through them.
-7. T-133 intro7 Wheatley floats after the wall panel; panel vanishes.
-8. T-134 sp_a1_wakeup pod: the player doesn't turn with the floor; T-163 hatch.
-9. T-136 sp_a1_wakeup end: a portal in the tube before the drop.
-10. T-137 Portal spacing; T-102 seamless cube carry; T-125 turn-away delay.
-11. T-145 Buttons don't animate, cubes don't light up.
-12. T-144 Missing props; T-147 black screen as intro2's first door opens.
-13. T-139 Ambient audio, button sounds, music cut-offs, loud glass.
-14. T-149 Chamber signs blank; screens and lights.
-15. T-112 Missing/flat textures (GLaDOS chamber floor, hallways).
-16. T-123 Security cameras knocked off by portal shots.
-17. T-160 Main menu like Portal 2's.
+4. T-114 intro1: Wheatley's door waits for the announcer.
+5. T-120 Elevators (jitter, VO timing, thumps) and T-135 turrets falling through them.
+6. T-133 intro7 Wheatley floats after the wall panel; panel vanishes.
+7. T-134 sp_a1_wakeup pod: the player doesn't turn with the floor; T-163 hatch.
+8. T-136 sp_a1_wakeup end: a portal in the tube before the drop.
+9. T-137 Portal spacing; T-102 seamless cube carry; T-125 turn-away delay.
+10. T-145 Buttons don't animate, cubes don't light up.
+11. T-144 Missing props; T-147 black screen as intro2's first door opens.
+12. T-139 Ambient audio, button sounds, music cut-offs, loud glass.
+13. T-149 Chamber signs blank; screens and lights.
+14. T-112 Missing/flat textures (GLaDOS chamber floor, hallways).
+15. T-123 Security cameras knocked off by portal shots.
+16. T-160 Main menu like Portal 2's.
 P3:
-18. T-161 Menu video and music; T-162 menu animation, logo, styling.
-19. T-020 intro1 ride; T-164 spiky debris; T-116 intro1 room; T-117 shadows; T-115 wake-up.
-20. T-153 GLaDOS wake-up; T-157 smoother fall transition; T-165 Wheatley rail connector.
-21. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
+17. T-161 Menu video and music; T-162 menu animation, logo, styling.
+18. T-020 intro1 ride; T-164 spiky debris; T-116 intro1 room; T-117 shadows; T-115 wake-up.
+19. T-153 GLaDOS wake-up; T-157 smoother fall transition; T-165 Wheatley rail connector.
+20. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
 P4:
-22. T-151 water, T-155 lasers, T-150 particles, T-152 lighting/textures,
+21. T-151 water, T-155 lasers, T-150 particles, T-152 lighting/textures,
     T-143 clock blink, T-146 half-stuck door, T-154 floating moss, T-166 intro5 wall panel.
 Then the Backlog (prove and sweep the campaign).
 
 ## Open: P1
-
-### T-130 Portal shots stop at things Portal 2 shoots through  (P1, TODO)
-- Section 4: handrails block shots; a portal can't be shot under a resting
-  cube (intro6 needed noclip). T-121 made the cube fall once the portal
-  exists. Cameras: T-123. Reference: server.dll (depot 624) portal trace mask.
 
 ### T-131 sp_a1_intro3: floors and roofs missing  (P1, TODO)
 - Section 2: the floor right in front of the door leaving the arrival
@@ -220,6 +214,13 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+- T-130 Portal shots pass handrails: models compiled `$contents grate`
+  (props_bts/handrail_*) now let portal shots through like grate brushes.
+  intro5 rail at (380,-330): before, the shot stopped at the rail; after, it
+  reaches the wall behind. Loose cubes already pass shots (dynamic bodies
+  are skipped); not reproduced in intro6, where the dropped cube landed on
+  non-portalable dirt floor at (1947,381) tilted, ~25 u up a wall. Owner:
+  replay intro6 and say where the cube was when the shot failed.
 - T-129 Stray elevator screens: movie panels were drawn extending to the
   entity's right instead of its left, so the ring covered its own exit gap
   (laser_stairs: @arrival_sign_1/_24 across the stairs and leaving trigger).

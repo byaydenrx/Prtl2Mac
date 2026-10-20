@@ -171,8 +171,15 @@ impl ColliderData {
 
     /// Portal shots pass through (grates, player clips).
     pub fn shot_passthrough(&self) -> bool {
-        self.contents & MASK_SHOT_PORTAL == 0 || self.contents & CONTENTS_GRATE != 0
+        contents_shot_passthrough(self.contents)
     }
+}
+
+/// Portal shots pass through these contents: grates (brushes, and models
+/// compiled `$contents grate` such as handrails) and anything outside
+/// MASK_SHOT_PORTAL (player clips).
+pub fn contents_shot_passthrough(contents: u32) -> bool {
+    contents & MASK_SHOT_PORTAL == 0 || contents & CONTENTS_GRATE != 0
 }
 
 fn to_world(p: DVec3, origin: DVec3) -> Vec3 {
@@ -279,6 +286,16 @@ mod tests {
                 }
             })
             .collect()
+    }
+
+    #[test]
+    fn grates_and_clips_pass_portal_shots() {
+        // handrail_128.mdl is compiled CONTENTS_GRATE (T-130); metal_box solid.
+        assert!(contents_shot_passthrough(CONTENTS_GRATE));
+        assert!(contents_shot_passthrough(CONTENTS_SOLID | CONTENTS_GRATE));
+        assert!(contents_shot_passthrough(CONTENTS_PLAYERCLIP));
+        assert!(!contents_shot_passthrough(CONTENTS_SOLID));
+        assert!(!contents_shot_passthrough(CONTENTS_WINDOW));
     }
 
     #[test]

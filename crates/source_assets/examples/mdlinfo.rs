@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
     let fs = GameFs::from_env()?;
     let m = source_assets::models::load_model(&path, &|p| fs.read(p), &|_| false)?;
     let sk = m.skeleton.as_ref();
-    println!("{} meshes, skins {}, animated {:?}", m.meshes.len(), m.skins.len(), sk.map(|s| s.sequences.len()));
+    println!("{} meshes, skins {}, animated {:?}, contents {:#x}", m.meshes.len(), m.skins.len(), sk.map(|s| s.sequences.len()), m.contents);
     for (i, mesh) in m.meshes.iter().enumerate() {
         let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
         for p in &mesh.source_positions {
