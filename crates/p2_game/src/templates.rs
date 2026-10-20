@@ -48,8 +48,10 @@ impl Templates {
 /// index `idx`) at `tf`. `None` when the prototype has no entity.
 pub fn spawn_copy(commands: &mut Commands, ents: &Ents, proto: usize, idx: usize, tf: Transform, props: &Query<&Prop>) -> Option<Entity> {
     let e = ents.list[proto].entity?;
+    // A prototype despawned by something else must not take the game down.
     let copy = commands
-        .entity(e)
+        .get_entity(e)
+        .ok()?
         .clone_and_spawn_with_opt_out(|b| {
             b.linked_cloning(true).deny::<(RigidBodyDisabled, ColliderDisabled, ColliderOf, RigidBodyColliders)>();
         })
@@ -95,6 +97,7 @@ fn take_prototypes(
         if !keep {
             for &i in &m {
                 ents.list[i].killed = true;
+                ents.prototypes.insert(i);
                 if let Some(e) = ents.list[i].entity {
                     commands.entity(e).insert((Visibility::Hidden, RigidBodyDisabled));
                     for c in children.iter_descendants(e).chain(std::iter::once(e)) {

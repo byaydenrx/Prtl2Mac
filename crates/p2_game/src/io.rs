@@ -133,6 +133,9 @@ pub struct Ents {
     rng: u32,
     /// Nothing runs while set: a saved game is being put back.
     pub hold: bool,
+    /// Template members held out of the level as prototypes (templates.rs):
+    /// in Source they no longer exist, so they take no inputs, not even Kill.
+    pub prototypes: std::collections::HashSet<usize>,
 }
 
 impl Ents {
@@ -209,6 +212,7 @@ impl Ents {
             script_hooks: Vec::new(),
             script_calls: Vec::new(),
             hold: false,
+            prototypes: Default::default(),
         }
     }
 
@@ -407,6 +411,13 @@ impl Ents {
         self.rng ^= self.rng >> 17;
         self.rng ^= self.rng << 5;
         self.rng
+    }
+
+    /// Whether entity `t` gets `input`: killed ones only a further Kill, and
+    /// template prototypes nothing (a Kill by name meant for the live copies
+    /// despawned the prototype, and the next ForceSpawn cloned a dead entity).
+    pub fn takes_input(&self, t: usize, input: &str) -> bool {
+        !self.prototypes.contains(&t) && (!self.list[t].killed || input == "kill")
     }
 
     /// Run one input on one entity. Returns `true` when handled here.
@@ -817,7 +828,7 @@ pub fn run_io(
             let script = matches!(p.input.as_str(), "runscriptcode" | "callscriptfunction" | "runscriptfile");
             let param = if script || p.input == "addoutput" { p.param.clone() } else { p.param.to_ascii_lowercase() };
             for t in targets {
-                if ents.list[t].killed && p.input != "kill" {
+                if !ents.takes_input(t, &p.input) {
                     continue;
                 }
                 // P2_TRACE_IO=name: every input that entity gets, and from whom.
@@ -837,6 +848,20 @@ pub fn run_io(
 #[cfg(test)]
 mod value_tests {
     use super::*;
+
+    #[test]
+    fn template_prototypes_take_no_inputs() {
+        let mut ents = Ents::default();
+        ents.list.push(GameEnt::logic("prop_weighted_cube", "box_template", Vec::new()));
+        ents.list.push(GameEnt::logic("prop_weighted_cube", "box_template", Vec::new()));
+        ents.list[0].killed = true;
+        ents.prototypes.insert(0);
+        assert!(!ents.takes_input(0, "kill"));
+        assert!(ents.takes_input(1, "kill"));
+        ents.list[1].killed = true;
+        assert!(ents.takes_input(1, "kill"));
+        assert!(!ents.takes_input(1, "enable"));
+    }
 
     #[test]
     fn counter_values_match_cases() {
