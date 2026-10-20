@@ -28,6 +28,7 @@ mod health;
 mod io;
 mod lasers;
 mod level;
+mod loading;
 mod map_particles;
 mod mods_page;
 mod mounts;
@@ -106,6 +107,7 @@ fn main() {
         .add_plugins((
             settings::SettingsPlugin,
             level::LevelPlugin,
+            loading::LoadingPlugin,
             movers::MoversPlugin,
             portals::MapPortalsPlugin,
             props::PropsPlugin,

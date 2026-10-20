@@ -25,6 +25,7 @@ impl Plugin for LevelPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<LoadLevel>()
             .add_message::<LevelLoaded>()
+            .init_resource::<PendingLoad>()
             .configure_sets(Update, (GameSet::Load, GameSet::Logic).chain())
             .add_systems(Update, load_level.in_set(GameSet::Load))
             .add_systems(Update, (map_look_on_cameras, light_on_cameras, gun_visibility, trace_player).in_set(GameSet::Logic));
@@ -44,6 +45,15 @@ pub struct LevelLoaded {
     pub map: String,
     pub menu: bool,
 }
+
+/// A level load waiting for the loading screen to be on screen: Portal 2
+/// draws its loading screen before the load, and ours blocks a frame, so a
+/// non-menu load waits [`LOADING_SCREEN_FRAMES`] frames (see `loading.rs`).
+#[derive(Resource, Default)]
+pub struct PendingLoad(pub Option<(LoadLevel, u8)>);
+
+/// Frames a non-menu load waits so the loading screen gets drawn first.
+pub const LOADING_SCREEN_FRAMES: u8 = 2;
 
 /// The level that is loaded now.
 #[derive(Resource)]
@@ -183,8 +193,16 @@ fn load_level(
     portals: Query<Entity, With<Portal>>,
     level_owned: Query<Entity, With<LevelOwned>>,
     mut loaded: MessageWriter<LevelLoaded>,
+    mut pending: ResMut<PendingLoad>,
 ) {
-    let Some(req) = requests.read().last().cloned() else { return };
+    if let Some(req) = requests.read().last().cloned() {
+        pending.0 = Some((req, 0));
+    }
+    let Some((req, waited)) = pending.0.take() else { return };
+    if !req.menu && waited < LOADING_SCREEN_FRAMES {
+        pending.0 = Some((req, waited + 1));
+        return;
+    }
     // Out with the old level: the map, its portals and everything spawned for it.
     if let Some(cur) = &current {
         commands.entity(cur.info.root).despawn();
