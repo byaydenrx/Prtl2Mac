@@ -38,20 +38,23 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-120 Elevators, remaining parts: thumps, trash rising with the car.
-   Thumps checked 2026-10-20 (autorun): NOT REPRODUCED (no thump-like sound
-   logged on intro5/intro6 rides); car move/stop sounds added (5bfaf52).
-   Next: the trash rising with the car (find which map/props); else T-137
-   (portal spacing). T-136 tube portal, T-134 pod turn and T-163 hatch done 2026-10-20,
+1. T-137 Portal spacing (portals can't be placed as close together as in
+   Portal 2), then T-102 seamless cube carry, T-125 turn-away delay.
+   T-120 Elevators is now BLOCKED (needs owner): thumps, trash and VO timing
+   all NOT REPRODUCED by autopilot (see its entry). Trash checked
+   2026-10-20 (autorun): it is intro5's departure_elevator-tube_blockage_01
+   (elevator_rubble.mdl, seq "anim" 11.2 s), started 1.75 s after the car's
+   "arrive"; autopilot shows the car come down and the rubble fall onto its
+   roof, as the model's animation intends. Needs the owner to say which
+   ride and what looked wrong (or a Windows reference). Small leftover:
+   movesound pitch by speed (movesoundmin/maxpitch).
+   T-136 tube portal, T-134 pod turn and T-163 hatch done 2026-10-20,
    awaiting owner replay (also replay bts3/bts5/a3_end blend trains, which
    now turn, and any map with startdisabled func_brushes).
-   VO timing / ride length checked 2026-10-20 (autorun): NOT REPRODUCED,
-   the ReadyForTransition/TransitionReady chain works (see T-120 entry);
-   needs an owner replay of intro5's second button. Possible lead: our new
-   VO cuts off a still-playing line instead of waiting for it.
    T-135 (vac-tube turrets through the exit elevator) is BLOCKED: the model's
    own elevator_0N animation drops them down the shaft through the car;
    needs a Windows Portal 2 reference of that moment (see its entry).
+   dist build: 0.1.0+3f96088.20261020T1137Z (unchanged).
 2. T-131 (intro3 floors/roofs) is BLOCKED: not reproduced by autopilot;
    needs owner screenshots plus console `getpos`.
 

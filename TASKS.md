@@ -23,7 +23,7 @@ P1:
 1. T-131 sp_a1_intro3 floors and roofs missing (BLOCKED: not reproduced, needs owner screenshots).
 P2:
 2. (T-114 fixed, awaiting owner replay.)
-3. T-120 Elevators (thumps, trash; jitter and car sounds fixed); T-135 turrets through the exit elevator is BLOCKED (needs owner reference).
+3. T-120 Elevators is BLOCKED (thumps, trash, VO timing not reproduced; needs owner); T-135 turrets through the exit elevator is BLOCKED (needs owner reference).
 4. (T-133 Wheatley float fixed, awaiting owner replay; panel part not reproduced.)
 5. (T-134 pod turn and T-163 hatch fixed, awaiting owner replay.)
 6. (T-136 wakeup tube portal fixed, awaiting owner replay.)
@@ -79,7 +79,7 @@ Then the Backlog (prove and sweep the campaign).
 
 ## Open: P2
 
-### T-120 Elevators  (P2, TODO; jitter fixed, rest open)
+### T-120 Elevators  (P2, BLOCKED: needs owner; jitter and car sounds fixed)
 - Jitter FIXED 2026-10-20 (c1079f9, see Awaiting owner replay). Still open:
   the VO after intro5's second button started
   halfway down and stretched the ride (T-138); thumping sounds during the
@@ -106,6 +106,20 @@ Then the Backlog (prove and sweep the campaign).
   see Awaiting owner replay). Open: thumps (owner: which ride, what it
   sounded like), trash rising with the car, move-sound pitch by speed
   (movesoundmin/maxpitch, not done).
+- 2026-10-20 autorun: trash NOT REPRODUCED (no code change). The trash is
+  intro5's departure_elevator-tube_blockage_01 (models/elevator/
+  elevator_rubble.mdl, solid 6, holdanimation 1): blocked_elevator_tube_anim
+  (trigger at -64 816 352) plays the car body's "arrive" (car comes DOWN,
+  root z 972 -> 110 in ~2 s) and 1.75 s later the rubble's "anim" (11.2 s;
+  29 root bones fall from model z 469..1464 to about -90..99, i.e. onto the
+  car roof). Autopilot (setpos -64 1150 300, look -40 90; shots at 3.5-15 s)
+  shows exactly that: car arrives, rubble drops and rests on the roof. The
+  departure ride with the rubble on the roof was not checked (needs the
+  puzzle solved). Possible owner-visible issue: the rubble is a held
+  prop_dynamic, so when the car leaves upward it passes through the pile
+  (same entities in the original; unknown whether Windows hides it).
+  BLOCKED: needs the owner to say which ride and what looked wrong, or a
+  Windows reference of intro5's departure.
 
 ### T-135 Turrets fall through the exit elevator  (P2, BLOCKED: needs owner)
 - Sections 5 (sp_a2_intro) and 6 (sp_a2_laser_intro).
