@@ -473,6 +473,14 @@ pub fn cube_skin(cubetype: Option<&str>, newskins: Option<&str>, skin: Option<&s
     }
 }
 
+/// The skin a cube switches to while it sits on a pressed button, if its
+/// model has one: metal_box.mdl's standard and companion skins 0/1 light up
+/// as 2/3 (its paint skins don't). Reflection and antique cubes have none.
+pub fn cube_lit_skin(model: &str, skin: i32) -> Option<i32> {
+    let m = model.to_ascii_lowercase().replace('\\', "/");
+    (m.ends_with("models/props/metal_box.mdl") && (0..=1).contains(&skin)).then_some(skin + 2)
+}
+
 /// Studio models an entity class renders when it has no `model` key.
 pub fn default_entity_model(e: &SourceEntity) -> Option<String> {
     let m = match e.classname.as_str() {
@@ -1016,6 +1024,15 @@ pub fn load_map(fs: &GameFs, surfprops: &SurfaceProps, name: &str) -> anyhow::Re
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn cube_lit_skins() {
+        use super::cube_lit_skin;
+        assert_eq!(cube_lit_skin("models/props/metal_box.mdl", 0), Some(2));
+        assert_eq!(cube_lit_skin("models/props/metal_box.mdl", 1), Some(3));
+        assert_eq!(cube_lit_skin("models/props/metal_box.mdl", 6), None);
+        assert_eq!(cube_lit_skin("models/props/reflection_cube.mdl", 0), None);
+    }
+
     use super::*;
 
     fn fs() -> Option<(GameFs, SurfaceProps)> {

@@ -185,6 +185,24 @@ pub struct AnimatedModel {
 /// A child of an [`AnimatedModel`] carrying the meshes (and per-bone `.phy`
 /// collision) that follow one bone. Its transform is that bone's
 /// model-space transform in world axes ([`crate::models::bone_transform`]).
+/// The skin a model with [`SkinVariant`] groups draws with; change it to
+/// switch skins (a cube lighting up on a button).
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ModelSkin(pub i32);
+
+/// A model's spawn skin and the alternate skin it can switch to.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct AltSkin {
+    pub base: i32,
+    pub alt: i32,
+}
+
+/// A group of a model's draws used by only this skin (spawned for the
+/// model's spawn skin and its alternate skin where their materials differ);
+/// shown while the model's [`ModelSkin`] is this skin.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct SkinVariant(pub i32);
+
 #[derive(Component, Clone, Copy, Debug)]
 pub struct BonePart {
     pub bone: u16,
@@ -995,6 +1013,7 @@ pub fn spawn_loaded_map(
             map,
             model,
             sp.skin,
+            None,
             transform,
             root,
             &|src_n: Vec3, vvd: u32| match &sp.vertex_light {
@@ -1069,6 +1088,8 @@ pub fn spawn_loaded_map(
         if let Some(path) = &model_path {
             if let Some(model) = map.models.get(path) {
                 let skin = if e.classname == "prop_weighted_cube" { crate::map::cube_skin(e.get("cubetype"), e.get("newskins"), e.get("skin")) } else { e.get("skin").or(e.get("modelskin")).and_then(|s| s.parse().ok()).unwrap_or(0) };
+                // Cubes also get their lit skin, shown while on a button.
+                let alt_skin = if e.classname == "prop_weighted_cube" { crate::map::cube_lit_skin(path, skin) } else { None };
                 let scale = e.get_f32("modelscale").filter(|s| *s > 0.0).unwrap_or(1.0);
                 let local = Transform::from_translation(source_to_world(e.origin))
                     .with_rotation(source_angles_to_world(e.angles))
@@ -1099,6 +1120,7 @@ pub fn spawn_loaded_map(
                     map,
                     model,
                     skin,
+                    alt_skin,
                     local,
                     root,
                     &|src_n: Vec3, _| {
@@ -1109,6 +1131,9 @@ pub fn spawn_loaded_map(
                     pose,
                     amb_ctx.as_ref(),
                 );
+                if let Some(alt) = alt_skin {
+                    commands.entity(ent).insert((ModelSkin(skin), AltSkin { base: skin, alt }));
+                }
                 if e.get("startdisabled") == Some("1") || e.get("rendermode") == Some("10") {
                     commands.entity(ent).insert(Visibility::Hidden);
                 }
@@ -1348,6 +1373,7 @@ fn spawn_model(
     map: &LoadedMap,
     model: &ModelData,
     skin: i32,
+    alt_skin: Option<i32>,
     transform: Transform,
     parent: Entity,
     light: &dyn Fn(Vec3, u32) -> Vec3,
@@ -1412,8 +1438,25 @@ fn spawn_model(
                 .collect()
         }
     };
-    for (mesh, light_normals, e) in &draws {
-        let (mesh, e) = (&**mesh, *e);
+    // Each draw with its skin; where `alt_skin` changes a draw's material,
+    // both skins' draws go in their own SkinVariant group (alt hidden).
+    let mut skinned = Vec::new();
+    for (i, d) in draws.iter().enumerate() {
+        let mi = d.0.material_index;
+        match alt_skin.filter(|&a| model.material_for(a, mi) != model.material_for(skin, mi)) {
+            Some(a) => {
+                skinned.push((i, skin, Some(Visibility::Inherited)));
+                skinned.push((i, a, Some(Visibility::Hidden)));
+            }
+            None => skinned.push((i, skin, None)),
+        }
+    }
+    for (di, skin, variant) in skinned {
+        let (mesh, light_normals, e) = &draws[di];
+        let (mesh, mut e) = (&**mesh, *e);
+        if let Some(vis) = variant {
+            e = commands.spawn((SkinVariant(skin), Transform::IDENTITY, vis, ChildOf(e))).id();
+        }
         let normals = light_normals.as_deref().unwrap_or(&mesh.source_normals);
         if std::env::var("P2_TRACE_MESH").is_ok_and(|k| model.path.contains(&k)) {
             let (lo, hi) = mesh.positions.iter().fold((Vec3::MAX, Vec3::MIN), |(lo, hi), p| (lo.min(Vec3::from(*p)), hi.max(Vec3::from(*p))));

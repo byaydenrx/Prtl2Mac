@@ -11,6 +11,7 @@ use p2_core::math::{clamp_exit_velocity, exit_min_speed, segment_crosses_opening
 use p2_core::*;
 
 use crate::io::{EntInput, Ents, FireOutput, PLAYER};
+use source_assets::plugin::{AltSkin, ModelSkin, SkinVariant};
 use crate::level::{CurrentMap, LevelLoaded, LevelOwned};
 
 pub struct PropsPlugin;
@@ -21,7 +22,7 @@ impl Plugin for PropsPlugin {
             .init_resource::<CoreState>()
             .init_resource::<HoldTargets>()
             .init_resource::<HoldObstructions>()
-            .add_systems(Update, (make_props_dynamic, hook_prop_colliders, sync_prop_transforms, core_inputs, use_key, prop_inputs, floor_buttons).chain().in_set(crate::level::GameSet::Logic))
+            .add_systems(Update, (make_props_dynamic, hook_prop_colliders, sync_prop_transforms, core_inputs, use_key, prop_inputs, floor_buttons, apply_model_skins).chain().in_set(crate::level::GameSet::Logic))
             .add_systems(Update, player_proxy_outputs.in_set(crate::level::GameSet::Logic))
             .add_systems(FixedUpdate, (hold_obstructions, carry, hold_clearance, prop_transit, wall_passthrough).chain().after(P2Systems::Transit))
             .add_systems(FixedUpdate, held_prop_blocks_player.before(P2Systems::Move));
@@ -883,7 +884,8 @@ fn button_released(down: bool, now: f32, clear_since: &mut Option<f32>) -> bool 
 fn floor_buttons(
     ents: Option<ResMut<Ents>>,
     map: Option<Res<CurrentMap>>,
-    props: Query<(&Prop, &Position)>,
+    props: Query<(Entity, &Prop, &Position)>,
+    mut skins: Query<(&mut ModelSkin, &AltSkin)>,
     players: Query<&Transform, With<Player>>,
     time: Res<Time>,
     mut pressed: Local<std::collections::HashMap<usize, Option<f32>>>,
@@ -899,6 +901,8 @@ fn floor_buttons(
     let (Some(ents), Some(_)) = (ents, map) else { return };
     let u = shared::SOURCE_UNIT;
     let player = players.single().ok().map(|t| t.translation);
+    // Cubes resting on a pressed button light up.
+    let mut lit = std::collections::HashSet::new();
     for (i, e) in ents.list.iter().enumerate() {
         let is_cube_button = e.class == "prop_floor_cube_button" || e.class == "prop_floor_ball_button";
         if !(e.class == "prop_floor_button" || e.class == "prop_under_floor_button" || is_cube_button) || e.killed {
@@ -909,11 +913,16 @@ fn floor_buttons(
             let l = inv * (p - e.transform.translation);
             Vec2::new(l.x, l.z).length() < 40.0 * u && l.y > -8.0 * u && l.y < lift
         };
-        let mut down = props.iter().any(|(pr, pos)| {
-            let Some(pe) = ents.list.get(pr.ent) else { return false };
-            let class = pe.class.as_str();
-            (class == "prop_weighted_cube" || class == "prop_monster_box" || !is_cube_button) && on(pos.0, pr.half.y + 24.0 * u)
-        });
+        let on_it: Vec<Entity> = props
+            .iter()
+            .filter(|(_, pr, pos)| {
+                let Some(pe) = ents.list.get(pr.ent) else { return false };
+                let class = pe.class.as_str();
+                (class == "prop_weighted_cube" || class == "prop_monster_box" || !is_cube_button) && on(pos.0, pr.half.y + 24.0 * u)
+            })
+            .map(|(pe, ..)| pe)
+            .collect();
+        let mut down = !on_it.is_empty();
         if !is_cube_button {
             down |= player.is_some_and(|p| on(p, 24.0 * u));
         }
@@ -931,6 +940,25 @@ fn floor_buttons(
                 }
             }
             None => {}
+        }
+        if pressed.contains_key(&i) {
+            lit.extend(on_it);
+        }
+    }
+    for (pe, ..) in &props {
+        if let Ok((mut skin, cs)) = skins.get_mut(pe) {
+            skin.set_if_neq(ModelSkin(if lit.contains(&pe) { cs.alt } else { cs.base }));
+        }
+    }
+}
+
+/// Shows the [`SkinVariant`] draw groups of models whose [`ModelSkin`] changed.
+fn apply_model_skins(models: Query<(Entity, &ModelSkin), Changed<ModelSkin>>, children: Query<&Children>, mut variants: Query<(&SkinVariant, &mut Visibility)>) {
+    for (e, skin) in &models {
+        for c in children.iter_descendants(e) {
+            if let Ok((v, mut vis)) = variants.get_mut(c) {
+                vis.set_if_neq(if v.0 == skin.0 { Visibility::Inherited } else { Visibility::Hidden });
+            }
         }
     }
 }

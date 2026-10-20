@@ -85,7 +85,10 @@ fn sync_prop_ghosts(
     parents: Query<&ChildOf>,
     transforms: Query<&Transform, Without<PropGhost>>,
     sources: Query<PartQuery, Without<PropGhostPart>>,
+    shown: Query<&InheritedVisibility, Without<PropGhostPart>>,
 ) {
+    // A part is drawn while its source is (a cube's other skin is hidden).
+    let part_vis = |src: Entity| if shown.get(src).is_ok_and(|v| !v.get()) { Visibility::Hidden } else { Visibility::Inherited };
     let frames: Vec<_> = portals
         .iter()
         .filter_map(|(e, p, t, link)| {
@@ -113,6 +116,7 @@ fn sync_prop_ghosts(
                 for &(src, dst) in &ghost.parts {
                     if let Ok((surface, overrides, _, mat, _)) = sources.get(src) {
                         let mut d = commands.entity(dst);
+                        d.insert(part_vis(src));
                         if let Some(s) = surface {
                             d.insert(s.clone());
                         }
@@ -138,7 +142,7 @@ fn sync_prop_ghosts(
             if surface.is_none() && drawn_mesh.is_none() {
                 continue;
             }
-            let mut e = commands.spawn((PropGhostPart, local_to_root(d, prop, &parents, &transforms), Visibility::Inherited, ChildOf(g)));
+            let mut e = commands.spawn((PropGhostPart, local_to_root(d, prop, &parents, &transforms), part_vis(d), ChildOf(g)));
             if let Some(s) = surface {
                 e.insert(s.clone());
             }
