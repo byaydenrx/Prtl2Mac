@@ -22,7 +22,9 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 P0:
 1. (none; T-168 box-button crash owner-confirmed fixed.)
 P1:
-2. (none; T-169 fixed a1cd026, awaiting owner replay.)
+2. T-176 Can't catch or grab falling/mid-air objects (softlock: the faith plate
+   level's cube can't be grabbed; Wheatley can't be caught when he falls).
+   (T-169 fixed a1cd026, awaiting owner replay.)
 P2:
 3. T-162 OWNER PRIORITY: the UI as close to Portal 2's as possible, one
    screen per run until all match (done: main menu, SP dialog, New Game,
@@ -57,6 +59,21 @@ Then the Backlog (prove and sweep the campaign).
 (none)
 
 ## Open: P1
+
+### T-176 Can't catch or grab objects in the air  (P1, TODO, softlock)
+- Owner, 2026-10-20 (after playtest 9): "you can't catch falling things or
+  grab things midair, like the faithplate level i couldnt continue because
+  i couldnt grab the cube and wheatly i couldnt catch when he fell earlier
+  in the playthrough". Faith plate level: probably sp_a2_catapult_intro
+  (the owner had reached sp_a2_laser_over_goo); Wheatley falling: sp_a1_intro7
+  (after the wall panel) or sp_a1_wakeup.
+- Portal 2 lets +use pick up a cube or Wheatley in flight. Check the use
+  trace/filter and the pickup conditions for moving or airborne bodies
+  (speed limits, sleeping/contact requirements, the use-cone range against a
+  fast target), and that the held-object code accepts a body with velocity.
+  Related: T-105/T-170 (carrying), T-004 (prove catapult_intro).
+- Verify: autopilot `use` on a cube mid-flight off a faith plate and on a
+  dropped Wheatley, before/after.
 
 ### T-108 A chamber door had an invisible barrier, needed noclip  (P1, NEEDS INFO)
 - intro4 doors pass both ways in a walk test. Need the door and map from the owner.
