@@ -17,13 +17,15 @@ reads it first (via `sh scripts/resume.sh`).
   is now the install's own UniversLTStd-Cn (decoded from
   vgui/fonts/universc.vfont), MainMenuButton colours/size/inset from
   basemodui_scheme.res, flyout owner stays lit. T-162 stays open.
-- dist/Prtl2Mac.app = 0.1.0+47757a0.20261020T2014Z.
+- T-162 Options dialog DONE (2a6921d), autopilot shots only.
+- dist/Prtl2Mac.app = 0.1.0+2a6921d.20261020T2025Z.
 
 ## Next action
-1. T-162 next screen: Options (the Options flyout, still a light grey box,
-   and the Options/Settings panels: resource/ui/basemodui/options*.res,
-   audio/video/keyboard/mouse .res; reuse tile_frame()/dialog_row(); Load/
-   Save Game done 47757a0). Then pause menu, HUD/hints/subtitles, loading
+1. T-162 next screen: the Settings panels Audio, Video (+ advanced),
+   Keyboard/Mouse, Controller (audio.res, video.res, advancedvideo.res,
+   keyboardmouse.res, controller.res; still our old grey dialog(); the
+   Options dialog itself is done 2a6921d, options.res). Then pause menu,
+   HUD/hints/subtitles, loading
    screens; one screen per run, new crashes/softlocks still first.
    Then T-170 carry regression, T-145 cubes black/spikes/jitter, T-172 late
    VO, T-135, T-139, T-112, T-144, T-149, T-147, T-113, then P3/P4.

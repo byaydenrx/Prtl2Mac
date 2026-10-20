@@ -123,7 +123,7 @@ Then the Backlog (prove and sweep the campaign).
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
 
 ### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
-- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), see below. Left: Options/Settings (incl. the Options flyout), pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), see below. Left: the Settings panels (Audio, Video, Keyboard/Mouse, Controller), pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
 - Visual reference (owner, 2026-10-20): https://interfaceingame.com/games/portal-2/
   has screenshots of the real Portal 2 UI: start screen, main menu, options,
   video, keyboard/mouse, edit keys, extras, loading, chapter title, save
@@ -208,6 +208,17 @@ Then the Backlog (prove and sweep the campaign).
   SinglePlayer; click LoadGame`, `click PickSave(Some(1))`, `click Back`
   shots, before (dist 3ca8329: grey list panel) vs after. Not done: save
   screenshots for the picture, Delete, the cloud icon, the 0.3 s fade.
+- 2026-10-20 autorun, Options dialog DONE (2a6921d, autopilot shots only,
+  not owner-checked). options.res (PC) is a tiled CBaseModFrame dialog
+  (dialogstyle 1, body 5 x 3), not a flyout: rows Audio, Video, Keyboard/
+  Mouse, Controller (DefaultButton every 25 units from 25), replacing the
+  menu column on both the main and pause menus. Our own Speedrun and Mods
+  pages follow as rows 5-6 (body grows to 4 tiles to hold them). Leaving a
+  page (Done/Cancel/Esc) returns to the dialog, Back/Esc closes it.
+  Evidence: autopilot `click Options` shots, before (dist 47757a0: grey
+  flyout box) vs after; `click Page(Audio); click Done` lands back on the
+  dialog; pause (`click pause; click Options; click Back`) in intro2.
+  Not done: the Settings panels themselves (next), the 0.3 s fade.
 
 ### T-172 Voice lines start late  (P2, TODO)
 - Owner playtest 9: "sometimes voicelines activate late and when I'm going
