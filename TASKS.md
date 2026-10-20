@@ -24,7 +24,7 @@ P1:
 P2:
 2. (T-114 fixed, awaiting owner replay.)
 3. T-120 Elevators (thumps, trash; jitter and car sounds fixed); T-135 turrets through the exit elevator is BLOCKED (needs owner reference).
-4. T-133 intro7 Wheatley floats after the wall panel; panel vanishes.
+4. (T-133 Wheatley float fixed, awaiting owner replay; panel part not reproduced.)
 5. T-134 sp_a1_wakeup pod: the player doesn't turn with the floor; T-163 hatch.
 6. T-136 sp_a1_wakeup end: a portal in the tube before the drop.
 7. T-137 Portal spacing; T-102 seamless cube carry; T-125 turn-away delay.
@@ -129,10 +129,6 @@ Then the Backlog (prove and sweep the campaign).
   another frame (e.g. a horizontal vac tube above the car)? Needs an owner
   screenshot/clip of this moment in Windows Portal 2 (or depot 624 RE of
   prop_dynamic root-motion handling). No fix attempt branch.
-
-### T-133 sp_a1_intro7: Wheatley floats after the wall panel moves; the panel disappears  (P2, TODO)
-- Playtests 5 and 8. He should fall to the floor; the moving wall vanishes
-  once its open animation ends (passable).
 
 ### T-134 sp_a1_wakeup: the rising pod's floor turns, the player doesn't  (P2, TODO)
 - Playtests 6, 7, 8: rotating movers must turn and carry what stands on them.
@@ -251,6 +247,16 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+### T-133 sp_a1_intro7: Wheatley floats after the wall panel moves; the panel disappears  (P2, fixed 2542009, autopilot only)
+- Cause: DisableMotion (socket_powered_rl) took Wheatley out of the
+  player's hands but kept the carry's GravityScale(0); when @plug_eject_rl
+  ran EnableMotion/ClearParent he went dynamic with no gravity and hung at
+  the socket. Fix: a locked core gets GravityScale(1) back (props.rs
+  `locked_core`, unit test). Evidence (autopilot: forcepickup, socket
+  powered, eject): before z 1265 at t+9 s (floor 1232); after z 1249 (resting).
+- Panel vanishing NOT REPRODUCED: after the open, heavydoor disables and
+  heavydoor_ghost is enabled and drawn (info). Owner: screenshot if it recurs.
+
 - T-120 elevator car sounds (5bfaf52): func_tracktrain movesound and
   stopsound were never played, so rides were silent. Now the move sound
   starts with the train and follows it (World.ElevatorDepartLp looped,
