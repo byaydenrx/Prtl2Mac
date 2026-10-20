@@ -123,7 +123,7 @@ Then the Backlog (prove and sweep the campaign).
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
 
 ### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
-- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91, see below). Left: Single Player flyout, New Game, Load Game, Options/Settings, pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), see below. Left: New Game, Load Game, Options/Settings, pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
 - Visual reference (owner, 2026-10-20): https://interfaceingame.com/games/portal-2/
   has screenshots of the real Portal 2 UI: start screen, main menu, options,
   video, keyboard/mouse, edit keys, extras, loading, chapter title, save
@@ -160,6 +160,22 @@ Then the Backlog (prove and sweep the campaign).
   `click SinglePlayer` shots (dist a1cd026 vs e6e5e91). Note: one harmless
   "font size <= 0" warning on the first frame (Vh size before the window
   has a size). Flyout itself (light grey box) is the next screen.
+- 2026-10-20 autorun, Single Player DONE (8737034, autopilot shots only,
+  not owner-checked). In Portal 2 SoloPlay opens singleplayer.res, a
+  CBaseModFrame dialog (dialogstyle 1), not a flyout: the menu column
+  hides, the dialog is pinned 100 units left / 75 from the bottom
+  (Dialog.PinFromLeft/PinFromBottom), body "wide 5 tall 4" in 50-unit
+  tiles (Dialog.TileWidth) under a one-tile title tab, drawn from
+  materials/vgui/menu_tiles/ui_tile_128_*; title DialogTitle (BoldCn 33,
+  black, offset 10,9), rows DefaultButton every 25 units from 25 (upper
+  case, black; HybridButton focus 240 on cursor 0 0 0 240; disabled 140
+  grey), Back below (FooterPanel.OffsetY 12). Measured against the
+  reference gallery's Co-op Mode shot (coopmode.res, same frame): every
+  position matched within a unit. Continue/Load are greyed without a save,
+  Developer Commentary is greyed (not built). Evidence: autopilot `click
+  SinglePlayer` shots, before (dist e6e5e91, grey flyout) vs after.
+  Not done: the 0.3 s Frame.TransitionEffectTime fade, keyboard focus
+  starting on the first row, the Options flyout (still grey).
 
 ### T-172 Voice lines start late  (P2, TODO)
 - Owner playtest 9: "sometimes voicelines activate late and when I'm going
