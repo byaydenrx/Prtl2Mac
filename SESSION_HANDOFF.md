@@ -4,7 +4,7 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-20 17:25, autorun (prtl2mac-auto-resume). T-176 fixed and pushed.
+2026-10-20 17:27, autorun (prtl2mac-auto-resume). T-162 Controller screen done and pushed.
 
 ## Where things stand
 - T-176 FIXED (2bf3d20), autopilot-checked only: use only took a prop hit
@@ -22,16 +22,14 @@ reads it first (via `sh scripts/resume.sh`).
   is now the install's own UniversLTStd-Cn (decoded from
   vgui/fonts/universc.vfont), MainMenuButton colours/size/inset from
   basemodui_scheme.res, flyout owner stays lit. T-162 stays open.
-- T-162 Options dialog DONE (2a6921d), autopilot shots only.
-- dist/Prtl2Mac.app = 0.1.0+2bf3d20.20261020T2120Z.
+- T-162 Options dialog DONE (2a6921d), Controller DONE (903118b), autopilot shots only.
+- dist/Prtl2Mac.app = 0.1.0+903118b.20261020T2125Z.
 
 ## Next action
-1. T-162 next screen: Controller (controller.res). Audio 802802d,
-       Video 5d16315, Advanced Video 4ca377c and Keyboard/Mouse 9b0053b
-       are done (English labels: ls --cat resource/basemodui_english.txt
-       | iconv -f UTF-16) (reuse tile_frame/tile_option_row in
-       ui.rs; the tiled-page table is in rebuild_menu; description_pane for
-       a .res description label). Then pause menu,
+1. T-162 next screen: the pause menu (ingamemainmenu.res; main menu
+       column, Options dialog and every Settings page are done; reuse
+       tile_frame/tile_option_row in ui.rs, English labels via ls --cat
+       resource/basemodui_english.txt | iconv -f UTF-16). Then
    HUD/hints/subtitles, loading
    screens; one screen per run, new crashes/softlocks still first.
    Then T-170 carry regression, T-145 cubes black/spikes/jitter, T-172 late

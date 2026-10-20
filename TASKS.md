@@ -124,7 +124,7 @@ Then the Backlog (prove and sweep the campaign).
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
 
 ### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
-- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), Advanced Video (4ca377c), Keyboard/Mouse (9b0053b), see below. Left: the Settings panel Controller, pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), Advanced Video (4ca377c), Keyboard/Mouse (9b0053b), Controller (903118b), see below. Left: pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
 - Visual reference (owner, 2026-10-20): https://interfaceingame.com/games/portal-2/
   has screenshots of the real Portal 2 UI: start screen, main menu, options,
   video, keyboard/mouse, edit keys, extras, loading, chapter title, save
@@ -290,6 +290,22 @@ Then the Backlog (prove and sweep the campaign).
   the key list itself (Portal 2's keybindings dialog) keeps the old grey
   panel; earlier pages' labels could now be localized from those files.
   Next: controller.res.
+- 2026-10-20 autorun, Controller DONE (903118b, autopilot shots only, not
+  owner-checked). Portal 2's PC page is controlleroptions.res (controller.res
+  is an unused L4D leftover): tiled dialog body 7 x 5, rows every 25 from
+  25: DrpController, BtnEditButtons ("Button Layout"), BtnEditSticks
+  ("Stick Layout"), SldVertSens/SldHorizSens ("Vertical/Horizontal
+  Sensitivity"), DrpVerticalLookType/DrpHorizontalLookType (Normal/
+  Inverted), DrpVibration, SldAcceleration, BtnDefaults ("RESET TO
+  DEFAULTS"). Ours in that order with those labels: Controller, Look
+  Sensitivity (we have one joy_sensitivity, not pitch/yaw), Vertical Look
+  Type, Vibration; the rest are not built (note: no gamepad input reads
+  these settings yet). Title tabs got a 5-unit margin (title_tab_tiles):
+  CONTROLLER sat exactly on the 3-tile boundary and clipped its R; other
+  titles keep their tile counts (unit test). Evidence: autopilot `click
+  Options; click Page(Controller)` shots, before (dist 2bf3d20: grey panel,
+  "Game controller", "Reverse look", 1.0 number) vs after; `click Done`
+  returns to the Options dialog. Next: the pause menu (ingamemainmenu.res).
 
 ### T-172 Voice lines start late  (P2, TODO)
 - Owner playtest 9: "sometimes voicelines activate late and when I'm going
