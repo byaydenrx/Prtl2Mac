@@ -26,7 +26,7 @@ P2:
 3. T-120 Elevators (thumps, trash; jitter and car sounds fixed); T-135 turrets through the exit elevator is BLOCKED (needs owner reference).
 4. (T-133 Wheatley float fixed, awaiting owner replay; panel part not reproduced.)
 5. (T-134 pod turn and T-163 hatch fixed, awaiting owner replay.)
-6. T-136 sp_a1_wakeup end: a portal in the tube before the drop.
+6. (T-136 wakeup tube portal fixed, awaiting owner replay.)
 7. T-137 Portal spacing; T-102 seamless cube carry; T-125 turn-away delay.
 8. T-145 Buttons don't animate, cubes don't light up.
 9. T-144 Missing props; T-147 black screen as intro2's first door opens.
@@ -129,9 +129,6 @@ Then the Backlog (prove and sweep the campaign).
   another frame (e.g. a horizontal vac tube above the car)? Needs an owner
   screenshot/clip of this moment in Windows Portal 2 (or depot 624 RE of
   prop_dynamic root-motion handling). No fix attempt branch.
-
-### T-136 sp_a1_wakeup end: a portal shows in the tube before GLaDOS drops the player  (P2, TODO)
-- Playtests 7 and 8.
 
 ### T-137 Portals can't be placed as close together as in Portal 2  (P2, TODO)
 - Section 5. Reference: server.dll placement rules.
@@ -241,6 +238,17 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+### T-136 sp_a1_wakeup end: a portal shows in the tube before GLaDOS drops the player  (P2, fixed 3f96088, autopilot only)
+- Playtests 7 and 8. Cause: relay_incinerator_open links
+  incinerator_entry_portal_1 (floor under the incinerator door) to _2 (top
+  of the tube); our linked_portal_doors were drawn like gun portals (oval
+  flame shader + blue particle rim + hum). Portal 2 draws them as a plain
+  window. Fix: SeamlessPortal marker; the surface shader draws only the view
+  across the quad, p2_fx skips rim and hum (unit test in p2_fx effects).
+  Evidence: autopilot `input relay_incinerator_open trigger` + goto/lookat
+  the door: blue oval ring before (dist 8f8c8b1), continuous tube after.
+  Owner: replay the drop after GLaDOS's scene (also the finale's doors).
+
 ### T-163 sp_a1_wakeup pod: the player can jump out of the hatch; a stone-brick block appears there  (P2, fixed 8f8c8b1, autopilot only)
 - Playtest 6. Cause: brush entities with startdisabled 1 were never built
   (no mesh, no collider), so an Enable had nothing to switch on. The hatch is
