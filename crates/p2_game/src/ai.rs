@@ -274,7 +274,8 @@ fn draw_hints(
                             row.spawn((
                                 Node { width: Val::Px(w), height: Val::Px(40.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
                                 ImageNode { image: image.clone(), rect: Some(*rect), ..default() },
-                                children![(Text::new(key.clone()), font(15.0), TextColor(Color::WHITE))],
+                                // dark on the light key cap (white text vanished into it)
+                                children![(Text::new(key.clone()), font(15.0), TextColor(Color::srgb(0.08, 0.08, 0.08)))],
                             ));
                         }
                         (Some((image, rect)), false) => {
