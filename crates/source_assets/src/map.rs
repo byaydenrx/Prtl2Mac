@@ -839,11 +839,11 @@ pub fn load_map(fs: &GameFs, surfprops: &SurfaceProps, name: &str) -> anyhow::Re
 
     // --- models (static props + entity props) ---
     let raw_props = parse_static_props(&raw, &data);
-    let mut model_names: BTreeSet<String> = raw_props
-        .iter()
-        .filter(|p| p.5 & 0x4 == 0)
-        .map(|p| p.0.clone())
-        .collect();
+    // Every static prop is drawn. Flag 0x4 is no "hidden" bit in Portal 2's
+    // maps (769 of sp_a1_intro1's 1080 props carry it, framework beams and
+    // the exit stairs of sp_a1_intro2 among them); skipping it left those
+    // stairs a gap and much of the scenery missing.
+    let mut model_names: BTreeSet<String> = raw_props.iter().map(|p| p.0.clone()).collect();
     for e in &entities {
         if let Some(m) = entity_model(e) {
             model_names.insert(m);
@@ -865,7 +865,6 @@ pub fn load_map(fs: &GameFs, surfprops: &SurfaceProps, name: &str) -> anyhow::Re
     let static_props: Vec<StaticProp> = raw_props
         .par_iter()
         .enumerate()
-        .filter(|(_, p)| p.5 & 0x4 == 0)
         .map(|(i, p)| {
             let (model, origin, angles, _pt, solid, flags, skin, tint, lorigin) = p.clone();
             let vertex_light = models.get(&model).and_then(|md| {
