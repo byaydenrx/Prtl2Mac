@@ -22,7 +22,7 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 P0:
 1. (none; T-168 box-button crash owner-confirmed fixed.)
 P1:
-2. T-169 sp_a2_laser_over_goo walls never move (softlock).
+2. (none; T-169 fixed a1cd026, awaiting owner replay.)
 P2:
 3. T-162 OWNER PRIORITY: the UI as close to Portal 2's as possible, one
    screen per run until all match (main menu, SP flyout, New Game, Load
@@ -56,13 +56,6 @@ Then the Backlog (prove and sweep the campaign).
 (none)
 
 ## Open: P1
-
-### T-169 sp_a2_laser_over_goo: GLaDOS never moves the walls, the way on is blocked  (P1, TODO)
-- Owner playtest 9: "there's a point where glados never moves the walls so
-  I can't move past here". Screenshot and screen recording
-  ~/Documents/Screenshots 2026-10-20 2.45.34/2.45.36 PM: entry corridor of
-  sp_a2_laser_over_goo (sign 04/22), arm panels piled at an angle, no way
-  through; owner noclipped past.
 
 ### T-108 A chamber door had an invisible barrier, needed noclip  (P1, NEEDS INFO)
 - intro4 doors pass both ways in a walk test. Need the door and map from the owner.
@@ -513,6 +506,19 @@ Then the Backlog (prove and sweep the campaign).
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-169 sp_a2_laser_over_goo: GLaDOS never moves the walls, the way on is blocked  (P1, FIXED a1cd026, awaiting owner replay)
+- Owner playtest 9: "there's a point where glados never moves the walls so
+  I can't move past here" (entry corridor, sign 04/22; owner noclipped).
+- Cause: the corridor repair trigger (model *88, angles 0 90 9) was placed
+  unrotated, beside the corridor, so `corridor_repair` never fired; also
+  Kill on a func_door was ignored, so blocking_door_2 (kills itself when
+  open) left its collider in the corridor. Fix: trigger boxes and brush
+  touch tests follow the entity angles; Kill despawns func_door/movelinear.
+- Evidence (autopilot only, walking from the elevator): before, feet stop at
+  (4000,-2256), walls never move; after, corridor_repair + repair_wall_1..3
+  fire, the corridor opens, the player walks to the landing (3632,-1616,32)
+  and entry_landing_open fires. Unit test trigger_box_turns_with_its_angles.
 
 ### T-163 sp_a1_wakeup pod: the player can jump out of the hatch; a stone-brick block appears there  (P2, fixed 8f8c8b1, autopilot only)
 - Playtest 6. Cause: brush entities with startdisabled 1 were never built

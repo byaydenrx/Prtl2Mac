@@ -4,28 +4,22 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-20 15:15, owner session. The owner sent playtest 9 (build 014ab6e):
-all of it is recorded in TASKS.md (new T-168..T-175, reopened T-145, T-148,
-T-140, T-117, T-162; confirmed fixes moved to Done, write-ups to
-docs/STATUS.md; raw words in docs/PLAYTESTS.md). The owner is away again;
-scheduled task `prtl2mac-auto-resume` re-enabled with the new order (every
-10 min, one task per run, lock in ~/Library/Application Support/Portal2Rust/
-autopilot-session.lock).
+2026-10-20 15:45, autorun (prtl2mac-auto-resume). T-169 fixed and pushed.
 
 ## Where things stand
-- T-168 FIXED (98b74ad): pressing sp_a2_laser_over_goo's box button
-  crashed (Kill reached a template prototype, ForceSpawn cloned a despawned
-  entity). Owner confirmed the fix 2026-10-20.
-- dist/Prtl2Mac.app = 0.1.0+98b74ad.20261020T1911Z.
-- The T-150 autorun at 13:51 hit the usage limit and left a stale lock and a
-  scratch example (both removed); T-150 was not started.
+- T-169 FIXED (a1cd026), autopilot-checked only: sp_a2_laser_over_goo's
+  entry corridor repair trigger was rotated (angles 0 90 9) and placed
+  unrotated, so the walls never moved; Kill on a func_door was ignored
+  (blocking_door_2 stayed solid). Trigger boxes now follow entity angles,
+  Kill despawns doors. Player walks from the elevator to the chamber landing.
+- T-168 FIXED (98b74ad), owner-confirmed.
+- dist/Prtl2Mac.app = 0.1.0+a1cd026.20261020T1944Z.
 
 ## Next action
-1. T-169 sp_a2_laser_over_goo: GLaDOS never moves the walls at the entry
-   (P1 softlock; owner screenshot 2026-10-20 2.45.36 PM, sign 04/22).
-   Then T-162 (owner priority: the UI as close to Portal 2's as possible,
-   one screen per run until all match; new crashes/softlocks still first),
-   then T-170 carry regression, T-145 cubes black/spikes/jitter, T-172 late VO, T-135, T-139, T-112, T-144, T-149, T-147, T-113, then P3/P4.
+1. T-162 (owner priority: the UI as close to Portal 2's as possible,
+   one screen per run until all match; new crashes/softlocks still first).
+   Then T-170 carry regression, T-145 cubes black/spikes/jitter, T-172 late
+   VO, T-135, T-139, T-112, T-144, T-149, T-147, T-113, then P3/P4.
    Skip T-116 (owner screenshots coming), T-164 and T-151 (attempt branches
    await the owner).
 
