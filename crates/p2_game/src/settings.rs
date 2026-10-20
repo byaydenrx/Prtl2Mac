@@ -292,7 +292,7 @@ impl Default for Settings {
             paged_pool: 2,
             subtitle_size: 20.0,
             subtitle_color: SubtitleColor::Original,
-            subtitle_background: 0.6,
+            subtitle_background: 128.0 / 255.0,
             tools: Default::default(),
             unknown: Vec::new(),
         }

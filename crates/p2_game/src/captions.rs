@@ -225,6 +225,25 @@ fn queue_captions(
 #[derive(Component)]
 struct CaptionRoot;
 
+/// HudCloseCaption's panel in hudlayout.res (480-unit layout).
+const CC_YPOS: f32 = 276.0;
+const CC_WIDE: f32 = 500.0;
+const CC_TALL: f32 = 136.0;
+/// Text inset from the box edge, and the box's rounded corner.
+const CC_INSET: f32 = 12.0;
+const CC_CORNER: f32 = 6.0;
+
+fn units(u: f32) -> Val {
+    Val::Vh(u * 100.0 / 480.0)
+}
+
+/// vgui blends in gamma space, Bevy in linear light: a black overlay of
+/// alpha `a` darkens an sRGB colour by (1 - a) in vgui, which in linear
+/// light is (1 - a)^2.2, so this is the linear alpha that looks the same.
+fn linear_overlay_alpha(a: f32) -> f32 {
+    1.0 - (1.0 - a.clamp(0.0, 1.0)).powf(2.2)
+}
+
 fn draw_captions(
     mut commands: Commands,
     lines: Res<CaptionLines>,
@@ -242,13 +261,19 @@ fn draw_captions(
     if lines.0.is_empty() {
         return;
     }
+    // hudlayout.res HudCloseCaption: xpos c-250, ypos 276, 500 x 136 units
+    // of the 480-unit layout, BgAlpha 128; lines stack upward from the
+    // panel's bottom (412) and the box only covers the text, CC_INSET
+    // units in from its edges. Text is CloseCaption_Normal
+    // (UniversLTStd-Cn, tall 20 = our MEDIUM size), left-aligned: the
+    // install's caption files never use <center>.
     commands
         .spawn((
             CaptionRoot,
             Node {
                 position_type: PositionType::Absolute,
                 width: Val::Percent(100.0),
-                bottom: Val::Percent(8.0),
+                bottom: units(480.0 - (CC_YPOS + CC_TALL)),
                 justify_content: JustifyContent::Center,
                 ..default()
             },
@@ -258,23 +283,44 @@ fn draw_captions(
         .with_children(|p| {
             p.spawn((
                 Node {
-                    max_width: Val::Percent(60.0),
+                    width: units(CC_WIDE),
+                    max_height: units(CC_TALL),
                     flex_direction: FlexDirection::Column,
-                    padding: UiRect::axes(Val::Px(16.0), Val::Px(10.0)),
-                    row_gap: Val::Px(4.0),
+                    justify_content: JustifyContent::FlexEnd,
+                    padding: UiRect::axes(units(CC_INSET), units(CC_INSET / 2.0)),
+                    border_radius: BorderRadius::all(units(CC_CORNER)),
+                    overflow: Overflow::clip(),
                     ..default()
                 },
-                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, settings.subtitle_background)),
+                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, linear_overlay_alpha(settings.subtitle_background))),
             ))
             .with_children(|b| {
+                let size = bevy::text::FontSize::Vh(settings.subtitle_size / 1.265 * 100.0 / 480.0);
                 for (t, c, _) in &lines.0 {
                     b.spawn((
                         Text::new(t.clone()),
-                        TextFont { font: fonts.regular.clone().into(), font_size: bevy::text::FontSize::Px(settings.subtitle_size), ..default() },
+                        TextFont { font: fonts.menu.clone().into(), font_size: size, ..default() },
                         TextColor(settings.subtitle_color.color().unwrap_or(*c)),
-                        TextLayout::justify(Justify::Center),
+                        TextLayout::justify(Justify::Left),
                     ));
                 }
             });
         });
+}
+
+#[cfg(test)]
+mod layout_tests {
+    use super::*;
+
+    #[test]
+    fn caption_box_matches_hudlayout() {
+        // HudCloseCaption: centred 500-unit panel whose bottom is 68 units
+        // above the screen's bottom edge.
+        assert_eq!(480.0 - (CC_YPOS + CC_TALL), 68.0);
+        // BgAlpha 128 blended in gamma space looks like ~0.78 linear alpha.
+        let a = linear_overlay_alpha(128.0 / 255.0);
+        assert!((a - 0.78).abs() < 0.01, "{a}");
+        assert_eq!(linear_overlay_alpha(0.0), 0.0);
+        assert_eq!(linear_overlay_alpha(1.0), 1.0);
+    }
 }
