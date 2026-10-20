@@ -38,8 +38,12 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-153 GLaDOS wake-up (next in the owner's order:
-   T-153, T-157, T-165, T-148, T-140, ...).
+1. T-157 smoother fall transition (next in the owner's order:
+   T-157, T-165, T-148, T-140, T-151, ...).
+   T-153 GLaDOS wake-up PARTIAL 2026-10-20 (c64a60b): env_shooter added,
+   so the portal gun now drops (autopilot `input gun_shooter Shoot` only);
+   particles hiding her, floating arms and look direction still open.
+   dist build: 0.1.0+c64a60b.20261020T1646Z.
    T-115 intro1 wake/sleep BLOCKED (needs owner) 2026-10-20: not reproduced;
    the first wake-up plays camera_intro/ghostanim as the map says; the
    blackout get-up rig is a point_template member removed at load (as in

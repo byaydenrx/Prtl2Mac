@@ -38,7 +38,7 @@ P2:
 P3:
 15. (T-161 menu movie and music by act, f6f129e, awaiting owner replay; T-162 logo/item layout and hover flash, b39fff3, awaiting owner replay, panel fades still open.)
 16. (T-020 intro1 ride BLOCKED: not reproduced, needs the camera proxy path or an owner recording; T-164 spiky debris BLOCKED: untested fix on attempt/T-164); T-116 intro1 room BLOCKED: not reproduced, needs a Windows screenshot; (T-117 shadows fixed, d1df637, awaiting owner replay); T-115 wake-up BLOCKED: not reproduced, the map has no get-up/lie-down rig in normal play (blackout is a removed template), needs a Windows recording.
-17. T-153 GLaDOS wake-up; T-157 smoother fall transition; T-165 Wheatley rail connector.
+17. T-153 GLaDOS wake-up: portal gun drop fixed (c64a60b, awaiting owner replay); particles, floating arms, look direction still open (PARTIAL, next run skips to T-157); T-157 smoother fall transition; T-165 Wheatley rail connector.
 18. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
 P4:
 19. T-151 water, T-155 lasers, T-150 particles, T-152 lighting/textures,
@@ -281,10 +281,6 @@ Then the Backlog (prove and sweep the campaign).
 - Needs the owner: a Windows recording/screenshots of the wake-up (which
   moment looks wrong) and of what happens after using the bed.
 
-### T-153 GLaDOS wake-up  (P3, TODO)
-- White particles hide her; her arms float unattached when grabbing Chell
-  and Wheatley; the portal gun didn't visibly drop; the player is made to
-  look the wrong way (playtests 6-8).
 
 ### T-157 Transition into the sp_a2_intro fall not smooth  (P3, TODO)
 
@@ -313,6 +309,20 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-153 GLaDOS wake-up  (P3, PARTIAL 2026-10-20, c64a60b, autopilot only)
+- White particles hide her; her arms float unattached when grabbing Chell
+  and Wheatley; the portal gun didn't visibly drop; the player is made to
+  look the wrong way (playtests 6-8).
+- Gun drop FIXED (c64a60b): glados_camera.nut fires `gun_shooter Shoot` at
+  6 s, and env_shooter wasn't implemented. The loader now spawns its
+  shootmodel hidden; Shoot throws m_igibs dynamic copies along its facing
+  (m_flvelocity 60, gib life 4 s). Autopilot `input gun_shooter Shoot`:
+  before (dist d1df637) nothing appears; after, w_portalgun
+  falls, lands ~3.5 s later and is removed at 4 s. Not seen inside the
+  full wake-up sequence (autopilot only, not owner-checked).
+- Still open: white particles hiding her, arms floating unattached, the
+  player looking the wrong way.
 
 ### T-117 Blocky shadows  (P3, FIXED 2026-10-20, d1df637, autopilot only)
 - Cause: env_projectedtexture shadows (light_room_00 in sp_a1_intro1: 110 deg
