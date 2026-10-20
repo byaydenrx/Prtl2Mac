@@ -51,35 +51,31 @@ date. Any engine bug found becomes its own task (P1 if it blocks the route).
 - Owner: when the pod moves up switching the breakers, you don't move with it. Unplayable.
 - Verify: stand on the lift and ride it to the top without setpos.
 
-### T-104 sp_a2_intro: the incinerator drop  (P1, IN_PROGRESS; replaces T-001)
+### T-104 sp_a2_intro: the incinerator drop  (P1, NEEDS_VERIFICATION)
 - Intended (owner + video https://www.youtube.com/watch?v=ddV1ArV_GHc): a
   free-fall cutscene facing down through the pipes, no crosshair, no gun,
-  no mouse look, crashing through a panel onto a platform (not next to the
-  portal gun); then walk to the gun pedestal.
-- How the map does it: trigger at the spawn -> start_fall_anim_relay ->
-  relay_ghostanim: camera_ghostanim (point_viewcontrol, flags 36 = freeze
-  player + non-solid) parents to ghostanim attach_1, ghostanim plays
-  incinerator_drop (21 s); OnAnimationDone -> camera TeleportToView.
-- Fixed 2026-10-20: the freeze flag (4) holds the player at the top during
-  the camera (before, the player free-fell into the pit, whose trigger
-  fades to white and kills: the owner's stuck white screen); sp_a2_intro
-  starts without a gun; Quaternion48S slots follow Source's order.
-- STILL BROKEN: the camera path. Bone data of incinerator_drop is vertical
-  (bone_1 ends at (-40, 976, -17487) in root space) but the root's constant
-  rotation (frame anim flag 0x40, Quaternion48S) decodes as +90 deg about X,
-  which turns the drop sideways out of the map (the ~10 s "blue screen").
-  A +90 deg turn about Z instead ends the camera right above func_breakable
-  *3 at (-3232, 568, -10792), the panel crashed through at the end: the
-  decode of that constant is likely wrong (bit layout / slot order of
-  Quaternion48S, or another rule for the root). Next: confirm the
-  Quaternion48S layout (Source SDK compressed_vector.h; or Ghidra on a
-  Portal 2 binary - only the content depot is installed, ask the owner
-  before downloading one), then check intro1's wake-up camera (same model,
-  root identity there) still looks right.
-- Also: OnAnimationDone fires every frame after the drop ends (spam);
-  the cutscene should hide the crosshair and viewmodel.
-- Owner: the fall is normal but drops you somewhere with nowhere to go; screen blue and glitchy for ~5 s at the start.
-- Verify: from map start, the fall, the gun pickup, then leave the pit using only portals and walking, to the exit.
+  no mouse look, landing on a platform; then walk to the gun pedestal.
+- Map: trigger at the spawn -> relay_ghostanim: camera_ghostanim (flags 36:
+  freeze player) rides ghostanim attach_1 through incinerator_drop (21 s);
+  OnAnimationDone -> TeleportToView.
+- Fixed 2026-10-20 (four causes):
+  1. Quaternion48S decoded wrongly: the flag bits are (first word's top bit
+     << 1 | second's), index n leaves out slot (n+3)%4 (w, x, y, z), the
+     stored three follow it (Facepunch's Source 1 importer, sbox-public
+     MdlFile.ReferencePose.cs). The root of incinerator_drop turned 90 deg
+     about X instead of Z (path sideways out of the map = the "blue
+     screen"); per-frame rotations jumped. Unit test quaternion48s_layout;
+     ghostanim sequences now turn smoothly (incinerator_drop worst 4.8 deg
+     per frame, was 78).
+  2. A 120 m limit on rig cameras dropped the camera 4.7 s into the 445 m fall.
+  3. Freeze-player cameras now hold the player (they free-fell into the pit
+     trigger: white fade, death).
+  4. The level starts without the gun; the view model hides during cameras.
+- Autopilot: the player stays at the top for the 21 s, then stands at
+  (-3232, 568, -10792) at the bottom; the room's landing triggers fire.
+  Not verified by eye (screenshots of cutscenes come out black).
+- Quaternion48S change affects every frame-animation rotation (intro1
+  wake-up camera, Wheatley, GLaDOS): owner should recheck those.
 
 ### T-105 Wheatley can't be picked up again once dropped/stuck  (P1, TODO)
 - Owner: if he gets stuck and you drop him, you can't pick him up; the original allows drop and pick up.

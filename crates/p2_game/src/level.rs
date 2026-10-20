@@ -277,7 +277,8 @@ fn gun_visibility(
 ) {
     let has_gun = guns.single().is_ok_and(|g| g.can_fire.iter().any(|c| *c));
     let in_menu = menu.is_some_and(|m| m.menu);
-    let show = has_gun && !in_menu;
+    // A cutscene camera isn't the player's eyes: no gun in view either.
+    let show = has_gun && !in_menu && !cinematic.is_active();
     let want = if show { Visibility::Inherited } else { Visibility::Hidden };
     // The dot crosshair shows from the start (the brackets only with a gun),
     // except in menus and cutscene cameras.

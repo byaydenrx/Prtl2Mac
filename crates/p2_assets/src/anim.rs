@@ -68,21 +68,23 @@ fn quat48s(d: &[u8], o: usize) -> Option<Quat> {
     let a = ((w0 & 0x7fff) as i32 - SHIFT) as f32 / SCALE;
     let b = ((w1 & 0x7fff) as i32 - SHIFT) as f32 / SCALE;
     let c = ((w2 & 0x7fff) as i32 - SHIFT) as f32 / SCALE;
-    let id = ((w0 >> 15) | ((w1 >> 15) << 1)) as usize;
+    // Two flag bits (the first word's is the high one) say which component
+    // was left out: 0 w, 1 x, 2 y, 3 z. It is rebuilt (sign from the third
+    // word) and the stored three fill the slots after it, wrapping round.
+    // As Facepunch's Source 1 importer reads it; with the old reading the
+    // incinerator drop's root turned 90 deg about X instead of Z (the camera
+    // flew sideways out of the shaft) and its camera turned in jumps.
+    let index = (((w0 >> 15) << 1) | (w1 >> 15)) as usize;
+    let drop = (index + 3) % 4;
     let mut m = (1.0 - a * a - b * b - c * c).max(0.0).sqrt();
     if w2 >> 15 != 0 {
         m = -m;
     }
-    // The stored three go to the slots after the rebuilt one, wrapping
-    // round (Source's Quaternion48S: ib = (ia+1)%4, ic = (ia+2)%4,
-    // id = (ia+3)%4), not to the others in order: for a rebuilt y or z
-    // that put the components in the wrong places (sp_a2_intro's fall
-    // camera flew sideways out of the shaft instead of down it).
     let mut q = [0.0f32; 4];
-    q[id] = m;
-    q[(id + 1) % 4] = a;
-    q[(id + 2) % 4] = b;
-    q[(id + 3) % 4] = c;
+    q[drop] = m;
+    q[(drop + 1) % 4] = a;
+    q[(drop + 2) % 4] = b;
+    q[(drop + 3) % 4] = c;
     Some(Quat::from_xyzw(q[0], q[1], q[2], q[3]))
 }
 
@@ -934,5 +936,22 @@ mod tests {
         frame_anim(&d, 0, 2, 1, &mut local);
         assert!((local[0].1.x - 0.5).abs() < 1e-4 && (local[0].0.x - 1.0).abs() < 1e-4);
         assert!((local[1].0.x - 3.0).abs() < 1e-4 && (local[1].1.w - 1.0).abs() < 1e-4);
+    }
+}
+
+#[cfg(test)]
+mod quat48s_tests {
+    use super::quat48s;
+
+    #[test]
+    fn quaternion48s_layout() {
+        // sp_a2_intro ghostanim incinerator_drop root: z left out, 90 deg about Z.
+        let root = [0xfffeu16, 0xc000, 0x4000].iter().flat_map(|w| w.to_le_bytes()).collect::<Vec<u8>>();
+        let q = quat48s(&root, 0).unwrap();
+        assert!((q.x).abs() < 1e-3 && (q.y).abs() < 1e-3 && (q.z - 0.7071).abs() < 1e-3 && (q.w - 0.7071).abs() < 1e-3, "{q:?}");
+        // x left out, negative: (-0.5, 0.5, 0.5, 0.5).
+        let b2 = [0x6d3fu16, 0xed3f, 0xed3f].iter().flat_map(|w| w.to_le_bytes()).collect::<Vec<u8>>();
+        let q = quat48s(&b2, 0).unwrap();
+        assert!((q.x + 0.5).abs() < 1e-3 && (q.y - 0.5).abs() < 1e-3 && (q.z - 0.5).abs() < 1e-3 && (q.w - 0.5).abs() < 1e-3, "{q:?}");
     }
 }

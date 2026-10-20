@@ -54,6 +54,7 @@ fn main() {
         let n = (a.duration(sq) * 60.0) as usize;
         let mut prev: Option<bevy::math::Mat3> = None;
         let mut worst = (0.0f32, 0.0f32);
+        let mut jumps = Vec::new();
         for k in 0..=n {
             let t = k as f32 / 60.0;
             let m = a.bone_to_model(&a.sample(sq, t));
@@ -63,10 +64,13 @@ fn main() {
                 if d > worst.0 {
                     worst = (d, t);
                 }
+                if d > 10.0 {
+                    jumps.push(format!("{t:.2}:{d:.0}"));
+                }
             }
             prev = Some(r);
         }
-        println!("smooth {att}: worst step {:.2} deg at t {:.2}", worst.0, worst.1);
+        println!("smooth {att}: worst step {:.2} deg at t {:.2}; {} steps over 10 deg {:?}", worst.0, worst.1, jumps.len(), &jumps[..jumps.len().min(8)]);
     }
     if let (Ok(_), Some(sq)) = (std::env::var("BONES"), argv.get(1).and_then(|n| a.find(n))) {
         // Parent-space pose of every bone at the start and end of a sequence.
@@ -75,6 +79,32 @@ fn main() {
                 println!("t {t:.2} bone {b} {} pos {p:.1?} quat {q:.3?}", a.skeleton.bones[b].name);
             }
         }
+    }
+    if std::env::var_os("JUMPS").is_some() {
+        // Bone rotations turning over 25 degrees in one frame, every
+        // sequence and bone: decode errors show up as such jumps.
+        let (mut total, mut frames) = (0usize, 0usize);
+        for sq in 0..a.sequences.len() {
+            let n = (a.duration(sq) * 30.0).ceil() as usize;
+            let mut prev: Option<Vec<bevy::math::Affine3A>> = None;
+            let mut seq_jumps = 0;
+            for k in 0..=n {
+                let m = a.bone_to_model(&a.sample(sq, k as f32 / 30.0));
+                if let Some(p) = &prev {
+                    for (x, y) in m.iter().zip(p) {
+                        let q0 = bevy::math::Quat::from_mat3a(&y.matrix3);
+                        let q1 = bevy::math::Quat::from_mat3a(&x.matrix3);
+                        if q0.angle_between(q1).to_degrees() > 25.0 {
+                            seq_jumps += 1;
+                        }
+                    }
+                }
+                prev = Some(m);
+                frames += 1;
+            }
+            total += seq_jumps;
+        }
+        println!("jumps {total} over {frames} frames");
     }
     if std::env::var_os("AIMTEST").is_some() {
         // Where the eye light (bone eyelight_aimjoint, +X) points, in the root bone's frame,

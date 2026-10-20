@@ -109,8 +109,9 @@ impl PropAnims {
         let t = self.attachment_transform(game, ents, ent, attachment)?;
         // Sanity limit against a bad decode. Rig cameras travel far from
         // their prop: sp_a1_wakeup's claw camera ends ~40 m away, over the
-        // incinerator.
-        if !t.translation.is_finite() || t.translation.distance(ents.list[ent].transform.translation) > 120.0 {
+        // incinerator, and sp_a2_intro's drop falls ~445 m down the shaft
+        // (a 120 m limit cut that cutscene off after 4.7 s).
+        if !t.translation.is_finite() || t.translation.distance(ents.list[ent].transform.translation) > 1000.0 {
             return None;
         }
         // A camera on an attachment looks along the attachment's +X with +Z
@@ -242,6 +243,7 @@ fn viewcontrol_inputs(
     let riding = |k: usize, anims: &PropAnims| anims.attached.get(&k).and_then(|(p, _)| anims.playing.get(p)).is_some_and(|pb| !pb.finished);
     let expired: Vec<usize> = vc.until.iter().filter(|(k, t)| **t <= now && !riding(**k, &anims)).map(|(k, _)| *k).collect();
     for k in expired {
+        debug!("viewcontrol: {} hold time over (riding {})", ents.list[k].name, riding(k, &anims));
         vc.until.remove(&k);
         vc.active.retain(|a| *a != k);
     }
@@ -337,6 +339,11 @@ fn drive_camera(
         _ => None,
     };
     let on = pose.is_some();
+    if !on {
+        if let (Some(&i), Some(e)) = (vc.active.last(), ents.as_ref()) {
+            trace!("viewcontrol: {} active but has no pose (attached {:?})", e.list[i].name, anims.attached.get(&i));
+        }
+    }
     if vc.driving != on {
         vc.driving = on;
     }

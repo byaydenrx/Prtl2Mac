@@ -8,18 +8,16 @@ reads it first (via `sh scripts/resume.sh`).
 `wheatley`, pushes to `main`).
 
 ## Where things stand
-- Owner reached sp_a2_intro (playtest 6) and is stuck in the incinerator
-  drop: see TASKS.md T-104 for the exact state (freeze fixed, camera path
-  decodes sideways: root Quaternion48S constant). This is the next job.
+- sp_a2_intro incinerator drop fixed in autopilot (T-104): Quaternion48S
+  layout, 120 m camera limit, freeze-player. Owner replay pending.
 - Fixed and autopilot-verified, owner replay pending: T-103, T-106, T-125,
   T-126, T-121, T-122, T-124.
-- Quaternion48S slot order changed to Source's (a, b, c fill (ia+1..3)%4):
-  affects every frame-anim rotation; recheck intro1 wake-up, Wheatley.
+- Quaternion48S now follows Facepunch's importer (see T-104): affects every
+  frame-anim rotation; recheck intro1 wake-up, Wheatley, GLaDOS.
 - `cargo test --release --workspace`: 342 passed, 0 failed.
 
 ## Next action
-1. T-104: fix the incinerator drop camera (root rotation decode), hide the
-   crosshair/viewmodel during freeze cameras, stop the OnAnimationDone spam.
+1. Owner replays sp_a2_intro (T-104) and chapter 1 cutscenes (decoder change).
 2. T-103 (wakeup breaker lift), T-105 (Wheatley re-pickup), T-106, T-104,
    then T-120 (elevators). Reproduce with autopilot first.
 
