@@ -537,11 +537,15 @@ fn subtitle_rows(s: &Settings) -> Vec<Row> {
 fn video_rows(s: &Settings, ctx: &Ctx) -> Vec<Row> {
     let v = ctx.video;
     let size = v.resolution.unwrap_or(ctx.native);
+    // video.res order: SldBrightness, DrpAspectRatio, DrpResolution,
+    // DrpDisplayMode, (power savings, split screen: not built), BtnAdvanced.
+    // Portal 2 hides Brightness when windowed (mat_monitorgamma only acts
+    // fullscreen there); ours works in a window, so it stays.
     vec![
-        choice("Resolution", resolution_label(v.resolution, ctx.native), Setting::Resolution),
-        choice("Aspect ratio", Aspect::of(size).label(), Setting::Aspect),
-        choice("Display mode", if v.fullscreen { "Fullscreen" } else { "Windowed" }, Setting::DisplayMode),
         slider(s, "Brightness", Setting::Brightness),
+        choice("Aspect ratio", Aspect::of(size).label(), Setting::Aspect),
+        choice("Resolution", resolution_label(v.resolution, ctx.native), Setting::Resolution),
+        choice("Display mode", if v.fullscreen { "Fullscreen" } else { "Windowed" }, Setting::DisplayMode),
         Row::Link { label: "Advanced video".into(), page: OptionsPage::AdvancedVideo },
     ]
 }
@@ -769,6 +773,14 @@ mod tests {
         assert_eq!(value(OptionsPage::Video, "Resolution").as_deref(), Some("2560 x 1600"));
         assert_eq!(value(OptionsPage::Video, "Aspect ratio").as_deref(), Some("Widescreen (16:10)"));
         assert_eq!(value(OptionsPage::Video, "Brightness").as_deref(), Some("40%"));
+        let video: Vec<String> = rows(OptionsPage::Video, &s, &c)
+            .into_iter()
+            .map(|r| match r {
+                Row::Choice { label, .. } | Row::Slider { label, .. } | Row::Link { label, .. } => label,
+                _ => String::new(),
+            })
+            .collect();
+        assert_eq!(video, ["Brightness", "Aspect ratio", "Resolution", "Display mode", "Advanced video"], "video.res order");
         assert_eq!(value(OptionsPage::AdvancedVideo, "Field of view").as_deref(), Some("75"));
         assert_eq!(value(OptionsPage::AdvancedVideo, "Max frame rate").as_deref(), Some("Unlimited"));
         assert_eq!(value(OptionsPage::KeyboardMouse, "Reverse mouse").as_deref(), Some("Disabled"));

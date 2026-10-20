@@ -1473,16 +1473,23 @@ fn rebuild_menu(
                 (OptionsPage::Video, _) if menu.video.is_some_and(|v| v != VideoMode::of(&settings)) => "APPLY to use the new display settings.".to_string(),
                 _ => String::new(),
             };
-            if page == OptionsPage::Audio {
-                // audio.res: a tiled dialog, body 7 x 5, rows every 25
-                // units from 0 in the .res order (Game Volume, Music
-                // Volume, Speaker Configuration, Captioning, Language;
-                // our Subtitle style follows).
+            // Tiled dialogs: (body wide, tall, first row's y in units).
+            // audio.res: 7 x 5, rows every 25 units from 0 in the .res
+            // order (Game Volume, Music Volume, Speaker Configuration,
+            // Captioning, Language; our Subtitle style follows).
+            // video.res: 7 x 4, rows every 25 from 25 (Brightness, Aspect
+            // Ratio, Resolution, Display Mode, Advanced as a DefaultButton).
+            let tiled = match page {
+                OptionsPage::Audio => Some((7, 5, 0.0)),
+                OptionsPage::Video => Some((7, 4, 25.0)),
+                _ => None,
+            };
+            if let Some((wide, tall, y0)) = tiled {
                 let foot: Vec<(&str, Action)> = page.footer().iter().map(|&k| (k.label(), k.into())).collect();
                 commands.spawn(layer(10)).with_children(|p| {
-                    tile_frame(p, &fonts, art.as_deref(), page.title(), 7, 5, &foot, |d| {
+                    tile_frame(p, &fonts, art.as_deref(), page.title(), wide, tall, &foot, |d| {
                         for (i, r) in rows.iter().enumerate() {
-                            tile_option_row(d, &fonts, r, 25.0 * i as f32);
+                            tile_option_row(d, &fonts, r, y0 + 25.0 * i as f32);
                         }
                     });
                 });
