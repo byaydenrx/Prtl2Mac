@@ -37,7 +37,7 @@ P2:
 14. (T-160 main menu like Portal 2's, ab64b84, awaiting owner replay.)
 P3:
 15. (T-161 menu movie and music by act, f6f129e, awaiting owner replay; T-162 logo/item layout and hover flash, b39fff3, awaiting owner replay, panel fades still open.)
-16. (T-020 intro1 ride BLOCKED: not reproduced, needs the camera proxy path or an owner recording; T-164 spiky debris BLOCKED: untested fix on attempt/T-164); T-116 intro1 room BLOCKED: not reproduced, needs a Windows screenshot; T-117 shadows; T-115 wake-up.
+16. (T-020 intro1 ride BLOCKED: not reproduced, needs the camera proxy path or an owner recording; T-164 spiky debris BLOCKED: untested fix on attempt/T-164); T-116 intro1 room BLOCKED: not reproduced, needs a Windows screenshot; (T-117 shadows fixed, d1df637, awaiting owner replay); T-115 wake-up.
 17. T-153 GLaDOS wake-up; T-157 smoother fall transition; T-165 Wheatley rail connector.
 18. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
 P4:
@@ -259,9 +259,6 @@ Then the Backlog (prove and sweep the campaign).
   - Outside lighting on the ride: not checked this run (ride is seen
     through point_viewproxy camera_1, see T-020).
 
-### T-117 Blocky shadows  (P3, TODO)
-- Shadow-map resolution and filtering (screenshot 2).
-
 ### T-115 intro1: no wake/sleep animation on the bed  (P3, TODO)
 
 ### T-153 GLaDOS wake-up  (P3, TODO)
@@ -296,6 +293,19 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-117 Blocky shadows  (P3, FIXED 2026-10-20, d1df637, autopilot only)
+- Cause: env_projectedtexture shadows (light_room_00 in sp_a1_intro1: 110 deg
+  FOV) used a 1024 map and one 2x2 bilinear compare, so the hanging
+  planter's shadow stepped per texel and its chains broke into dashes
+  (owner screenshot 2).
+- Fix: 2048 shadow maps (projected.rs SHADOW_SIZE) and a 3x3 (1 2 1)
+  Gaussian of bilinear compares (projected_common.wgsl), like Source's
+  flashlight PCF.
+- Evidence (autopilot, sp_a1_intro1, `2 input camera_intro disable; 4 setpos
+  -8640 1720 10 -18 180; 5 shot`): before (dist 0.1.0+b39fff3) stair-stepped
+  pot outline and dashed chains; after smooth outline, solid chains, no
+  acne on the walls. Replay: look at the planter shadow above the closet.
 
 ### T-162 Menu animations, logo alignment, styling  (P3, PARTIAL 2026-10-20, b39fff3, autopilot only)
 - Panel/flyout transitions flip oddly; the Portal 2 logo is misaligned.

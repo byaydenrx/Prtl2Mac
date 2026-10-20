@@ -38,8 +38,12 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-117 blocky shadows (next in the owner's order: T-117, T-115, T-153,
-   T-157, T-165, ...).
+1. T-115 intro1 wake/sleep bed animation (next in the owner's order:
+   T-115, T-153, T-157, T-165, T-148, ...).
+   T-117 blocky shadows FIXED 2026-10-20 (d1df637: 2048 projected shadow
+   maps + 3x3 Gaussian PCF; intro1 planter shadow smooth, chains solid),
+   awaiting owner replay (autopilot-checked only).
+   dist build: 0.1.0+d1df637.20261020T1627Z.
    T-116 intro1 room BLOCKED (needs owner) 2026-10-20: not reproduced; the
    "grey block" window is the map's frosted glass brushes (no blinds in
    the map there), the TV screen sits on the TV in autopilot shots. No code
