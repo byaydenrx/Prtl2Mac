@@ -20,7 +20,7 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 
 ## Priority order (2026-10-20, after owner playtest 9)
 P0:
-1. T-168 crash pressing the cube-dropper button in sp_a2_laser_over_goo.
+1. (T-168 laser_over_goo box-button crash fixed, 98b74ad, awaiting owner replay.)
 P1:
 2. T-169 sp_a2_laser_over_goo walls never move (softlock).
 P2:
@@ -49,14 +49,7 @@ P4:
 Then the Backlog (prove and sweep the campaign).
 
 ## Open: P0
-
-### T-168 Crash pressing the cube-dropper button in sp_a2_laser_over_goo  (P0, TODO)
-- Owner playtest 9: after noclipping past the stuck walls (T-169) and
-  "continuing to the chamber ahead, after I clicked the button to drop the
-  box it crashed my game". Save: sp_a2_laser_over_goo autosave 14:44. No
-  macOS crash report was written (a Rust panic exits without one).
-- Reproduce with autopilot: load sp_a2_laser_over_goo, `use` the dropper
-  button (or `input` it), read the panic message.
+(none)
 
 ## Open: P1
 
@@ -516,6 +509,22 @@ Then the Backlog (prove and sweep the campaign).
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-168 Crash pressing the cube-dropper button in sp_a2_laser_over_goo  (P0, FIXED 2026-10-20, 98b74ad, autopilot only)
+- Owner playtest 9: clicking the button that drops the box crashed the game.
+- Cause: box_restarter_button_model sends `Kill slimeroom_box_1_template`
+  (meant for the live copies) and 0.1 s later `ForceSpawn` on the
+  point_template. Kill was let through to the hidden template prototype too
+  (io.rs passes Kill to killed entities), props.rs despawned it, and the
+  ForceSpawn cloned a despawned entity: Bevy panicked. In Source the
+  template's members no longer exist after load.
+- Fix: Ents::prototypes; template prototypes take no inputs at all
+  (Ents::takes_input, unit test template_prototypes_take_no_inputs);
+  spawn_copy skips a missing prototype instead of panicking.
+- Evidence (autopilot, sp_a2_laser_over_goo, goto + use the button, then
+  `input box_restarter_button_model press` twice): before, panic exit 101
+  "Entity despawned" in templates::spawn_copy; after, exit 0, each press
+  spawns a new slimeroom box and kills the previous copy.
 
 ### T-163 sp_a1_wakeup pod: the player can jump out of the hatch; a stone-brick block appears there  (P2, fixed 8f8c8b1, autopilot only)
 - Playtest 6. Cause: brush entities with startdisabled 1 were never built
