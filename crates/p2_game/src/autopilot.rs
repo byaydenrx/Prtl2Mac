@@ -256,6 +256,18 @@ fn drive(
                         if let Some(g) = e.entity.and_then(|r| globals.get(r).ok()) {
                             info!("autopilot: {key} drawn at source {:.0?}", shared::world_to_source(g.translation()));
                         }
+                        // Its colliders: where they are and whether they're on.
+                        for c in e.entity.into_iter().flat_map(|r| children.iter_descendants(r)) {
+                            if let (Ok((_, true, off)), Ok(g)) = (collider_of.get(c), globals.get(c)) {
+                                info!("autopilot: {key} collider {c} at source {:.0?} disabled {off}", shared::world_to_source(g.translation()));
+                                if let Ok(sc) = src_cols.get(c) {
+                                    for side in &sc.sides {
+                                        let n = g.rotation() * side.normal;
+                                        info!("autopilot:   side normal source {:.2?} {} portalable {}", Vec3::new(n.x, -n.z, n.y), side.material, side.portalable);
+                                    }
+                                }
+                            }
+                        }
                     }
                     for (p, _, pos, _) in &props {
                         if ents.list[p.ent].name == key {

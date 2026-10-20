@@ -172,7 +172,8 @@ date. Any engine bug found becomes its own task (P1 if it blocks the route).
 - sp_a2_intro (P1 blocker, T-104): ~10 s of blue screen before anything shows; the fall should play as a cutscene but doesn't; the player already has the portal gun (should pick it up again); the player lands in the incinerator instead of on the platform and is stuck on a white screen.
 
 ## Owner playtest 7 (2026-10-20, build b2f0080), by map (0 = intro1 ... 6 = intro7, then wakeup, sp_a2_intro)
-- REGRESSION (P0): "weird objects" everywhere (elevators, elevator rooms, chamber entrances, moving stairs, attached to GLaDOS) and floor buttons disappearing from intro4 on; walkable-through. New with this build (Quaternion48S change suspected).
+- REGRESSION (P0, NEEDS INFO): "weird objects" everywhere (elevators, elevator rooms, chamber entrances, moving stairs, attached to GLaDOS) and floor buttons disappearing from intro4 on; walkable-through. Checked 2026-10-20: not the Quaternion48S change (only ghostanim, used in sp_a1_wakeup and sp_a2_intro, has frame animations in these maps) nor the camera limit (cameras only); screenshots of the intro4 elevator, doors and buttons look as in the previous build. Need owner screenshots of the objects.
+- sp_a2_intro fall: the crushing arms in the shaft look wrong (owner screenshot 2026-10-20: spiky dark shapes around the central arm).
 - intro1: intro animations now right; Wheatley's first lines and the announcer still overlap; the box ride is less buggy but walls vanish and reappear before breaking off; Wheatley above is a black box; the whole 12:00 clock blinks (only the digits should); through portals Chell is seen holding a portal gun the player doesn't have; cubes twitch on buttons and buttons have no press animation.
 - intro2: cubes through portals not seamless; exit stairs still missing (gap with no floor or sides).
 - intro3: water after the fall still wrong; some textures flat white/empty before it; stray objects in the elevator room (one inside the elevator, one behind the door).
@@ -181,7 +182,10 @@ date. Any engine bug found becomes its own task (P1 if it blocks the route).
 - intro6: stray objects; a cube still didn't fall into a portal (noclip needed).
 - intro7: Wheatley's rail connector invisible; the turn-away check still slow; walking into the breaker room drops Wheatley (he auto-plugs).
 - sp_a1_wakeup: the player rises with the breaker platform but doesn't turn with it; GLaDOS wake-up still has white particles and stray objects attached to her; floor texture missing in her chamber; a portal shows where she drops the player that shouldn't.
-- sp_a2_intro: fall cutscene right and lands in the right place; the player gets a portal gun back on landing (shouldn't); the dual gun pickup works; after GLaDOS moves a wall to be portaled, it won't take a portal (P1 blocker).
+- sp_a2_intro: fall cutscene right and lands in the right place; the player gets a portal gun back on landing (FIXED: the map gives the gun by a console command, which the start-without-gun rule didn't count); the dual gun pickup works; after GLaDOS moves a wall to be portaled, it won't take a portal (FIXED, see T-127).
+### T-127 sp_a2_intro: the panel GLaDOS moves into place won't take a portal  (P1, NEEDS_VERIFICATION)
+- The panel (collapsing_rubble_instance-robo_flopintoplace_04panel, white tile, tilted down at the pit) is a "never solid" func_brush on a robot arm; it had no collider, and a nodraw/clip world brush sits flush with its face. Now: never-solid parented func_brushes keep their portalable faces as sensor colliders only portal shots stop at (movement and physics ignore sensors); the gun takes a portalable surface flush with a non-portalable one; attached entities' transforms are written only when they move (otherwise a portal on them fizzled as "on a moving surface").
+- Autopilot: after panel_lowering_relay, an orange portal placed on the panel stays.
 
 ## Backlog
 

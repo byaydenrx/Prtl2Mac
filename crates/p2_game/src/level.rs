@@ -62,7 +62,12 @@ fn gun_for(campaign: &Campaign, map: &str, info: &MapInfo) -> [bool; 2] {
     let here = order(map);
     let first_gun = order(&campaign_const(campaign, "FIRST_MAP_WITH_GUN").unwrap_or_else(|| "sp_a1_intro4".into()));
     let upgrade = order(&campaign_const(campaign, "FIRST_MAP_WITH_UPGRADE_GUN").unwrap_or_else(|| "sp_a2_laser_intro".into()));
-    let hands_out_gun = info.entities.iter().any(|e| e.classname == "weapon_portalgun");
+    // A gun lying in the map, or given by a console command in an output
+    // (sp_a2_intro: cmd_give_weapon "give weapon_portalgun" at the pedestal).
+    let hands_out_gun = info
+        .entities
+        .iter()
+        .any(|e| e.classname == "weapon_portalgun" || e.keyvalues.iter().any(|(_, v)| v.to_ascii_lowercase().contains("give weapon_portalgun")));
     match (here, first_gun, upgrade) {
         (Some(h), Some(g), _) if h < g => [false, false],
         // A map handing out the gun starts without one: sp_a2_intro begins

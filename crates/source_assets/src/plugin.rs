@@ -1202,6 +1202,10 @@ fn spawn_collider(commands: &mut Commands, c: &ColliderData, parent: Entity) {
     if c.portalable {
         ec.insert(Portalable);
     }
+    if c.shot_only {
+        // Nothing collides with a sensor; the gun stops at portalable ones.
+        ec.insert(Sensor);
+    }
     if c.shot_passthrough() {
         ec.insert(PortalShotPassthrough);
     }

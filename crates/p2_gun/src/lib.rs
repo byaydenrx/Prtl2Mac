@@ -186,7 +186,9 @@ fn fire(
         // Shots pass through the shooter, helper colliders, player clips and
         // grates, sensors and dynamic bodies.
         let skip = |e: Entity| {
-            if helpers.contains(e) || sensors.contains(e) {
+            // Sensors are passed, except the portalable faces of "never
+            // solid" brushes, which only portal shots hit.
+            if helpers.contains(e) || (sensors.contains(e) && !portalable_q.contains(e)) {
                 return true;
             }
             let body = owner(e, &body_of);

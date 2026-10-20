@@ -22,7 +22,22 @@ impl World for PhysicsWorld<'_> {
     fn ray(&self, origin: Vec3, dir: Vec3, max: f32) -> Option<Hit> {
         let dir3 = Dir3::new(dir).ok()?;
         let h = self.spatial.cast_ray_predicate(origin, dir3, max, true, &self.filter, &|e| !(self.skip)(e))?;
-        Some(Hit { entity: h.entity, point: origin + dir * h.distance, normal: h.normal, distance: h.distance })
+        let point = origin + dir * h.distance;
+        // Two surfaces in the same place: take the portalable one. A panel
+        // swung into place can sit flush with a nodraw/clip brush, and which
+        // one the ray reports first is down to rounding (sp_a2_intro).
+        if !(self.portalable)(h.entity, point) {
+            const TIE: f32 = 1.0 * p2_core::U;
+            let back = point - dir * TIE;
+            let other = self.spatial.cast_ray_predicate(back, dir3, 2.0 * TIE, true, &self.filter, &|e| e != h.entity && !(self.skip)(e));
+            if let Some(o) = other {
+                let at = back + dir * o.distance;
+                if (self.portalable)(o.entity, at) && o.normal.dot(h.normal) > 0.99 {
+                    return Some(Hit { entity: o.entity, point: at, normal: o.normal, distance: h.distance - TIE + o.distance });
+                }
+            }
+        }
+        Some(Hit { entity: h.entity, point, normal: h.normal, distance: h.distance })
     }
 
     fn portalable(&self, entity: Entity, point: Vec3) -> bool {

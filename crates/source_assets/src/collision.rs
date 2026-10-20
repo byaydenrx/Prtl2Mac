@@ -157,6 +157,9 @@ pub struct ColliderData {
     pub model: u32,
     /// The outward faces this collider covers.
     pub sides: Vec<SideInfo>,
+    /// Only portal shots hit it: the portalable faces of a "never solid"
+    /// func_brush (sp_a2_intro's panel GLaDOS swings into place).
+    pub shot_only: bool,
 }
 
 impl ColliderData {
@@ -224,6 +227,7 @@ pub fn brush_colliders(
             brush,
             model,
             sides: infos,
+            shot_only: false,
         }];
     }
     let mut out = Vec::new();
@@ -247,6 +251,7 @@ pub fn brush_colliders(
                 brush,
                 model,
                 sides: sides_c,
+            shot_only: false,
             });
         }
     }

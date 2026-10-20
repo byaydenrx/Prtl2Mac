@@ -80,6 +80,10 @@ fn main() {
             }
         }
     }
+    if std::env::var_os("FRAMEANIM").is_some() {
+        let n = (0..a.sequences.len()).filter(|&q| a.describe(q).contains("frame_anim true")).count();
+        println!("frameanim {n} of {} sequences", a.sequences.len());
+    }
     if std::env::var_os("JUMPS").is_some() {
         // Bone rotations turning over 25 degrees in one frame, every
         // sequence and bone: decode errors show up as such jumps.

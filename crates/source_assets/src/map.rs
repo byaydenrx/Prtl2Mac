@@ -705,10 +705,17 @@ pub fn load_map(fs: &GameFs, surfprops: &SurfaceProps, name: &str) -> anyhow::Re
     };
 
     let mut collide_models: Vec<(usize, DVec3)> = vec![(0, DVec3::ZERO)];
+    // "Never solid" func_brushes riding a parent (panels robot arms move
+    // into place) keep their portalable faces for portal shots only (see
+    // ColliderData::shot_only).
+    let mut shot_only_models = std::collections::HashSet::new();
     for (&m, &ei) in &brush_model_entity {
         let e = &entities[ei];
         if m > 0 && m < bsp.models.len() && brush_entity_solid(e) && !starts_disabled(e) {
             collide_models.push((m, DVec3::ZERO));
+        } else if m > 0 && m < bsp.models.len() && e.classname == "func_brush" && e.get("solidity") == Some("1") && e.get("parentname").is_some() {
+            collide_models.push((m, DVec3::ZERO));
+            shot_only_models.insert(m as u32);
         }
     }
     collide_models.sort_by_key(|c| c.0);
@@ -792,6 +799,16 @@ pub fn load_map(fs: &GameFs, surfprops: &SurfaceProps, name: &str) -> anyhow::Re
                 ));
             }
             out
+        })
+        .collect();
+    let colliders: Vec<ColliderData> = colliders
+        .into_iter()
+        .filter_map(|mut c| {
+            if !shot_only_models.contains(&c.model) {
+                return Some(c);
+            }
+            c.shot_only = true;
+            c.portalable.then_some(c)
         })
         .collect();
     lap("collision", &mut t);

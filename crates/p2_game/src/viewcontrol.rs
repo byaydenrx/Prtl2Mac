@@ -419,8 +419,14 @@ pub(crate) fn follow_attachments(
                         r.to_degrees()
                     );
                 }
-                t.translation = drawn.translation;
-                t.rotation = drawn.rotation;
+                // Only when it really moved: writing every frame marks the
+                // transform changed, and a portal on a panel that "moves"
+                // fizzles at once (sp_a2_intro's panel GLaDOS lowers into
+                // place for the first portal wouldn't keep one).
+                if t.translation.distance_squared(drawn.translation) > 1e-10 || t.rotation.angle_between(drawn.rotation) > 1e-5 {
+                    t.translation = drawn.translation;
+                    t.rotation = drawn.rotation;
+                }
             }
         }
     }
