@@ -50,14 +50,15 @@ else echo "  SESSION_HANDOFF.md missing"; fi
 echo
 echo "== Active task (TASKS.md)"
 if [ -f TASKS.md ]; then
-    active=$(section TASKS.md Active)
-    if [ -n "$active" ]; then echo "$active" | sed 's/^/  /'
+    active=$(grep '^### .*IN_PROGRESS' TASKS.md)
+    if [ -n "$active" ]; then echo "$active" | sed 's/^### /  /'
     else
-        echo "  none active; first TODO:"
+        echo "  none in progress; first TODO (the priority order's top P1):"
         grep -m1 '^### .*TODO)' TASKS.md | sed 's/^### /  /'
     fi
     n() { grep -c "^### .*$1" TASKS.md; }
-    echo "  counts: $(n IN_PROGRESS) in progress, $(n TODO) todo, $(n BLOCKED) blocked, $(n NEEDS_VERIFICATION) needs verification"
+    awaiting=$(awk '/^## Awaiting owner replay/{on=1;next} /^## /{on=0} on && /^- T-/' TASKS.md | wc -l | tr -d ' ')
+    echo "  counts: $(n IN_PROGRESS) in progress, $(n TODO) todo, $(n BLOCKED) blocked, $awaiting awaiting owner replay"
 else echo "  TASKS.md missing"; fi
 
 if [ $build = 1 ]; then

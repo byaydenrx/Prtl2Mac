@@ -1142,3 +1142,82 @@ Start`/`Stop` to poke one; `cl_showfps 1` for cost):
 7. Log: `p2_fx: <system> uses unsupported ...` lines (see above), and any
    `particle system X not found` for a map's `effect_name`.
 
+
+
+## Fix notes moved from TASKS.md (2026-10-20)
+
+### T-102 Portal traversal: cubes and player through portals  (P1, NEEDS_VERIFICATION, owner replay)
+- Owner (intro4, intro2 after the 2026-10-19 build): cubes don't go through
+  portals; after a cube got through once, a portal stopped working.
+- Causes found 2026-10-19 (all reproduced with autopilot first):
+  1. A cube in a map portal's hole when the map re-activates it (intro2 does
+     on approach) was listed as the portal's wall; the cube moving then
+     fizzled the portal ("portal on a moving surface"). Walls are now static
+     colliders only (portals.rs `WallBodies`).
+  2. Carrying a cube into a portal: the hold point jumped to the far side at
+     once, dragging the cube into the wall, and the player's teleport mapped
+     a cube already through a second time; it fell out of the world. Now the
+     cube is pulled to the hold point's copy on its own side and only carried
+     with the player if still at the entry (props.rs).
+  3. Floor portals: only the brush the portal sits on was cut out, so a
+     second brush layer 6 u below held the player and cubes (intro4). Static
+     world in the 80 u tunnel behind a new portal is now cut out too
+     (portals.rs `clear_portal_tunnels`).
+  4. Exit-side mirroring copied dynamic props (collider child of the body)
+     and triggers as static walls behind the entry (p2_transit).
+- Evidence (autopilot, no setpos across portals): intro2 carry cube through
+  red->blue, turn, carry back blue->red, cube stays in front; intro4 player
+  falls through a gun floor portal out of the ceiling portal; two loose cubes
+  fall through it; walking into a floor-level wall portal keeps the floor.
+  Unit test held_prop_maps_with_the_player_only_once. Workspace tests pass.
+- Not yet: the owner's play of intro2-intro4 by hand; thrown cubes.
+
+### T-104 sp_a2_intro: the incinerator drop  (P1, DONE: owner playtest 8, the fall plays and lands right)
+- Intended (owner + video https://www.youtube.com/watch?v=ddV1ArV_GHc): a
+  free-fall cutscene facing down through the pipes, no crosshair, no gun,
+  no mouse look, landing on a platform; then walk to the gun pedestal.
+- Map: trigger at the spawn -> relay_ghostanim: camera_ghostanim (flags 36:
+  freeze player) rides ghostanim attach_1 through incinerator_drop (21 s);
+  OnAnimationDone -> TeleportToView.
+- Fixed 2026-10-20 (four causes):
+  1. Quaternion48S decoded wrongly: the flag bits are (first word's top bit
+     << 1 | second's), index n leaves out slot (n+3)%4 (w, x, y, z), the
+     stored three follow it (Facepunch's Source 1 importer, sbox-public
+     MdlFile.ReferencePose.cs). The root of incinerator_drop turned 90 deg
+     about X instead of Z (path sideways out of the map = the "blue
+     screen"); per-frame rotations jumped. Unit test quaternion48s_layout;
+     ghostanim sequences now turn smoothly (incinerator_drop worst 4.8 deg
+     per frame, was 78).
+  2. A 120 m limit on rig cameras dropped the camera 4.7 s into the 445 m fall.
+  3. Freeze-player cameras now hold the player (they free-fell into the pit
+     trigger: white fade, death).
+  4. The level starts without the gun; the view model hides during cameras.
+- Autopilot: the player stays at the top for the 21 s, then stands at
+  (-3232, 568, -10792) at the bottom; the room's landing triggers fire.
+  Not verified by eye (screenshots of cutscenes come out black).
+- Quaternion48S change affects every frame-animation rotation (intro1
+  wake-up camera, Wheatley, GLaDOS): owner should recheck those.
+
+### T-124 sp_a1_intro7: Wheatley doesn't fall off the management rail  (P1, NEEDS_VERIFICATION)
+- Owner playtest 4: after the portal behind him (T-122 works), he never drops.
+- Cause: the drop is GLaDOS's scene table (sp_a1_intro7OnThree04 fires
+  `@sphere ClearParent`, the impact trigger, the detach spark); cores spawn
+  kinematic and ClearParent didn't free them. Now ClearParent makes a core
+  dynamic unless DisableMotion (or spawnflag 8) froze it.
+- Autopilot: sp_a1_intro7_OnThree() -> chain of 4 lines -> Wheatley falls
+  from z 1419 to the floor (1239), sphere_impact_trigger fires.
+- Owner playtest 5: he falls and can be carried and plugged in (verified).
+
+### T-128 sp_a2_laser_stairs: the staircase doesn't move after the puzzle  (P1, NEEDS_VERIFICATION, owner replay)
+- Owner section 7: unplayable past this point.
+- Cause: the steps are brushes on circle_shield arms. At spawn each arm plays
+  move03_NNdown and holds it; relay_raise_stairs (catcher_1 OnPowered) only
+  sends SetPlaybackRate -1 to play the held sequence backwards. A finished
+  sequence ignored rate changes, so the arms never moved; only the invisible
+  func_door step clips rose (why the earlier autopilot run "climbed" them).
+  Now a rate that runs back into a held sequence resumes it
+  (Playback::set_rate; unit test negative_rate_replays_a_held_sequence_backwards).
+- Autopilot: relay_raise_stairs -> the arms lift the steps into a staircase
+  (side screenshots before/after); the 1faf8d2 app shows them flat. Real
+  laser route not replayed; the owner reached the catcher.
+

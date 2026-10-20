@@ -1,408 +1,280 @@
 # Tasks
 
 Statuses: TODO, IN_PROGRESS, BLOCKED, NEEDS_VERIFICATION, DONE. Priorities
-P0-P4 (see WORKFLOW.md). Work top to bottom: the first TODO/IN_PROGRESS task
-whose dependencies are DONE. When a task finishes, move it to Done (newest
-first) with its evidence and update PROJECT_STATE.md.
+P0-P4 (WORKFLOW.md). Work the "Priority order" top to bottom; never P3/P4
+while a P0/P1 is open. One entry per task: fold new reports into it. When a
+task is fixed, give its cause and evidence in two or three lines, move it
+to "Awaiting owner replay"; once the owner confirms, move it to Done. Long
+investigation notes go in docs/STATUS.md; the owner's raw reports in
+docs/PLAYTESTS.md (history only, everything there is tracked here).
 
-"Prove a map" (the standard acceptance for T-002..T-015): from the map's
-start, an autopilot script plays the intended solution using movement,
-`fire`, `use` and props (no `setpos` past a puzzle step, no `input` on
-puzzle entities); the exit door opens from the puzzle's own outputs; the
-next map loads. Record the script in `scripts/routes/<map>.txt` and the run
-date. Any engine bug found becomes its own task (P1 if it blocks the route).
+"Prove a map" (acceptance for T-002..T-015): from the map's start, an
+autopilot script plays the intended solution with movement, `fire`, `use`
+and props (no `setpos` past a puzzle step, no `input` on puzzle entities);
+the exit opens from the puzzle's own outputs; the next map loads. Save the
+script as `scripts/routes/<map>.txt`. Engine bugs found become tasks.
 
-## Priority order (owner playtest 8, 2026-10-20, build 1faf8d2)
-Work top to bottom (WORKFLOW rules: no P3/P4 while a P0/P1 is open).
-P1, blocks a real player:
-1. T-128 sp_a2_laser_stairs: the stairs don't move after the puzzle (FIXED 2026-10-20, owner replay).
-2. T-129 Stray screens: one blocks the staircase out of laser_stairs' arrival room; others in intro4.
-3. T-130 Portal shots stop at cubes and handrails: intro6 cube can't be dropped through a portal without noclip.
-4. T-131 sp_a1_intro3: floors and roofs missing (elevator rooms, after the gun climb).
-5. T-105 Held objects drop when pushed into a wall (Wheatley at the breaker room, cubes).
-6. T-132 Fizzlers (trigger_portal_cleanser) not drawn; check they fizzle (needed by fizzler_intro).
-P2, scripted sequences, mechanics, audio, missing assets:
-7. T-114 intro1: Wheatley's door opens and he talks over the announcer; door waits for the announcer.
-8. T-120 Elevators: jittery ride, late VO stretches the ride (intro5), thumps; turrets fall through the exit elevator (T-135).
-9. T-133 intro7: Wheatley floats after the wall panel moves; the panel vanishes after moving.
-10. T-134 sp_a1_wakeup: the rising pod's floor turns, the player doesn't.
-11. T-136 sp_a2_intro: a portal shows in the tube before GLaDOS drops the player.
-12. T-137 Portals can't be placed as close together as in Portal 2.
-12b. T-102 Cubes through portals not seamless; T-125 the turn-away check slow to register.
-13. T-145 Buttons don't animate when pressed; cubes don't light up on a button.
-14. T-144 Missing props (intro1 portal room: clipboard, movable clock) and the intro2 first-door black screen (T-147).
-15. T-139 Audio: ambient/soundscapes, button clicks, water drips missing; music stops abruptly (T-111); loud glass (T-118).
-16. T-149 Chamber number signs blank in every level; intro5 screens/lights wrong.
-17. T-112 sp_a1_wakeup: GLaDOS chamber floor brown and flat like the old water (and hallway textures).
-18. T-123 Portal shots knock security cameras off (laser_stairs and earlier).
-19. T-160 Main menu structure (Portal 2's menus, vertical New Game list).
-P3, look and feel that the owner noticed:
-20. T-161 Menu background video and music; T-162 menu animations, logo, styling.
-21. T-117 Blocky shadows; T-116 intro1 window and room details; T-020 intro1 ride (wall flash, black-box Wheatley, spikes).
-22. T-153 GLaDOS wake-up (white particles, floating arms); T-157 smoother transition into the sp_a2_intro fall.
-23. T-148 Portals behind glass (drawn on top of it; hidden behind broken glass); T-140 screen shake and sound when the game places a portal.
-P4, fidelity polish:
-24. T-151 Water like the original (reflections); T-155 lasers; T-150 particles (fall smoke, splash, gun pickup beam, gun glow through walls, speed lines); T-152 lighting/texture quality; T-143 clock blink; T-146 intro1 first door half-stuck; T-154 floating moss/vine textures.
+Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
+4 intro5/intro6, 5 intro7 + sp_a1_wakeup + sp_a2_intro, 6 sp_a2_laser_intro,
+7 sp_a2_laser_stairs.
 
-## Active
+## Priority order (2026-10-20)
+P1:
+1. T-129 Stray screens (one blocks the laser_stairs arrival staircase).
+2. T-130 Portal shots through cubes and handrails (intro6 needs noclip).
+3. T-131 sp_a1_intro3 floors and roofs missing.
+4. T-105 Held objects dropped when pushed into a wall; Wheatley re-pickup.
+5. T-132 Fizzler field not drawn, maybe not working.
+P2:
+6. T-114 intro1: Wheatley's door waits for the announcer.
+7. T-120 Elevators (jitter, VO timing, thumps) and T-135 turrets falling through them.
+8. T-133 intro7 Wheatley floats after the wall panel; panel vanishes.
+9. T-134 sp_a1_wakeup pod: the player doesn't turn with the floor; T-163 hatch.
+10. T-136 sp_a1_wakeup end: a portal in the tube before the drop.
+11. T-137 Portal spacing; T-102 seamless cube carry; T-125 turn-away delay.
+12. T-145 Buttons don't animate, cubes don't light up.
+13. T-144 Missing props; T-147 black screen as intro2's first door opens.
+14. T-139 Ambient audio, button sounds, music cut-offs, loud glass.
+15. T-149 Chamber signs blank; screens and lights.
+16. T-112 Missing/flat textures (GLaDOS chamber floor, hallways).
+17. T-123 Security cameras knocked off by portal shots.
+18. T-160 Main menu like Portal 2's.
+P3:
+19. T-161 Menu video and music; T-162 menu animation, logo, styling.
+20. T-020 intro1 ride; T-164 spiky debris; T-116 intro1 room; T-117 shadows; T-115 wake-up.
+21. T-153 GLaDOS wake-up; T-157 smoother fall transition; T-165 Wheatley rail connector.
+22. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
+P4:
+23. T-151 water, T-155 lasers, T-150 particles, T-152 lighting/textures,
+    T-143 clock blink, T-146 half-stuck door, T-154 floating moss, T-166 intro5 wall panel.
+Then the Backlog (prove and sweep the campaign).
 
-## Owner playtest blockers (P1, play order)
+## Open: P1
 
-### T-102 Portal traversal: cubes and player through portals  (P1, NEEDS_VERIFICATION, owner replay)
-- Owner (intro4, intro2 after the 2026-10-19 build): cubes don't go through
-  portals; after a cube got through once, a portal stopped working.
-- Causes found 2026-10-19 (all reproduced with autopilot first):
-  1. A cube in a map portal's hole when the map re-activates it (intro2 does
-     on approach) was listed as the portal's wall; the cube moving then
-     fizzled the portal ("portal on a moving surface"). Walls are now static
-     colliders only (portals.rs `WallBodies`).
-  2. Carrying a cube into a portal: the hold point jumped to the far side at
-     once, dragging the cube into the wall, and the player's teleport mapped
-     a cube already through a second time; it fell out of the world. Now the
-     cube is pulled to the hold point's copy on its own side and only carried
-     with the player if still at the entry (props.rs).
-  3. Floor portals: only the brush the portal sits on was cut out, so a
-     second brush layer 6 u below held the player and cubes (intro4). Static
-     world in the 80 u tunnel behind a new portal is now cut out too
-     (portals.rs `clear_portal_tunnels`).
-  4. Exit-side mirroring copied dynamic props (collider child of the body)
-     and triggers as static walls behind the entry (p2_transit).
-- Evidence (autopilot, no setpos across portals): intro2 carry cube through
-  red->blue, turn, carry back blue->red, cube stays in front; intro4 player
-  falls through a gun floor portal out of the ceiling portal; two loose cubes
-  fall through it; walking into a floor-level wall portal keeps the floor.
-  Unit test held_prop_maps_with_the_player_only_once. Workspace tests pass.
-- Not yet: the owner's play of intro2-intro4 by hand; thrown cubes.
-
-### T-103 sp_a1_wakeup: breaker lift doesn't carry the player  (P1, NEEDS_VERIFICATION)
-- Cause: the lift (func_tracktrain breaker_train, max speed 1) is sped up
-  by SetMaxSpeed 52 / 155 from the map; SetMaxSpeed wasn't handled, so it
-  crawled at 1 u/s while the shaft animation rose. Now handled (movers.rs).
-- Autopilot: basement_breakers_start -> the player rides from -476 to 351,
-  path 3 fires basement_elevator_complete_rl.
-- Owner: when the pod moves up switching the breakers, you don't move with it. Unplayable.
-- Verify: stand on the lift and ride it to the top without setpos.
-
-### T-104 sp_a2_intro: the incinerator drop  (P1, DONE: owner playtest 8, the fall plays and lands right)
-- Intended (owner + video https://www.youtube.com/watch?v=ddV1ArV_GHc): a
-  free-fall cutscene facing down through the pipes, no crosshair, no gun,
-  no mouse look, landing on a platform; then walk to the gun pedestal.
-- Map: trigger at the spawn -> relay_ghostanim: camera_ghostanim (flags 36:
-  freeze player) rides ghostanim attach_1 through incinerator_drop (21 s);
-  OnAnimationDone -> TeleportToView.
-- Fixed 2026-10-20 (four causes):
-  1. Quaternion48S decoded wrongly: the flag bits are (first word's top bit
-     << 1 | second's), index n leaves out slot (n+3)%4 (w, x, y, z), the
-     stored three follow it (Facepunch's Source 1 importer, sbox-public
-     MdlFile.ReferencePose.cs). The root of incinerator_drop turned 90 deg
-     about X instead of Z (path sideways out of the map = the "blue
-     screen"); per-frame rotations jumped. Unit test quaternion48s_layout;
-     ghostanim sequences now turn smoothly (incinerator_drop worst 4.8 deg
-     per frame, was 78).
-  2. A 120 m limit on rig cameras dropped the camera 4.7 s into the 445 m fall.
-  3. Freeze-player cameras now hold the player (they free-fell into the pit
-     trigger: white fade, death).
-  4. The level starts without the gun; the view model hides during cameras.
-- Autopilot: the player stays at the top for the 21 s, then stands at
-  (-3232, 568, -10792) at the bottom; the room's landing triggers fire.
-  Not verified by eye (screenshots of cutscenes come out black).
-- Quaternion48S change affects every frame-animation rotation (intro1
-  wake-up camera, Wheatley, GLaDOS): owner should recheck those.
-
-### T-105 Wheatley can't be picked up again once dropped/stuck  (P1, TODO)
-- Owner: if he gets stuck and you drop him, you can't pick him up; the original allows drop and pick up.
-- Verify: drop and pick up in sp_a1_intro7 and sp_a1_wakeup.
-
-### T-106 sp_a1_wakeup: crouch needed to enter the breaker room  (P1, NEEDS_VERIFICATION)
-- Two causes: a full-height step up onto the lift's 4 u lip lifted the head
-  into the lintel (lower steps are tried now), and the raised door leaves
-  exactly 72 u, which the movement skin made impassable (hulls are now
-  2 * SKIN shorter, as Source lets an exact fit through). Autopilot: walks
-  in standing. Regression: intro2 carry and intro4 doors unchanged.
-- Owner: you have to crouch to get in (then Wheatley drops and auto-plugs since he's close).
-
-### T-107 Cubes and floor buttons invisible (they work)  (P1, CAN'T REPRODUCE)
-- Owner screenshot 8 (2026-10-20, intro2 button room, cube held above the
-  button): the button's corner tiles drawn, its red top and ring gone, a
-  black ellipse in the pit and a straight diagonal edge cutting the model,
-  like a portal clip plane or tunnel cut-out applied to it (portal_blue_1 is
-  ~200 u away). Not reproduced: load, changelevel from intro1, cube dropped
-  and lifted 14 times, BindPose forced, views from above all draw it whole.
-  Next: try with portal_blue_1/portal_red_1 active and the cube carried
-  through a portal onto the button.
-- Owner playtest of 0.1.0+4858bee (intro2..intro6): cubes and buttons can't be seen but collide and press.
-- 2026-10-19: screenshots show them drawn in intro2 and intro4, held, after a
-  portal, after a level change, and from the packaged app run like Finder.
-  Owner later saw them drawn too. Need the map and moment if it happens again.
-### T-108 A chamber door had an invisible barrier, needed noclip  (P1, NEEDS INFO)
-- Door walk test (every prop_testchamber_door in intro4, opened by its own
-  relay, walked through both ways): door_2 and the middle door pass; door_0
-  and door_1 close again because the test teleports into the map's
-  close-behind-you triggers (correct). Need which door/map from the owner.
-- Door changes in T-119 keep the open door drawn, so the doorway shows what blocks it.
-### T-119 Door open animation cuts to black; a black plane you can walk through  (P2, NEEDS_VERIFICATION)
-- Cause: an opening prop_testchamber_door was hidden 0.35 s in (from before
-  doors animated), showing its func_areaportalwindow brush, which we drew
-  always. Fix: doors stay drawn (their open sequence and idleopen play) and
-  only lose collision; area-portal window brushes are not drawn (Source draws
-  them only for distance fades, none in door instances). Screenshots of
-  intro4 door_2 opening show the room beyond, no black plane.
-### T-120 Elevators: the trash rising with the elevator is buggy; one ride went to the bottom before the next map loaded  (P2, TODO)
-
-### T-121 Portal under a resting cube: the cube doesn't fall in (intro4, intro6)  (P1, NEEDS_VERIFICATION)
-- Owner playtest 3 (2026-10-19). Shots already pass through cubes; the cube
-  kept the floor contact it had before the portal opened (pair filters only
-  run when contacts start). Fix: props in a portal hole drop those contacts
-  every step (props.rs `modify_contacts`). Autopilot intro4: a cube resting
-  on the floor falls through a portal shot under it and out of the ceiling.
-### T-122 func_portal_detector not implemented: intro7 can't progress  (P1, NEEDS_VERIFICATION)
-- Owner: a portal behind Wheatley didn't register. Detectors now fire
-  OnStart/EndTouchPortal (+1/2, Linked, BothLinked) as portals open or leave
-  their brush (portals.rs). Autopilot intro7: a portal in Wheatley's room
-  fires portal_detector -> look_at_me_shortcircuit_relay and the script.
-### T-123 Portal shots should pass through cameras (and knock them off) and other non-solid props  (P2, TODO)
-- Owner intro6: can't shoot a portal under a security camera; in Portal 2 the camera falls off.
-
-### T-124 sp_a1_intro7: Wheatley doesn't fall off the management rail  (P1, NEEDS_VERIFICATION)
-- Owner playtest 4: after the portal behind him (T-122 works), he never drops.
-- Cause: the drop is GLaDOS's scene table (sp_a1_intro7OnThree04 fires
-  `@sphere ClearParent`, the impact trigger, the detach spark); cores spawn
-  kinematic and ClearParent didn't free them. Now ClearParent makes a core
-  dynamic unless DisableMotion (or spawnflag 8) froze it.
-- Autopilot: sp_a1_intro7_OnThree() -> chain of 4 lines -> Wheatley falls
-  from z 1419 to the floor (1239), sphere_impact_trigger fires.
-- Owner playtest 5: he falls and can be carried and plugged in (verified).
-### T-125 sp_a1_intro7: turning away from Wheatley doesn't register  (P1, NEEDS_VERIFICATION)
-- ai_script_conditions treated PlayerTargetFOV -100 ("target NOT within
-  100 deg") as a 50 deg cone toward it: it fired while facing him and never
-  after turning. ai.rs in_fov now handles negative cones and the 2D cone
-  (unit test negative_fov_means_looking_away). Autopilot: enabled while
-  facing him it stays quiet; it fires 1.5 s after turning away.
-### T-126 Tilted map portal drawn half (intro7 portal_b_rm4)  (P2, NEEDS_VERIFICATION)
-- The panel's drawn face sits within ~1 u of the portal plane but crosses
-  it; the portal quad stood off 0.16 u. Now 1 u (p2_render quad_standoff),
-  like a depth bias. Screenshots: whole portal from two angles; an intro2
-  wall portal and walking through it look as before.
-
-## Owner playtest issues (P2)
-- T-110 (NEEDS_VERIFICATION) Fix: speech plays on its actor's voice channel, so an actor's new line cuts the previous one (Source CHAN_VOICE); busyactor 2/3 cancel the actor's running scene. Verified by log in intro1 (Wheatley and announcer lines). Different speakers can still overlap, as in Source. Report: jumping/saying "apple" while Wheatley talks, opening the door early; Portal 2 queues or interrupts by scene priority.
-- T-111 Music stops at the stairs (wakeup, way to GLaDOS).
-- T-112 Missing textures: hallway to GLaDOS, after the jumps (plus a black wall you can walk through), GLaDOS chamber floor drawn as a warm sky, a blue flat wall behind the intro4 elevator.
-- T-113 Instructor hints vanish after a few seconds if not done. (Key labels FIXED 2026-10-20: white text on the white key cap, now dark.)
-- T-114 intro1: the Wheatley door opens on approach without pressing E.
-- T-115 intro1: wake-up animation still wrong; no wake/sleep animation on the bed.
-- T-116 intro1: the first room's window is a grey block (should be blinds etc.); the TV screen sits forward and up from the TV; glitchy screen at the start of the ride; odd outside lighting on the ride.
-- T-117 Shadows are blocky (shadow-map resolution and filtering).
-- T-118 intro4: loud glass-breaking sound (check against the original); the door animation cuts to black.
-
-## Owner playtest 3 (2026-10-19, build 2cf59a9), by map (P2 unless noted)
-- intro1: wake-up animation; blocky shadows (T-117); key hints lack labels (E, SPACE: T-113); Wheatley and announcer overlap in the dark room; the moving room jerks the camera and moves the player around; floating parts during the room move; Wheatley moves oddly after the ride and is a black box seen from below during it; 12:00 clock blinks its background too (only the digits should); Chell seen through the first portal holding a gun she hasn't got; no press-down animation on the button; saying "apple" when asked skipped his next line; when the door opens Wheatley's first lines and the announcer talk over each other (neither understandable).
-- intro2: cubes don't sit still on buttons (autopilot: a dropped cube settles in 0.5 s with one press/unpress flicker); stairs to the exit elevator missing (floor and sides empty).
-- intro3: the water below the falling platform is far too bright orange.
-- intro4: glass-break sound on arrival (T-118); a stray screen in front of the stairs to the elevator.
-- intro5: a floating grass texture; a missing wall panel.
-- intro7: the auto-placed orange portal (portal_b_rm4, tilted 75 deg onto a panel) shows only half (T-126).
-
-## Owner playtest 5 (2026-10-20, build 33bca15), by map (P2 unless noted)
-- intro7: the turn-away check worked but felt unreliable (took a while); turning back to pick Wheatley up, he floated attached to nothing; the moving wall that opens disappears once its open animation ends (passable).
-- sp_a1_wakeup: missing textures in the hallway to GLaDOS's chamber and her chamber floor drawn as sky (T-112); crouch needed to enter the main breaker room (T-106), which drops Wheatley, who then floats there; he still plugs in, but the breaker platform rises without the player (T-103, P1 blocker); noclip couldn't fly up past it either (player stuck).
-
-## Owner playtest 6 (2026-10-20, build 06cf3e3), by map (P2 unless noted)
-- sp_a1_wakeup: the lift rises (T-103 ok) but as the breaker platform turns the player should turn with it (rotating mover doesn't carry/rotate the player); the player can jump out of the hatch (shouldn't be possible) and a stone-brick-looking block appears there; GLaDOS wake-up scene is buggy: white particles all around her that shouldn't be there; the portal gun didn't visibly drop to the floor (check); the player is made to look the wrong way.
-- sp_a2_intro (P1 blocker, T-104): ~10 s of blue screen before anything shows; the fall should play as a cutscene but doesn't; the player already has the portal gun (should pick it up again); the player lands in the incinerator instead of on the platform and is stuck on a white screen.
-
-## Owner playtest 7 (2026-10-20, build b2f0080), by map (0 = intro1 ... 6 = intro7, then wakeup, sp_a2_intro)
-- REGRESSION (P0, DONE: owner playtest 8 sees no weird objects, cubes and buttons drawn): "weird objects" everywhere (elevators, elevator rooms, chamber entrances, moving stairs, attached to GLaDOS) and floor buttons disappearing from intro4 on. Owner screenshots 2026-10-20 12-16 (intro3) explained, see "Owner screenshots 2026-10-20" below: untextured slabs (fixed), static props left out (fixed), elevator-tube rubble (real map content, tube_blockage). Owner to recheck the other maps on the new build.
-- sp_a2_intro fall: the crushing arms in the shaft look wrong (owner screenshot 2026-10-20: spiky dark shapes around the central arm).
-- intro1: intro animations now right; Wheatley's first lines and the announcer still overlap; the box ride is less buggy but walls vanish and reappear before breaking off; Wheatley above is a black box; the whole 12:00 clock blinks (only the digits should); through portals Chell is seen holding a portal gun the player doesn't have; cubes twitch on buttons and buttons have no press animation.
-- intro2: cubes through portals not seamless; exit stairs still missing (gap with no floor or sides).
-- intro3: water after the fall still wrong; some textures flat white/empty before it; stray objects in the elevator room (one inside the elevator, one behind the door).
-- intro4: stray objects in/after the elevator, in the level and next chamber; chamber doors look wrong; buttons gone; a stray object after the glass breaks underneath.
-- intro5: stray objects in the elevator room and moving ones at the chamber entrance and moving stairs; a voice line starts late; the elevator descends far too long.
-- intro6: stray objects; a cube still didn't fall into a portal (noclip needed).
-- intro7: Wheatley's rail connector invisible; the turn-away check still slow; walking into the breaker room drops Wheatley (he auto-plugs).
-- sp_a1_wakeup: the player rises with the breaker platform but doesn't turn with it; GLaDOS wake-up still has white particles and stray objects attached to her; floor texture missing in her chamber; a portal shows where she drops the player that shouldn't.
-- sp_a2_intro: fall cutscene right and lands in the right place; the player gets a portal gun back on landing (FIXED: the map gives the gun by a console command, which the start-without-gun rule didn't count); the dual gun pickup works; after GLaDOS moves a wall to be portaled, it won't take a portal (FIXED, see T-127).
-### T-127 sp_a2_intro: the panel GLaDOS moves into place won't take a portal  (P1, NEEDS_VERIFICATION)
-- The panel (collapsing_rubble_instance-robo_flopintoplace_04panel, white tile, tilted down at the pit) is a "never solid" func_brush on a robot arm; it had no collider, and a nodraw/clip world brush sits flush with its face. Now: never-solid parented func_brushes keep their portalable faces as sensor colliders only portal shots stop at (movement and physics ignore sensors); the gun takes a portalable surface flush with a non-portalable one; attached entities' transforms are written only when they move (otherwise a portal on them fizzled as "on a moving surface").
-- Autopilot: after panel_lowering_relay, an orange portal placed on the panel stays.
-
-## Owner screenshots 2026-10-20 00:19-00:28 (~/Documents/Screenshots), by number
-1. intro1 window a grey block (T-116) - TODO.
-2. Blocky shadow of the hanging planter (T-117) - TODO.
-3. Key hints without the key - FIXED, owner confirmed (playtest 8).
-4. intro1 ride: Wheatley a black box above - TODO.
-5. intro1 ride: spiky pieces (wall destruction / docking station debris) - TODO, check skinning: animated props are drawn as rigid per-bone triangles (models.rs split_by_bone), soft-weighted debris would tear.
-6. Chell seen through a portal holding a gun before having one - FIXED, owner confirmed (playtest 8): nogun_* sequences and no world gun while no gun can fire.
-7. A dark shard in a door (intro2) - TODO, not looked at.
-8. Invisible button, buggy held cube (intro2) - see T-107.
-9. intro2 exit stairs invisible, a gap - FIXED: static props with flag 0x4 were skipped (769 of intro1's 1080 props too); stairs drawn and walked down to the elevator (autopilot).
-10. intro3 flat lavender-grey slabs around the pedestal - FIXED: VertexLitGeneric $normalmapalphaenvmapmask now masks the envmap with the bump alpha (black_floor_metal_004b rubble). Bump detail itself still missing (bumped VLG not driven).
-11. intro3 water bright tan - FIXED: $lightmapwaterfog lights the fog; flowing water's normals in world space at $flow_bumpstrength; no sky reflection on fogged maps (sky_white turned it white). Now dark murky brown.
-12-16. intro3 "weird objects": the flat slabs (10), the previously missing static props, and the elevator-tube rubble (tube_blockage_*, real map content) - owner to recheck. Shot 15's tilted panel and 14's beams not yet matched to an entity.
-
-## Owner playtest 8 (2026-10-20, build 1faf8d2), by elevator count
-Sections: 0 intro1, 1 intro2, 2 intro3, 3 intro4, 4 intro5/intro6, 5 intro7 +
-sp_a1_wakeup + sp_a2_intro, 6 sp_a2_laser_intro, 7 sp_a2_laser_stairs (from
-the content; many issues are global).
-Confirmed fixed by the owner: key labels (T-113 part), Chell without the gun
-before getting it, cubes/buttons drawn and no more "weird objects" (P0
-regression). Not reported again: intro2 exit stairs.
-
-### T-128 sp_a2_laser_stairs: the staircase doesn't move after the puzzle  (P1, NEEDS_VERIFICATION, owner replay)
-- Owner section 7: unplayable past this point.
-- Cause: the steps are brushes on circle_shield arms. At spawn each arm plays
-  move03_NNdown and holds it; relay_raise_stairs (catcher_1 OnPowered) only
-  sends SetPlaybackRate -1 to play the held sequence backwards. A finished
-  sequence ignored rate changes, so the arms never moved; only the invisible
-  func_door step clips rose (why the earlier autopilot run "climbed" them).
-  Now a rate that runs back into a held sequence resumes it
-  (Playback::set_rate; unit test negative_rate_replays_a_held_sequence_backwards).
-- Autopilot: relay_raise_stairs -> the arms lift the steps into a staircase
-  (side screenshots before/after); the 1faf8d2 app shows them flat. Real
-  laser route not replayed; the owner reached the catcher.
 ### T-129 Stray screens in elevator rooms  (P1, TODO)
-- Section 7: a screen in the first elevator room blocks the staircase you must
-  take. Section 3 (intro4): a random screen at the entrance of the exit
-  elevator room (also playtest 3). Find the entity (vgui/monitor prop placed
-  or parented wrong).
-### T-130 Portal shots stop at things Portal 2 shoots through  (P1, TODO)
-- Section 4: can't shoot through handrails; can't put a portal under a cube by
-  shooting through it (intro6 needed noclip; T-121 covered the cube falling
-  in once the portal exists). Cameras: T-123.
-### T-131 sp_a1_intro3: floors and roofs missing  (P1, TODO)
-- Section 2: floor right in front of the door leaving the arrival elevator
-  room; roof just outside that door; roof after taking the gun and portaling
-  up, until the next gun use, then the floor there; floor entering the exit
-  elevator room. Check drawn vs solid (visibility/areaportals, brush entities).
-### T-105 (update) Held objects drop when pushed into a wall
-- Section 5: walking into the breaker room with Wheatley against the wall
-  drops him instead of him coming closer; the same for cubes and anything held.
-### T-132 Fizzler field not drawn, maybe not working  (P1, TODO)
-- Section 0: the "incandescent particle field" never showed. Check
-  trigger_portal_cleanser fizzles portals and props; draw the field.
-### T-133 sp_a1_intro7: Wheatley floats after the wall panel moves; the panel disappears  (P2, TODO)
-- Section 5 (also playtest 5). He should fall to the floor.
-### T-134 sp_a1_wakeup: the pod floor turns, the player doesn't  (P2, TODO)
-- Section 5 (also playtest 6/7): rotating movers must turn what stands on them.
-### T-135 Turrets fall through the exit elevator  (P2, TODO)
-- Sections 5 (sp_a2_intro) and 6.
-### T-136 sp_a2_intro: a portal shows in the tube before GLaDOS drops the player  (P2, TODO)
-### T-137 Portals can't be placed as close together as in Portal 2  (P2, TODO)
-### T-138 Elevator VO timing: the line after the second button started halfway down the elevator and stretched the ride  (P2, TODO)
-- Section 4. Fold into T-120 with: jittery rides (section 1), thumping sounds
-  during the ride (section 4).
-### T-139 Missing ambient audio and UI/button sounds  (P2, TODO)
-- Sections 1, 5: no soundscapes/ambience (water drips), no button clicks;
-  music stops abruptly (T-111); glass break too loud entering intro4 (T-118).
-### T-140 Game-placed portals: no screen shake or sound  (P3, TODO)
-- Section 1: the first orange portal should shake the screen a little and play its sound.
-### T-143 intro1 12:00 clock: the whole sign blinks, only the digits should  (P4, TODO)
-### T-144 Missing props: intro1 portal room clipboard and movable clock  (P2, TODO)
-### T-145 Buttons don't animate; cubes don't change colour on a button  (P2, TODO)
-- Section 0: no press-down when clicked or when a cube lands; cubes keep their
-  off skin when activated.
-### T-146 intro1: the first cube-button door should get half stuck  (P4, TODO)
-### T-147 intro2: the screen is black right as the first door opens  (P2, TODO)
-- Section 1. Compare T-119 (door open cut to black).
-### T-148 Portals behind glass  (P3, TODO)
-- Section 1: behind glass they draw as if on top of it; behind broken glass not at all.
-### T-149 Chamber signs blank (the white "02" screens) in every level; intro5 screens and lights wrong  (P2, TODO)
-### T-150 Particles missing  (P4, TODO)
-- Fall smoke and water splash (+ sounds) in intro3; gun's beam particles when
-  holding things; motion blur/speed lines when fast; the gun's particles show
-  through the wall after the sp_a2_intro fall.
-### T-151 Water should look like Portal 2's (reflections, murk), intro3 and sp_a2_laser_intro  (P4, TODO)
-### T-152 Lighting and texture quality below the original  (P4, TODO)
-- Section 5: worse overall; scrap pieces in the intro3 fall; turrets in tubes
-  lit wrong (wakeup).
-### T-153 GLaDOS wake-up: white particles hide it; her arms float unattached when grabbing Chell and Wheatley  (P3, TODO)
-### T-154 Floating vine/moss texture by the centre wall (intro5)  (P4, TODO)
-### T-155 Lasers look poor  (P4, TODO)
-### T-157 Transition into the sp_a2_intro fall not smooth  (P3, TODO)
-### T-114 (update) intro1: Wheatley's first lines still overlap the announcer
-- Owner: the door shouldn't open until the announcer is done, so they never overlap.
-### T-020 (update) intro1 ride
-- Section 0: walls flash away and back before breaking off; Wheatley a black
-  box; spiky pieces. Blocky shadows (T-117) and the window (T-116) unchanged.
+- Playtest 8 section 7: a screen in the arrival elevator room blocks the
+  staircase you must take. Section 3 (intro4, also playtest 3): a screen at
+  the entrance of the exit elevator room. Find the entity (vgui/monitor prop
+  placed or parented wrong).
 
-### T-102 (update) Cubes through portals still not seamless
-- Section 2 (intro3, also intro2 in playtest 7).
-### T-125 (update) The turn-away check still takes a moment to register
-- Section 5 (intro7; also playtests 5 and 7).
-### T-112 (update) GLaDOS chamber floor brown and flat
-- Section 5: looks like the intro3 water did before (flat brown), not the dirty floor it should be.
-### T-104 (owner-verified) sp_a2_intro fall
-- Section 5: the fall plays and lands in the right place. Left: a smoother
-  transition into it (T-157), gun particles seen through the wall after
-  landing (T-150).
-### T-123 (update) Cameras
-- Section 7 (laser_stairs): still can't shoot portals at cameras to knock them off.
+### T-130 Portal shots stop at things Portal 2 shoots through  (P1, TODO)
+- Section 4: handrails block shots; a portal can't be shot under a resting
+  cube (intro6 needed noclip). T-121 made the cube fall once the portal
+  exists. Cameras: T-123. Reference: server.dll (depot 624) portal trace mask.
+
+### T-131 sp_a1_intro3: floors and roofs missing  (P1, TODO)
+- Section 2: the floor right in front of the door leaving the arrival
+  elevator room and the roof outside it; the roof after the gun climb until
+  the next gun use, then the floor there; the floor entering the exit
+  elevator room. Check drawn vs solid (visibility, areaportals, brush entities).
+
+### T-105 Held objects: dropped when pushed into a wall; Wheatley re-pickup  (P1, TODO)
+- Section 5: walking into the breaker room with Wheatley against the wall
+  drops him (he auto-plugs) instead of him coming closer; the same for cubes.
+  Earlier: once dropped or stuck he can't be picked up again (Portal 2 allows it).
+- Verify: drop and pick up in sp_a1_intro7 and sp_a1_wakeup; carry into a wall.
+
+### T-132 Fizzler field not drawn, maybe not working  (P1, TODO)
+- Section 0: the "incandescent particle field" never showed. Check that
+  trigger_portal_cleanser fizzles portals and props, then draw the field.
+  Needed by sp_a2_fizzler_intro (T-007).
+
+### T-108 A chamber door had an invisible barrier, needed noclip  (P1, NEEDS INFO)
+- intro4 doors pass both ways in a walk test. Need the door and map from the owner.
+
+### T-107 Cubes and floor buttons invisible  (P1, CAN'T REPRODUCE)
+- Owner screenshot 8 (intro2, cube held above the button): corner tiles
+  drawn, red top and ring gone, a black ellipse in the pit, a straight
+  diagonal edge cutting the model, like a portal clip plane applied to it.
+  Not reproduced (load, changelevel, cube toggled 14 times, BindPose, views
+  from above). Next: intro2 portals active, cube carried through onto the
+  button. Playtest 8: cubes and buttons drawn.
+
+## Open: P2
+
+### T-114 intro1: Wheatley's door and the announcer  (P2, TODO)
+- Wheatley's first lines overlap the announcer; the door opens on approach.
+  Owner: the door must not open until the announcer has finished. Also:
+  saying "apple" when asked skipped his next line (playtest 3).
+
+### T-120 Elevators  (P2, TODO)
+- Rides jittery (section 1); the VO after intro5's second button started
+  halfway down and stretched the ride (T-138); thumping sounds during the
+  ride (section 4); the trash rising with the elevator is buggy; one ride
+  reached the bottom before the next map loaded.
+
+### T-135 Turrets fall through the exit elevator  (P2, TODO)
+- Sections 5 (sp_a2_intro) and 6 (sp_a2_laser_intro).
+
+### T-133 sp_a1_intro7: Wheatley floats after the wall panel moves; the panel disappears  (P2, TODO)
+- Playtests 5 and 8. He should fall to the floor; the moving wall vanishes
+  once its open animation ends (passable).
+
+### T-134 sp_a1_wakeup: the rising pod's floor turns, the player doesn't  (P2, TODO)
+- Playtests 6, 7, 8: rotating movers must turn and carry what stands on them.
+
+### T-163 sp_a1_wakeup pod: the player can jump out of the hatch; a stone-brick block appears there  (P2, TODO)
+- Playtest 6.
+
+### T-136 sp_a1_wakeup end: a portal shows in the tube before GLaDOS drops the player  (P2, TODO)
+- Playtests 7 and 8.
+
+### T-137 Portals can't be placed as close together as in Portal 2  (P2, TODO)
+- Section 5. Reference: server.dll placement rules.
+
+### T-102 Cubes through portals not seamless  (P2, TODO)
+- Sections 1-2 (intro2, intro3). Traversal itself works (owner replays).
+
+### T-125 sp_a1_intro7: the turn-away check is slow to register  (P2, TODO)
+- Works (negative FOV cone fixed) but takes a moment (playtests 5, 7, 8).
+  Compare ai_script_conditions timing (MinTimeout, think rate) with Source.
+
+### T-145 Buttons don't animate; cubes don't change colour on a button  (P2, TODO)
+- Section 0: no press-down when used or when a cube lands; cubes keep their
+  off skin. Cubes twitch on buttons (one press/unpress flicker as they settle).
+
+### T-144 Missing props: intro1 portal room clipboard and movable clock  (P2, TODO)
+
+### T-147 intro2: the screen goes black right as the first door opens  (P2, TODO)
+- Section 1; compare T-119. Screenshot 7 (intro2): a dark shard in a door.
+
+### T-139 Audio  (P2, TODO)
+- No soundscapes/ambience (water drips), no button clicks (sections 1, 5).
+- Music stops abruptly sometimes; stopped at the wakeup stairs (old T-111).
+- Glass break far too loud entering intro4 while still in the elevator (old T-118).
+
+### T-149 Chamber signs blank; screens and lights wrong  (P2, TODO)
+- The white chamber-number screens ("02") are blank in every level;
+  intro5's screens and lights wrong (section 4).
+
+### T-112 Missing or flat textures  (P2, TODO)
+- GLaDOS chamber floor brown and flat like the old intro3 water (section 5);
+  hallway to GLaDOS; after the jumps a black wall you can walk through; a
+  blue flat wall behind the intro4 elevator.
+
+### T-123 Portal shots should knock security cameras off  (P2, TODO)
+- intro6 and sp_a2_laser_stairs: in Portal 2 the camera falls off.
 
 ### T-160 Main menu like Portal 2's  (P2, TODO)
 - Top level: Play Single Player, Play Cooperative Game, Community Test
-  Chambers, Options, Extras, Quit (unbuilt ones may do nothing for now).
+  Chambers, Options, Extras, Quit (unbuilt ones may do nothing yet).
 - Play Single Player: Continue Game, New Game, Load Game, Challenge Mode.
 - New Game: a vertical chapter list, not the gallery.
-- The install has the layouts and art: resource/ui/basemodui/*.res
-  (mainmenu, campaignflyout, newgame/chapter dialogs), materials/vgui.
+- Layouts and art are in the install: resource/ui/basemodui/*.res
+  (mainmenu, campaignflyout, chapter dialogs), materials/vgui.
+
+### T-113 Instructor hints vanish after a few seconds if not done  (P2, TODO)
+- Key labels fixed (owner confirmed).
+
+## Open: P3
+
 ### T-161 Menu background video and music  (P3, TODO)
-- media/menu_act01..05.bik (by campaign progress) instead of a still;
-  ffmpeg is at /opt/homebrew/bin. Menu music plays in Portal 2.
-### T-162 Menu animations, Portal 2 logo alignment, element styling  (P3, TODO)
-- Flyout/panel transitions are off; logo misaligned.
+- media/menu_act01..05.bik by campaign progress instead of a still (ffmpeg
+  at /opt/homebrew/bin); menu music.
+
+### T-162 Menu animations, logo alignment, styling  (P3, TODO)
+- Panel/flyout transitions flip oddly; the Portal 2 logo is misaligned.
+
+### T-020 sp_a1_intro1 ride  (P3, TODO)
+- Walls flash away and back before breaking off; Wheatley a black box above
+  (screenshot 4); the room jerks the camera and moves the player; floating
+  parts; Wheatley moves oddly after the ride; glitchy screen at the start.
+- Verify: `shot` every 0.2 s during the ride, then the owner.
+
+### T-164 Spiky, torn animated debris  (P3, TODO)
+- intro1 ride (screenshot 5), sp_a2_intro shaft arms (playtest 7). Animated
+  props draw as rigid per-bone triangles (models.rs split_by_bone); soft
+  weighted meshes tear. Check the weights, then skin them.
+
+### T-116 intro1 room details  (P3, TODO)
+- The window is a grey block, should be blinds (screenshot 1); the TV
+  screen sits forward and up from the TV; odd outside lighting on the ride.
+
+### T-117 Blocky shadows  (P3, TODO)
+- Shadow-map resolution and filtering (screenshot 2).
+
+### T-115 intro1: no wake/sleep animation on the bed  (P3, TODO)
+
+### T-153 GLaDOS wake-up  (P3, TODO)
+- White particles hide her; her arms float unattached when grabbing Chell
+  and Wheatley; the portal gun didn't visibly drop; the player is made to
+  look the wrong way (playtests 6-8).
+
+### T-157 Transition into the sp_a2_intro fall not smooth  (P3, TODO)
+
+### T-165 sp_a1_intro7: Wheatley's rail connector invisible  (P3, TODO)
+
+### T-148 Portals behind glass  (P3, TODO)
+- Drawn as if on top of the glass; behind broken glass not at all (section 1).
+
+### T-140 Game-placed portals: no screen shake or sound  (P3, TODO)
+- The first orange portal should shake the screen a little and play its sound.
+
+## Open: P4
+
+### T-151 Water like Portal 2's (reflections, murk), intro3 and sp_a2_laser_intro  (P4, TODO)
+### T-155 Lasers look poor  (P4, TODO)
+### T-150 Particles missing  (P4, TODO)
+- Fall smoke and water splash (+ sounds) in intro3; the gun's beam when
+  holding things; motion blur/speed lines; the gun's glow seen through the
+  wall after the sp_a2_intro fall.
+### T-152 Lighting and texture quality below the original  (P4, TODO)
+- Scrap pieces in the intro3 fall; turrets in tubes (wakeup); bumped
+  VertexLitGeneric (models with $bumpmap) still drawn without bump.
+### T-143 intro1 12:00 clock: the whole sign blinks, only the digits should  (P4, TODO)
+### T-146 intro1: the first cube-button door should get half stuck  (P4, TODO)
+### T-154 Floating vine/moss/grass texture by the centre wall (intro5)  (P4, TODO)
+### T-166 intro5: a missing wall panel  (P4, TODO)
+
+## Awaiting owner replay (fixed, autopilot evidence)
+- T-128 sp_a2_laser_stairs stairs rise: held sequences replay on a negative
+  SetPlaybackRate (8ac53a2; screenshots before/after).
+- T-103 sp_a1_wakeup breaker lift carries the player (SetMaxSpeed); owner saw it rise in playtest 6.
+- T-106 Walk into the breaker room standing (hull fits an exact 72 u).
+- T-121 A cube resting where a portal opens falls in (contacts dropped in the hole).
+- T-122 func_portal_detector fires (intro7 progresses).
+- T-126 Tilted map portal drawn whole (quad stands 1 u off).
+- T-127 The panel GLaDOS swings into place takes a portal (sensor colliders).
+- T-119 Doors stay drawn while opening; no area-portal black plane.
+- T-110 An actor's new line cuts its previous one (voice channel).
+- T-021 Owner checks: intro1 ride, wakeup socket, sp_a2_intro portal route.
 
 ## Backlog
 
 ### T-002 Prove sp_a2_dual_lasers  (P1, TODO)
-- Outcome: both laser catchers powered by the player's redirection, door opens, next map.
-- Files: likely lasers.rs, portals.rs, autopilot.rs; scripts/routes/.
-- Depends on: none. Verify: autopilot route run + log of catcher outputs.
-
+- Both catchers powered by the player's redirection, door opens, next map.
 ### T-003 Prove sp_a2_laser_over_goo  (P1, TODO)
 ### T-004 Prove sp_a2_catapult_intro  (P1, TODO)
 ### T-005 Prove sp_a2_trust_fling  (P1, TODO)
 ### T-006 Prove sp_a2_pit_flings  (P1, TODO)
 ### T-007 Prove sp_a2_fizzler_intro  (P1, TODO)
-- Each: "Prove a map" acceptance above. Faith plates already land on target
-  (scripts/check_faith_plates.py), so T-004..T-006 test the player's route.
-
+- Faith plates land on target (scripts/check_faith_plates.py); T-004..T-006 test the player's route.
 ### T-008 Prove chapter 3 rest: bridge_the_gap, turret_intro, laser_relays, turret_blocker, laser_vs_turret, pull_the_rug  (P1, TODO)
-- Split one task per map when started.
-
 ### T-010 Sweep chapter 4 (column_blocker, laser_chaining, triple_laser, bts1, bts2)  (P1, TODO)
 ### T-011 Sweep chapter 5 (bts3, bts4, bts5, bts6, core)  (P1, TODO)
 ### T-012 Sweep chapter 6 rest (jump_intro gel climb, bomb_flings, crazy_box, transition01)  (P1, TODO)
 ### T-013 Sweep chapter 7 (speed_ramp, speed_flings, portal_intro, end)  (P1, TODO)
 ### T-014 Sweep chapter 8 (sp_a4_intro .. jump_polarity)  (P1, TODO)
 ### T-015 Sweep chapter 9 (finale1..finale4)  (P1, TODO)
-- Sweep = per map: load, logic runs, exit reachable, next map loads (fills
-  L/O/N columns in PROJECT_STATE.md). Proving each puzzle follows as
-  per-map tasks.
-
+- Sweep = per map: load, logic runs, exit reachable, next map loads (L/O/N
+  columns in PROJECT_STATE.md); proving each puzzle follows per map.
 ### T-090 Restart check per verified map  (P2, TODO)
-- Outcome: on each VERIFIED map, dying and loading the autosave/quick save leaves the puzzle solvable.
-- Verify: autopilot `click`/console load after progress, then the route again.
-
-### T-020 sp_a1_intro1 ride: glitch frames and wall destruction  (P2, TODO)
-- Outcome: no frames outside the container; walls break away (actor_wall_destruction_*).
-- Verify: frame dump during the ride (autopilot `shot` every 0.2 s) and owner check.
-
-### T-021 Owner manual checks  (P2, NEEDS_VERIFICATION, owner)
-- sp_a1_intro1 ride, sp_a1_wakeup socket, sp_a2_intro portal route.
-
-### T-030 Owner reports: missing buttons in gel rooms, black elevator in gel chapters, cube carry feel  (P2, TODO)
-- Reproduce in sp_a3_* maps during T-012/T-013 first.
-
+### T-030 Gel chapters: missing buttons in gel rooms, black elevator, cube carry feel  (P2, TODO)
 ### T-040 App icon and second-Mac first-run check  (P3, TODO)
-### T-050 Verify merged cloud features in game: anim round 2 (Wheatley look-at), gels checklist, projtex, saves  (P3, TODO)
-- Their checklists are in docs/STATUS.md.
+### T-050 Verify merged cloud features in game: Wheatley look-at, gels, projtex, saves  (P3, TODO)
+- Checklists in docs/STATUS.md.
 
-## Done
-- 2026-10-19 T-101 sp_a1_intro1 ride end: the wall breaks, the player walks on, the elevator to sp_a1_intro2 works (owner playtest of build 0.1.0+921edff). Cause: model animation events and math_counter values (921edff).
-- 2026-10-19 make_app.sh keeps dist/Prtl2Mac-previous.app and stamps a build id (BUILD.txt, CFBundleVersion).
-- 2026-10-19 Workflow docs (WORKFLOW.md, TASKS.md, PROJECT_STATE.md, SESSION_HANDOFF.md, CLAUDE.md, scripts/resume.sh).
-- 2026-10-19 sp_a2_intro logic: gun pickup, both portals, exit door, next map (autopilot) - 01c83ec.
-- 2026-10-19 sp_a1_wakeup socket: CORE_TRIGGER_REACH lets the held core plug in (autopilot).
-- 2026-10-19 Packaging: dist/Prtl2Mac.app finds the install with no env vars.
-- 2026-10-18 Chapter 1 intro2..intro7 verified (autopilot).
+## Done (newest first; details in git log and docs/STATUS.md)
+- 2026-10-20 Owner-confirmed in playtest 8: key labels on hints; Chell carries
+  no gun before having one; no more "weird objects" (P0 regression), cubes and
+  buttons drawn; T-104 sp_a2_intro fall plays and lands right.
+- 2026-10-20 Static props with flag 0x4 drawn (intro2 exit stairs, much
+  scenery); intro3 flat rubble (normal-alpha envmap mask); intro3 water lit
+  fog and no white sky reflection (look still T-151).
+- 2026-10-20 T-124 Wheatley falls off the management rail (owner playtest 5).
+- 2026-10-19 T-101 sp_a1_intro1 ride end: wall breaks, elevator to intro2 (owner, 921edff).
+- 2026-10-19 Packaging: dist/Prtl2Mac.app with build id, previous app kept, finds the install.
+- 2026-10-19 Workflow docs and scripts/resume.sh.
+- 2026-10-19 sp_a2_intro logic: gun pickup, portals, exit, next map (autopilot, 01c83ec).
+- 2026-10-19 sp_a1_wakeup socket: the held core plugs in (autopilot).
+- 2026-10-18 Chapter 1 intro2..intro7 logic verified (autopilot).

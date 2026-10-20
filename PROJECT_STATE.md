@@ -23,12 +23,11 @@ Not part of v1 (tracked as P3/P4): full visual fidelity (projected-texture
 lighting, every particle, glass refraction), every non-blocking scripted
 scene, co-op, commentary, multiplayer, Windows/Linux.
 
-Today we can honestly claim: maps load and their entity logic runs, and most
-reach their exit when the player is placed on the route. The owner's
-playtest (2026-10-19) found chapter 1 blocked for a real player (ride end,
-portal traversal, breaker lift), so nothing is playable end to end yet.
-Autopilot runs that use `setpos`/`input` prove logic, not playability; S
-needs a run with movement, portals and props only, or the owner's play.
+Today we can honestly claim: the owner played chapter 1 and chapter 2 up
+to sp_a2_laser_stairs on build 1faf8d2 (playtest 8, 2026-10-20). intro6
+needed noclip (T-130) and laser_stairs' stairs didn't rise (T-128, fixed
+since, awaiting replay). Many P2-P4 issues remain (TASKS.md). Autopilot runs
+that use `setpos`/`input` prove logic, not playability.
 
 ## Reference install (2026-10-20)
 - Installed: Steam depot 621 (Portal 2 common content). It holds every map,
@@ -44,7 +43,7 @@ needs a run with movement, portals and props only, or the owner's play.
 
 ## Build and package
 - [x] `cargo build --release`, `cargo test --release --workspace` pass
-      (~340 tests, 0 failures, 2026-10-19).
+      (344 tests, 0 failures, 2026-10-20).
 - [x] `sh scripts/make_app.sh` builds `dist/Prtl2Mac.app` (ad-hoc signed,
       build id in Contents/Resources/BUILD.txt, previous app kept as
       dist/Prtl2Mac-previous.app);
@@ -60,14 +59,15 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 
 | Ch | Map | L | O | S | N | R | Status | Evidence / notes |
 |---|---|---|---|---|---|---|---|---|
-| 1 | sp_a1_intro1 | y | y | y | y | - | VERIFIED | owner played it to sp_a1_intro2 (2026-10-19, build 921edff); P2 issues remain (T-110..T-117) |
-| 1 | sp_a1_intro2, intro3, intro5, intro6 | y | y | - | y | - | IN PROGRESS | button->door chains and exits (autopilot logic only); portal traversal broken (T-102) |
-| 1 | sp_a1_intro4 | y | y | - | y | - | IN PROGRESS | portal traversal fixes (T-102): player and cubes through floor/wall portals in autopilot; needs owner replay |
-| 1 | sp_a1_intro7 | y | y | - | y | - | IN PROGRESS | Wheatley pickup, socket, relay, scene (autopilot logic); Wheatley re-pickup broken (T-105) |
-| 1 | sp_a1_wakeup | y | y | x | y | - | BLOCKED | owner playtest: breaker lift doesn't carry the player (T-103); crouch needed to enter (T-106); missing textures, music stops |
-| 2 | sp_a2_intro | y | y | x | y | - | BLOCKED | owner playtest: lands with nowhere to go; blue screen at start (T-104) |
-| 2 | sp_a2_laser_intro | y | y | y | y | - | VERIFIED | solved dbc2f19 |
-| 2 | sp_a2_laser_stairs | y | y | y | y | - | VERIFIED | solved 3cf08c2 (f2d9b71) |
+| 1 | sp_a1_intro1 | y | y | y | y | - | VERIFIED | owner played through (playtests 1-8); P2/P3 issues in TASKS |
+| 1 | sp_a1_intro2, intro3, intro5 | y | y | y | y | - | VERIFIED | owner played through (playtest 8); intro3 floors/roofs missing (T-131) |
+| 1 | sp_a1_intro6 | y | y | x | y | - | BLOCKED | owner needed noclip: no portal under the cube (T-130) |
+| 1 | sp_a1_intro4 | y | y | y | y | - | VERIFIED | owner played through (playtest 8) |
+| 1 | sp_a1_intro7 | y | y | y | y | - | VERIFIED | owner played through (playtest 8); turn-away slow (T-125), Wheatley floats (T-133) |
+| 1 | sp_a1_wakeup | y | y | y | y | - | VERIFIED | owner played through (playtest 8); pod rotation (T-134), held drop (T-105) |
+| 2 | sp_a2_intro | y | y | y | y | - | VERIFIED | owner: the fall plays and lands right, played on (playtest 8) |
+| 2 | sp_a2_laser_intro | y | y | y | y | - | VERIFIED | solved dbc2f19; owner played through (playtest 8) |
+| 2 | sp_a2_laser_stairs | y | y | x | y | - | BLOCKED | owner: stairs didn't rise (T-128 fixed 8ac53a2, replay pending); a screen blocks the arrival staircase (T-129) |
 | 2 | sp_a2_dual_lasers | y | - | - | y | - | IN PROGRESS | exit reached by placement only (T-002) |
 | 2 | sp_a2_laser_over_goo | y | - | - | y | - | IN PROGRESS | T-003 |
 | 2 | sp_a2_catapult_intro | y | - | - | y | - | IN PROGRESS | plates land on target (check_faith_plates.py); T-004 |
@@ -89,8 +89,8 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 9 | sp_a4_finale1..finale4 | - | - | - | - | - | NOT STARTED | T-015 |
 
 ## Release blockers (open P0/P1)
-- Owner playtest blockers T-103..T-106 (chapter 1 and sp_a2_intro); T-102 fixed in autopilot, awaiting owner replay.
-- Most chapter 2-3 puzzles unproven (T-001..T-008).
+- TASKS "Priority order" P1 items: T-129, T-130, T-131, T-105, T-132.
+- Most chapter 2-3 puzzles unproven (T-002..T-008).
 - Chapters 4-9 not swept (T-010..T-015).
 - Restart/reload never checked per map (T-090).
 
@@ -98,4 +98,4 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 Portals, cubes/buttons, lasers, bridges, funnels, faith plates, turrets,
 gels, fizzlers, saves (autosave, quick save/load, death reloads), scenes and
 captions, view controls/proxies, movies, auto-exposure, projected lights,
-particles, glass, settings/menus, model animation events (FireUser/sounds). All `origin/cloud/*` branches are merged.
+particles, glass, settings/menus, model animation events (FireUser/sounds). The cloud/* feature branches were merged into main and deleted (tips in SESSION_HANDOFF.md).

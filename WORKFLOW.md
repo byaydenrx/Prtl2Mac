@@ -9,7 +9,8 @@ branch `main`. The owner authorizes committing and pushing to `main`.
 - `TASKS.md`: the backlog. IDs, priority, status, acceptance, evidence.
 - `SESSION_HANDOFF.md`: exactly where the last session stopped and the next action.
 - `WORKFLOW.md`: this file.
-`docs/STATUS.md` is the long engineering log (how systems work, debug notes);
+`docs/PLAYTESTS.md` keeps the owner's raw playtest reports (history; every
+item is a task in TASKS.md). `docs/STATUS.md` is the long engineering log (how systems work, debug notes);
 add detail there, keep the four documents short.
 
 ## Resume (start of every session)
@@ -87,6 +88,18 @@ sessions, only for independent tasks with separate files.
 - Screenshots (owner's in ~/Documents/Screenshots, autopilot 2560x1440):
   shrink with `sips -Z 1000` before reading.
 - Package: `sh scripts/make_app.sh` -> `dist/Prtl2Mac.app`.
+
+## Gotchas (map logic)
+- Departure elevators only arrive after the player walks through
+  `departure_elevator-source_elevator_door_open_trigger`; some exits are
+  walk-in `transition_trigger`s whose volume isn't at their origin
+  (`info <name>` prints bounds).
+- Proven placement sequences (exits only): catapult_intro
+  `3 setpos -64 -1512 -400; 9 setpos -64 -2126 -575`; sphere_peek
+  `3 setpos -544 1176 500; 9 setpos -544 562 316`; laser_relays
+  `3 setpos -320 -1192 52; 9 setpos -320 -1806 -132`; turret_intro
+  `3 setpos -336 392 -250`.
+- Faith plates with usethresholdcheck=1 only redirect things arriving fast.
 
 ## Cost rules
 - Read the handoff and the named files; don't rescan the repository.
