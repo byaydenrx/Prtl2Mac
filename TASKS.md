@@ -22,9 +22,7 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 P0:
 1. (none; T-168 box-button crash owner-confirmed fixed.)
 P1:
-2. T-176 Can't catch or grab falling/mid-air objects (softlock: the faith plate
-   level's cube can't be grabbed; Wheatley can't be caught when he falls).
-   (T-169 fixed a1cd026, awaiting owner replay.)
+2. (none; T-176 fixed 2bf3d20 and T-169 fixed a1cd026, awaiting owner replay.)
 P2:
 3. T-162 OWNER PRIORITY: the UI as close to Portal 2's as possible, one
    screen per run until all match (done: main menu, SP dialog, New Game,
@@ -59,21 +57,6 @@ Then the Backlog (prove and sweep the campaign).
 (none)
 
 ## Open: P1
-
-### T-176 Can't catch or grab objects in the air  (P1, TODO, softlock)
-- Owner, 2026-10-20 (after playtest 9): "you can't catch falling things or
-  grab things midair, like the faithplate level i couldnt continue because
-  i couldnt grab the cube and wheatly i couldnt catch when he fell earlier
-  in the playthrough". Faith plate level: probably sp_a2_catapult_intro
-  (the owner had reached sp_a2_laser_over_goo); Wheatley falling: sp_a1_intro7
-  (after the wall panel) or sp_a1_wakeup.
-- Portal 2 lets +use pick up a cube or Wheatley in flight. Check the use
-  trace/filter and the pickup conditions for moving or airborne bodies
-  (speed limits, sleeping/contact requirements, the use-cone range against a
-  fast target), and that the held-object code accepts a body with velocity.
-  Related: T-105/T-170 (carrying), T-004 (prove catapult_intro).
-- Verify: autopilot `use` on a cube mid-flight off a faith plate and on a
-  dropped Wheatley, before/after.
 
 ### T-108 A chamber door had an invisible barrier, needed noclip  (P1, NEEDS INFO)
 - intro4 doors pass both ways in a walk test. Need the door and map from the owner.
@@ -675,6 +658,38 @@ Then the Backlog (prove and sweep the campaign).
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-176 Can't catch or grab objects in the air  (P1, FIXED 2bf3d20, awaiting owner replay)
+- Owner, 2026-10-20 (after playtest 9): "you can't catch falling things or
+  grab things midair, like the faithplate level i couldnt continue because
+  i couldnt grab the cube and wheatly i couldnt catch when he fell earlier
+  in the playthrough". Faith plate level: probably sp_a2_catapult_intro
+  (the owner had reached sp_a2_laser_over_goo); Wheatley falling: sp_a1_intro7
+  (after the wall panel) or sp_a1_wakeup.
+- Portal 2 lets +use pick up a cube or Wheatley in flight. Check the use
+  trace/filter and the pickup conditions for moving or airborne bodies
+  (speed limits, sleeping/contact requirements, the use-cone range against a
+  fast target), and that the held-object code accepts a body with velocity.
+  Related: T-105/T-170 (carrying), T-004 (prove catapult_intro).
+- Verify: autopilot `use` on a cube mid-flight off a faith plate and on a
+  dropped Wheatley, before/after.
+- Cause: use_key only picked up a prop hit exactly by one thin ray from the
+  eye. A cube flying off a faith plate or Wheatley dropping crosses that
+  line for a frame or two, so in practice they could not be grabbed (a
+  falling cube WAS taken when the autopilot aimed exactly at it; the
+  pickup code itself accepts moving bodies).
+- Fix (2bf3d20): like Source's FindUseEntity, when the ray hits no prop,
+  take the prop nearest the view line inside a ~26 degree cone whose near
+  side is within use range, not behind the surface the ray hit, and with a
+  clear line of sight (props.rs cone_pick, unit test). Buttons still win
+  (their search runs first).
+- Evidence (autopilot only): sp_a1_intro2, cube 55 u away, view turned ~20
+  degrees off it: old build ray hits nothing, cube not taken; new build
+  cone picks it (cos 0.937, sight clear) and the next use drops it. Ground
+  carry still follows the player after walking (cube 39 u in front).
+  Not replayed on catapult_intro's real throw or Wheatley's drop in intro7
+  (scripted drops kept hitting the arrival elevator's walls).
+
 
 ### T-169 sp_a2_laser_over_goo: GLaDOS never moves the walls, the way on is blocked  (P1, FIXED a1cd026, awaiting owner replay)
 - Owner playtest 9: "there's a point where glados never moves the walls so

@@ -4,9 +4,14 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-20 15:45, autorun (prtl2mac-auto-resume). T-169 fixed and pushed.
+2026-10-20 17:25, autorun (prtl2mac-auto-resume). T-176 fixed and pushed.
 
 ## Where things stand
+- T-176 FIXED (2bf3d20), autopilot-checked only: use only took a prop hit
+  exactly by a thin ray, so flying cubes / falling Wheatley were near
+  impossible to grab. Now falls back to the prop nearest the crosshair in a
+  ~26 degree cone, in reach and line of sight. Not replayed on the real
+  faith-plate throw or Wheatley's drop.
 - T-169 FIXED (a1cd026), autopilot-checked only: sp_a2_laser_over_goo's
   entry corridor repair trigger was rotated (angles 0 90 9) and placed
   unrotated, so the walls never moved; Kill on a func_door was ignored
@@ -18,7 +23,7 @@ reads it first (via `sh scripts/resume.sh`).
   vgui/fonts/universc.vfont), MainMenuButton colours/size/inset from
   basemodui_scheme.res, flyout owner stays lit. T-162 stays open.
 - T-162 Options dialog DONE (2a6921d), autopilot shots only.
-- dist/Prtl2Mac.app = 0.1.0+9b0053b.20261020T2104Z.
+- dist/Prtl2Mac.app = 0.1.0+2bf3d20.20261020T2120Z.
 
 ## Next action
 1. T-162 next screen: Controller (controller.res). Audio 802802d,
