@@ -124,7 +124,7 @@ Then the Backlog (prove and sweep the campaign).
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
 
 ### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
-- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), Advanced Video (4ca377c), Keyboard/Mouse (9b0053b), Controller (903118b), pause menu (21f6353), HUD crosshair + chapter title (b417bba), instructor hints (9576999), see below. Left: subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), Advanced Video (4ca377c), Keyboard/Mouse (9b0053b), Controller (903118b), pause menu (21f6353), HUD crosshair + chapter title (b417bba), instructor hints (9576999), subtitles (f475223), see below. Left: loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
 - Visual reference (owner, 2026-10-20): https://interfaceingame.com/games/portal-2/
   has screenshots of the real Portal 2 UI: start screen, main menu, options,
   video, keyboard/mouse, edit keys, extras, loading, chapter title, save
@@ -367,6 +367,21 @@ Then the Backlog (prove and sweep the campaign).
   under the crosshair), hint fade in/out, instructor_lessons.txt lessons
   (game-driven hints like Pick Up / Create Blue Portal are not built).
   Next: subtitles (hudlayout HudCloseCaption), then loading screens.
+- 2026-10-20 autorun, subtitles DONE (f475223, autopilot shots only, not
+  owner-checked). hudlayout.res HudCloseCaption: panel c-250, y 276,
+  500 x 136 units, BgAlpha 128. Ours was a box hugging the text at 8% from
+  the bottom, 60% max width, centred, in the generic regular font. Now a
+  500-unit box centred with its bottom at 412 units (68 from the bottom),
+  lines stacked up from the bottom, clipped at 136 tall, left-aligned (the
+  install's caption files never use <center>), 12-unit inset, 6-unit
+  rounded corners, CloseCaption_Normal = UniversLTStd-Cn tall 20 (= our
+  MEDIUM size; the size setting is now vgui tall units). Background default
+  128/255, converted to the linear-blend alpha that looks the same (0.78).
+  Unit test. Evidence: sp_a1_intro2 announcer line at 9 s, before (dist
+  9576999: centred, wide DIN-like text) vs after (box measured 585 px of a
+  1000x562 shot = 500 units). Not done: GrowTime 0.25 / item fade in 0.15
+  / fade out 0.3 animations; the inset and corner size are our estimate
+  (not in the .res). Next: loading screens.
 
 ### T-172 Voice lines start late  (P2, TODO)
 - Owner playtest 9: "sometimes voicelines activate late and when I'm going
