@@ -38,7 +38,11 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-145 buttons/cube skins (then T-144 props, T-147 intro2 black screen).
+1. T-145 cube skins (lit skin on a button; see its entry for the skin
+   table and the missing runtime skin switch), then T-144 props, T-147
+   intro2 black screen. T-145 button press-down and settle twitch fixed
+   2026-10-20 (feb5072), awaiting owner replay (autopilot-checked only).
+   dist build: 0.1.0+feb5072.20261020T1228Z.
    T-125 turn-away delay is BLOCKED (needs owner) 2026-10-20: not reproduced;
    the aisc fires 1.5 s (RequiredTime) after turning and is only enabled
    0.2 s after Wheatley's "turn around" line ends, as the scene table says.

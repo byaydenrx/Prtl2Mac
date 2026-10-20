@@ -28,7 +28,7 @@ P2:
 5. (T-134 pod turn and T-163 hatch fixed, awaiting owner replay.)
 6. (T-136 wakeup tube portal fixed, awaiting owner replay.)
 7. (T-137 portal spacing and T-102 cube exit-side drawing fixed, awaiting owner replay.) T-125 turn-away delay is BLOCKED (map's own timing; not reproduced, needs owner).
-8. T-145 Buttons don't animate, cubes don't light up.
+8. T-145 cubes don't light up on buttons (button press fixed, awaiting owner replay).
 9. T-144 Missing props; T-147 black screen as intro2's first door opens.
 10. T-139 Ambient audio, button sounds, music cut-offs, loud glass.
 11. T-149 Chamber signs blank; screens and lights.
@@ -159,9 +159,20 @@ Then the Backlog (prove and sweep the campaign).
   Needs the owner: how long it took and when they turned (during or after
   "could you just turn around"), ideally a Windows timing reference.
 
-### T-145 Buttons don't animate; cubes don't change colour on a button  (P2, TODO)
+### T-145 Buttons don't animate; cubes don't change colour on a button  (P2, TODO: cube skins)
 - Section 0: no press-down when used or when a cube lands; cubes keep their
   off skin. Cubes twitch on buttons (one press/unpress flicker as they settle).
+- Button press + twitch FIXED 2026-10-20 (feb5072), awaiting owner replay:
+  floor buttons were a baked pose; now animated (down/idledown/up, cube/ball/
+  underground variants) and release only after 0.15 s clear. Autopilot,
+  sp_a1_intro2 cube dropped on button_1-button: old build pressed/unpressed
+  twice and the cube slid off; new build one OnPressed, top drawn down,
+  cube rests 12 u lower on it. Not owner-verified.
+- Still TODO: cube skins. No runtime skin switching exists (skin is baked
+  into the meshes at spawn, two render paths in source_assets spawn_model).
+  metal_box.mdl: off 0/1, on 2/3 (skin00N), bounce 6->10, speed 7->11
+  (companion bounce/speed 8/9). Needs per-skin material swap or both
+  variants spawned with visibility toggled.
 
 ### T-144 Missing props: intro1 portal room clipboard and movable clock  (P2, TODO)
 
