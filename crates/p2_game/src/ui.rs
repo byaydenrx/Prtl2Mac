@@ -248,9 +248,14 @@ impl From<Footer> for Action {
 mod theme {
     use bevy::prelude::Color;
 
-    pub const ITEM: Color = Color::srgba(0.8, 0.81, 0.82, 0.95);
+    // basemodui_scheme.res MainMenuButton: TextColor 120 120 120,
+    // FocusColor white, CursorColor 255 255 255 15.
+    pub const ITEM: Color = Color::srgb(120.0 / 255.0, 120.0 / 255.0, 120.0 / 255.0);
     pub const ITEM_HOVER: Color = Color::WHITE;
-    pub const HIGHLIGHT: Color = Color::srgba(0.55, 0.56, 0.58, 0.55);
+    // Source blends in gamma space (15/255 white lifts a dark 17 to ~31);
+    // Bevy blends in linear light, where 15/255 gives 72. ~3/255 gives
+    // vgui's result over the menu's dark backgrounds.
+    pub const HIGHLIGHT: Color = Color::srgba(1.0, 1.0, 1.0, 3.0 / 255.0);
     pub const ROW_HOVER: Color = Color::srgb(0.2, 0.2, 0.21);
     pub const SELECTED: Color = Color::srgb(0.24, 0.24, 0.25);
     pub const TITLE: Color = Color::srgb(0.05, 0.05, 0.06);
@@ -304,6 +309,11 @@ const MAIN_ITEMS: [(&str, Action, Option<Flyout>); 6] = [
 /// Menu item text size; dialogs scale from it.
 const ITEM_SIZE: f32 = 24.0;
 
+/// The main/pause menu item font: MainMenuItem is UniversLTStd-Cn "tall"
+/// 22 units. vgui's tall is the Windows cell height (OS/2 winAscent +
+/// winDescent = 1.265 em for Univers 57 Cn), so the em is 22 / 1.265.
+const ITEM_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(22.0 / 1.265 * 100.0 / 480.0);
+
 /// One unit of Portal 2's menu layout (.res files are 480 units tall), as
 /// a share of the screen height.
 const fn units(u: f32) -> Val {
@@ -314,14 +324,19 @@ fn load_fonts(mut commands: Commands, game: Res<GameFsRes>, mut fonts: ResMut<As
     let load = |fonts: &mut Assets<Font>, paths: &[&str]| -> Option<Handle<Font>> { paths.iter().find_map(|p| game.read(p)).map(|b| fonts.add(Font::from_bytes(b))) };
     let bold = load(&mut fonts, &["resource/linux_fonts/dejavusans-bold.ttf", "resource/linux_fonts/liberationsans-bold.ttf"]).unwrap_or_default();
     let regular = load(&mut fonts, &["resource/linux_fonts/dejavusans.ttf", "resource/linux_fonts/liberationsans-regular.ttf"]).unwrap_or_default();
-    // The menu font: P2_MENU_FONT (a game path or a file), else the best
-    // match among the install's own font files.
+    // The menu font: P2_MENU_FONT (a game path or a file), else Portal 2's
+    // own UniversLTStd-Cn (basemodui_scheme.res CustomFontFiles), else the
+    // best match among the install's plain font files.
+    let univers = game.read("vgui/fonts/universc.vfont").and_then(|b| decode_vfont(&b));
+    if univers.is_none() {
+        warn!("portal2: vgui/fonts/universc.vfont missing or unreadable");
+    }
     let files: Vec<String> = game.0.list("resource").into_iter().filter(|f| f.ends_with(".ttf") || f.ends_with(".otf")).collect();
     info!("portal2: font files in the game: {files:?}");
-    let chosen = std::env::var("P2_MENU_FONT").ok().or_else(|| pick_menu_font(&files).cloned());
+    let chosen = std::env::var("P2_MENU_FONT").ok().or_else(|| if univers.is_some() { None } else { pick_menu_font(&files).cloned() });
     let menu = chosen.as_deref().and_then(|p| game.read(p).or_else(|| std::fs::read(p).ok()).map(|b| (p, fonts.add(Font::from_bytes(b)))));
-    // The install has no DIN; macOS ships DIN Alternate, the closest
-    // match to Portal 2's menu face.
+    let menu = menu.or_else(|| univers.map(|b| ("vgui/fonts/universc.vfont", fonts.add(Font::from_bytes(b)))));
+    // No Univers: macOS ships DIN Alternate, a close match.
     let menu = menu.or_else(|| {
         let p = "/System/Library/Fonts/Supplemental/DIN Alternate Bold.ttf";
         std::fs::read(p).ok().map(|b| (p, fonts.add(Font::from_bytes(b))))
@@ -334,6 +349,23 @@ fn load_fonts(mut commands: Commands, game: Res<GameFsRes>, mut fonts: ResMut<As
         None => bold.clone(),
     };
     commands.insert_resource(UiFonts { bold, regular, menu });
+}
+
+/// A Valve `.vfont` as the TrueType file it wraps. The file is the font,
+/// then a salt (its length in the byte before the trailer), then
+/// "VFONT1". Each byte is XORed with a key that becomes the previous
+/// encoded byte + 0xA7; an sfnt starts with a 0 byte, which gives the
+/// first key. Worked out from the install's files (known plaintext).
+pub(crate) fn decode_vfont(data: &[u8]) -> Option<Vec<u8>> {
+    let n = data.len().checked_sub(6).filter(|_| data.ends_with(b"VFONT1"))?;
+    let salt = *data.get(n.checked_sub(1)?)? as usize;
+    let body = &data[..n.checked_sub(1 + salt)?];
+    let mut key = *body.first()?;
+    Some(body.iter().map(|&c| {
+        let p = c ^ key;
+        key = c.wrapping_add(0xA7);
+        p
+    }).collect())
 }
 
 /// The menu font among the game's font files: Portal 2's menus use a
@@ -444,9 +476,18 @@ fn button(font: &Handle<Font>, label: impl Into<String>, action: Action, size: f
     )
 }
 
-/// A main/pause menu item.
-fn item(fonts: &UiFonts, label: &str, action: Action) -> impl Bundle + use<> {
-    button(&fonts.menu, label.to_string(), action, ITEM_SIZE, ITEM_LOOK)
+/// A main/pause menu item (MainMenuButton: text inset 10 units).
+/// `open`: its flyout is showing, so it stays lit as in Portal 2.
+fn item(fonts: &UiFonts, label: &str, action: Action, open: bool) -> impl Bundle + use<> {
+    let look = if open { Look { text: ITEM_LOOK.text_hover, bg: ITEM_LOOK.bg_hover, ..ITEM_LOOK } } else { ITEM_LOOK };
+    (
+        Button,
+        action,
+        look,
+        Node { padding: UiRect::axes(units(10.0), Val::Px(0.0)), height: Val::Percent(100.0), align_items: AlignItems::Center, ..default() },
+        BackgroundColor(look.bg),
+        children![(Text::new(label.to_string()), TextFont { font: (&fonts.menu).into(), font_size: ITEM_FONT, ..default() }, TextColor(look.text))],
+    )
 }
 
 /// The native size: the primary monitor's, else the window's.
@@ -484,7 +525,7 @@ fn item_list(p: &mut ChildSpawnerCommands, fonts: &UiFonts, items: &[(&str, Acti
     .with_children(|col| {
         for (label, action, fly) in items {
             col.spawn(Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, height: units(20.0), ..default() }).with_children(|row| {
-                row.spawn(item(fonts, label, *action));
+                row.spawn(item(fonts, label, *action, fly.is_some() && *fly == open));
                 if fly.is_some() && *fly == open {
                     row.spawn((
                         Node {
@@ -1857,6 +1898,25 @@ fn title_card(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn vfont_decodes_to_the_wrapped_font() {
+        let font = b"\x00\x01\x00\x00\x00\x13 sfnt body \xff\x00\xa7".to_vec();
+        // Encode the way the install's files are: key starts at an
+        // arbitrary salt-derived byte, then previous encoded byte + 0xA7.
+        let mut key = 0x18u8;
+        let mut file: Vec<u8> = font.iter().map(|&p| {
+            let c = p ^ key;
+            key = c.wrapping_add(0xA7);
+            c
+        }).collect();
+        file.extend_from_slice(b"salt");
+        file.push(4);
+        file.extend_from_slice(b"VFONT1");
+        assert_eq!(decode_vfont(&file), Some(font));
+        assert_eq!(decode_vfont(b"\x00\x01\x00\x00"), None);
+        assert_eq!(decode_vfont(b"\x09VFONT1"), None);
+    }
 
     #[test]
     fn menu_font_and_logo_choice() {
