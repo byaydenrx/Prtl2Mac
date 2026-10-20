@@ -29,16 +29,20 @@ reads it first (via `sh scripts/resume.sh`).
   (gravity restored on DisableMotion, 2542009, autopilot only).
   T-134 wakeup lift now turns the player with it (orientationtype 2 trains
   blend path yaws, 5cfe749, autopilot only).
-  dist/Prtl2Mac.app = 0.1.0+5cfe749.20261020T1119Z.
+  T-163 wakeup hatch: start-disabled brushes now get a disabled collider
+  and hidden mesh, so basement_breakers_upper_blocker seals the hatch
+  (8f8c8b1, autopilot only; all maps' startdisabled func_brushes affected).
+  dist/Prtl2Mac.app = 0.1.0+8f8c8b1.20261020T1131Z.
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
 1. T-120 Elevators, remaining parts: thumps, trash rising with the car.
    Thumps checked 2026-10-20 (autorun): NOT REPRODUCED (no thump-like sound
    logged on intro5/intro6 rides); car move/stop sounds added (5bfaf52).
-   Next: the trash rising with the car (find which map/props), or T-163
-   (T-134 pod turn done 2026-10-20 07:20, awaiting owner replay; also
-   replay bts3/bts5/a3_end blend trains, which now turn).
+   Next: the trash rising with the car (find which map/props), or T-136
+   (wakeup tube portal). T-134 pod turn and T-163 hatch done 2026-10-20,
+   awaiting owner replay (also replay bts3/bts5/a3_end blend trains, which
+   now turn, and any map with startdisabled func_brushes).
    VO timing / ride length checked 2026-10-20 (autorun): NOT REPRODUCED,
    the ReadyForTransition/TransitionReady chain works (see T-120 entry);
    needs an owner replay of intro5's second button. Possible lead: our new

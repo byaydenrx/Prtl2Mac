@@ -25,7 +25,7 @@ P2:
 2. (T-114 fixed, awaiting owner replay.)
 3. T-120 Elevators (thumps, trash; jitter and car sounds fixed); T-135 turrets through the exit elevator is BLOCKED (needs owner reference).
 4. (T-133 Wheatley float fixed, awaiting owner replay; panel part not reproduced.)
-5. (T-134 pod turn fixed, awaiting owner replay); T-163 hatch.
+5. (T-134 pod turn and T-163 hatch fixed, awaiting owner replay.)
 6. T-136 sp_a1_wakeup end: a portal in the tube before the drop.
 7. T-137 Portal spacing; T-102 seamless cube carry; T-125 turn-away delay.
 8. T-145 Buttons don't animate, cubes don't light up.
@@ -129,9 +129,6 @@ Then the Backlog (prove and sweep the campaign).
   another frame (e.g. a horizontal vac tube above the car)? Needs an owner
   screenshot/clip of this moment in Windows Portal 2 (or depot 624 RE of
   prop_dynamic root-motion handling). No fix attempt branch.
-
-### T-163 sp_a1_wakeup pod: the player can jump out of the hatch; a stone-brick block appears there  (P2, TODO)
-- Playtest 6.
 
 ### T-136 sp_a1_wakeup end: a portal shows in the tube before GLaDOS drops the player  (P2, TODO)
 - Playtests 7 and 8.
@@ -244,6 +241,18 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+### T-163 sp_a1_wakeup pod: the player can jump out of the hatch; a stone-brick block appears there  (P2, fixed 8f8c8b1, autopilot only)
+- Playtest 6. Cause: brush entities with startdisabled 1 were never built
+  (no mesh, no collider), so an Enable had nothing to switch on. The hatch is
+  sealed by basement_breakers_upper_blocker (toolsplayerclip ring, z 392-576,
+  enabled by the socket relay). Fix: build them hidden with ColliderDisabled
+  (Always Solid func_brushes keep collision); applies to every map.
+- Evidence (autopilot: setpos on the lift, enable blocker, trigger
+  basement_breakers_start, walk + jump outward at the top): before (dist
+  5cfe749) feet reached (9133 1017 428) outside the hatch; after, the
+  blocker has colliders and feet stay on the lift (8988 1046 351).
+- The "stone-brick block" was not seen by autopilot (the blocker is player
+  clip, never drawn); owner replay should say if it is still there.
 ### T-134 sp_a1_wakeup: the rising pod's floor turns, the player doesn't  (P2, fixed 5cfe749, autopilot only)
 - Playtests 6, 7, 8. Cause: our func_tracktrain never rotated. breaker_train
   has orientationtype 2 (linear blend) and its path_tracks carry yaws
