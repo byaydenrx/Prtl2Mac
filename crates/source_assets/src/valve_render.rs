@@ -56,6 +56,12 @@ impl Default for ValveQuality {
 
 pub struct ValveRenderPlugin;
 
+/// `Core3d` label of the Valve-shader scene passes (world, models, projected
+/// lights), which draw after Bevy's opaque pass. Anything that must see the
+/// finished opaque scene orders itself after this set.
+#[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ValveScenePasses;
+
 impl Plugin for ValveRenderPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ValveExposure>().init_resource::<ValveQuality>();
@@ -68,6 +74,7 @@ impl Plugin for ValveRenderPlugin {
             .add_systems(
                 Core3d,
                 valve_main_pass
+                    .in_set(ValveScenePasses)
                     .in_set(Core3dSystems::MainPass)
                     .after(main_opaque_pass_3d)
                     .before(main_transparent_pass_3d)

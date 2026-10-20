@@ -19,7 +19,7 @@ mod surface;
 mod views;
 
 pub use projection::PortalProjection;
-pub use surface::{PortalSurfaceCap, PortalSurfaceMaterial, PortalSurfaceParams, PortalSurfaceQuad, SurfaceKey};
+pub use surface::{PortalSurfacePass, PortalSurfaceCap, PortalSurfaceMaterial, PortalSurfaceParams, PortalSurfaceQuad, SurfaceKey};
 pub use views::{
     child_code, node_level, node_path, portal_visible, NodeCameras, NodeImages, NodeView, PortalInfo, PortalInfos,
     ViewTree, ROOT,

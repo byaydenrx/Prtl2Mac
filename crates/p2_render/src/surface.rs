@@ -20,6 +20,17 @@ use bevy::render::render_resource::{
 };
 use bevy::shader::ShaderRef;
 use bevy::mesh::MeshVertexBufferLayoutRef;
+use bevy::core_pipeline::core_3d::main_opaque_pass_3d;
+use bevy::core_pipeline::schedule::Core3d;
+use bevy::core_pipeline::Core3dSystems;
+use bevy::image::ToExtents;
+use bevy::pbr::{main_transmissive_pass_3d, Transmissive3d, ViewTransmissionTexture};
+use bevy::render::camera::ExtractedCamera;
+use bevy::render::render_phase::ViewSortedRenderPhases;
+use bevy::render::render_resource::{RenderPassDescriptor, StoreOp};
+use bevy::render::renderer::{RenderContext, ViewQuery};
+use bevy::render::view::{ExtractedView, ViewDepthTexture, ViewTarget};
+use bevy::render::RenderApp;
 
 use p2_assets::portal_textures::PortalGameAssets;
 use p2_core::{Portal, PortalKind, SeamlessPortal, PORTAL_HALF_SIZE};
@@ -104,6 +115,15 @@ impl Material for PortalSurfaceMaterial {
     fn reads_view_transmission_texture(&self) -> bool {
         !self.writez && !self.cap
     }
+    fn depth_bias(&self) -> f32 {
+        // The live surface sorts ahead of every other transmissive item, so
+        // [`portal_surface_pass`] can draw it before glass copies the scene.
+        if !self.writez && !self.cap {
+            PORTAL_SORT_BIAS
+        } else {
+            0.0
+        }
+    }
     fn enable_prepass() -> bool {
         false
     }
@@ -128,6 +148,15 @@ impl Material for PortalSurfaceMaterial {
                 }
             }
         }
+        if !key.bind_group_data.writez && !key.bind_group_data.cap {
+            // Strictly nearer: the live surface is drawn twice, first by
+            // [`portal_surface_pass`] and again by Bevy's transmissive pass;
+            // the second draw meets its own depth and is rejected. The quad
+            // stands off the wall, so the first draw still passes.
+            if let Some(ds) = descriptor.depth_stencil.as_mut() {
+                ds.depth_compare = Some(CompareFunction::Greater);
+            }
+        }
         if key.bind_group_data.cap {
             // Drawn over the wall: depth neither tested nor written.
             if let Some(ds) = descriptor.depth_stencil.as_mut() {
@@ -136,6 +165,64 @@ impl Material for PortalSurfaceMaterial {
             }
         }
         Ok(())
+    }
+}
+
+/// Sort-distance bias of the live surface ([`Material::depth_bias`]): far
+/// below any real view depth, so live surfaces lead the `Transmissive3d`
+/// phase (still back-to-front among themselves).
+pub const PORTAL_SORT_BIAS: f32 = -1.0e6;
+
+/// The leading items of a sorted transmissive phase that are live portal
+/// surfaces.
+pub fn portal_prefix_len(distances: impl IntoIterator<Item = f32>) -> usize {
+    distances.into_iter().take_while(|d| *d < PORTAL_SORT_BIAS * 0.5).count()
+}
+
+/// Ordering label of [`portal_surface_pass`] in `Core3d`.
+#[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct PortalSurfacePass;
+
+/// Draws the live portal surfaces before Bevy's transmissive pass makes its
+/// copy of the scene. Glass and water (`Refract`/`Water`) read that copy, so
+/// a portal seen through glass is refracted and tinted like the wall around
+/// it, as in Portal 2 (where portals are part of the opaque scene the
+/// refraction texture is taken from). Without this the portal was either
+/// drawn over the glass or, when the glass sorted after it, replaced by the
+/// glass's copy of the bare wall (T-148).
+pub fn portal_surface_pass(
+    world: &World,
+    view: ViewQuery<(&ExtractedCamera, &ExtractedView, &ViewTarget, Option<&ViewTransmissionTexture>, &ViewDepthTexture)>,
+    phases: Res<ViewSortedRenderPhases<Transmissive3d>>,
+    mut ctx: RenderContext,
+) {
+    let view_entity = view.entity();
+    let (camera, extracted, target, transmission, depth) = view.into_inner();
+    let Some(phase) = phases.get(&extracted.retained_view_entity) else { return };
+    let (Some(size), Some(transmission)) = (camera.physical_target_size, transmission) else { return };
+    let n = portal_prefix_len(phase.items.values().map(|i| i.distance));
+    if n == 0 {
+        return;
+    }
+    // The rim composites over this copy, exactly as in Bevy's pass.
+    ctx.command_encoder().copy_texture_to_texture(
+        target.main_texture().as_image_copy(),
+        transmission.texture.as_image_copy(),
+        size.to_extents(),
+    );
+    let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
+        label: Some("portal_surface_pass"),
+        color_attachments: &[Some(target.get_color_attachment())],
+        depth_stencil_attachment: Some(depth.get_attachment(StoreOp::Store)),
+        timestamp_writes: None,
+        occlusion_query_set: None,
+        multiview_mask: None,
+    });
+    if let Some(viewport) = camera.viewport.as_ref() {
+        pass.set_camera_viewport(viewport);
+    }
+    if let Err(err) = phase.render_range(&mut pass, world, view_entity, 0..n) {
+        error!("portal_surface_pass: {err:?}");
     }
 }
 
@@ -184,6 +271,16 @@ pub(crate) fn plugin(app: &mut App) {
     app.add_plugins(MaterialPlugin::<PortalSurfaceMaterial>::default())
         .init_resource::<SurfaceMeshes>()
         .add_observer(cleanup_surfaces);
+    if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
+        render_app.add_systems(
+            Core3d,
+            portal_surface_pass
+                .in_set(PortalSurfacePass)
+                .in_set(Core3dSystems::MainPass)
+                .after(main_opaque_pass_3d)
+                .before(main_transmissive_pass_3d),
+        );
+    }
 }
 
 fn quad_mesh(half: Vec2) -> Mesh {
@@ -471,5 +568,20 @@ fn set_material(
     }
     if !params_same {
         m.params = params;
+    }
+}
+
+#[cfg(test)]
+mod sort_tests {
+    use super::*;
+
+    #[test]
+    fn portal_prefix_counts_only_leading_portals() {
+        let b = PORTAL_SORT_BIAS;
+        assert_eq!(portal_prefix_len([b - 12.0, b - 3.0, -40.0, -2.0]), 2);
+        assert_eq!(portal_prefix_len([-40.0, -2.0]), 0);
+        assert_eq!(portal_prefix_len(std::iter::empty()), 0);
+        // Map-sized view depths (metres) never reach the bias.
+        assert_eq!(portal_prefix_len([-5000.0]), 0);
     }
 }

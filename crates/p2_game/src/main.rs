@@ -142,6 +142,13 @@ fn main() {
         .add_plugins(saves::SavesPlugin)
         .insert_resource(args)
         .add_plugins(p2_room::HarnessPlugin);
+    // Portals join the scene before glass and water copy it (T-148).
+    if let Some(render_app) = app.get_sub_app_mut(bevy::render::RenderApp) {
+        render_app.configure_sets(
+            bevy::core_pipeline::schedule::Core3d,
+            p2_render::PortalSurfacePass.after(source_assets::valve_render::ValveScenePasses),
+        );
+    }
     // UI after the Screen resource above (its own default is the main menu).
     app.add_plugins(UiPluginKeepScreen).run();
 }
