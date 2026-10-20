@@ -23,7 +23,7 @@ P1:
 1. T-131 sp_a1_intro3 floors and roofs missing (BLOCKED: not reproduced, needs owner screenshots).
 P2:
 2. (T-114 fixed, awaiting owner replay.)
-3. T-120 Elevators (jitter, VO timing, thumps) and T-135 turrets falling through them.
+3. T-120 Elevators (jitter, VO timing, thumps); T-135 turrets through the exit elevator is BLOCKED (needs owner reference).
 4. T-133 intro7 Wheatley floats after the wall panel; panel vanishes.
 5. T-134 sp_a1_wakeup pod: the player doesn't turn with the floor; T-163 hatch.
 6. T-136 sp_a1_wakeup end: a portal in the tube before the drop.
@@ -85,8 +85,28 @@ Then the Backlog (prove and sweep the campaign).
   ride (section 4); the trash rising with the elevator is buggy; one ride
   reached the bottom before the next map loaded.
 
-### T-135 Turrets fall through the exit elevator  (P2, TODO)
+### T-135 Turrets fall through the exit elevator  (P2, BLOCKED: needs owner)
 - Sections 5 (sp_a2_intro) and 6 (sp_a2_laser_intro).
+- 2026-10-20 autorun (HEAD abc5618), cause not confirmed. The turrets are
+  `departure_elevator-vacturret_01..04` (prop_dynamic,
+  models/props_vac_anim/turret_lowres.mdl, origin = the elevator axis
+  -736,1600,-10672 in sp_a2_intro). `@start_elevator_animation_rl` (trigger_once
+  at -368,832) sends SetAnimation + SetDefaultAnimation `elevator_0N` (delays
+  0.3/0.8/2.7/3). Decoded root-bone track of elevator_01: z +355 -> -87 (0.82 s)
+  -> -510 (1.63 s), x/y within +-22, so the model's own data drops the turret
+  straight down the shaft from -10317 to -11182, through the waiting car
+  (bounds z -10958..-10731; the car sits at path_0 until startmoving()).
+  AE 1100 `fireuser1` at cycle 0.459 (1.5 s, already below the car) ->
+  OnUser1 -> `tube_object_kill` (kills !activator, only enabled by the
+  trigger_once at -736,1104 via `blocked_elevator_tube_anim`). Engine already
+  handles SetDefaultAnimation (re-loops the fall) and event 1100.
+  Autopilot shots from the corridor/shaft were inconclusive (player placement
+  fell into the shaft). Open question for the reference: does Windows Portal 2
+  show these turrets dropping past/through the car (then only the looping
+  after the kill relay matters), or is the root-bone position meant to be in
+  another frame (e.g. a horizontal vac tube above the car)? Needs an owner
+  screenshot/clip of this moment in Windows Portal 2 (or depot 624 RE of
+  prop_dynamic root-motion handling). No fix attempt branch.
 
 ### T-133 sp_a1_intro7: Wheatley floats after the wall panel moves; the panel disappears  (P2, TODO)
 - Playtests 5 and 8. He should fall to the floor; the moving wall vanishes

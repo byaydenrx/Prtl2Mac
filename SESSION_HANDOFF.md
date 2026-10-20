@@ -21,13 +21,16 @@ reads it first (via `sh scripts/resume.sh`).
   T-132 fizzler field drawn (99392c0, autopilot only, intro2 exit; startdisabled
   cleansers still unmeshed, see its entry).
   T-114 intro1 announcer now ducks under Wheatley (ambient_generic Volume
-  input, 463757d, autopilot only).
+  input, 463757d, autopilot only). T-135 investigated 2026-10-20, not
+  confirmed, BLOCKED (no code change).
   dist/Prtl2Mac.app = 0.1.0+463757d.20261020T1017Z.
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-120 Elevators (jitter, VO timing, thumps) and T-135 turrets falling
-   through them (top open P2).
+1. T-120 Elevators (jitter, VO timing, thumps) (top open P2).
+   T-135 (vac-tube turrets through the exit elevator) is BLOCKED: the model's
+   own elevator_0N animation drops them down the shaft through the car;
+   needs a Windows Portal 2 reference of that moment (see its entry).
 2. T-131 (intro3 floors/roofs) is BLOCKED: not reproduced by autopilot;
    needs owner screenshots plus console `getpos`.
 
