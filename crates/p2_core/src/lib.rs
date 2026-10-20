@@ -469,6 +469,26 @@ pub const fn player_ghost_layer(kind: PortalKind) -> usize {
     }
 }
 
+/// One running screen shake (`env_shake`), started by p2_game and applied
+/// to the main camera by p2_view. Amplitude is already scaled for the
+/// player's distance from the shake, in Source units (inches).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ScreenShake {
+    /// The map entity that started it (its Amplitude/Frequency/StopShake
+    /// inputs change this shake), if any.
+    pub source: Option<usize>,
+    /// Game seconds it started and ends.
+    pub start: f32,
+    pub end: f32,
+    pub amplitude: f32,
+    /// Shakes per second.
+    pub frequency: f32,
+}
+
+/// Every running screen shake.
+#[derive(Resource, Clone, Debug, Default)]
+pub struct ScreenShakes(pub Vec<ScreenShake>);
+
 /// How the local player is being viewed this frame, which decides where its
 /// body and ghosts are drawn (player-in-portals.md §2-3). Written by `p2_view`
 /// in `P2Systems::View`, read by `p2_render`.
@@ -578,6 +598,7 @@ impl Plugin for CorePlugin {
             .init_resource::<PortalGel>()
             .init_resource::<PlacementHelpers>()
             .init_resource::<LocalEye>()
+            .init_resource::<ScreenShakes>()
             .add_message::<FirePortal>()
             .add_message::<GunFired>()
             .add_message::<PortalPlaced>()

@@ -43,6 +43,7 @@ mod props;
 mod saves;
 mod scenes;
 mod settings;
+mod shakes;
 mod shooter;
 mod speedrun;
 mod splits;
@@ -119,7 +120,7 @@ fn main() {
             captions::CaptionsPlugin,
         ))
         .add_plugins(bindings::BindingsPlugin)
-        .add_plugins((tanks::TanksPlugin, sprites::SpritesPlugin, rotators::RotatorsPlugin, shooter::ShooterPlugin))
+        .add_plugins((tanks::TanksPlugin, sprites::SpritesPlugin, rotators::RotatorsPlugin, shooter::ShooterPlugin, shakes::ShakesPlugin))
         .add_plugins((
             templates::TemplatesPlugin,
             health::HealthPlugin,

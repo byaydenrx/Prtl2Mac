@@ -13,7 +13,7 @@
 use bevy::camera::visibility::RenderLayers;
 use bevy::camera::Hdr;
 use bevy::prelude::*;
-use p2_core::{Crouch, InterpolatedFeet, MainCamera, P2Systems, Player, ViewAngles};
+use p2_core::{Crouch, InterpolatedFeet, MainCamera, P2Systems, Player, ScreenShake, ScreenShakes, ViewAngles};
 
 pub mod crosshair;
 pub mod viewmodel;
@@ -203,8 +203,29 @@ fn punch_on_fire(
     }
 }
 
+/// One screen shake's view offset at game time `now`: (position offset in
+/// Source units, view-space x/y/z; roll in degrees). A new random direction
+/// is picked `frequency` times a second (`seed` from that slot); it swings
+/// along it at the frequency, slowing and fading (squared) as the shake ends.
+pub fn shake_offset(s: &ScreenShake, now: f32) -> (Vec3, f32) {
+    let length = (s.end - s.start).max(1e-3);
+    let left = s.end - now;
+    if left <= 0.0 || now < s.start {
+        return (Vec3::ZERO, 0.0);
+    }
+    let fraction = left / length;
+    let slot = ((now - s.start) * s.frequency.max(0.0)) as u32;
+    let mut seed = 0x9e37_79b9u32 ^ slot.wrapping_mul(0x85eb_ca6b) ^ (s.start.to_bits());
+    seed |= 1;
+    let mut r = || 2.0 * rand01(&mut seed) - 1.0;
+    let dir = Vec3::new(r(), r(), r()) * s.amplitude;
+    let roll = r() * s.amplitude * 0.25;
+    let swing = (now * s.frequency * fraction).sin() * fraction * fraction;
+    (dir * swing, roll * swing)
+}
+
 /// Places the main camera and the viewmodel camera at the eye, eases roll and
-/// applies the view punch (main camera only).
+/// applies the view punch and screen shakes (main camera only).
 fn update_view(
     time: Res<Time>,
     fixed: Res<Time<Fixed>>,
@@ -213,6 +234,7 @@ fn update_view(
     portals: Query<(&Transform, &p2_core::Portal, &p2_core::PortalLink), (Without<MainCamera>, Without<ViewModelCamera>)>,
     exits: Query<&Transform, (With<p2_core::Portal>, Without<MainCamera>, Without<ViewModelCamera>)>,
     mut local_eye: ResMut<p2_core::LocalEye>,
+    shakes: Option<Res<ScreenShakes>>,
 ) {
     let Some((feet, mut angles, crouch, punch)) = players.iter_mut().next() else {
         return;
@@ -245,8 +267,19 @@ fn update_view(
     if *local_eye != want {
         *local_eye = want;
     }
+    let (mut shake, mut shake_roll) = (Vec3::ZERO, 0.0);
+    for s in shakes.iter().flat_map(|s| s.0.iter()) {
+        let (o, r) = shake_offset(s, time.elapsed_secs());
+        shake += o;
+        shake_roll += r;
+    }
+    if shake != Vec3::ZERO {
+        trace!("p2_view: shake offset {shake:.2?} u, roll {shake_roll:.2} deg");
+    }
+    let mut main_eye = world_eye.with_rotation(world_eye.rotation * punch_rot * Quat::from_rotation_z(shake_roll.to_radians()));
+    main_eye.translation += world_eye.rotation * shake * 0.0254; // inches to metres
     for (mut t, is_main) in &mut cams {
-        *t = if is_main { world_eye.with_rotation(world_eye.rotation * punch_rot) } else { eye };
+        *t = if is_main { main_eye } else { eye };
     }
 }
 
@@ -276,6 +309,17 @@ mod tests {
         }
         assert!(peak > 0.5 && peak < 2.0, "peak {peak}");
         assert!(p.angle.length() < 0.05, "settled {:?}", p.angle);
+    }
+
+    #[test]
+    fn shake_fades_out() {
+        let s = ScreenShake { source: None, start: 1.0, end: 2.0, amplitude: 4.0, frequency: 2.5 };
+        let peak = (0..100).map(|i| shake_offset(&s, 1.0 + i as f32 * 0.01).0.length()).fold(0.0f32, f32::max);
+        assert!(peak > 0.5 && peak <= 4.0 * 3f32.sqrt(), "peak {peak}");
+        assert_eq!(shake_offset(&s, 2.0).0, Vec3::ZERO);
+        assert_eq!(shake_offset(&s, 0.5).0, Vec3::ZERO);
+        let late = (90..100).map(|i| shake_offset(&s, 1.0 + i as f32 * 0.01).0.length()).fold(0.0f32, f32::max);
+        assert!(late < 0.1, "late {late}");
     }
 
     #[test]
