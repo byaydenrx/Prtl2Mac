@@ -515,7 +515,7 @@ fn level_exit(
             match campaign.next_map(&map.info.name) {
                 Some(next) => {
                     info!("portal2: leaving {} for {next}", map.info.name);
-                    *pending = Some((time.elapsed_secs() + 3.5, next.to_string()));
+                    *pending = Some((exit_load_at(&fade, time.elapsed_secs()), next.to_string()));
                     if !fade.active {
                         *fade = ScreenFade { color: Vec4::new(0.0, 0.0, 0.0, 1.0), start: time.elapsed_secs() + 2.0, duration: 1.5, hold: 10.0, out: true, active: true, stay: true };
                     }
@@ -530,6 +530,18 @@ fn level_exit(
             load.write(LoadLevel { map: next, menu: false });
             *fade = ScreenFade { color: Vec4::new(0.0, 0.0, 0.0, 1.0), start: time.elapsed_secs(), duration: 1.0, hold: 0.0, out: false, active: true, stay: false };
         }
+    }
+}
+
+/// When to load the next map after a level exit at `now`. A map that has
+/// already faded the screen out to opaque and holds it (sp_a1_wakeup's
+/// `exit_fade`, 0.3 s) changes level as soon as that fade is black, as
+/// Source does; otherwise our own 2 s wait and 1.5 s fade run first.
+fn exit_load_at(fade: &ScreenFade, now: f32) -> f32 {
+    if fade.active && fade.out && fade.stay && fade.color.w >= 0.99 {
+        (fade.start + fade.duration).max(now) + 0.1
+    } else {
+        now + 3.5
     }
 }
 
@@ -606,5 +618,21 @@ fn draw_fade(mut commands: Commands, time: Res<Time>, mut fade: ResMut<ScreenFad
                 bevy::picking::Pickable::IGNORE,
             ));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn level_exit_after_map_fade_loads_once_black() {
+        let black = ScreenFade { color: Vec4::new(0.0, 0.0, 0.0, 1.0), start: 10.0, duration: 0.3, hold: 0.0, out: true, active: true, stay: true };
+        assert!((exit_load_at(&black, 10.0) - 10.4).abs() < 1e-4);
+        assert!((exit_load_at(&black, 12.0) - 12.1).abs() < 1e-4);
+        // No fade of the map's own (or one that does not stay black): our 3.5 s exit.
+        assert_eq!(exit_load_at(&ScreenFade::default(), 5.0), 8.5);
+        assert_eq!(exit_load_at(&ScreenFade { stay: false, ..black }, 10.0), 13.5);
+        assert_eq!(exit_load_at(&ScreenFade { color: Vec4::new(0.0, 0.0, 0.0, 0.5), ..black }, 10.0), 13.5);
     }
 }
