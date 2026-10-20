@@ -405,10 +405,12 @@ pub fn rows(page: OptionsPage, s: &Settings, ctx: &Ctx) -> Vec<Row> {
 fn list_rows() -> Vec<Row> {
     let link = |label: &str, page| Row::Link { label: label.into(), page };
     vec![
-        link("KEYBOARD / MOUSE", OptionsPage::KeyboardMouse),
-        link("CONTROLLER", OptionsPage::Controller),
+        // options.res (PC): Audio, Video, Keyboard/Mouse, Controller; our
+        // own pages follow.
         link("AUDIO", OptionsPage::Audio),
         link("VIDEO", OptionsPage::Video),
+        link("KEYBOARD / MOUSE", OptionsPage::KeyboardMouse),
+        link("CONTROLLER", OptionsPage::Controller),
         link("SPEEDRUN", OptionsPage::Speedrun),
         link("MODS", OptionsPage::Mods),
     ]

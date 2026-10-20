@@ -82,7 +82,7 @@ pub enum Screen {
 
 /// The flyouts beside the main and pause menu items.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Flyout {
+pub(crate) enum Flyout {
     SinglePlayer,
     Options,
 }
@@ -103,8 +103,8 @@ enum Confirm {
 
 /// Where the menus are within a screen.
 #[derive(Resource, Default)]
-struct MenuState {
-    flyout: Option<Flyout>,
+pub(crate) struct MenuState {
+    pub(crate) flyout: Option<Flyout>,
     confirm: Option<Confirm>,
     /// Load Game / Save Game, and the saves it lists (newest first).
     saves: Option<SavesDialog>,
@@ -629,6 +629,20 @@ fn tiled_dialog(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&Menu
             }
         }
     });
+}
+
+/// Options as options.res lays it out: a tiled dialog in place of the menu
+/// column (body 5 x 3 tiles for Portal 2's four rows; taller when our own
+/// pages follow them), one DefaultButton row per page.
+fn options_dialog(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, pages: &[(&str, Action)]) {
+    let rows: Vec<(&str, Option<Action>)> = pages.iter().map(|(l, a)| (*l, Some(*a))).collect();
+    tiled_dialog(p, fonts, art, "Options", 5, dialog_tall(rows.len()), &rows);
+}
+
+/// Body tiles (50 units) for `rows` DefaultButton rows every 25 units from
+/// 25, at least options.res's 3.
+fn dialog_tall(rows: usize) -> usize {
+    (((rows + 1) * 25).div_ceil(50)).max(3)
 }
 
 /// The tiles of a Portal 2 dialog ([`tiled_dialog`]): `content` is laid out
@@ -1207,6 +1221,8 @@ fn rebuild_menu(
                         ("Developer Commentary", None),
                     ];
                     tiled_dialog(p, &fonts, art.as_deref(), "Single Player", 5, 4, &rows);
+                } else if menu.flyout == Some(Flyout::Options) {
+                    options_dialog(p, &fonts, art.as_deref(), &options_flyout);
                 } else {
                     item_list(p, &fonts, &MAIN_ITEMS, menu.flyout, &options_flyout);
                 }
@@ -1215,6 +1231,10 @@ fn rebuild_menu(
         Screen::Pause => {
             let mut root = commands.spawn(layer(10));
             root.with_children(|p| {
+                if menu.flyout == Some(Flyout::Options) {
+                    options_dialog(p, &fonts, art.as_deref(), &options_flyout);
+                    return;
+                }
                 item_list(
                     p,
                     &fonts,
@@ -1454,6 +1474,8 @@ fn close_page(screen: &mut Screen, menu: &mut MenuState, scroll: &mut MenuScroll
         _ => {
             menu.page = OptionsPage::List;
             menu.undo.clear();
+            // Back to the Options dialog the page was opened from.
+            menu.flyout = Some(Flyout::Options);
             *screen = match *screen {
                 Screen::Options { from_pause: true } => Screen::Pause,
                 _ => Screen::Main,
@@ -1715,7 +1737,7 @@ fn buttons(
                     menu.flyout = Some(Flyout::SinglePlayer);
                 }
             }
-            Action::Back if matches!(*screen, Screen::Main) && menu.flyout.is_some() => menu.flyout = None,
+            Action::Back if matches!(*screen, Screen::Main | Screen::Pause) && menu.flyout.is_some() => menu.flyout = None,
             Action::Back | Action::Done if matches!(*screen, Screen::Options { .. }) => close_page(&mut screen, &mut menu, &mut scroll, &mut settings, true),
             Action::Cancel => close_page(&mut screen, &mut menu, &mut scroll, &mut settings, false),
             Action::Back | Action::Done => *screen = Screen::Main,
@@ -2140,6 +2162,18 @@ fn title_card(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn options_dialog_fits_its_rows() {
+        // options.res: four rows in a 3-tile body; Speedrun and Mods make 6.
+        assert_eq!(dialog_tall(4), 3);
+        assert_eq!(dialog_tall(5), 3);
+        assert_eq!(dialog_tall(6), 4);
+        // Every row (25 units from 25, 25 tall, centred) stays in the body.
+        for n in 1..10 {
+            assert!(25.0 * n as f32 + 12.5 <= 50.0 * dialog_tall(n) as f32, "{n}");
+        }
+    }
 
     #[test]
     fn save_game_lists_only_named_saves() {

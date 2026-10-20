@@ -232,8 +232,9 @@ fn options_pages_work() {
     click(&mut app, "Done");
     let t = app.world().resource::<Settings>().tools.clone();
     assert!(t.dev_console && t.show_fps && t.show_pos);
+    // Leaving a page goes back to the Options dialog (options.res).
+    assert_eq!(app.world().resource::<crate::ui::MenuState>().flyout, Some(crate::ui::Flyout::Options));
     // Speedrun, by its old click name.
-    click(&mut app, "Options");
     click(&mut app, "SpeedrunOptions");
     click(&mut app, "Toggle(SpeedrunTimer)");
     click(&mut app, "Adjust(SpeedrunMode,1.0)");
@@ -253,13 +254,11 @@ fn options_pages_work() {
     assert!(cfg.contains("speedrun_timer 1") && cfg.contains("quick_restart_key F7") && cfg.contains("con_enable 1"), "{cfg}");
     assert_eq!(screen(&app), crate::ui::Screen::Main);
     // CANCEL puts a page back as it was.
-    click(&mut app, "Options");
     click(&mut app, "Page(Speedrun)");
     click(&mut app, "Toggle(SpeedrunTimer)");
     click(&mut app, "Cancel");
     assert!(app.world().resource::<Settings>().tools.speedrun_timer);
     // The Mods page with no mod folder, and back.
-    click(&mut app, "Options");
     click(&mut app, "ModsOptions");
     assert!(matches!(screen(&app), crate::ui::Screen::Options { .. }));
     assert!(!root.join("data/mods").exists());
@@ -270,6 +269,7 @@ fn options_pages_work() {
     std::fs::create_dir_all(root.join("data/maps")).unwrap();
     std::fs::write(root.join("data/maps/my_map.bsp"), b"VBSP").unwrap();
     app.world_mut().resource_mut::<crate::community::CommunityMaps>().folders = vec![root.join("data/maps")];
+    click(&mut app, "Back");
     click(&mut app, "SinglePlayer");
     click(&mut app, "Chapters");
     assert_eq!(screen(&app), crate::ui::Screen::Chapters);
