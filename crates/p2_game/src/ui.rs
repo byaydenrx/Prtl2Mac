@@ -56,7 +56,7 @@ impl Plugin for UiPlugin {
             .add_systems(
                 Update,
                 (
-                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, carry_hover, hover_rows, menu_movie).chain(),
+                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, carry_hover, hover_rows, describe_rows, menu_movie).chain(),
                     (menu_view, menu_camera, pause_world, menu_music, title_card).chain(),
                 )
                     .chain()
@@ -332,6 +332,8 @@ const MAIN_ITEMS: [(&str, Action, Option<Flyout>); 6] = [
 /// weight 700 (drawn here with the Bold Cn face).
 const TITLE_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(33.0 / 1.265 * 100.0 / 480.0);
 const DIALOG_ITEM_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(18.0 / 1.265 * 100.0 / 480.0);
+const DESC_TITLE_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(24.0 / 1.265 * 100.0 / 480.0);
+const DESC_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(17.0 / 1.265 * 100.0 / 480.0);
 /// The ◀ ▶ on a hovered tiled-dialog row (MarlettLarge in Portal 2).
 const TILE_ARROW_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(10.0 * 100.0 / 480.0);
 
@@ -765,7 +767,7 @@ fn tile_option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row, y: 
     };
     match row {
         Row::Choice { label: l, value, setting } => {
-            p.spawn((hover_row(), OnTiles)).insert(node.clone()).with_children(|r| {
+            p.spawn((hover_row(), OnTiles, RowHelp { label: l.clone(), setting: *setting })).insert(node.clone()).with_children(|r| {
                 label(r, l);
                 arrow(r, true, Action::Adjust(*setting, -1.0));
                 r.spawn((
@@ -781,7 +783,7 @@ fn tile_option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row, y: 
             });
         }
         Row::Slider { label: l, fraction, setting, .. } => {
-            p.spawn((hover_row(), OnTiles)).insert(node.clone()).with_children(|r| {
+            p.spawn((hover_row(), OnTiles, RowHelp { label: l.clone(), setting: *setting })).insert(node.clone()).with_children(|r| {
                 label(r, l);
                 arrow(r, true, Action::Adjust(*setting, -1.0));
                 r.spawn((
@@ -806,6 +808,51 @@ fn tile_option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row, y: 
         }
         // audio.res has no headings, notes or key rows.
         _ => {}
+    }
+}
+
+/// A tiled Settings row's label and setting, for the description pane.
+#[derive(Component)]
+struct RowHelp {
+    label: String,
+    setting: Setting,
+}
+
+/// advancedvideo.res LblDescriptionTitle / LblDescription.
+#[derive(Component)]
+struct DescTitle;
+#[derive(Component)]
+struct DescText;
+
+/// The Advanced Video description pane (advancedvideo.res, WIN32WIDE):
+/// LblDescriptionTitle at 360,25, 180 x 25, VideoSettingsDescriptionTitle
+/// (UniversLTStd-BoldCn tall 24); LblDescription at 360,60, 180 x 180,
+/// wrapped, VideoSettingsDescription (LightCn tall 17 weight 700 on HiDef,
+/// drawn with the Cn face); both black. Filled by [`describe_rows`].
+/// Starts on `first` (Portal 2 focuses the first row when the dialog opens).
+fn description_pane(p: &mut ChildSpawnerCommands, fonts: &UiFonts, first: Option<&Row>) {
+    let (label, desc) = match first {
+        Some(Row::Choice { label, setting, .. } | Row::Slider { label, setting, .. }) => (label.clone(), options::describe(*setting)),
+        _ => (String::new(), ""),
+    };
+    let at = |y: f32, tall: f32| Node { position_type: PositionType::Absolute, left: units(360.0), top: units(y), width: units(180.0), height: units(tall), ..default() };
+    p.spawn((at(25.0, 25.0), children![(DescTitle, Text::new(label), TextFont { font: (&fonts.title).into(), font_size: DESC_TITLE_FONT, ..default() }, TextColor(Color::BLACK))]));
+    p.spawn((at(60.0, 180.0), children![(DescText, Text::new(desc), TextFont { font: (&fonts.menu).into(), font_size: DESC_FONT, ..default() }, TextColor(Color::BLACK))]));
+}
+
+/// Show the hovered row's label and description in the pane; the last one
+/// stays when the cursor leaves (Portal 2 describes the focused row).
+fn describe_rows(
+    rows: Query<(&HoverRow, &RowHelp), Changed<HoverRow>>,
+    mut title: Query<&mut Text, (With<DescTitle>, Without<DescText>)>,
+    mut text: Query<&mut Text, (With<DescText>, Without<DescTitle>)>,
+) {
+    let Some((_, help)) = rows.iter().find(|(r, _)| r.hot) else { return };
+    for mut t in &mut title {
+        t.0 = help.label.clone();
+    }
+    for mut t in &mut text {
+        t.0 = options::describe(help.setting).to_string();
     }
 }
 
@@ -1479,17 +1526,29 @@ fn rebuild_menu(
             // Captioning, Language; our Subtitle style follows).
             // video.res: 7 x 4, rows every 25 from 25 (Brightness, Aspect
             // Ratio, Resolution, Display Mode, Advanced as a DefaultButton).
+            // advancedvideo.res (WIN32WIDE): 11 x 5, rows 350 wide every
+            // 25 from 25, a description pane at x 360. Its 8 rows plus our
+            // 6 need 14: packed from 0 like Audio on a 7-tile body.
             let tiled = match page {
                 OptionsPage::Audio => Some((7, 5, 0.0)),
                 OptionsPage::Video => Some((7, 4, 25.0)),
+                OptionsPage::AdvancedVideo => Some((11, 7, 0.0)),
                 _ => None,
             };
             if let Some((wide, tall, y0)) = tiled {
                 let foot: Vec<(&str, Action)> = page.footer().iter().map(|&k| (k.label(), k.into())).collect();
+                let described = page == OptionsPage::AdvancedVideo;
                 commands.spawn(layer(10)).with_children(|p| {
                     tile_frame(p, &fonts, art.as_deref(), page.title(), wide, tall, &foot, |d| {
-                        for (i, r) in rows.iter().enumerate() {
-                            tile_option_row(d, &fonts, r, y0 + 25.0 * i as f32);
+                        let width = if described { units(350.0) } else { Val::Percent(100.0) };
+                        d.spawn(Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: Val::Px(0.0), width, height: Val::Percent(100.0), ..default() })
+                            .with_children(|c| {
+                                for (i, r) in rows.iter().enumerate() {
+                                    tile_option_row(c, &fonts, r, y0 + 25.0 * i as f32);
+                                }
+                            });
+                        if described {
+                            description_pane(d, &fonts, rows.first());
                         }
                     });
                 });

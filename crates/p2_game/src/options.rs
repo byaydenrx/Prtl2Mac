@@ -552,15 +552,18 @@ fn video_rows(s: &Settings, ctx: &Ctx) -> Vec<Row> {
 
 fn advanced_video_rows(s: &Settings) -> Vec<Row> {
     let frame_limit = if s.frame_limit == 0 { "Unlimited".into() } else { format!("{} FPS", s.frame_limit) };
+    // advancedvideo.res order: DrpAntialias, DrpFiltering, DrpVSync,
+    // DrpQueuedMode (our multicore rendering), DrpShaderDetail, DrpCPUDetail
+    // (effect detail), DrpModelDetail, DrpPagedPoolMem; ours follow.
     vec![
-        choice("Model / texture detail", level(s.model_detail), Setting::ModelDetail),
-        choice("Effect detail", level(s.effect_detail), Setting::EffectDetail),
-        choice("Shader detail", level(s.shader_detail), Setting::ShaderDetail),
-        choice("Paged pool memory available", level(s.paged_pool), Setting::PagedPool),
-        choice("Multicore rendering", on_off(s.multicore), Setting::Multicore),
         choice("Anti-aliasing mode", if s.msaa { "4x MSAA" } else { "None" }, Setting::AntiAliasing),
         choice("Filtering mode", filtering_label(s), Setting::Filtering),
         choice("Wait for vertical sync", on_off(s.vsync), Setting::VSync),
+        choice("Multicore rendering", on_off(s.multicore), Setting::Multicore),
+        choice("Shader detail", level(s.shader_detail), Setting::ShaderDetail),
+        choice("Effect detail", level(s.effect_detail), Setting::EffectDetail),
+        choice("Model / texture detail", level(s.model_detail), Setting::ModelDetail),
+        choice("Paged pool memory available", level(s.paged_pool), Setting::PagedPool),
         choice("Motion blur", on_off(s.motion_blur), Setting::MotionBlur),
         slider(s, "Field of view", Setting::Fov),
         choice("Max frame rate", frame_limit, Setting::FrameLimit),
@@ -568,6 +571,28 @@ fn advanced_video_rows(s: &Settings) -> Vec<Row> {
         choice("Show frame rate", on_off(s.tools.show_fps), Setting::ShowFps),
         choice("Show movement stats", on_off(s.tools.show_pos), Setting::ShowPos),
     ]
+}
+
+/// The Advanced Video description pane's text (advancedvideo.res
+/// LblDescription) for the hovered row; empty for settings without one.
+pub fn describe(setting: Setting) -> &'static str {
+    match setting {
+        Setting::AntiAliasing => "Smooths the jagged edges of geometry. Costs frame rate at high resolutions.",
+        Setting::Filtering => "How textures are sampled at a distance and at steep angles. Anisotropic keeps floors and walls sharp.",
+        Setting::VSync => "Waits for the display's refresh before showing a frame. Removes tearing; can add input latency.",
+        Setting::Multicore => "Spreads rendering work over several CPU cores.",
+        Setting::ShaderDetail => "The quality of surface shading: reflections, bump maps and lighting detail.",
+        Setting::EffectDetail => "The amount of detail in particles and other effects.",
+        Setting::ModelDetail => "The detail of models and the resolution of textures.",
+        Setting::PagedPool => "How much memory the game may keep loaded. Lower it if the system runs short of memory.",
+        Setting::MotionBlur => "Blurs the view when turning quickly.",
+        Setting::Fov => "How wide the view is, in degrees. Portal 2's default is 75.",
+        Setting::FrameLimit => "Caps the frame rate to save power and heat.",
+        Setting::Graphics => "Original matches Portal 2's look; Enhanced adds this port's lighting and shadow improvements.",
+        Setting::ShowFps => "Shows the frame rate in a corner of the screen.",
+        Setting::ShowPos => "Shows the player's position and speed.",
+        _ => "",
+    }
 }
 
 /// Step through `list` from `current`: clamped at the ends, or wrapping
@@ -781,6 +806,17 @@ mod tests {
             })
             .collect();
         assert_eq!(video, ["Brightness", "Aspect ratio", "Resolution", "Display mode", "Advanced video"], "video.res order");
+        let labels = |page| -> Vec<String> {
+            rows(page, &s, &c).into_iter().filter_map(|r| match r {
+                Row::Choice { label, .. } | Row::Slider { label, .. } => Some(label),
+                _ => None,
+            }).collect()
+        };
+        assert_eq!(
+            labels(OptionsPage::AdvancedVideo)[..8],
+            ["Anti-aliasing mode", "Filtering mode", "Wait for vertical sync", "Multicore rendering", "Shader detail", "Effect detail", "Model / texture detail", "Paged pool memory available"],
+            "advancedvideo.res order"
+        );
         assert_eq!(value(OptionsPage::AdvancedVideo, "Field of view").as_deref(), Some("75"));
         assert_eq!(value(OptionsPage::AdvancedVideo, "Max frame rate").as_deref(), Some("Unlimited"));
         assert_eq!(value(OptionsPage::KeyboardMouse, "Reverse mouse").as_deref(), Some("Disabled"));
