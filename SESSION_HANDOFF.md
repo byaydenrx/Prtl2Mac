@@ -16,12 +16,14 @@ reads it first (via `sh scripts/resume.sh`).
   playtest 8 (owner played chapter 1 to sp_a2_laser_stairs).
 - T-130 handrails fixed (grate models pass shots). T-129 fixed (movie screens mirrored; ring covered its exit). Owner replay
   pending, as for T-128. T-105 wall drop fixed (fd9c086, autopilot only).
-  dist/Prtl2Mac.app = 0.1.0+fd9c086.20261020T0938Z.
+  T-167 Wheatley re-pickup fixed (636fc3f, autopilot only, wakeup).
+  dist/Prtl2Mac.app = 0.1.0+636fc3f.20261020T0945Z.
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-167 (split from T-105): Wheatley re-pickup after a drop; held prop
-   around the camera at a wall. Then T-132 fizzler field.
+1. T-167 remainder: a held cube at a wall surrounds the camera (check
+   depot 624's grab controller for how Portal 2 keeps it in view). Then
+   T-132 fizzler field.
 2. T-131 (intro3 floors/roofs) is BLOCKED: the 2026-10-20 hourly run could
    not reproduce it with autopilot at any of the reported spots (details in
    its TASKS.md entry). Needs owner screenshots plus console `getpos`.

@@ -20,7 +20,7 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 
 ## Priority order (2026-10-20)
 P1:
-1. T-167 Wheatley re-pickup after a drop; a held prop at a wall surrounds the camera.
+1. T-167 A held prop at a wall surrounds the camera (re-pickup part fixed, awaiting replay).
 2. T-132 Fizzler field not drawn, maybe not working.
 3. T-131 sp_a1_intro3 floors and roofs missing (BLOCKED: not reproduced, needs owner screenshots).
 P2:
@@ -68,10 +68,10 @@ Then the Backlog (prove and sweep the campaign).
   screenshots with the console `getpos` (or the exact spot); "until the
   next gun use" hints at something tied to portal placement/rendering.
 
-### T-167 Wheatley re-pickup; held prop surrounds the camera at a wall  (P1, TODO)
+### T-167 Held prop surrounds the camera at a wall  (P1, TODO)
 - Split from T-105. Earlier report: once dropped or stuck, Wheatley can't be
-  picked up again (Portal 2 allows it). Verify drop and pick up in
-  sp_a1_intro7 and sp_a1_wakeup.
+  picked up again (Portal 2 allows it). FIXED 636fc3f (see Awaiting owner
+  replay); intro7 re-pickup not autopilot-checked yet.
 - Since fd9c086 a held prop comes toward the player at a wall instead of
   dropping, but with the eye ~16u from the wall a cube (half 25u) ends up
   around the camera: the view shows the inside ring of its face. Portal 2
@@ -231,6 +231,14 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+- T-167 (part) Wheatley can't be picked up again after a drop: cores were
+  pickable only after an EnablePickup input, which sp_a1_wakeup never sends
+  (he starts force-picked), so once dropped (or stuck-dropped) he was lost.
+  Cores now stay pickable until DisablePickup (intro7's map-spawn disable
+  still applies). wakeup: drop enabled via input, `use` drop, goto + lookat,
+  `use`: before (dist fd9c086) the ray hit him and he stayed on the floor
+  (z 401); after (636fc3f) he is held facing the player at z 441. Only
+  autopilot-checked, wakeup only.
 - T-105 Held props dropped when carried into a wall: the hold point went
   inside the wall, the prop stayed >64u from it and was dropped after 0.5 s.
   Now a ray from the eye pulls the hold point in front of static geometry

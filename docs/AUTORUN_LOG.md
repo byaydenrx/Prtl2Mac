@@ -17,3 +17,4 @@ UNFINISHED (stopped mid-task; the next run continues it).
 | 2026-10-20 05:10 | T-130 portal shots through handrails / cubes | PARTIAL: handrails fixed (grate models); cube case not reproduced | 0454ed8 | 0.1.0+0454ed8.20261020T0914Z |
 | 2026-10-20 ~05:30 | T-131 intro3 missing floors/roofs | NOT REPRODUCED: blocked on owner screenshots + `getpos` (see TASKS.md) | 1a5f58d | unchanged |
 | 2026-10-20 05:40 | T-105 held objects dropped at walls | PARTIAL: wall drop fixed (hold point pulled in front of walls); Wheatley re-pickup and camera overlap split to T-167 | fd9c086 | 0.1.0+fd9c086.20261020T0938Z |
+| 2026-10-20 05:47 | T-167 Wheatley re-pickup; held prop at a wall around the camera | PARTIAL: re-pickup fixed (cores pickable until DisablePickup; wakeup never sends EnablePickup); camera overlap still open | 636fc3f | 0.1.0+636fc3f.20261020T0945Z |
