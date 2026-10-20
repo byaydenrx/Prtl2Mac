@@ -24,32 +24,27 @@ P0:
 P1:
 2. (none; T-176 fixed 2bf3d20 and T-169 fixed a1cd026, awaiting owner replay.)
 P2:
-3. T-162 OWNER PRIORITY: the UI as close to Portal 2's as possible, one
-   screen per run until all match (done: main menu, SP dialog, New Game,
-   Load/Save Game, Options dialog, Audio, Video, Advanced Video,
-   Keyboard/Mouse, Controller, pause menu, HUD crosshair + chapter title;
-   left: subtitles, loading screens); T-162's entry lists done/left screens. Any new crash or
-   softlock still goes first.
-4. T-170 carrying regressed (pushed back at walls, can't push a cube up a wall).
-5. T-145 lit cubes turn black, spikes under buttons, cubes jitter on buttons.
-6. T-172 voice lines start late (stretches elevator rides; T-120's VO part).
-7. T-135 things fall through elevators (turrets, rubble).
-8. T-139 music not playing with ambience; soundscapes.
-9. T-112 GLaDOS chamber floor still murky brown (with T-151 water).
-10. T-144 clipboard should turn to face the player.
-11. T-149 intro5 screens/lights; sign big number check.
-12. T-147 intro2 black screen at the first door; T-113 hints vanish.
+   (T-162 UI styling: every screen done 2026-10-20, awaiting owner replay.)
+3. T-170 carrying regressed (pushed back at walls, can't push a cube up a wall).
+4. T-145 lit cubes turn black, spikes under buttons, cubes jitter on buttons.
+5. T-172 voice lines start late (stretches elevator rides; T-120's VO part).
+6. T-135 things fall through elevators (turrets, rubble).
+7. T-139 music not playing with ambience; soundscapes.
+8. T-112 GLaDOS chamber floor still murky brown (with T-151 water).
+9. T-144 clipboard should turn to face the player.
+10. T-149 intro5 screens/lights; sign big number check.
+11. T-147 intro2 black screen at the first door; T-113 hints vanish.
 P3:
-13. T-171 FPS drops looking at portals.
-14. T-148 portals behind glass drawn on top (reopened).
-15. T-117 shadows still blocky.
-16. T-152 lighting/texture quality.
-17. T-153 GLaDOS wake-up particles; T-173 gun hold beam and fizzler spark.
-18. T-140 game-placed portal shake/sound (reopened).
-19. T-174 elevator videos; T-175 intro1 ride outside fog/sky; T-164 debris
+12. T-171 FPS drops looking at portals.
+13. T-148 portals behind glass drawn on top (reopened).
+14. T-117 shadows still blocky.
+15. T-152 lighting/texture quality.
+16. T-153 GLaDOS wake-up particles; T-173 gun hold beam and fizzler spark.
+17. T-140 game-placed portal shake/sound (reopened).
+18. T-174 elevator videos; T-175 intro1 ride outside fog/sky; T-164 debris
     (try attempt/T-164); T-116 window (owner screenshots coming).
 P4:
-20. T-151 water (try attempt/T-151), T-150 particles, T-146 half-stuck door,
+19. T-151 water (try attempt/T-151), T-150 particles, T-146 half-stuck door,
     T-154 floating moss.
 Then the Backlog (prove and sweep the campaign).
 
@@ -122,266 +117,6 @@ Then the Backlog (prove and sweep the campaign).
   build cube ring stays blue on the pressed button, new build ring lit
   yellow; moved off the button, ring blue again. Not owner-verified.
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
-
-### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
-- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), Advanced Video (4ca377c), Keyboard/Mouse (9b0053b), Controller (903118b), pause menu (21f6353), HUD crosshair + chapter title (b417bba), instructor hints (9576999), subtitles (f475223), see below. Left: loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
-- Visual reference (owner, 2026-10-20): https://interfaceingame.com/games/portal-2/
-  has screenshots of the real Portal 2 UI: start screen, main menu, options,
-  video, keyboard/mouse, edit keys, extras, loading, chapter title, save
-  game, quit dialog, tutorial hints (create portal, pick up) and the test
-  chamber evaluation. Compare each screen against it (built-in browser
-  `get_page_text`/screenshots) alongside the install's .res files.
-- Panel/flyout transitions flip oddly; the Portal 2 logo is misaligned.
-- Cause: the logo and item column were placed by eye (logo 6%/9%, 34% wide;
-  items 6% left, 12% from the bottom, 2 px apart). Now from the install:
-  basemodui_scheme.res Logo.X/Y 75,35, 240x60 units; mainmenu.res items at
-  x 88, 20 tall every 30 units, last at y 378 (480-unit layout, Vh-scaled;
-  pause menu uses the same column). Also every menu change rebuilt the
-  buttons, which only learn they are hovered a frame later, so the clicked
-  item flashed unlit for a frame; carry_hover now keeps them lit.
-- Evidence: autopilot main menu + `click SinglePlayer` shots, before (dist
-  89f2bf5-era) vs after b39fff3; Quit row centre at 80.8% of the height as
-  the .res gives. The one-frame flash was found by reading the code, not
-  captured in a shot. Still open: Portal 2's panel fade/slide timings are
-  not implemented (no Windows reference of what the owner saw as "flip");
-  the main/pause font size was not checked against the scheme.
-- 2026-10-20 autorun, main menu DONE (e6e5e91, autopilot shots only, not
-  owner-checked). basemodui_scheme.res: MainMenuButton font MainMenuItem =
-  UniversLTStd-Cn tall 22 (PC), TextColor 120 120 120, FocusColor white,
-  CursorColor 255 255 255 15, TextInsetX 10. We used DIN Alternate Bold at
-  24 px in near-white. The real face ships as platform/vgui/fonts/
-  universc.vfont (CustomFontFiles); its encoding was worked out by known
-  plaintext (XOR, key = previous encoded byte + 0xA7; salt + "VFONT1"
-  trailer) and decode_vfont now loads it (unit test). univercb (Bold Cn)
-  and univercl (Light Cn) decode the same way for later screens. Item em =
-  22 / 1.265 units (vgui tall is the Windows cell, winAscent+winDescent).
-  The cursor bar's alpha is 3/255 because Bevy blends in linear light (15
-  gave grey 72 over 17; vgui's gamma blend gives ~31). The item whose
-  flyout is open stays lit. Evidence: before/after main menu and
-  `click SinglePlayer` shots (dist a1cd026 vs e6e5e91). Note: one harmless
-  "font size <= 0" warning on the first frame (Vh size before the window
-  has a size). Flyout itself (light grey box) is the next screen.
-- 2026-10-20 autorun, Single Player DONE (8737034, autopilot shots only,
-  not owner-checked). In Portal 2 SoloPlay opens singleplayer.res, a
-  CBaseModFrame dialog (dialogstyle 1), not a flyout: the menu column
-  hides, the dialog is pinned 100 units left / 75 from the bottom
-  (Dialog.PinFromLeft/PinFromBottom), body "wide 5 tall 4" in 50-unit
-  tiles (Dialog.TileWidth) under a one-tile title tab, drawn from
-  materials/vgui/menu_tiles/ui_tile_128_*; title DialogTitle (BoldCn 33,
-  black, offset 10,9), rows DefaultButton every 25 units from 25 (upper
-  case, black; HybridButton focus 240 on cursor 0 0 0 240; disabled 140
-  grey), Back below (FooterPanel.OffsetY 12). Measured against the
-  reference gallery's Co-op Mode shot (coopmode.res, same frame): every
-  position matched within a unit. Continue/Load are greyed without a save,
-  Developer Commentary is greyed (not built). Evidence: autopilot `click
-  SinglePlayer` shots, before (dist e6e5e91, grey flyout) vs after.
-  Not done: the 0.3 s Frame.TransitionEffectTime fade, keyboard focus
-  starting on the first row, the Options flyout (still grey).
-- 2026-10-20 autorun, New Game DONE (3ca8329, autopilot shots only, not
-  owner-checked). newgamedialog.res: tiled frame wide 9 tall 4 (shared
-  tile_frame() with Single Player); ChapterList GenericPanelList at 0,25,
-  200 x 150 (PC), newgame_chapteritem rows 25 tall, label inset 10, so 6
-  rows show and the list scrolls (mouse wheel, ScrollList); picked row on
-  the black cursor bar, locked chapters grey; ChapterImage 212,15 225 x 152
-  scaleImage (stretched); ChapterText (ChapterLabel) 212,170: chapter in
-  NewGameChapter (UniversLTStd-Cn 18) + name in NewGameChapterName (BoldCn
-  18). Guess: rows read "CHAPTER N" (the .res/scheme don't say what the
-  list label holds; the full name would overflow 200 units). Footer: Start
-  New Game, (Community Maps when there are any), Back. Evidence: autopilot
-  `click SinglePlayer; click NewGame` and `click SelectChapter(2)` shots,
-  before (dist 8737034: grey panel, full-name list) vs after. Not done: a
-  drawn scrollbar (ScrollBar.Wide 12, nob black), Back returns to the main
-  menu rather than the Single Player dialog, double-click to start, the
-  0.3 s fade; the Community tab keeps its old grid.
-- 2026-10-20 autorun, Load Game DONE (47757a0, autopilot shots only, not
-  owner-checked). Portal 2 uses saveloadgamedialog.res for both Load and
-  Save Game (loadgamedialog.res is an unused L4D leftover): same 9 x 4
-  tiled frame as New Game (tile_frame), SaveGameList at 0,25, 200 x 150,
-  savegameitem rows 25 tall, label inset 10, scrolling; SaveGameImage
-  212,15 225 x 152 stretched; AutoSaveLabel 210,9 223 wide, east aligned,
-  NewGameChapterName (BoldCn 18) white alpha 200 for auto/quick saves;
-  SaveGameInfo 212,170. First click picks a row, a second loads/saves;
-  footer Load Game (or Save Game) + Back; Load starts on the newest save,
-  Save on a New Save row; Back from the main menu returns to the Single
-  Player dialog. Guesses: rows show the save time (the .res doesn't say
-  what the label holds) and SaveGameInfo shows the chapter; the picture is
-  the chapter's (we save no screenshots). Evidence: autopilot `click
-  SinglePlayer; click LoadGame`, `click PickSave(Some(1))`, `click Back`
-  shots, before (dist 3ca8329: grey list panel) vs after. Not done: save
-  screenshots for the picture, Delete, the cloud icon, the 0.3 s fade.
-- 2026-10-20 autorun, Options dialog DONE (2a6921d, autopilot shots only,
-  not owner-checked). options.res (PC) is a tiled CBaseModFrame dialog
-  (dialogstyle 1, body 5 x 3), not a flyout: rows Audio, Video, Keyboard/
-  Mouse, Controller (DefaultButton every 25 units from 25), replacing the
-  menu column on both the main and pause menus. Our own Speedrun and Mods
-  pages follow as rows 5-6 (body grows to 4 tiles to hold them). Leaving a
-  page (Done/Cancel/Esc) returns to the dialog, Back/Esc closes it.
-  Evidence: autopilot `click Options` shots, before (dist 47757a0: grey
-  flyout box) vs after; `click Page(Audio); click Done` lands back on the
-  dialog; pause (`click pause; click Options; click Back`) in intro2.
-  Not done: the Settings panels themselves (next), the 0.3 s fade.
-- 2026-10-20 autorun, Audio DONE (802802d, autopilot shots only, not
-  owner-checked). audio.res is a tiled CBaseModFrame dialog, body 7 x 5
-  (tall 6 for localized audio), controls every 25 units from 0 (it packs
-  10 rows, so unlike Video/Keyboard it starts at 0): SldGameVolume,
-  SldMusicVolume (LeftDialogButton + SliderControl), DrpSpeakerConfiguration,
-  DrpSoundQuality, DrpPuzzlemakerSounds, DrpCaptioning, DrpCaptionLanguage,
-  DrpLanguage, voice, microphone (DialogListButton). We show ours in that
-  order packed from 0 (no sound quality/puzzlemaker/voice/mic rows: not
-  built) and our Subtitle style link last. Label at TextInsetX 10, value
-  or slider at the right edge (SliderControl.InsetX -10), DialogButton font
-  = UniversLTStd-LightCn tall 18 weight 700 on PC HiDef, drawn with the Cn
-  face (Light Cn + synthetic bold is close to Cn); black on the tiles;
-  SliderControl track 150 grey, fill black, no number; hovered row on the
-  HybridButton cursor bar (black 240, text 240, fill white). Footer Done/
-  Cancel under the frame. Evidence: autopilot `click Options; click
-  Page(Audio)` shots, before (dist 2a6921d: grey panel with % numbers) vs
-  after; `click Page(Subtitles); click Done` returns to Audio. The hover
-  bar colours were NOT autopilot-checked (autopilot has no mouse-move
-  command). Not done: the Subtitles sub-page (ours) keeps the old panel,
-  labels are ours, not the localized "#L4D360UI_AudioOptions_*" strings.
-- 2026-10-20 autorun, Video DONE (5d16315, autopilot shots only, not
-  owner-checked). video.res: tiled CBaseModFrame dialog, body 7 x 4,
-  controls every 25 units from 25: SldBrightness (hidden when windowed in
-  Portal 2), DrpAspectRatio, DrpResolution, DrpDisplayMode,
-  DrpPowerSavingsMode, DrpSplitScreenDirection, BtnAdvanced (DefaultButton,
-  ShowAdvanced). Ours in that order on the shared tile_frame/
-  tile_option_row (no power savings/split screen: not built); Brightness
-  kept in a window since ours works there; footer Apply/Done/Cancel (Apply
-  is ours) and the old "APPLY to use..." hint is gone. Unit test pins the
-  order. Evidence: autopilot `click Options; click Page(Video)` shots,
-  before (dist 802802d: grey panel, Resolution first, 40% number) vs after.
-  Labels not localized (the strings are not in the loose resource/*.txt;
-  probably in a VPK). Next: advancedvideo.res, body 11 x 5 (WIN32WIDE),
-  rows 350 wide every 25 from 25 (Antialias, Filtering, VSync, Queued
-  mode, Shader, CPU/effect, Model/texture, Paged pool) and a description
-  pane at x 360 (LblDescriptionTitle y 25, LblDescription y 60, 180 wide);
-  ours has 14 rows, so it needs a scroll or a taller body.
-- 2026-10-20 autorun, Advanced Video DONE (4ca377c, autopilot shots only,
-  not owner-checked). advancedvideo.res order now: Anti-aliasing,
-  Filtering, VSync, Multicore (= DrpQueuedMode), Shader, Effect (=
-  DrpCPUDetail), Model/texture, Paged pool (Portal 2 hides it on $OSX; kept
-  as on Windows), then ours: Motion blur, FOV, Max frame rate, Graphics,
-  Show frame rate, Show movement stats. Tiled frame 11 wide; 14 rows need
-  a 7-tile body packed from 0 (as Audio), rows 350 units wide; description
-  pane at 360: LblDescriptionTitle y 25 (VideoSettingsDescriptionTitle =
-  BoldCn 24) and LblDescription y 60, 180 x 180 wrapped
-  (VideoSettingsDescription = LightCn 17 w700, drawn Cn), black; filled from
-  the hovered row (describe_rows), starting on the first. Description texts
-  are our own (Valve's strings are not in the loose files). Unit test pins
-  the order. Evidence: autopilot `click Options; click Page(Video); click
-  Page(AdvancedVideo)` shots, before (dist 5d16315: grey panel) vs after.
-  Hover updating the pane NOT autopilot-checked (no mouse-move command).
-- 2026-10-20 autorun, Keyboard/Mouse DONE (9b0053b, autopilot shots only,
-  not owner-checked). keyboardmouse.res (!$OSX): tiled dialog, body 7 x 5,
-  rows every 25 from 25: BtnEditBindings (DefaultButton), DrpMouseYInvert,
-  SldMouseSensitivity, DrpRawMouse, DrpMouseAcceleration,
-  SldMouseAcceleration, DrpDeveloperConsole. Ours in that order (no
-  acceleration-amount slider: m_customaccel_exponent not built), our Mouse
-  Filter last. Labels are Portal 2's English strings, which ARE readable
-  with `ls --cat resource/basemodui_english.txt | iconv -f UTF-16` (also
-  gameui_english.txt): "EDIT KEYS/BUTTONS" (shown "Edit keys/buttons"),
-  "Reverse Mouse", "Mouse Sensitivity", "Raw Mouse Input", "Mouse
-  Acceleration", "Allow Developer Console"; title KEYBOARD/MOUSE
-  (L4D360UI_KeyboardMouse). Unit test pins the order. Evidence: autopilot
-  `click Options; click Page(KeyboardMouse)` shots, before (dist 4ca377c:
-  grey panel, Customize keyboard first, sensitivity number) vs after;
-  `click Page(Keys); click Done` opens the key list and returns. Not done:
-  the key list itself (Portal 2's keybindings dialog) keeps the old grey
-  panel; earlier pages' labels could now be localized from those files.
-  Next: controller.res.
-- 2026-10-20 autorun, Controller DONE (903118b, autopilot shots only, not
-  owner-checked). Portal 2's PC page is controlleroptions.res (controller.res
-  is an unused L4D leftover): tiled dialog body 7 x 5, rows every 25 from
-  25: DrpController, BtnEditButtons ("Button Layout"), BtnEditSticks
-  ("Stick Layout"), SldVertSens/SldHorizSens ("Vertical/Horizontal
-  Sensitivity"), DrpVerticalLookType/DrpHorizontalLookType (Normal/
-  Inverted), DrpVibration, SldAcceleration, BtnDefaults ("RESET TO
-  DEFAULTS"). Ours in that order with those labels: Controller, Look
-  Sensitivity (we have one joy_sensitivity, not pitch/yaw), Vertical Look
-  Type, Vibration; the rest are not built (note: no gamepad input reads
-  these settings yet). Title tabs got a 5-unit margin (title_tab_tiles):
-  CONTROLLER sat exactly on the 3-tile boundary and clipped its R; other
-  titles keep their tile counts (unit test). Evidence: autopilot `click
-  Options; click Page(Controller)` shots, before (dist 2bf3d20: grey panel,
-  "Game controller", "Reverse look", 1.0 number) vs after; `click Done`
-  returns to the Options dialog. Next: the pause menu (ingamemainmenu.res).
-- 2026-10-20 autorun, pause menu DONE (21f6353, autopilot shots only, not
-  owner-checked). ingamemainmenu.res is a tiled CBaseModFrame dialog
-  (dialogstyle 1), body 5 x 4, DefaultButton rows every 25 from 25; in
-  single player the visible rows are BtnReturnToGame, BtnSaveGame,
-  BtnLoadLastSave, BtnOptions, BtnExitToMainMenu ("RETURN TO GAME", "SAVE
-  GAME", "LOAD LAST SAVE", "OPTIONS", "EXIT TO MAIN MENU" from
-  basemodui_english.txt). Restart Level, Skip, Leaderboards, Rate map and
-  the puzzle maker rows only show in challenge/community/puzzle maker maps,
-  and Portal 2's pause menu has no Quit Game, so our old Load Game, Restart
-  Level and Quit Game items are gone (Load Last Save loads the newest save,
-  greyed without one; Load Game stays on the Single Player dialog).
-  No footer (Return to Game/Esc close it). Guess: the title tab is blank,
-  since neither the .res, the localization files nor client.dll strings give
-  the frame a title (no pause shot in the reference gallery); owner, say if
-  Portal 2 shows text there. Unit test pins the rows. Evidence: autopilot
-  intro2 `click pause`, `click Options; click Back` shots, before (dist
-  903118b: grey item column, 7 items) vs after (tiled dialog, Back returns
-  to it). Next: in-game HUD/crosshair, then instructor hints, subtitles,
-  loading screens.
-- 2026-10-20 autorun, HUD DONE (b417bba, autopilot shots only, not
-  owner-checked). hudlayout.res: in single player the only always-on HUD
-  is the crosshair (HUDQuickInfo/HudPortalCrosshair), already built from
-  the reverse-engineered layout (crosshair.rs: dots 10 px apart, brackets
-  6,10 px off centre, alpha 150; checked in an autopilot shot, unchanged).
-  The visible mismatch was the chapter title card: the maps'
-  @chapter_title_text / @chapter_subtitle_text game_texts (x -1, y .55 /
-  .6, effect 2 scan-out, fadein .06/char, fxtime .5 highlight from color2
-  205 to white, hold 5, fadeout .5) are drawn by client.dll's CHudMessage
-  in InGameChapterTitle (UniversLTStd-Cn 19) and InGameChapterSubtitle
-  (UniversLTStd-BoldCn 34) from basemodui_scheme.res, i.e. a small
-  "CHAPTER 2" above a big bold "THE COLD BOOT". Ours was a generic bold 54
-  px "Chapter 2" over a small regular name with a 1 s fade. Now as the game
-  (upper case, per-character scan-out, unit test). Evidence: autopilot
-  sp_a2_laser_intro shots, before (dist 21f6353) vs after. Not checked:
-  the scan-out mid-way in a shot (unit test only). Next: instructor hints
-  (hudlayout has none; instructor fonts InstructorTitle in
-  basemodui_scheme.res, scripts/instructor_*), then subtitles
-  (HudCloseCaption c-250, y 276, 500x136, BgAlpha 128, CloseCaption_*
-  fonts), loading screens.
-- 2026-10-20 autorun, instructor hints DONE (9576999, autopilot shots only,
-  not owner-checked). Reference: the gallery's "Pick Up" and "Create Blue
-  Portal" shots: the icon (key cap / mouse tile from
-  scripts/instructor_textures.txt) about 32 units square and a white
-  caption to its right, no background box. InstructorTitle =
-  UniversLTStd-BoldCn tall 18 (PC; Cn on $OSX), InstructorKeyBindings
-  BoldCn 12 for the key on the cap (basemodui_scheme.res). Ours had a
-  black 55% box, DIN bold 20 px, all hints stacked at 22% from the bottom.
-  Now: hint_static 0 floats over hint_target (+hint_icon_offset), kept on
-  screen; static hints centre under the crosshair at 2/3 of the height
-  (guess, measured from the Create Blue Portal shot), stacked. Also fixed:
-  the hint list was marked changed every frame (timeout retain), so the
-  rows were rebuilt every frame. Captions are the game's upper-case
-  strings (Valve_Hint_Look_Up "LOOK UP"). Unit test (hint_anchor).
-  Evidence: autopilot sp_a1_intro1 `input hint_press_to_crouch showhint;
-  input hint_press_to_use_bed showhint` shots, before (dist b417bba: boxed
-  rows at the bottom) vs after (LOOK UP under the crosshair, SLEEP on the
-  bed button at the screen edge; looking away it drops under the crosshair).
-  Not done: Portal 2's off-screen arrow (we clamp to the edge or fall back
-  under the crosshair), hint fade in/out, instructor_lessons.txt lessons
-  (game-driven hints like Pick Up / Create Blue Portal are not built).
-  Next: subtitles (hudlayout HudCloseCaption), then loading screens.
-- 2026-10-20 autorun, subtitles DONE (f475223, autopilot shots only, not
-  owner-checked). hudlayout.res HudCloseCaption: panel c-250, y 276,
-  500 x 136 units, BgAlpha 128. Ours was a box hugging the text at 8% from
-  the bottom, 60% max width, centred, in the generic regular font. Now a
-  500-unit box centred with its bottom at 412 units (68 from the bottom),
-  lines stacked up from the bottom, clipped at 136 tall, left-aligned (the
-  install's caption files never use <center>), 12-unit inset, 6-unit
-  rounded corners, CloseCaption_Normal = UniversLTStd-Cn tall 20 (= our
-  MEDIUM size; the size setting is now vgui tall units). Background default
-  128/255, converted to the linear-blend alpha that looks the same (0.78).
-  Unit test. Evidence: sp_a1_intro2 announcer line at 9 s, before (dist
-  9576999: centred, wide DIN-like text) vs after (box measured 585 px of a
-  1000x562 shot = 500 units). Not done: GrowTime 0.25 / item fade in 0.15
-  / fade out 0.3 animations; the inset and corner size are our estimate
-  (not in the .res). Next: loading screens.
 
 ### T-172 Voice lines start late  (P2, TODO)
 - Owner playtest 9: "sometimes voicelines activate late and when I'm going
@@ -750,6 +485,290 @@ Then the Backlog (prove and sweep the campaign).
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-162 Menu animations, logo alignment, styling  (P2, ALL SCREENS DONE 0bc1dd1, awaiting owner replay)
+- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), Advanced Video (4ca377c), Keyboard/Mouse (9b0053b), Controller (903118b), pause menu (21f6353), HUD crosshair + chapter title (b417bba), instructor hints (9576999), subtitles (f475223), loading screens (0bc1dd1), see below. Left: none (the 0.3 s dialog fades and other "Not done" notes below remain). Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Visual reference (owner, 2026-10-20): https://interfaceingame.com/games/portal-2/
+  has screenshots of the real Portal 2 UI: start screen, main menu, options,
+  video, keyboard/mouse, edit keys, extras, loading, chapter title, save
+  game, quit dialog, tutorial hints (create portal, pick up) and the test
+  chamber evaluation. Compare each screen against it (built-in browser
+  `get_page_text`/screenshots) alongside the install's .res files.
+- Panel/flyout transitions flip oddly; the Portal 2 logo is misaligned.
+- Cause: the logo and item column were placed by eye (logo 6%/9%, 34% wide;
+  items 6% left, 12% from the bottom, 2 px apart). Now from the install:
+  basemodui_scheme.res Logo.X/Y 75,35, 240x60 units; mainmenu.res items at
+  x 88, 20 tall every 30 units, last at y 378 (480-unit layout, Vh-scaled;
+  pause menu uses the same column). Also every menu change rebuilt the
+  buttons, which only learn they are hovered a frame later, so the clicked
+  item flashed unlit for a frame; carry_hover now keeps them lit.
+- Evidence: autopilot main menu + `click SinglePlayer` shots, before (dist
+  89f2bf5-era) vs after b39fff3; Quit row centre at 80.8% of the height as
+  the .res gives. The one-frame flash was found by reading the code, not
+  captured in a shot. Still open: Portal 2's panel fade/slide timings are
+  not implemented (no Windows reference of what the owner saw as "flip");
+  the main/pause font size was not checked against the scheme.
+- 2026-10-20 autorun, main menu DONE (e6e5e91, autopilot shots only, not
+  owner-checked). basemodui_scheme.res: MainMenuButton font MainMenuItem =
+  UniversLTStd-Cn tall 22 (PC), TextColor 120 120 120, FocusColor white,
+  CursorColor 255 255 255 15, TextInsetX 10. We used DIN Alternate Bold at
+  24 px in near-white. The real face ships as platform/vgui/fonts/
+  universc.vfont (CustomFontFiles); its encoding was worked out by known
+  plaintext (XOR, key = previous encoded byte + 0xA7; salt + "VFONT1"
+  trailer) and decode_vfont now loads it (unit test). univercb (Bold Cn)
+  and univercl (Light Cn) decode the same way for later screens. Item em =
+  22 / 1.265 units (vgui tall is the Windows cell, winAscent+winDescent).
+  The cursor bar's alpha is 3/255 because Bevy blends in linear light (15
+  gave grey 72 over 17; vgui's gamma blend gives ~31). The item whose
+  flyout is open stays lit. Evidence: before/after main menu and
+  `click SinglePlayer` shots (dist a1cd026 vs e6e5e91). Note: one harmless
+  "font size <= 0" warning on the first frame (Vh size before the window
+  has a size). Flyout itself (light grey box) is the next screen.
+- 2026-10-20 autorun, Single Player DONE (8737034, autopilot shots only,
+  not owner-checked). In Portal 2 SoloPlay opens singleplayer.res, a
+  CBaseModFrame dialog (dialogstyle 1), not a flyout: the menu column
+  hides, the dialog is pinned 100 units left / 75 from the bottom
+  (Dialog.PinFromLeft/PinFromBottom), body "wide 5 tall 4" in 50-unit
+  tiles (Dialog.TileWidth) under a one-tile title tab, drawn from
+  materials/vgui/menu_tiles/ui_tile_128_*; title DialogTitle (BoldCn 33,
+  black, offset 10,9), rows DefaultButton every 25 units from 25 (upper
+  case, black; HybridButton focus 240 on cursor 0 0 0 240; disabled 140
+  grey), Back below (FooterPanel.OffsetY 12). Measured against the
+  reference gallery's Co-op Mode shot (coopmode.res, same frame): every
+  position matched within a unit. Continue/Load are greyed without a save,
+  Developer Commentary is greyed (not built). Evidence: autopilot `click
+  SinglePlayer` shots, before (dist e6e5e91, grey flyout) vs after.
+  Not done: the 0.3 s Frame.TransitionEffectTime fade, keyboard focus
+  starting on the first row, the Options flyout (still grey).
+- 2026-10-20 autorun, New Game DONE (3ca8329, autopilot shots only, not
+  owner-checked). newgamedialog.res: tiled frame wide 9 tall 4 (shared
+  tile_frame() with Single Player); ChapterList GenericPanelList at 0,25,
+  200 x 150 (PC), newgame_chapteritem rows 25 tall, label inset 10, so 6
+  rows show and the list scrolls (mouse wheel, ScrollList); picked row on
+  the black cursor bar, locked chapters grey; ChapterImage 212,15 225 x 152
+  scaleImage (stretched); ChapterText (ChapterLabel) 212,170: chapter in
+  NewGameChapter (UniversLTStd-Cn 18) + name in NewGameChapterName (BoldCn
+  18). Guess: rows read "CHAPTER N" (the .res/scheme don't say what the
+  list label holds; the full name would overflow 200 units). Footer: Start
+  New Game, (Community Maps when there are any), Back. Evidence: autopilot
+  `click SinglePlayer; click NewGame` and `click SelectChapter(2)` shots,
+  before (dist 8737034: grey panel, full-name list) vs after. Not done: a
+  drawn scrollbar (ScrollBar.Wide 12, nob black), Back returns to the main
+  menu rather than the Single Player dialog, double-click to start, the
+  0.3 s fade; the Community tab keeps its old grid.
+- 2026-10-20 autorun, Load Game DONE (47757a0, autopilot shots only, not
+  owner-checked). Portal 2 uses saveloadgamedialog.res for both Load and
+  Save Game (loadgamedialog.res is an unused L4D leftover): same 9 x 4
+  tiled frame as New Game (tile_frame), SaveGameList at 0,25, 200 x 150,
+  savegameitem rows 25 tall, label inset 10, scrolling; SaveGameImage
+  212,15 225 x 152 stretched; AutoSaveLabel 210,9 223 wide, east aligned,
+  NewGameChapterName (BoldCn 18) white alpha 200 for auto/quick saves;
+  SaveGameInfo 212,170. First click picks a row, a second loads/saves;
+  footer Load Game (or Save Game) + Back; Load starts on the newest save,
+  Save on a New Save row; Back from the main menu returns to the Single
+  Player dialog. Guesses: rows show the save time (the .res doesn't say
+  what the label holds) and SaveGameInfo shows the chapter; the picture is
+  the chapter's (we save no screenshots). Evidence: autopilot `click
+  SinglePlayer; click LoadGame`, `click PickSave(Some(1))`, `click Back`
+  shots, before (dist 3ca8329: grey list panel) vs after. Not done: save
+  screenshots for the picture, Delete, the cloud icon, the 0.3 s fade.
+- 2026-10-20 autorun, Options dialog DONE (2a6921d, autopilot shots only,
+  not owner-checked). options.res (PC) is a tiled CBaseModFrame dialog
+  (dialogstyle 1, body 5 x 3), not a flyout: rows Audio, Video, Keyboard/
+  Mouse, Controller (DefaultButton every 25 units from 25), replacing the
+  menu column on both the main and pause menus. Our own Speedrun and Mods
+  pages follow as rows 5-6 (body grows to 4 tiles to hold them). Leaving a
+  page (Done/Cancel/Esc) returns to the dialog, Back/Esc closes it.
+  Evidence: autopilot `click Options` shots, before (dist 47757a0: grey
+  flyout box) vs after; `click Page(Audio); click Done` lands back on the
+  dialog; pause (`click pause; click Options; click Back`) in intro2.
+  Not done: the Settings panels themselves (next), the 0.3 s fade.
+- 2026-10-20 autorun, Audio DONE (802802d, autopilot shots only, not
+  owner-checked). audio.res is a tiled CBaseModFrame dialog, body 7 x 5
+  (tall 6 for localized audio), controls every 25 units from 0 (it packs
+  10 rows, so unlike Video/Keyboard it starts at 0): SldGameVolume,
+  SldMusicVolume (LeftDialogButton + SliderControl), DrpSpeakerConfiguration,
+  DrpSoundQuality, DrpPuzzlemakerSounds, DrpCaptioning, DrpCaptionLanguage,
+  DrpLanguage, voice, microphone (DialogListButton). We show ours in that
+  order packed from 0 (no sound quality/puzzlemaker/voice/mic rows: not
+  built) and our Subtitle style link last. Label at TextInsetX 10, value
+  or slider at the right edge (SliderControl.InsetX -10), DialogButton font
+  = UniversLTStd-LightCn tall 18 weight 700 on PC HiDef, drawn with the Cn
+  face (Light Cn + synthetic bold is close to Cn); black on the tiles;
+  SliderControl track 150 grey, fill black, no number; hovered row on the
+  HybridButton cursor bar (black 240, text 240, fill white). Footer Done/
+  Cancel under the frame. Evidence: autopilot `click Options; click
+  Page(Audio)` shots, before (dist 2a6921d: grey panel with % numbers) vs
+  after; `click Page(Subtitles); click Done` returns to Audio. The hover
+  bar colours were NOT autopilot-checked (autopilot has no mouse-move
+  command). Not done: the Subtitles sub-page (ours) keeps the old panel,
+  labels are ours, not the localized "#L4D360UI_AudioOptions_*" strings.
+- 2026-10-20 autorun, Video DONE (5d16315, autopilot shots only, not
+  owner-checked). video.res: tiled CBaseModFrame dialog, body 7 x 4,
+  controls every 25 units from 25: SldBrightness (hidden when windowed in
+  Portal 2), DrpAspectRatio, DrpResolution, DrpDisplayMode,
+  DrpPowerSavingsMode, DrpSplitScreenDirection, BtnAdvanced (DefaultButton,
+  ShowAdvanced). Ours in that order on the shared tile_frame/
+  tile_option_row (no power savings/split screen: not built); Brightness
+  kept in a window since ours works there; footer Apply/Done/Cancel (Apply
+  is ours) and the old "APPLY to use..." hint is gone. Unit test pins the
+  order. Evidence: autopilot `click Options; click Page(Video)` shots,
+  before (dist 802802d: grey panel, Resolution first, 40% number) vs after.
+  Labels not localized (the strings are not in the loose resource/*.txt;
+  probably in a VPK). Next: advancedvideo.res, body 11 x 5 (WIN32WIDE),
+  rows 350 wide every 25 from 25 (Antialias, Filtering, VSync, Queued
+  mode, Shader, CPU/effect, Model/texture, Paged pool) and a description
+  pane at x 360 (LblDescriptionTitle y 25, LblDescription y 60, 180 wide);
+  ours has 14 rows, so it needs a scroll or a taller body.
+- 2026-10-20 autorun, Advanced Video DONE (4ca377c, autopilot shots only,
+  not owner-checked). advancedvideo.res order now: Anti-aliasing,
+  Filtering, VSync, Multicore (= DrpQueuedMode), Shader, Effect (=
+  DrpCPUDetail), Model/texture, Paged pool (Portal 2 hides it on $OSX; kept
+  as on Windows), then ours: Motion blur, FOV, Max frame rate, Graphics,
+  Show frame rate, Show movement stats. Tiled frame 11 wide; 14 rows need
+  a 7-tile body packed from 0 (as Audio), rows 350 units wide; description
+  pane at 360: LblDescriptionTitle y 25 (VideoSettingsDescriptionTitle =
+  BoldCn 24) and LblDescription y 60, 180 x 180 wrapped
+  (VideoSettingsDescription = LightCn 17 w700, drawn Cn), black; filled from
+  the hovered row (describe_rows), starting on the first. Description texts
+  are our own (Valve's strings are not in the loose files). Unit test pins
+  the order. Evidence: autopilot `click Options; click Page(Video); click
+  Page(AdvancedVideo)` shots, before (dist 5d16315: grey panel) vs after.
+  Hover updating the pane NOT autopilot-checked (no mouse-move command).
+- 2026-10-20 autorun, Keyboard/Mouse DONE (9b0053b, autopilot shots only,
+  not owner-checked). keyboardmouse.res (!$OSX): tiled dialog, body 7 x 5,
+  rows every 25 from 25: BtnEditBindings (DefaultButton), DrpMouseYInvert,
+  SldMouseSensitivity, DrpRawMouse, DrpMouseAcceleration,
+  SldMouseAcceleration, DrpDeveloperConsole. Ours in that order (no
+  acceleration-amount slider: m_customaccel_exponent not built), our Mouse
+  Filter last. Labels are Portal 2's English strings, which ARE readable
+  with `ls --cat resource/basemodui_english.txt | iconv -f UTF-16` (also
+  gameui_english.txt): "EDIT KEYS/BUTTONS" (shown "Edit keys/buttons"),
+  "Reverse Mouse", "Mouse Sensitivity", "Raw Mouse Input", "Mouse
+  Acceleration", "Allow Developer Console"; title KEYBOARD/MOUSE
+  (L4D360UI_KeyboardMouse). Unit test pins the order. Evidence: autopilot
+  `click Options; click Page(KeyboardMouse)` shots, before (dist 4ca377c:
+  grey panel, Customize keyboard first, sensitivity number) vs after;
+  `click Page(Keys); click Done` opens the key list and returns. Not done:
+  the key list itself (Portal 2's keybindings dialog) keeps the old grey
+  panel; earlier pages' labels could now be localized from those files.
+  Next: controller.res.
+- 2026-10-20 autorun, Controller DONE (903118b, autopilot shots only, not
+  owner-checked). Portal 2's PC page is controlleroptions.res (controller.res
+  is an unused L4D leftover): tiled dialog body 7 x 5, rows every 25 from
+  25: DrpController, BtnEditButtons ("Button Layout"), BtnEditSticks
+  ("Stick Layout"), SldVertSens/SldHorizSens ("Vertical/Horizontal
+  Sensitivity"), DrpVerticalLookType/DrpHorizontalLookType (Normal/
+  Inverted), DrpVibration, SldAcceleration, BtnDefaults ("RESET TO
+  DEFAULTS"). Ours in that order with those labels: Controller, Look
+  Sensitivity (we have one joy_sensitivity, not pitch/yaw), Vertical Look
+  Type, Vibration; the rest are not built (note: no gamepad input reads
+  these settings yet). Title tabs got a 5-unit margin (title_tab_tiles):
+  CONTROLLER sat exactly on the 3-tile boundary and clipped its R; other
+  titles keep their tile counts (unit test). Evidence: autopilot `click
+  Options; click Page(Controller)` shots, before (dist 2bf3d20: grey panel,
+  "Game controller", "Reverse look", 1.0 number) vs after; `click Done`
+  returns to the Options dialog. Next: the pause menu (ingamemainmenu.res).
+- 2026-10-20 autorun, pause menu DONE (21f6353, autopilot shots only, not
+  owner-checked). ingamemainmenu.res is a tiled CBaseModFrame dialog
+  (dialogstyle 1), body 5 x 4, DefaultButton rows every 25 from 25; in
+  single player the visible rows are BtnReturnToGame, BtnSaveGame,
+  BtnLoadLastSave, BtnOptions, BtnExitToMainMenu ("RETURN TO GAME", "SAVE
+  GAME", "LOAD LAST SAVE", "OPTIONS", "EXIT TO MAIN MENU" from
+  basemodui_english.txt). Restart Level, Skip, Leaderboards, Rate map and
+  the puzzle maker rows only show in challenge/community/puzzle maker maps,
+  and Portal 2's pause menu has no Quit Game, so our old Load Game, Restart
+  Level and Quit Game items are gone (Load Last Save loads the newest save,
+  greyed without one; Load Game stays on the Single Player dialog).
+  No footer (Return to Game/Esc close it). Guess: the title tab is blank,
+  since neither the .res, the localization files nor client.dll strings give
+  the frame a title (no pause shot in the reference gallery); owner, say if
+  Portal 2 shows text there. Unit test pins the rows. Evidence: autopilot
+  intro2 `click pause`, `click Options; click Back` shots, before (dist
+  903118b: grey item column, 7 items) vs after (tiled dialog, Back returns
+  to it). Next: in-game HUD/crosshair, then instructor hints, subtitles,
+  loading screens.
+- 2026-10-20 autorun, HUD DONE (b417bba, autopilot shots only, not
+  owner-checked). hudlayout.res: in single player the only always-on HUD
+  is the crosshair (HUDQuickInfo/HudPortalCrosshair), already built from
+  the reverse-engineered layout (crosshair.rs: dots 10 px apart, brackets
+  6,10 px off centre, alpha 150; checked in an autopilot shot, unchanged).
+  The visible mismatch was the chapter title card: the maps'
+  @chapter_title_text / @chapter_subtitle_text game_texts (x -1, y .55 /
+  .6, effect 2 scan-out, fadein .06/char, fxtime .5 highlight from color2
+  205 to white, hold 5, fadeout .5) are drawn by client.dll's CHudMessage
+  in InGameChapterTitle (UniversLTStd-Cn 19) and InGameChapterSubtitle
+  (UniversLTStd-BoldCn 34) from basemodui_scheme.res, i.e. a small
+  "CHAPTER 2" above a big bold "THE COLD BOOT". Ours was a generic bold 54
+  px "Chapter 2" over a small regular name with a 1 s fade. Now as the game
+  (upper case, per-character scan-out, unit test). Evidence: autopilot
+  sp_a2_laser_intro shots, before (dist 21f6353) vs after. Not checked:
+  the scan-out mid-way in a shot (unit test only). Next: instructor hints
+  (hudlayout has none; instructor fonts InstructorTitle in
+  basemodui_scheme.res, scripts/instructor_*), then subtitles
+  (HudCloseCaption c-250, y 276, 500x136, BgAlpha 128, CloseCaption_*
+  fonts), loading screens.
+- 2026-10-20 autorun, instructor hints DONE (9576999, autopilot shots only,
+  not owner-checked). Reference: the gallery's "Pick Up" and "Create Blue
+  Portal" shots: the icon (key cap / mouse tile from
+  scripts/instructor_textures.txt) about 32 units square and a white
+  caption to its right, no background box. InstructorTitle =
+  UniversLTStd-BoldCn tall 18 (PC; Cn on $OSX), InstructorKeyBindings
+  BoldCn 12 for the key on the cap (basemodui_scheme.res). Ours had a
+  black 55% box, DIN bold 20 px, all hints stacked at 22% from the bottom.
+  Now: hint_static 0 floats over hint_target (+hint_icon_offset), kept on
+  screen; static hints centre under the crosshair at 2/3 of the height
+  (guess, measured from the Create Blue Portal shot), stacked. Also fixed:
+  the hint list was marked changed every frame (timeout retain), so the
+  rows were rebuilt every frame. Captions are the game's upper-case
+  strings (Valve_Hint_Look_Up "LOOK UP"). Unit test (hint_anchor).
+  Evidence: autopilot sp_a1_intro1 `input hint_press_to_crouch showhint;
+  input hint_press_to_use_bed showhint` shots, before (dist b417bba: boxed
+  rows at the bottom) vs after (LOOK UP under the crosshair, SLEEP on the
+  bed button at the screen edge; looking away it drops under the crosshair).
+  Not done: Portal 2's off-screen arrow (we clamp to the edge or fall back
+  under the crosshair), hint fade in/out, instructor_lessons.txt lessons
+  (game-driven hints like Pick Up / Create Blue Portal are not built).
+  Next: subtitles (hudlayout HudCloseCaption), then loading screens.
+- 2026-10-20 autorun, subtitles DONE (f475223, autopilot shots only, not
+  owner-checked). hudlayout.res HudCloseCaption: panel c-250, y 276,
+  500 x 136 units, BgAlpha 128. Ours was a box hugging the text at 8% from
+  the bottom, 60% max width, centred, in the generic regular font. Now a
+  500-unit box centred with its bottom at 412 units (68 from the bottom),
+  lines stacked up from the bottom, clipped at 136 tall, left-aligned (the
+  install's caption files never use <center>), 12-unit inset, 6-unit
+  rounded corners, CloseCaption_Normal = UniversLTStd-Cn tall 20 (= our
+  MEDIUM size; the size setting is now vgui tall units). Background default
+  128/255, converted to the linear-blend alpha that looks the same (0.78).
+  Unit test. Evidence: sp_a1_intro2 announcer line at 9 s, before (dist
+  9576999: centred, wide DIN-like text) vs after (box measured 585 px of a
+  1000x562 shot = 500 units). Not done: GrowTime 0.25 / item fade in 0.15
+  / fade out 0.3 animations; the inset and corner size are our estimate
+  (not in the .res). Next: loading screens.
+- 2026-10-20 autorun, loading screens DONE (0bc1dd1, autopilot shots only,
+  not owner-checked). Before: no loading screen at all; the old map's last
+  frame froze during the load. loadingprogress.res has only hidden anchors;
+  client.dll fills it: background vgui/loading_screens/loadingscreen_a%d
+  (act = the number after sp_a; sp_a3_00/01 use act 2; sp_a5_credits and
+  other maps loadingscreen_default_*), "%s_%d%s" for each _1.._4 whose .vmt
+  exists, "_widescreen" on wide screens, stretched full screen; Portal 2
+  cycles them (ui_loadingscreen_autotransition_time 5, transition_time 1,
+  fadein 1); WorkingAnim r75,10 65 x 65 = vgui/spinner (8 frames); dots
+  vgui/loadbar_dots (16 px cells white/blue/orange/empty) ending at the
+  LoadingProgess anchor r11,r11: 15 dots every 11 units, ~8 units across,
+  lit = blue, unlit = faint white (measured from the gallery's 1920x1080
+  loading shot). Ours (loading.rs): same art/spinner/dots/positions;
+  load_level waits 2 frames on non-menu loads so the screen is drawn before
+  the blocking load, and it goes 3 frames after (unlit bar before, full
+  after). Guesses: which of the act's pictures shows (per-map hash; our
+  loads are one blocking frame, so no slideshow/fades), spinner 10 fps.
+  P2_LOADING_HOLD=<s> keeps the screen up for shots. Unit tests (act and
+  art choice). Evidence: autopilot `portal2 sp_a1_intro2` with
+  P2_LOADING_HOLD: act 1 art, spinner top-right, dot row bottom-right as in
+  the reference, gone after the hold; `con map sp_a2_laser_intro` logs
+  "loading screen for sp_a2_laser_intro" (act 2 art not captured in a shot:
+  the autopilot clock restarts per level). Main-menu loads (startup
+  background, Exit to Main Menu) show no loading screen.
 
 ### T-176 Can't catch or grab objects in the air  (P1, FIXED 2bf3d20, awaiting owner replay)
 - Owner, 2026-10-20 (after playtest 9): "you can't catch falling things or

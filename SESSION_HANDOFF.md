@@ -4,7 +4,7 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-20 17:27, autorun (prtl2mac-auto-resume). T-162 Controller screen done and pushed.
+2026-10-20 18:24, autorun (prtl2mac-auto-resume). T-162 loading screens done and pushed: every T-162 screen is now done, awaiting owner replay.
 
 ## Where things stand
 - T-176 FIXED (2bf3d20), autopilot-checked only: use only took a prop hit
@@ -22,19 +22,19 @@ reads it first (via `sh scripts/resume.sh`).
   is now the install's own UniversLTStd-Cn (decoded from
   vgui/fonts/universc.vfont), MainMenuButton colours/size/inset from
   basemodui_scheme.res, flyout owner stays lit. T-162 stays open.
-- T-162 Options dialog DONE (2a6921d), Controller DONE (903118b), autopilot shots only.
-- dist/Prtl2Mac.app = 0.1.0+f475223.20261020T2204Z.
+- T-162 all screens DONE (last: loading screens 0bc1dd1, new loading.rs:
+  act art, spinner, dot bar; level loads wait 2 frames so it is drawn),
+  autopilot shots only. Moved to Awaiting owner replay.
+- dist/Prtl2Mac.app = 0.1.0+0bc1dd1.20261020T2222Z.
 
 ## Next action
-1. T-162 next screen: loading screens (menus, Settings pages, pause menu,
-   HUD crosshair, chapter title, instructor hints and subtitles are done;
-   see resource/ui/basemodui/loadingprogress.res and the reference
-   gallery's loading shot). That is the last T-162 screen; one screen per
-   run, new crashes/softlocks still first.
-   Then T-170 carry regression, T-145 cubes black/spikes/jitter, T-172 late
-   VO, T-135, T-139, T-112, T-144, T-149, T-147, T-113, then P3/P4.
-   Skip T-116 (owner screenshots coming), T-164 and T-151 (attempt branches
-   await the owner).
+1. T-170 carrying regressed by the T-167/T-105 wall fixes (pushed back near
+   walls, can't push a cube up a wall): check carrying in intro2/intro3
+   before and after; a regression is worse than the original bug.
+   Then T-145 cubes black/spikes/jitter, T-172 late VO, T-135, T-139,
+   T-112, T-144, T-149, T-147, T-113, then P3/P4. New crashes/softlocks
+   still first. Skip T-116 (owner screenshots coming), T-164 and T-151
+   (attempt branches await the owner).
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.
