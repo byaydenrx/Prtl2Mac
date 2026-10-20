@@ -20,9 +20,10 @@ impl Plugin for PropsPlugin {
         app.insert_resource(Gravity(Vec3::NEG_Y * 600.0 * shared::SOURCE_UNIT))
             .init_resource::<CoreState>()
             .init_resource::<HoldTargets>()
+            .init_resource::<HoldObstructions>()
             .add_systems(Update, (make_props_dynamic, hook_prop_colliders, sync_prop_transforms, core_inputs, use_key, prop_inputs, floor_buttons).chain().in_set(crate::level::GameSet::Logic))
             .add_systems(Update, player_proxy_outputs.in_set(crate::level::GameSet::Logic))
-            .add_systems(FixedUpdate, (carry, hold_clearance, prop_transit, wall_passthrough).chain().after(P2Systems::Transit));
+            .add_systems(FixedUpdate, (hold_obstructions, carry, hold_clearance, prop_transit, wall_passthrough).chain().after(P2Systems::Transit));
     }
 }
 
@@ -318,6 +319,7 @@ fn carry(
     all_portals: Query<&Transform, (With<Portal>, Without<Held>)>,
     mut teleported: MessageReader<PortalTeleported>,
     mut targets: ResMut<HoldTargets>,
+    obstructions: Res<HoldObstructions>,
 ) {
     targets.0.clear();
     let Ok((player, feet, crouch, view, mut ignore, player_vel)) = players.single_mut() else { return };
@@ -353,10 +355,12 @@ fn carry(
         // the copy on its own side: still on the player's side it heads into
         // the opening (and goes through), already through it follows the
         // far copy.
+        let mut through_portal = false;
         for (p, ptf, link) in &portals {
             let Ok(exit) = all_portals.get(link.0) else { continue };
             let frame = Portal::frame(ptf);
             if segment_crosses_opening(&frame, p.half_size, eye, target).is_some() {
+                through_portal = true;
                 let pair = PortalPair::new(frame, Portal::frame(exit));
                 let far = pair.map_point(target);
                 if far.distance_squared(tf.translation) < target.distance_squared(tf.translation) {
@@ -365,6 +369,13 @@ fn carry(
                 }
                 break;
             }
+        }
+        // A wall (or anything static) between the eye and the hold point:
+        // like Source's grab controller, the hold point comes in front of
+        // it, so walking into a wall brings the prop closer instead of
+        // pinning it there until it drops (T-105).
+        if let (false, Some(&(hit, support))) = (through_portal, obstructions.0.get(&e)) {
+            target = in_front_of_obstruction(eye, target, Some(hit), support);
         }
         let reach = target - tf.translation;
         targets.0.insert(e, target);
@@ -394,10 +405,63 @@ fn carry(
     }
 }
 
+/// How far a box of half extents `half` turned by `rot` reaches along `dir`.
+fn box_support(half: Vec3, rot: Quat, dir: Vec3) -> f32 {
+    half.x * (rot * Vec3::X).dot(dir).abs() + half.y * (rot * Vec3::Y).dot(dir).abs() + half.z * (rot * Vec3::Z).dot(dir).abs()
+}
+
+/// The hold point `target`, pulled back toward `eye` when something solid
+/// is `hit` metres along the eye-to-target line, so a prop reaching
+/// `support` along it stays in front of the surface (never behind the eye).
+fn in_front_of_obstruction(eye: Vec3, target: Vec3, hit: Option<f32>, support: f32) -> Vec3 {
+    let Some(d) = hit else { return target };
+    let to = target - eye;
+    let len = to.length();
+    let keep = (d - support - 0.5 * shared::SOURCE_UNIT).clamp(0.0, len);
+    if len <= 1e-6 { target } else { eye + to * (keep / len) }
+}
+
 /// A held prop is still on the entry side of `pair` (nearer the entry
 /// portal than the exit), so it goes through with the player.
 fn still_at_entry(pair: &PortalPair, p: Vec3) -> bool {
     p.distance_squared(pair.entry.position) <= p.distance_squared(pair.exit.position)
+}
+
+/// Per held prop, how far along the eye-to-hold-point line something
+/// static is in the way, and how far the prop reaches along that line
+/// ([`hold_obstructions`], used by [`carry`]).
+#[derive(Resource, Default)]
+struct HoldObstructions(std::collections::HashMap<Entity, (f32, f32)>);
+
+/// Ray from the eye to each held prop's hold point against the static
+/// world (a separate system: the spatial query can't share [`carry`]'s
+/// mutable positions).
+fn hold_obstructions(
+    mut out: ResMut<HoldObstructions>,
+    players: Query<(Entity, &InterpolatedFeet, &Crouch, &ViewAngles), With<Player>>,
+    held: Query<(Entity, &Held, &HeldColliders, &Prop, &Transform, Option<&PassingThrough>)>,
+    spatial: SpatialQuery,
+    bodies: Query<&RigidBody>,
+    body_of: Query<&ColliderOf>,
+) {
+    out.0.clear();
+    let Ok((player, feet, crouch, view)) = players.single() else { return };
+    let eye = feet.curr + Vec3::Y * crouch.eye_height;
+    for (e, h, hc, prop, tf, passing) in &held {
+        let to = hold_point(eye, view, h.distance) - eye;
+        let Ok(dir) = Dir3::new(to) else { continue };
+        let mut skip: Vec<Entity> = hc.0.clone();
+        skip.extend([e, player]);
+        let filter = SpatialQueryFilter::from_excluded_entities(skip);
+        let walls: &[Entity] = passing.map_or(&[], |p| &p.0);
+        let solid = |c: Entity| {
+            let body = body_of.get(c).map_or(c, |b| b.body);
+            !matches!(bodies.get(body), Ok(RigidBody::Dynamic)) && !walls.contains(&c) && !walls.contains(&body)
+        };
+        if let Some(hit) = spatial.cast_ray_predicate(eye, dir, to.length(), true, &filter, &solid) {
+            out.0.insert(e, (hit.distance, box_support(prop.half, tf.rotation, *dir)));
+        }
+    }
 }
 
 /// Where each held prop is being pulled this tick ([`carry`]).
@@ -817,6 +881,22 @@ fn player_proxy_outputs(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hold_point_comes_in_front_of_a_wall() {
+        let eye = Vec3::ZERO;
+        let target = Vec3::new(0.0, 0.0, -2.0);
+        // Nothing in the way: unchanged.
+        assert_eq!(in_front_of_obstruction(eye, target, None, 0.5), target);
+        // A wall 1.5 m ahead, prop reaching 0.5 m: centre just under 1 m out.
+        let t = in_front_of_obstruction(eye, target, Some(1.5), 0.5);
+        assert!(t.z < -0.95 && t.z > -1.0, "{t}");
+        // Wall nearer than the prop's reach: at the eye, never behind it.
+        assert_eq!(in_front_of_obstruction(eye, target, Some(0.3), 0.5), eye);
+        // A 1 m cube turned 45 degrees reaches sqrt(2)/2 along X.
+        let s = box_support(Vec3::splat(0.5), Quat::from_rotation_y(std::f32::consts::FRAC_PI_4), Vec3::X);
+        assert!((s - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-4);
+    }
 
     #[test]
     fn held_prop_maps_with_the_player_only_once() {
