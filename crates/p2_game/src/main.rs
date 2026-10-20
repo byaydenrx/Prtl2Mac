@@ -36,6 +36,7 @@ mod paint;
 mod paint_props;
 mod portals;
 mod projected_lights;
+mod prop_ghosts;
 mod props;
 mod saves;
 mod scenes;
@@ -104,6 +105,7 @@ fn main() {
             movers::MoversPlugin,
             portals::MapPortalsPlugin,
             props::PropsPlugin,
+            prop_ghosts::PropGhostsPlugin,
             triggers::TriggersPlugin,
             audio::GameAudioPlugin,
             autopilot::AutopilotPlugin,
