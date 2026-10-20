@@ -4,29 +4,23 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-20 ~01:10, screenshot session (worktree `Portal2-wheatley`,
-branch `wheatley`, pushes to `main`).
+2026-10-20, after owner playtest 8 (build 1faf8d2). Worktree
+`Portal2-wheatley`, branch `wheatley`, pushes to `main`.
 
 ## Where things stand
-- Owner's 16 screenshots (~/Documents/Screenshots, 2026-10-20 00:19-00:28)
-  triaged one by one in TASKS.md "Owner screenshots 2026-10-20".
-- Fixed this session (autopilot screenshots unless noted): intro2 exit
-  stairs (static props with flag 0x4 were skipped, map-wide), intro3 water
-  (lit fog, no white sky on fogged maps), intro3 flat rubble (normal-alpha
-  envmap mask), key hint labels, Chell's gun before having one (not checked
-  by eye).
-- Static props: intro1 now spawns 1678 entities (was 909). Watch frame rate
-  on the intro1 ride; the fps overlay doesn't show in autopilot shots.
-- Still owner replay pending from earlier: T-103, T-104, T-106, T-121,
-  T-122, T-124..T-127.
+- Owner playtest 8 recorded in TASKS.md ("Owner playtest 8", T-128..T-162)
+  with a full "Priority order" list at the top of TASKS.md.
+- Owner confirmed: key labels, Chell without the gun, no more weird objects,
+  cubes and buttons drawn.
+- Reference: see PROJECT_STATE "Reference install"; the owner may install
+  the Windows binaries depot as the behaviour reference.
+- dist/Prtl2Mac.app is build 0.1.0+1faf8d2 (everything on main).
 
 ## Next action
-1. Owner rebuilds and replays chapter 1 (screenshots 1-16 list, P0 weird
-   objects on the other maps, frame rate in intro1).
-2. Screenshot items left: 4 Wheatley black box, 5 spiky ride debris (rigid
-   per-bone split of soft-weighted meshes?), 7 dark shard in the intro2
-   door, 1 window, 2 shadows; T-107 button (try with intro2 portals active).
-3. Then T-105 (Wheatley re-pickup), T-120 (elevators).
+1. TASKS "Priority order" item 1: T-128 sp_a2_laser_stairs stairs don't move.
+   Reproduce with the real route first.
+2. Then T-129 (stray screen blocking laser_stairs), T-130 (portal shots
+   through cubes/handrails), T-131 (intro3 floors/roofs), T-105, T-132.
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.

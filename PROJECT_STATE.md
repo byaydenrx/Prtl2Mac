@@ -1,6 +1,6 @@
 # Project state
 
-Last updated 2026-10-19. Keep this current; evidence goes in TASKS.md and
+Last updated 2026-10-20. Keep this current; evidence goes in TASKS.md and
 docs/STATUS.md.
 
 ## Release target (honest definition)
@@ -29,6 +29,19 @@ playtest (2026-10-19) found chapter 1 blocked for a real player (ride end,
 portal traversal, breaker lift), so nothing is playable end to end yet.
 Autopilot runs that use `setpos`/`input` prove logic, not playability; S
 needs a run with movement, portals and props only, or the owner's play.
+
+## Reference install (2026-10-20)
+- Installed: Steam depot 621 (Portal 2 common content). It holds every map,
+  model, material, sound, the menu videos (media/menu_act01-05.bik) and the
+  menu layouts (resource/ui/basemodui/*.res). This content is the same on
+  Windows and Mac, so a Windows download adds no assets.
+- Not installed: any engine/game binaries (bin/osx32 and portal2/bin are
+  empty; only map compilers and a launcher stub). The owner may add the
+  Windows binaries depot (client.dll, server.dll, engine.dll, shaderapidx9.dll)
+  as the reference for exact behaviour (owner rule: reverse engineering the
+  owner's own install is fine, never leaked source). Windows is the target
+  look. With those, the real game could also run under CrossOver/Wine for
+  side-by-side screenshots.
 
 ## Build and package
 - [x] `cargo build --release`, `cargo test --release --workspace` pass
