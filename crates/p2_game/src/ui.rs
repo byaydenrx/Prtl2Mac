@@ -120,6 +120,8 @@ struct MenuState {
 struct ChapterTab {
     community: bool,
     page: usize,
+    /// The chapter picked in the list (its picture shows beside it).
+    chapter: usize,
 }
 
 /// Community maps per page of the New Game dialog.
@@ -172,7 +174,14 @@ enum Action {
     Continue,
     /// Opens the chapter list, as in Portal 2.
     NewGame,
+    /// A row of New Game's chapter list: pick it (a second click starts it).
+    SelectChapter(usize),
     Chapter(usize),
+    /// Main menu items not built yet: they do nothing.
+    Coop,
+    CommunityChambers,
+    Extras,
+    ChallengeMode,
     /// Open Load Game / Save Game.
     LoadGame,
     SaveGame,
@@ -274,6 +283,17 @@ const ITEM_LOOK: Look = Look { text: theme::ITEM, text_hover: theme::ITEM_HOVER,
 const VALUE_LOOK: Look = Look { text: theme::VALUE, text_hover: Color::WHITE, bg: Color::NONE, bg_hover: theme::ROW_HOVER };
 /// BACK / DONE / USE DEFAULTS.
 const BUTTON_LOOK: Look = Look { text: theme::BUTTON_TEXT, text_hover: Color::WHITE, bg: theme::BUTTON, bg_hover: theme::BUTTON_HOVER };
+
+/// The main menu, as in Portal 2 (Co-op, Extras and Challenge Mode are
+/// not built yet and do nothing).
+const MAIN_ITEMS: [(&str, Action, Option<Flyout>); 6] = [
+    ("PLAY SINGLE PLAYER", Action::SinglePlayer, Some(Flyout::SinglePlayer)),
+    ("PLAY COOPERATIVE GAME", Action::Coop, None),
+    ("COMMUNITY TEST CHAMBERS", Action::CommunityChambers, None),
+    ("OPTIONS", Action::Options, Some(Flyout::Options)),
+    ("EXTRAS", Action::Extras, None),
+    ("QUIT", Action::Quit, None),
+];
 
 /// Menu item text size; dialogs scale from it.
 const ITEM_SIZE: f32 = 24.0;
@@ -879,15 +899,15 @@ fn rebuild_menu(
                 }
                 // As in Portal 2: Continue and Load Game once there is a save.
                 let sp: Vec<(&str, Action)> = if read_save().is_some() {
-                    vec![("CONTINUE GAME", Action::Continue), ("NEW GAME", Action::NewGame), ("LOAD GAME", Action::LoadGame)]
+                    vec![("CONTINUE GAME", Action::Continue), ("NEW GAME", Action::NewGame), ("LOAD GAME", Action::LoadGame), ("CHALLENGE MODE", Action::ChallengeMode)]
                 } else {
-                    vec![("NEW GAME", Action::NewGame)]
+                    vec![("NEW GAME", Action::NewGame), ("CHALLENGE MODE", Action::ChallengeMode)]
                 };
                 let fly = if menu.flyout == Some(Flyout::Options) { &options_flyout } else { &sp };
                 item_list(
                     p,
                     &fonts,
-                    &[("PLAY SINGLE PLAYER", Action::SinglePlayer, Some(Flyout::SinglePlayer)), ("OPTIONS", Action::Options, Some(Flyout::Options)), ("QUIT", Action::Quit, None)],
+                    &MAIN_ITEMS,
                     menu.flyout,
                     fly,
                 );
@@ -950,26 +970,42 @@ fn rebuild_menu(
                             });
                     }
                 } else {
-                    p.spawn(grid).with_children(|g| {
-                        for (i, c) in campaign.chapters.iter().enumerate() {
-                            // Chapters not reached yet: a dark tile, not clickable.
-                            if !progress.is_unlocked(i) {
-                                g.spawn(tile.clone()).with_children(|b| {
-                                    b.spawn((Node { width: Val::Percent(100.0), aspect_ratio: Some(16.0 / 9.0), ..default() }, BackgroundColor(theme::EDGE)));
-                                    b.spawn(text(&fonts.regular, 14.0, c.title.to_uppercase(), theme::HINT));
-                                    b.spawn(text(&fonts.menu, 17.0, "?", theme::HINT));
-                                });
-                                continue;
-                            }
-                            g.spawn((Button, Action::Chapter(i), VALUE_LOOK, tile.clone(), BackgroundColor(Color::NONE))).with_children(|b| {
-                                if let Some(Some(img)) = chapter_pics.get(i) {
-                                    b.spawn((ImageNode::new(img.clone()), Node { width: Val::Percent(100.0), aspect_ratio: Some(16.0 / 9.0), ..default() }));
+                    // As in Portal 2's New Game: the chapter list on the left,
+                    // the picked chapter's picture and title on the right.
+                    let sel = tab.chapter.min(campaign.chapters.len().saturating_sub(1));
+                    p.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(24.0), width: Val::Percent(100.0), ..default() }).with_children(|r| {
+                        r.spawn(Node { flex_direction: FlexDirection::Column, width: Val::Percent(44.0), row_gap: Val::Px(1.0), ..default() }).with_children(|list| {
+                            for (i, c) in campaign.chapters.iter().enumerate() {
+                                let row = Node { padding: UiRect::axes(Val::Px(8.0), Val::Px(5.0)), ..default() };
+                                let label = format!("{}: {}", c.title.to_uppercase(), c.subtitle.to_uppercase());
+                                // Chapters not reached yet: greyed, not clickable.
+                                if !progress.is_unlocked(i) {
+                                    list.spawn(row).with_child(text(&fonts.menu, 17.0, label, theme::HINT));
+                                } else if i == sel {
+                                    let look = Look { text: Color::WHITE, text_hover: Color::WHITE, bg: theme::SELECTED, bg_hover: theme::ROW_HOVER };
+                                    list.spawn((Button, Action::SelectChapter(i), look, row, BackgroundColor(theme::SELECTED))).with_child(text(&fonts.menu, 17.0, label, Color::WHITE));
+                                } else {
+                                    list.spawn((Button, Action::SelectChapter(i), VALUE_LOOK, row, BackgroundColor(Color::NONE))).with_child(text(&fonts.menu, 17.0, label, theme::VALUE));
                                 }
-                                b.spawn(text(&fonts.regular, 14.0, c.title.to_uppercase(), theme::LABEL));
-                                b.spawn(text(&fonts.menu, 17.0, c.subtitle.to_uppercase(), theme::VALUE));
-                            });
-                        }
+                            }
+                        });
+                        r.spawn(Node { flex_direction: FlexDirection::Column, flex_grow: 1.0, row_gap: Val::Px(6.0), ..default() }).with_children(|pic| {
+                            match chapter_pics.get(sel) {
+                                Some(Some(img)) => {
+                                    pic.spawn((ImageNode::new(img.clone()), Node { width: Val::Percent(100.0), aspect_ratio: Some(16.0 / 9.0), ..default() }));
+                                }
+                                _ => {
+                                    pic.spawn((Node { width: Val::Percent(100.0), aspect_ratio: Some(16.0 / 9.0), ..default() }, BackgroundColor(theme::EDGE)));
+                                }
+                            }
+                            if let Some(c) = campaign.chapters.get(sel) {
+                                pic.spawn(text(&fonts.regular, 14.0, c.title.to_uppercase(), theme::LABEL));
+                                pic.spawn(text(&fonts.menu, 20.0, c.subtitle.to_uppercase(), theme::VALUE));
+                            }
+                        });
                     });
+                    footer_buttons(p, &fonts, "", &[("START NEW GAME", Action::Chapter(sel)), (Footer::Back.label(), Action::Back)]);
+                    return;
                 }
                 footer(p, &fonts, "", &[Footer::Back]);
             });
@@ -1279,7 +1315,23 @@ fn buttons(
                 community.rescan();
                 *tab = ChapterTab::default();
             }
-            Action::ChapterTab(c) => *tab = ChapterTab { community: c, page: 0 },
+            Action::ChapterTab(c) => *tab = ChapterTab { community: c, page: 0, chapter: tab.chapter },
+            Action::SelectChapter(i) if tab.chapter == i => {
+                if let Some(c) = campaign.chapters.get(i) {
+                    load.write(LoadLevel { map: c.map.clone(), menu: false });
+                    *screen = Screen::None;
+                }
+            }
+            Action::SelectChapter(i) => tab.chapter = i,
+            Action::CommunityChambers => {
+                community.rescan();
+                if !community.maps.is_empty() {
+                    menu.flyout = None;
+                    *screen = Screen::Chapters;
+                    *tab = ChapterTab { community: true, ..default() };
+                }
+            }
+            Action::Coop | Action::Extras | Action::ChallengeMode => {}
             Action::CommunityPage(d) => {
                 let pages = community.maps.len().div_ceil(COMMUNITY_PER_PAGE).max(1);
                 tab.page = (tab.page as i32 + d).clamp(0, pages as i32 - 1) as usize;
@@ -1617,6 +1669,12 @@ mod tests {
             .to_vec();
         assert_eq!(pick_logo(&vgui).map(String::as_str), Some("materials/vgui/portal2logo_english.vtf"));
         assert_eq!(pick_logo(&vgui[3..]), None);
+    }
+
+    #[test]
+    fn main_menu_items_are_portal_2s() {
+        let labels: Vec<&str> = MAIN_ITEMS.iter().map(|i| i.0).collect();
+        assert_eq!(labels, ["PLAY SINGLE PLAYER", "PLAY COOPERATIVE GAME", "COMMUNITY TEST CHAMBERS", "OPTIONS", "EXTRAS", "QUIT"]);
     }
 
     #[test]
