@@ -15,7 +15,7 @@ autopilot-session.lock).
 ## Where things stand
 - T-168 FIXED (98b74ad): pressing sp_a2_laser_over_goo's box button
   crashed (Kill reached a template prototype, ForceSpawn cloned a despawned
-  entity). Autopilot only; awaiting owner replay.
+  entity). Owner confirmed the fix 2026-10-20.
 - dist/Prtl2Mac.app = 0.1.0+98b74ad.20261020T1911Z.
 - The T-150 autorun at 13:51 hit the usage limit and left a stale lock and a
   scratch example (both removed); T-150 was not started.

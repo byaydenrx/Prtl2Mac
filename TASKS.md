@@ -20,7 +20,7 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 
 ## Priority order (2026-10-20, after owner playtest 9)
 P0:
-1. (T-168 laser_over_goo box-button crash fixed, 98b74ad, awaiting owner replay.)
+1. (none; T-168 box-button crash owner-confirmed fixed.)
 P1:
 2. T-169 sp_a2_laser_over_goo walls never move (softlock).
 P2:
@@ -514,22 +514,6 @@ Then the Backlog (prove and sweep the campaign).
 
 ## Awaiting owner replay (fixed, autopilot evidence)
 
-### T-168 Crash pressing the cube-dropper button in sp_a2_laser_over_goo  (P0, FIXED 2026-10-20, 98b74ad, autopilot only)
-- Owner playtest 9: clicking the button that drops the box crashed the game.
-- Cause: box_restarter_button_model sends `Kill slimeroom_box_1_template`
-  (meant for the live copies) and 0.1 s later `ForceSpawn` on the
-  point_template. Kill was let through to the hidden template prototype too
-  (io.rs passes Kill to killed entities), props.rs despawned it, and the
-  ForceSpawn cloned a despawned entity: Bevy panicked. In Source the
-  template's members no longer exist after load.
-- Fix: Ents::prototypes; template prototypes take no inputs at all
-  (Ents::takes_input, unit test template_prototypes_take_no_inputs);
-  spawn_copy skips a missing prototype instead of panicking.
-- Evidence (autopilot, sp_a2_laser_over_goo, goto + use the button, then
-  `input box_restarter_button_model press` twice): before, panic exit 101
-  "Entity despawned" in templates::spawn_copy; after, exit 0, each press
-  spawns a new slimeroom box and kills the previous copy.
-
 ### T-163 sp_a1_wakeup pod: the player can jump out of the hatch; a stone-brick block appears there  (P2, fixed 8f8c8b1, autopilot only)
 - Playtest 6. Cause: brush entities with startdisabled 1 were never built
   (no mesh, no collider), so an Enable had nothing to switch on. The hatch is
@@ -603,6 +587,9 @@ Then the Backlog (prove and sweep the campaign).
 - Checklists in docs/STATUS.md.
 
 ## Done (newest first; details in git log and docs/STATUS.md)
+- 2026-10-20 T-168 sp_a2_laser_over_goo box-button crash (98b74ad): owner
+  confirmed. A Kill by name reached a hidden template prototype; prototypes
+  now take no inputs.
 - 2026-10-20 Owner-confirmed in playtest 9 (build 014ab6e): T-131 intro3
   floors/roofs; T-114 intro1 announcer; T-120 ride jitter, car sounds and
   thumps; T-133 Wheatley float and panel; T-134 pod turn; T-136 wakeup
