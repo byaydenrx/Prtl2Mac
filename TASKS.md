@@ -32,7 +32,7 @@ P2:
 9. (T-144 props fixed, awaiting owner replay.) T-147 black screen as intro2's first door opens.
 10. T-139 Audio: loud intro4 glass fixed (503406e, awaiting owner replay); soundscapes, button clicks, music cut-offs still open (PARTIAL, next run skips to T-149).
 11. (T-149 chamber progress signs drawn, d314ea7, awaiting owner replay); intro5 screens and lights still open.
-12. T-112 Missing/flat textures (GLaDOS chamber floor, hallways).
+12. T-112 Missing/flat textures: GLaDOS chamber floor water fixed (991441d, awaiting owner replay); hallway to GLaDOS, black walk-through wall, intro4 blue wall still open (PARTIAL, next run skips to T-123).
 13. T-123 Security cameras knocked off by portal shots.
 14. T-160 Main menu like Portal 2's.
 P3:
@@ -181,11 +181,6 @@ Then the Backlog (prove and sweep the campaign).
   when autopilot walks into the ramp trigger (`goto glass_shard`), with the
   pane door opening. Unit test `only_looping_audible_ambients_autostart`.
 
-### T-112 Missing or flat textures  (P2, TODO)
-- GLaDOS chamber floor brown and flat like the old intro3 water (section 5);
-  hallway to GLaDOS; after the jumps a black wall you can walk through; a
-  blue flat wall behind the intro4 elevator.
-
 ### T-123 Portal shots should knock security cameras off  (P2, TODO)
 - intro6 and sp_a2_laser_stairs: in Portal 2 the camera falls off.
 
@@ -261,6 +256,34 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-112 Missing or flat textures  (P2, PARTIAL 2026-10-20, 991441d, autopilot only)
+- GLaDOS chamber floor brown and flat like the old intro3 water (section 5);
+  hallway to GLaDOS; after the jumps a black wall you can walk through; a
+  blue flat wall behind the intro4 elevator.
+- GLaDOS chamber floor FIXED (991441d), awaiting owner replay. Cause: the
+  floor is shallow water (nature/water_glados_01, surface z 396 over a
+  displacement floor at z ~388-393, $fogend 30, $fogcolor 90 70 20,
+  $lightmapwaterfog). Our water shader fogged through an assumed 64 units
+  of water, so with $fogend 30 it was always fully fogged: one flat
+  lightmap-lit yellow-brown sheet. Source fogs by the real depth behind the
+  surface. Now map water is cut into a 32-unit grid at load
+  (glass::subdivide) and each vertex carries its measured depth to the
+  world geometry below (glass::WaterFloor, vertex colour alpha,
+  FLAG_WATER_DEPTH; ground just above a vertex, as under banks, = depth 0).
+  Unit tests: subdivision area/edge length/winding, depth below.
+  P2_LIST_MATS also logs each water mesh's mean depth (wakeup 13.4 units,
+  intro3 6.9 units).
+- Evidence (autopilot, sp_a1_wakeup, `3 setpos 9060 1120 440 55 20`):
+  dist 89f2bf5 shows a solid yellow sheet; new build shows the dark floor
+  through the shallows fading to murky olive with distance (pixels ~45,39,15,
+  near the floor's ~55,50,37). Not compared with Windows; the water's real
+  reflection (_rt_WaterReflection, $reflectamount 0.4) is still missing, so
+  it reads darker/flatter than the game. intro3's water (same path, fogend
+  60, ~7 units deep) now also shows more floor when looked down at:
+  owner replay should glance at both.
+- Still open: the hallway to GLaDOS's chamber, the black walk-through wall
+  after the jumps (where?), the blue flat wall behind the intro4 elevator.
 
 ### T-149 Chamber signs blank; screens and lights wrong  (P2, PARTIAL 2026-10-20, d314ea7, autopilot only)
 - The white chamber-number screens ("02") were blank in every level:

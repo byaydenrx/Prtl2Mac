@@ -38,7 +38,15 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-112 missing/flat textures (next in the owner's order).
+1. T-123 security cameras knocked off by portal shots (next in the owner's
+   order: T-123, T-160, T-161, T-162, T-020, ...).
+   T-112 PARTIAL 2026-10-20 (991441d): the wakeup GLaDOS chamber floor
+   (shallow water_glados_01, $fogend 30) fogged through an assumed 64 units
+   and drew as a flat yellow sheet; map water now fogs by its measured depth
+   per vertex (32-unit grid), floor visible through the shallows. Awaiting
+   owner replay (autopilot shots only; also glance at intro3's water).
+   Hallway to GLaDOS, black walk-through wall, intro4 blue wall still open.
+   dist build: 0.1.0+991441d.20261020T1511Z.
    T-149 PARTIAL 2026-10-20 (d314ea7): chamber progress signs
    (sp_progress_sign vgui_screens) are now drawn from sp_lightboard_icons.txt
    (number, NN/TT, bar, icons), awaiting owner replay (autopilot shots only;
