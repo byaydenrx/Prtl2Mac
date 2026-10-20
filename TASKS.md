@@ -123,7 +123,7 @@ Then the Backlog (prove and sweep the campaign).
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
 
 ### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
-- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), see below. Left: New Game, Load Game, Options/Settings, pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), see below. Left: Load Game, Options/Settings, pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
 - Visual reference (owner, 2026-10-20): https://interfaceingame.com/games/portal-2/
   has screenshots of the real Portal 2 UI: start screen, main menu, options,
   video, keyboard/mouse, edit keys, extras, loading, chapter title, save
@@ -176,6 +176,22 @@ Then the Backlog (prove and sweep the campaign).
   SinglePlayer` shots, before (dist e6e5e91, grey flyout) vs after.
   Not done: the 0.3 s Frame.TransitionEffectTime fade, keyboard focus
   starting on the first row, the Options flyout (still grey).
+- 2026-10-20 autorun, New Game DONE (3ca8329, autopilot shots only, not
+  owner-checked). newgamedialog.res: tiled frame wide 9 tall 4 (shared
+  tile_frame() with Single Player); ChapterList GenericPanelList at 0,25,
+  200 x 150 (PC), newgame_chapteritem rows 25 tall, label inset 10, so 6
+  rows show and the list scrolls (mouse wheel, ScrollList); picked row on
+  the black cursor bar, locked chapters grey; ChapterImage 212,15 225 x 152
+  scaleImage (stretched); ChapterText (ChapterLabel) 212,170: chapter in
+  NewGameChapter (UniversLTStd-Cn 18) + name in NewGameChapterName (BoldCn
+  18). Guess: rows read "CHAPTER N" (the .res/scheme don't say what the
+  list label holds; the full name would overflow 200 units). Footer: Start
+  New Game, (Community Maps when there are any), Back. Evidence: autopilot
+  `click SinglePlayer; click NewGame` and `click SelectChapter(2)` shots,
+  before (dist 8737034: grey panel, full-name list) vs after. Not done: a
+  drawn scrollbar (ScrollBar.Wide 12, nob black), Back returns to the main
+  menu rather than the Single Player dialog, double-click to start, the
+  0.3 s fade; the Community tab keeps its old grid.
 
 ### T-172 Voice lines start late  (P2, TODO)
 - Owner playtest 9: "sometimes voicelines activate late and when I'm going
