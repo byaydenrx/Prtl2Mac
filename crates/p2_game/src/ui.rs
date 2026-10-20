@@ -1529,7 +1529,10 @@ fn rebuild_menu(
             // advancedvideo.res (WIN32WIDE): 11 x 5, rows 350 wide every
             // 25 from 25, a description pane at x 360. Its 8 rows plus our
             // 6 need 14: packed from 0 like Audio on a 7-tile body.
+            // keyboardmouse.res: 7 x 5 (!$OSX), rows every 25 from 25
+            // (Edit Keys as a DefaultButton first).
             let tiled = match page {
+                OptionsPage::KeyboardMouse => Some((7, 5, 25.0)),
                 OptionsPage::Audio => Some((7, 5, 0.0)),
                 OptionsPage::Video => Some((7, 4, 25.0)),
                 OptionsPage::AdvancedVideo => Some((11, 7, 0.0)),

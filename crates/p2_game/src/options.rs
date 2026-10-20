@@ -3,7 +3,7 @@
 //!
 //! Like Portal 2, Options is a list of categories (Keyboard/Mouse,
 //! Controller, Audio, Video); each opens its own dialog, and some dialogs
-//! open a further one (Customize keyboard, Advanced video, and our
+//! open a further one (Edit keys/buttons, Advanced video, and our
 //! Subtitle style page). Our launcher-type pages (Speedrun, Mods) are two
 //! more categories in the same list, so the main and pause menus keep
 //! Portal 2's buttons. One function per page returns its rows. To add a
@@ -25,7 +25,7 @@ pub enum OptionsPage {
     #[default]
     List,
     KeyboardMouse,
-    /// Customize keyboard: the key list.
+    /// Edit keys/buttons: the key list.
     Keys,
     Controller,
     Audio,
@@ -78,7 +78,7 @@ impl OptionsPage {
     pub fn title(self) -> &'static str {
         match self {
             Self::List => "OPTIONS",
-            Self::KeyboardMouse => "KEYBOARD / MOUSE",
+            Self::KeyboardMouse => "KEYBOARD/MOUSE",
             Self::Keys => "CUSTOMIZE KEYBOARD",
             Self::Controller => "CONTROLLER",
             Self::Audio => "AUDIO",
@@ -409,7 +409,7 @@ fn list_rows() -> Vec<Row> {
         // own pages follow.
         link("AUDIO", OptionsPage::Audio),
         link("VIDEO", OptionsPage::Video),
-        link("KEYBOARD / MOUSE", OptionsPage::KeyboardMouse),
+        link("KEYBOARD/MOUSE", OptionsPage::KeyboardMouse),
         link("CONTROLLER", OptionsPage::Controller),
         link("SPEEDRUN", OptionsPage::Speedrun),
         link("MODS", OptionsPage::Mods),
@@ -469,15 +469,18 @@ fn mods_rows(ctx: &Ctx) -> Vec<Row> {
 }
 
 fn keyboard_mouse_rows(s: &Settings) -> Vec<Row> {
+    // keyboardmouse.res order (!$OSX), labels from basemodui/gameui
+    // _english: BtnEditBindings, DrpMouseYInvert, SldMouseSensitivity,
+    // DrpRawMouse, DrpMouseAcceleration, (SldMouseAcceleration: no
+    // exponent setting here), DrpDeveloperConsole; our mouse filter last.
     vec![
-        Row::Link { label: "Customize keyboard".into(), page: OptionsPage::Keys },
-        slider(s, "Mouse sensitivity", Setting::Sensitivity),
-        choice("Reverse mouse", on_off(s.invert_mouse), Setting::Invert),
-        choice("Mouse filter", on_off(s.mouse_filter), Setting::Smoothing),
-        choice("Mouse acceleration", on_off(s.mouse_accel), Setting::Accel),
-        choice("Raw mouse input", on_off(s.raw_input), Setting::RawInput),
-        // Portal 2 has this under Keyboard's advanced settings.
-        choice("Developer console (~)", on_off(s.tools.dev_console), Setting::DevConsole),
+        Row::Link { label: "Edit keys/buttons".into(), page: OptionsPage::Keys },
+        choice("Reverse Mouse", on_off(s.invert_mouse), Setting::Invert),
+        slider(s, "Mouse Sensitivity", Setting::Sensitivity),
+        choice("Raw Mouse Input", on_off(s.raw_input), Setting::RawInput),
+        choice("Mouse Acceleration", on_off(s.mouse_accel), Setting::Accel),
+        choice("Allow Developer Console", on_off(s.tools.dev_console), Setting::DevConsole),
+        choice("Mouse Filter", on_off(s.mouse_filter), Setting::Smoothing),
     ]
 }
 
@@ -819,7 +822,12 @@ mod tests {
         );
         assert_eq!(value(OptionsPage::AdvancedVideo, "Field of view").as_deref(), Some("75"));
         assert_eq!(value(OptionsPage::AdvancedVideo, "Max frame rate").as_deref(), Some("Unlimited"));
-        assert_eq!(value(OptionsPage::KeyboardMouse, "Reverse mouse").as_deref(), Some("Disabled"));
+        assert_eq!(value(OptionsPage::KeyboardMouse, "Reverse Mouse").as_deref(), Some("Disabled"));
+        assert_eq!(
+            labels(OptionsPage::KeyboardMouse),
+            ["Reverse Mouse", "Mouse Sensitivity", "Raw Mouse Input", "Mouse Acceleration", "Allow Developer Console", "Mouse Filter"],
+            "keyboardmouse.res order"
+        );
         let jump = rows(OptionsPage::Keys, &s, &c).into_iter().find_map(|r| match r {
             Row::Key { label, keys, .. } if label == "Jump" => Some(keys),
             _ => None,
