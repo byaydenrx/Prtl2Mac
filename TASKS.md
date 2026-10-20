@@ -15,7 +15,7 @@ date. Any engine bug found becomes its own task (P1 if it blocks the route).
 ## Priority order (owner playtest 8, 2026-10-20, build 1faf8d2)
 Work top to bottom (WORKFLOW rules: no P3/P4 while a P0/P1 is open).
 P1, blocks a real player:
-1. T-128 sp_a2_laser_stairs: the stairs don't move after the puzzle (unplayable past it).
+1. T-128 sp_a2_laser_stairs: the stairs don't move after the puzzle (FIXED 2026-10-20, owner replay).
 2. T-129 Stray screens: one blocks the staircase out of laser_stairs' arrival room; others in intro4.
 3. T-130 Portal shots stop at cubes and handrails: intro6 cube can't be dropped through a portal without noclip.
 4. T-131 sp_a1_intro3: floors and roofs missing (elevator rooms, after the gun climb).
@@ -249,10 +249,18 @@ Confirmed fixed by the owner: key labels (T-113 part), Chell without the gun
 before getting it, cubes/buttons drawn and no more "weird objects" (P0
 regression). Not reported again: intro2 exit stairs.
 
-### T-128 sp_a2_laser_stairs: the staircase doesn't move after the puzzle  (P1, TODO)
-- Owner section 7: unplayable past this point. An earlier autopilot run
-  (f2d9b71) called the map solvable; reproduce with the real route (laser to
-  the catcher), not `input`. relay_lower_stairs is the map's stair relay.
+### T-128 sp_a2_laser_stairs: the staircase doesn't move after the puzzle  (P1, NEEDS_VERIFICATION, owner replay)
+- Owner section 7: unplayable past this point.
+- Cause: the steps are brushes on circle_shield arms. At spawn each arm plays
+  move03_NNdown and holds it; relay_raise_stairs (catcher_1 OnPowered) only
+  sends SetPlaybackRate -1 to play the held sequence backwards. A finished
+  sequence ignored rate changes, so the arms never moved; only the invisible
+  func_door step clips rose (why the earlier autopilot run "climbed" them).
+  Now a rate that runs back into a held sequence resumes it
+  (Playback::set_rate; unit test negative_rate_replays_a_held_sequence_backwards).
+- Autopilot: relay_raise_stairs -> the arms lift the steps into a staircase
+  (side screenshots before/after); the 1faf8d2 app shows them flat. Real
+  laser route not replayed; the owner reached the catcher.
 ### T-129 Stray screens in elevator rooms  (P1, TODO)
 - Section 7: a screen in the first elevator room blocks the staircase you must
   take. Section 3 (intro4): a random screen at the entrance of the exit

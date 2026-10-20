@@ -77,6 +77,18 @@ impl Playback {
     }
 }
 
+impl Playback {
+    /// `SetPlaybackRate`. A held last (or first) frame plays again when the
+    /// new rate runs back into the sequence: sp_a2_laser_stairs raises its
+    /// stairs by playing the held "down" sequence backwards.
+    pub fn set_rate(&mut self, r: f32) {
+        if self.finished && (r < 0.0 && self.time > 0.0 || r > 0.0 && self.time <= 0.0) {
+            self.finished = false;
+        }
+        self.rate = r;
+    }
+}
+
 /// Equal playbacks play the same thing at the same point (ids aside).
 impl PartialEq for Playback {
     fn eq(&self, o: &Self) -> bool {
@@ -414,7 +426,7 @@ fn anim_inputs(
             }
             "setplaybackrate" => {
                 if let (Some(pb), Some(r)) = (anims.playing.get_mut(&i), source_assets::kv::parse_f32(param)) {
-                    pb.rate = r;
+                    pb.set_rate(r);
                 }
             }
             "door" if known(param) => {
@@ -686,6 +698,22 @@ mod tests {
 
     fn ev(cycle: f32, opt: &str) -> SeqEvent {
         SeqEvent { cycle, id: EVENT_FIRE_INPUT, name: String::new(), options: opt.into() }
+    }
+
+    #[test]
+    fn negative_rate_replays_a_held_sequence_backwards() {
+        let t = |_: &str| Some(SeqTiming { duration: 1.0, looping: false });
+        let mut pb = Playback::new("down", true);
+        assert!(step(&mut pb, 2.0, &t, None, true));
+        assert!(pb.finished && pb.time == 1.0);
+        pb.set_rate(-1.0);
+        step(&mut pb, 0.5, &t, None, true);
+        assert!(!pb.finished && (pb.time - 0.5).abs() < 1e-6);
+        step(&mut pb, 1.0, &t, None, true);
+        assert!(pb.finished && pb.time == 0.0);
+        pb.set_rate(1.0);
+        step(&mut pb, 0.25, &t, None, true);
+        assert!(!pb.finished && (pb.time - 0.25).abs() < 1e-6);
     }
 
     #[test]

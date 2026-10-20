@@ -35,13 +35,12 @@ needs a run with movement, portals and props only, or the owner's play.
   model, material, sound, the menu videos (media/menu_act01-05.bik) and the
   menu layouts (resource/ui/basemodui/*.res). This content is the same on
   Windows and Mac, so a Windows download adds no assets.
-- Not installed: any engine/game binaries (bin/osx32 and portal2/bin are
-  empty; only map compilers and a launcher stub). The owner may add the
-  Windows binaries depot (client.dll, server.dll, engine.dll, shaderapidx9.dll)
-  as the reference for exact behaviour (owner rule: reverse engineering the
-  owner's own install is fine, never leaked source). Windows is the target
-  look. With those, the real game could also run under CrossOver/Wine for
-  side-by-side screenshots.
+- Depot 624 "Portal 2 client binaries" installed 2026-10-20 (owner):
+  depot_624/portal2/bin/server.dll (game logic), client.dll (client effects,
+  UI), matchmaking.dll; Windows PE32 (x86). Engine/shader DLLs (engine.dll,
+  materialsystem, shaderapidx9) are in another depot, not installed. The
+  game still mounts depot_621 for content. Use: reverse engineering to
+  understand behaviour, own code only (WORKFLOW owner rules).
 
 ## Build and package
 - [x] `cargo build --release`, `cargo test --release --workspace` pass

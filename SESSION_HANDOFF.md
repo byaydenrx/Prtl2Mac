@@ -17,10 +17,14 @@ reads it first (via `sh scripts/resume.sh`).
 - dist/Prtl2Mac.app is build 0.1.0+1faf8d2 (everything on main).
 
 ## Next action
-1. TASKS "Priority order" item 1: T-128 sp_a2_laser_stairs stairs don't move.
-   Reproduce with the real route first.
-2. Then T-129 (stray screen blocking laser_stairs), T-130 (portal shots
-   through cubes/handrails), T-131 (intro3 floors/roofs), T-105, T-132.
+1. T-128 fixed (laser_stairs stairs rise: held sequences replay on a
+   negative SetPlaybackRate). Owner replay pending. Other held-and-reversed
+   arm animations (chamber entrances, moving stairs elsewhere) benefit too.
+2. Next in TASKS "Priority order": T-129 (stray screen blocking the
+   laser_stairs arrival staircase), T-130 (portal shots through cubes and
+   handrails), T-131 (intro3 floors/roofs), T-105, T-132.
+3. Depot 624 (Windows server.dll/client.dll) is installed for behaviour
+   reference; see PROJECT_STATE "Reference install".
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.
