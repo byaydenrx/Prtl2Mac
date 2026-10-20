@@ -28,19 +28,33 @@ fn projected_attenuation(dist: f32, far: f32) -> f32 {
     return linear * end;
 }
 
-// Bilinear 2x2 comparison of `depth` (distance / far) against a shadow map.
-fn projected_shadow(shadows: texture_2d_array<f32>, layer: i32, uv: vec2<f32>, depth: f32) -> f32 {
-    let size = vec2<f32>(textureDimensions(shadows));
-    let p = uv * size - 0.5;
+// Bilinear 2x2 comparison of `depth` (distance / far) at texel position `p`
+// (texel units, already shifted by -0.5 so integers are texel centres).
+fn projected_shadow_tap(shadows: texture_2d_array<f32>, layer: i32, p: vec2<f32>, depth: f32) -> f32 {
+    let hi = vec2<i32>(textureDimensions(shadows)) - 1;
     let base = floor(p);
     let f = p - base;
     let b = vec2<i32>(base);
-    let hi = vec2<i32>(size) - 1;
     let s00 = select(0.0, 1.0, depth <= textureLoad(shadows, clamp(b, vec2<i32>(0), hi), layer, 0).r);
     let s10 = select(0.0, 1.0, depth <= textureLoad(shadows, clamp(b + vec2<i32>(1, 0), vec2<i32>(0), hi), layer, 0).r);
     let s01 = select(0.0, 1.0, depth <= textureLoad(shadows, clamp(b + vec2<i32>(0, 1), vec2<i32>(0), hi), layer, 0).r);
     let s11 = select(0.0, 1.0, depth <= textureLoad(shadows, clamp(b + vec2<i32>(1, 1), vec2<i32>(0), hi), layer, 0).r);
     return mix(mix(s00, s10, f.x), mix(s01, s11, f.x), f.y);
+}
+
+// Soft shadow test like Source's flashlight PCF: a 3x3 Gaussian (1 2 1)
+// of bilinear comparisons one texel apart, so edges fade over ~4 texels
+// instead of stepping per texel (T-117).
+fn projected_shadow(shadows: texture_2d_array<f32>, layer: i32, uv: vec2<f32>, depth: f32) -> f32 {
+    let p = uv * vec2<f32>(textureDimensions(shadows)) - 0.5;
+    var sum = 0.0;
+    for (var y = -1; y <= 1; y++) {
+        for (var x = -1; x <= 1; x++) {
+            let w = f32((2 - abs(x)) * (2 - abs(y)));
+            sum += w * projected_shadow_tap(shadows, layer, p + vec2<f32>(f32(x), f32(y)), depth);
+        }
+    }
+    return sum / 16.0;
 }
 
 // One light's colour reaching `world` (metres) with normal `n`; multiply

@@ -44,7 +44,7 @@ pub const MAX_LIGHTS: usize = 8;
 /// Lights with a shadow map at once.
 pub const MAX_SHADOWS: usize = 4;
 /// Shadow map size (texels per side).
-pub const SHADOW_SIZE: u32 = 1024;
+pub const SHADOW_SIZE: u32 = 2048;
 /// Cookie textures are resampled to this size in one texture array.
 pub const COOKIE_SIZE: u32 = 256;
 pub const MAX_COOKIES: usize = 8;
