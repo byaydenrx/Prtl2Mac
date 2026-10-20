@@ -28,8 +28,11 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-120 Elevators, remaining parts: VO timing (T-138, intro5), thumps,
-   trash rising with the car, ride reaching the bottom before the map loads.
+1. T-120 Elevators, remaining parts: thumps, trash rising with the car.
+   VO timing / ride length checked 2026-10-20 (autorun): NOT REPRODUCED,
+   the ReadyForTransition/TransitionReady chain works (see T-120 entry);
+   needs an owner replay of intro5's second button. Possible lead: our new
+   VO cuts off a still-playing line instead of waiting for it.
    T-135 (vac-tube turrets through the exit elevator) is BLOCKED: the model's
    own elevator_0N animation drops them down the shaft through the car;
    needs a Windows Portal 2 reference of that moment (see its entry).

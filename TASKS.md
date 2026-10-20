@@ -85,6 +85,18 @@ Then the Backlog (prove and sweep the campaign).
   halfway down and stretched the ride (T-138); thumping sounds during the
   ride (section 4); the trash rising with the elevator is buggy; one ride
   reached the bottom before the next map loaded.
+- 2026-10-20 autorun: VO timing / ride length NOT REPRODUCED (no code change).
+  How it works: path_tracks call ReadyForTransition() (sp_elevator_motifs.nut);
+  it only leaves once the exit VO's scene fires TransitionReady(), else the
+  car rides the whole shaft to the failsafe node (intro5: ~20 s at 200 u/s,
+  same logic as the original). Autopilot: intro2 with PuzzleCompleted() leaves
+  at the first path_track (~1 s into the ride); intro5 with the cube put into
+  the box_filter trigger (64 448 264) starts testchamber03 0.6 s later, so the
+  VO is not delayed by our scene/script chain. Differences seen: our new line
+  cuts off the still-playing start line (testchamber02) instead of waiting;
+  unchecked whether a cube resting on the real button overlaps that trigger
+  (owner said the line came only halfway down). Needs an owner replay of
+  intro5's second button + `log` timing to go further.
 
 ### T-135 Turrets fall through the exit elevator  (P2, BLOCKED: needs owner)
 - Sections 5 (sp_a2_intro) and 6 (sp_a2_laser_intro).
