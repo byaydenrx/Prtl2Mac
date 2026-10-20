@@ -18,53 +18,54 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 4 intro5/intro6, 5 intro7 + sp_a1_wakeup + sp_a2_intro, 6 sp_a2_laser_intro,
 7 sp_a2_laser_stairs.
 
-## Priority order (2026-10-20)
+## Priority order (2026-10-20, after owner playtest 9)
+P0:
+1. T-168 crash pressing the cube-dropper button in sp_a2_laser_over_goo.
 P1:
-1. T-131 sp_a1_intro3 floors and roofs missing (BLOCKED: not reproduced, needs owner screenshots).
+2. T-169 sp_a2_laser_over_goo walls never move (softlock).
 P2:
-2. (T-114 fixed, awaiting owner replay.)
-3. T-120 Elevators is BLOCKED (thumps, trash, VO timing not reproduced; needs owner); T-135 turrets through the exit elevator is BLOCKED (needs owner reference).
-4. (T-133 Wheatley float fixed, awaiting owner replay; panel part not reproduced.)
-5. (T-134 pod turn and T-163 hatch fixed, awaiting owner replay.)
-6. (T-136 wakeup tube portal fixed, awaiting owner replay.)
-7. (T-137 portal spacing and T-102 cube exit-side drawing fixed, awaiting owner replay.) T-125 turn-away delay is BLOCKED (map's own timing; not reproduced, needs owner).
-8. (T-145 button press and cube lit skins fixed, awaiting owner replay.)
-9. (T-144 props fixed, awaiting owner replay.) T-147 black screen as intro2's first door opens.
-10. T-139 Audio: loud intro4 glass fixed (503406e, awaiting owner replay); soundscapes, button clicks, music cut-offs still open (PARTIAL, next run skips to T-149).
-11. (T-149 chamber progress signs drawn, d314ea7, awaiting owner replay); intro5 screens and lights still open.
-12. T-112 Missing/flat textures: GLaDOS chamber floor water fixed (991441d, awaiting owner replay); hallway to GLaDOS, black walk-through wall, intro4 blue wall still open (PARTIAL, next run skips to T-123).
-13. (T-123 security cameras knocked off by portal shots, 2bb0015, awaiting owner replay.)
-14. (T-160 main menu like Portal 2's, ab64b84, awaiting owner replay.)
+3. T-170 carrying regressed (pushed back at walls, can't push a cube up a wall).
+4. T-145 lit cubes turn black, spikes under buttons, cubes jitter on buttons.
+5. T-162 style the UI like Portal 2 (owner: "big for me").
+6. T-172 voice lines start late (stretches elevator rides; T-120's VO part).
+7. T-135 things fall through elevators (turrets, rubble).
+8. T-139 music not playing with ambience; soundscapes.
+9. T-112 GLaDOS chamber floor still murky brown (with T-151 water).
+10. T-144 clipboard should turn to face the player.
+11. T-149 intro5 screens/lights; sign big number check.
+12. T-147 intro2 black screen at the first door; T-113 hints vanish.
 P3:
-15. (T-161 menu movie and music by act, f6f129e, awaiting owner replay; T-162 logo/item layout and hover flash, b39fff3, awaiting owner replay, panel fades still open.)
-16. (T-020 intro1 ride BLOCKED: not reproduced, needs the camera proxy path or an owner recording; T-164 spiky debris BLOCKED: untested fix on attempt/T-164); T-116 intro1 room BLOCKED: not reproduced, needs a Windows screenshot; (T-117 shadows fixed, d1df637, awaiting owner replay); T-115 wake-up BLOCKED: not reproduced, the map has no get-up/lie-down rig in normal play (blackout is a removed template), needs a Windows recording.
-17. T-153 GLaDOS wake-up: portal gun drop fixed (c64a60b, awaiting owner replay); particles, floating arms, look direction still open (PARTIAL); T-157 fall transition: 3.6 s black wait cut to 0.25 s (badb7a9, awaiting owner replay), a ~2.5 s frame hitch after the load still open (PARTIAL); T-165 Wheatley rail connector BLOCKED: not reproduced, arm props drawn, needs an owner screenshot.
-18. (T-148 portals behind glass fixed, cc04a74, awaiting owner replay); (T-140 env_shake for game-placed portals, eb58eac, awaiting owner replay).
+13. T-171 FPS drops looking at portals.
+14. T-148 portals behind glass drawn on top (reopened).
+15. T-117 shadows still blocky.
+16. T-152 lighting/texture quality.
+17. T-153 GLaDOS wake-up particles; T-173 gun hold beam and fizzler spark.
+18. T-140 game-placed portal shake/sound (reopened).
+19. T-174 elevator videos; T-175 intro1 ride outside fog/sky; T-164 debris
+    (try attempt/T-164); T-116 window (owner screenshots coming).
 P4:
-19. T-151 water BLOCKED: untested fix on attempt/T-151 (needs owner replay or a Windows screenshot); (T-155 lasers textured, 014ab6e, awaiting owner replay); T-150 particles, T-152 lighting/textures,
-    T-143 clock blink, T-146 half-stuck door, T-154 floating moss, T-166 intro5 wall panel.
+20. T-151 water (try attempt/T-151), T-150 particles, T-146 half-stuck door,
+    T-154 floating moss.
 Then the Backlog (prove and sweep the campaign).
+
+## Open: P0
+
+### T-168 Crash pressing the cube-dropper button in sp_a2_laser_over_goo  (P0, TODO)
+- Owner playtest 9: after noclipping past the stuck walls (T-169) and
+  "continuing to the chamber ahead, after I clicked the button to drop the
+  box it crashed my game". Save: sp_a2_laser_over_goo autosave 14:44. No
+  macOS crash report was written (a Rust panic exits without one).
+- Reproduce with autopilot: load sp_a2_laser_over_goo, `use` the dropper
+  button (or `input` it), read the panic message.
 
 ## Open: P1
 
-### T-131 sp_a1_intro3: floors and roofs missing  (P1, BLOCKED: not reproduced, needs owner screenshots)
-- Section 2: the floor right in front of the door leaving the arrival
-  elevator room and the roof outside it; the roof after the gun climb until
-  the next gun use, then the floor there; the floor entering the exit
-  elevator room. Check drawn vs solid (visibility, areaportals, brush entities).
-- 2026-10-20 autopilot (HEAD 314cb7a), not reproduced: walking out of the
-  arrival elevator (feet -160,-142,1051 -> -160,481,1104; corridor floor
-  z 1104, its underside/ceiling ray-hit at 1072, white_wall_tile004b) shows
-  floor and roof on both sides of door_0, looking +-40..75 deg both ways;
-  `goto portalgun 120` and `goto emitter_orange_2 200` (first gun use)
-  floors drawn, overhead is the map's open ruin (foliage, dark void);
-  exit room (`goto departure_elevator-source_elevator_door_open_trigger
-  200`) stairs, floor and the entry door drawn. No PVS/areaportal culling
-  exists in our renderer (all world faces always drawn), so a hole would be
-  a missing face or a frustum-culling error; PortalProjection's far plane
-  and oblique clip only apply to portal cameras. Ask the owner for
-  screenshots with the console `getpos` (or the exact spot); "until the
-  next gun use" hints at something tied to portal placement/rendering.
+### T-169 sp_a2_laser_over_goo: GLaDOS never moves the walls, the way on is blocked  (P1, TODO)
+- Owner playtest 9: "there's a point where glados never moves the walls so
+  I can't move past here". Screenshot and screen recording
+  ~/Documents/Screenshots 2026-10-20 2.45.34/2.45.36 PM: entry corridor of
+  sp_a2_laser_over_goo (sign 04/22), arm panels piled at an angle, no way
+  through; owner noclipped past.
 
 ### T-108 A chamber door had an invisible barrier, needed noclip  (P1, NEEDS INFO)
 - intro4 doors pass both ways in a walk test. Need the door and map from the owner.
@@ -79,7 +80,84 @@ Then the Backlog (prove and sweep the campaign).
 
 ## Open: P2
 
-### T-120 Elevators  (P2, BLOCKED: needs owner; jitter and car sounds fixed)
+### T-170 Carrying regressed: pushed back at walls, can't push a cube up a wall, not smooth  (P2, TODO)
+- Owner playtest 9: "trying to move a cube up on a wall or something stops
+  me from moving forward, it's buggy, and carrying them around in general
+  isn't too smooth"; "something about what fixed dropping cubes when pushing
+  them in the wall made carrying stuff around a bit buggy and push me back
+  when close to walls".
+- Suspects: T-167's player stop (342b5b1: a ray along the view stops the
+  player 17 u + the prop's depth from a wall) and T-105's hold point pulled
+  in front of walls (fd9c086). In Portal 2 the held prop is solid to the
+  player but slides along walls; aiming at a wall or floor should not freeze
+  movement.
+- History (the fixes that caused it):
+  - T-167 (rest) A held cube at a wall surrounded the camera: the player
+    ignores the held prop's colliders, so walking on pulled the hold point
+    back onto the eye. Now (342b5b1), as in Portal 2 where the held prop is
+    solid to the player, a ray along the view stops the player 17 u plus the
+    prop's depth from a wall (skipped into portals). intro2 box walked into
+    two walls: before (dist) box centre at the eye (36 398 28, feet 36 400),
+    view = inside ring of its face; after the player stops ~41-49 u back and
+    the whole cube shows. Autopilot only; walking into a portal while holding
+    and Wheatley in intro7 not checked.
+  - T-167 (part) Wheatley can't be picked up again after a drop: cores were
+    pickable only after an EnablePickup input, which sp_a1_wakeup never sends
+    (he starts force-picked), so once dropped (or stuck-dropped) he was lost.
+    Cores now stay pickable until DisablePickup (intro7's map-spawn disable
+    still applies). wakeup: drop enabled via input, `use` drop, goto + lookat,
+    `use`: before (dist fd9c086) the ray hit him and he stayed on the floor
+    (z 401); after (636fc3f) he is held facing the player at z 441. Only
+    autopilot-checked, wakeup only.
+  - T-105 Held props dropped when carried into a wall: the hold point went
+    inside the wall, the prop stayed >64u from it and was dropped after 0.5 s.
+    Now a ray from the eye pulls the hold point in front of static geometry
+    (not through portals). intro2 cube walked into three walls: before
+    (dist build) it fell to the floor (z -46) and stayed; after (fd9c086) it
+    stays held at the wall and returns to its hold distance when backing
+    off. Only the cube was autopilot-checked, not Wheatley in intro7.
+
+### T-145 Buttons don't animate; cubes don't change colour on a button  (P2, REOPENED: lit cubes turn black, spikes under buttons, jitter)
+- Owner playtest 9 (2026-10-20, build 014ab6e): button press works, but "cubes turn black when they're activated and yellow" and "it adds weird spikes under the button almost like there's grass under it"; "buttons are still juttery/buggy when [cubes are] put on buttons".
+- Section 0: no press-down when used or when a cube lands; cubes kept their
+  off skin; cubes twitched on buttons (press/unpress flicker as they settle).
+- Press + twitch (feb5072): buttons were a baked pose; now animated
+  (down/idledown/up and variants), release only after 0.15 s clear.
+- Cube skins (2e8df1a): skin was baked in at spawn. Cubes whose model has a
+  lit skin (metal_box 0/1 -> 2/3; reflection/antique have none) spawn both
+  skins' draws in SkinVariant groups; floor_buttons sets ModelSkin lit while
+  the cube rests on a pressed button. Unit test cube_lit_skins.
+- Evidence (autopilot, sp_a1_intro2, `propto box` onto button_1-button): old
+  build cube ring stays blue on the pressed button, new build ring lit
+  yellow; moved off the button, ring blue again. Not owner-verified.
+- Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
+
+### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
+- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Panel/flyout transitions flip oddly; the Portal 2 logo is misaligned.
+- Cause: the logo and item column were placed by eye (logo 6%/9%, 34% wide;
+  items 6% left, 12% from the bottom, 2 px apart). Now from the install:
+  basemodui_scheme.res Logo.X/Y 75,35, 240x60 units; mainmenu.res items at
+  x 88, 20 tall every 30 units, last at y 378 (480-unit layout, Vh-scaled;
+  pause menu uses the same column). Also every menu change rebuilt the
+  buttons, which only learn they are hovered a frame later, so the clicked
+  item flashed unlit for a frame; carry_hover now keeps them lit.
+- Evidence: autopilot main menu + `click SinglePlayer` shots, before (dist
+  89f2bf5-era) vs after b39fff3; Quit row centre at 80.8% of the height as
+  the .res gives. The one-frame flash was found by reading the code, not
+  captured in a shot. Still open: Portal 2's panel fade/slide timings are
+  not implemented (no Windows reference of what the owner saw as "flip");
+  the main/pause font size was not checked against the scheme.
+
+### T-172 Voice lines start late  (P2, TODO)
+- Owner playtest 9: "sometimes voicelines activate late and when I'm going
+  through the elevator, making the elevator ride go on longer" (global).
+  Elevator rides wait for the exit VO's TransitionReady (T-120), so late VO
+  stretches them. Measure scene start vs its trigger (logic_choreographed_scene
+  Start, glados.nut queue, sound decode/load latency) on several maps.
+
+### T-120 Elevators  (P2, OPEN: VO timing only; jitter, car sounds, thumps owner-confirmed)
+- Owner playtest 9 (2026-10-20, build 014ab6e): jittery rides FIXED, thumps FIXED; VO timing NOT fixed (voice lines start late, also while riding, which stretches the ride: see T-172); rubble/turrets still fall through the elevator (T-135).
 - Jitter FIXED 2026-10-20 (c1079f9, see Awaiting owner replay). Still open:
   the VO after intro5's second button started
   halfway down and stretched the ride (T-138); thumping sounds during the
@@ -121,7 +199,8 @@ Then the Backlog (prove and sweep the campaign).
   BLOCKED: needs the owner to say which ride and what looked wrong, or a
   Windows reference of intro5's departure.
 
-### T-135 Turrets fall through the exit elevator  (P2, BLOCKED: needs owner)
+### T-135 Turrets fall through the exit elevator  (P2, OPEN: owner confirms, still happens)
+- Owner playtest 9 (2026-10-20, build 014ab6e): "things still falling through elevators"; rubble and turrets both fall through (T-120's trash is the same bug).
 - Sections 5 (sp_a2_intro) and 6 (sp_a2_laser_intro).
 - 2026-10-20 autorun (HEAD abc5618), cause not confirmed. The turrets are
   `departure_elevator-vacturret_01..04` (prop_dynamic,
@@ -144,25 +223,8 @@ Then the Backlog (prove and sweep the campaign).
   screenshot/clip of this moment in Windows Portal 2 (or depot 624 RE of
   prop_dynamic root-motion handling). No fix attempt branch.
 
-### T-125 sp_a1_intro7: the turn-away check is slow to register  (P2, BLOCKED: not reproduced, needs owner)
-- Works (negative FOV cone fixed) but takes a moment (playtests 5, 7, 8).
-- 2026-10-20 autorun, NOT REPRODUCED (autopilot log only): the delay we have
-  is the map's own. glados_scenetable_include sp_a1_intro7NoWatching02
-  ("...turn around for a second?", sphere03 doorwaysequence11.vcd, 3.17 s)
-  enables wheatley_dont_watch_aisc only when the line ends (+0.2 s, glados.nut
-  PlayNextSceneInternal "fire at end"); the aisc needs RequiredTime 1.5 with
-  the target outside a 100 degree cone. Measured: turned away at t=25 (aisc
-  already enabled) -> OnConditionsSatisfied at t=26.51, turnaroundnow01.vcd
-  10 ms later; turned away early (during line 10) -> fired 1.7 s after line
-  11 ended (0.2 + 1.5). So turning during his lines waits for them to finish;
-  Source should do the same. No engine cause found, no attempt branch.
-  Needs the owner: how long it took and when they turned (during or after
-  "could you just turn around"), ideally a Windows timing reference.
-
-### T-147 intro2: the screen goes black right as the first door opens  (P2, TODO)
-- Section 1; compare T-119. Screenshot 7 (intro2): a dark shard in a door.
-
-### T-139 Audio  (P2, PARTIAL: glass fixed 503406e, rest TODO)
+### T-139 Audio  (P2, PARTIAL: glass fixed; music/ambience and soundscapes open)
+- Owner playtest 9 (2026-10-20, build 014ab6e): glass fixed; "some music doesn't play along with ambient sounds"; voice lines late (T-172).
 - No soundscapes/ambience (water drips), no button clicks (sections 1, 5).
   Still open: the engine has no env_soundscape / soundscape script support
   at all (grep finds nothing), so this is a feature to build.
@@ -181,340 +243,8 @@ Then the Backlog (prove and sweep the campaign).
   when autopilot walks into the ramp trigger (`goto glass_shard`), with the
   pane door opening. Unit test `only_looping_audible_ambients_autostart`.
 
-### T-113 Instructor hints vanish after a few seconds if not done  (P2, TODO)
-- Key labels fixed (owner confirmed).
-
-## Open: P3
-
-
-### T-020 sp_a1_intro1 ride  (P3, BLOCKED: needs owner)
-- Walls flash away and back before breaking off; Wheatley a black box above
-  (screenshot 4); the room jerks the camera and moves the player; floating
-  parts; Wheatley moves oddly after the ride; glitchy screen at the start.
-- Verify: `shot` every 0.2 s during the ride, then the owner.
-- 2026-10-20 autorun, NOT REPRODUCED (no code change, no attempt branch).
-  Tried shortcuts: `input crane_initial_startup_relay trigger` at 21 s, and
-  `input crane_second_startup_relay enable/trigger` (second section, anim2;
-  actor_container_01/03/05/07 OnAnimationDone -> kill fire ~30 s later).
-  Shots every 0.5-1 s (yaw 65/155/245) show only the static bedroom
-  (player feet stay at source -8709 1690 28); no wall flash or break-off seen.
-  Reason: what the player sees during the ride is the point_viewproxy
-  `camera_1` -> `camera_proxy` (parented to actor_container_master
-  attachment vstattachment, offsettype 2, fake acceleration/tilt), enabled
-  only by `@camera_proxy_enable_rl` from `relay_start_second_cryo_wakeup`,
-  which these shortcuts skip. Next try: trigger relay_start_second_cryo_wakeup
-  (or play the full intro: look up/down/painting/space prompts) and shoot
-  through the proxy. Suspects for "jerks the camera / moves the player" and
-  "walls flash": viewcontrol.rs proxy acceleration/tilt, and actors'
-  SetAnimation anim2 -> kill timing vs the proxy-enabled container_master
-  being disabled. Owner: a short screen recording of the ride would help.
-
-### T-164 Spiky, torn animated debris  (P3, BLOCKED: needs owner)
-- intro1 ride (screenshot 5), sp_a2_intro shaft arms (playtest 7). Animated
-  props draw as rigid per-bone triangles (models.rs split_by_bone); soft
-  weighted meshes tear. Check the weights, then skin them.
-- 2026-10-20 autorun: weights checked (mdlinfo now prints "soft verts" and
-  "mixed tris" per mesh). intro1 ride: the container_ride finedebris_part1/3/
-  5/9/11/12/13 rebars, rust, crumplebeam/crumplecorner, bed02 and frame2
-  meshes blend 2-3 bones (e.g. part12 crumplebeamcol 1257/3265 soft verts,
-  1846 of 3080 tris mixed), so the rigid split tears them: confirmed cause
-  by data. sp_a2_intro: every model is rigid (arm64x64_interior_rusty,
-  crusher, armrubble_* all 0 soft verts), so the shaft-arm spikes are a
-  different problem, still open (check bone poses/interpolation there).
-- Not visually reproduced: in sp_a1_intro1 autopilot (`input
-  actor_container_05 SetAnimation anim2`, `input camera_intro Disable`,
-  `goto`/`lookat`) the view stays on the bed-room intro camera, so no
-  before/after shot of the debris.
-- Untested fix: local branch attempt/T-164 (c34006e), needs owner
-  review/replay. Soft meshes (vertexlit/unlitgeneric) stay whole under the
-  model and are linear-blend skinned on the CPU from their BonePart
-  transforms when those move (plugin.rs skin_soft_meshes, models.rs
-  skin_vertices with a unit test); valve_render re-uploads the vertex
-  buffer when the SkinnedVertices generation changes. Replay the intro1
-  ride's wall breaking and the room transform after `git merge
-  attempt/T-164`.
-
-### T-116 intro1 room details  (P3, BLOCKED (needs owner))
-- The window is a grey block, should be blinds (screenshot 1); the TV
-  screen sits forward and up from the TV; odd outside lighting on the ride.
-- Autorun 2026-10-20, NOT REPRODUCED (autopilot only, no code change, no
-  attempt branch):
-  - Window: the start room's window (x ~ -8460, behind the plant) is world
-    brushes in glass/glasswindow_frosted_break001a (and
-    glass_underground_dirty01a): LightmappedGeneric, $translucent, a dirty
-    frosted texture with vertical streaks, no blinds in it. P2_HIDE_MAT=glass
-    shows only plain bright white behind it (no model or brush with blinds
-    there; static props in the room are furniture04, closet_curtain01,
-    lab_pod_frame_end_01, container_lightcover). So we draw what the map
-    has; the glass may just read darker than on Windows (the VMT's
-    `"srgb?$alpha" "0.5"` conditional is not applied by us; unconfirmed).
-    The ride container's slatted look (models/container_ride/windowrails,
-    finedebris_part7) is a different room. Needs a Windows screenshot of
-    the same view to say what "blinds" should look like.
-  - TV screen: `tvscreen` (tvscreen01.mdl) belongs to the ride's
-    actor_container_07 and gets SetParentAttachmentMaintainOffset
-    screenattachment from @rl_container_ride. Autopilot shots 1.5 s and
-    9 s into the ride show it on the TV; the start room's TV is part of
-    hotel_container_furniture models. Needs the owner's exact moment/view.
-  - Outside lighting on the ride: not checked this run (ride is seen
-    through point_viewproxy camera_1, see T-020).
-
-### T-115 intro1: no wake/sleep animation on the bed  (P3, BLOCKED (needs owner))
-- 2026-10-20 autorun: NOT REPRODUCED, no code change, no attempt branch.
-  Autopilot (sp_a1_intro1; shots at 0.5-14 s, then return_to_bed_button
-  unlock+press at 16 s, shots to 31 s): first wake-up plays camera_intro on
-  ghostanim "sp_a1_intro" (13.4 s: ceiling through the white fade, sits up,
-  looks round, TeleportToView at 12 s, continuous handover). Bed press:
-  cryo_fade_out (3 s to white, 5 s hold, 2 s back), relay_start_second_cryo_
-  wakeup at +5 s teleports the player to @knockout_teleport_1 (bed, yaw 10);
-  no camera motion after that.
-- Why no get-up/lie-down here: the only other rig is blackout
-  (models/blackin.mdl, seq exit1 5.33 s, camera blackout_viewcontroller on
-  vehicle_driver_eyes), but both are members of point_template
-  blackout_template (spawnflags 2, i.e. templates removed at load, as Source
-  does and we do); only @debug_skip_to_moving_container ForceSpawns it, and
-  blackout's own OnAnimationDone kills it. So relay_start_cryo_sequence's
-  Enable/SetAnimation hit nothing in normal play, on both wake-ups. Nothing in
-  the map animates lying down on the bed (the press only fades to white).
-  blackin.mdl's material models/blackout/blackout is missing from the game
-  files too.
-- Needs the owner: a Windows recording/screenshots of the wake-up (which
-  moment looks wrong) and of what happens after using the bed.
-
-
-### T-165 sp_a1_intro7: Wheatley's rail connector invisible  (P3, BLOCKED: needs owner)
-- 2026-10-20 autorun: NOT REPRODUCED. Wheatley's rig is spherebot_train_1_chassis_1
-  (func_tracktrain *2) -> spherebot_1_top_swivel_1 (func_tank *3, yaw) ->
-  spherebot_1_bottom_swivel_1 (func_tank *4, pitch) -> @sphere, plus two nameless
-  prop_dynamics at -370 -416 1592: wheatley_arm_base.mdl (parent chassis) and
-  wheatley_arm_main.mdl (parent top swivel), both bind-pose only, material
-  models/anim_wp/arm_64x64, both load (no warning). Autopilot shots
-  (setpos -300 -330 1560 10 -130 and -330 -330 1640 35 -135) with and without
-  P2_HIDE_MAT=arm_64x64 show the arm pieces drawn around Wheatley under the
-  orange-striped beam; a thin arm sliver shows at the beam's top edge (arm_main
-  spans 15-97 u from its origin at z 1608-1632, mostly inside/behind the beam).
-  Unconfirmed lead: the top swivel is already yawed ~167 deg at t=4 (before any
-  SetTargetEntity), which swings arm_main with it. No code change, no attempt
-  branch. Needs an owner screenshot (or Windows reference) showing which part
-  is missing and from where.
-
-## Open: P4
-
-### T-151 Water like Portal 2's (reflections, murk), intro3 and sp_a2_laser_intro  (P4, BLOCKED: untested fix, needs owner)
-- Owner (playtests 8 and 6): "should look like water with reflections";
-  "water ugly, not murky with reflections".
-- Seen 2026-10-20 (autorun, dist eb58eac, `goto fall_splash 250`): intro3
-  water is a flat, ripple-less brown sheet; no reflection at all, because
-  plugin.rs drops the sky reflection on fogged maps (earlier fix: the white
-  sky turned the water white).
-- Material (both maps share it): `nature/water_a1_intro3` /
-  `water_a2_laser_intro`, `$reflecttexture _rt_WaterReflection`,
-  `$reflectskyboxonly 1`, `$reflectonlymarkedentities 1`, `$reflecttint 190`,
-  `$reflectamount 0.4`, flowmap normals, `$lightmapwaterfog`, fog 90 70 20
-  over 0-60, `$pseudotranslucent 1`, `$waterblendfactor 0.75`. Both maps'
-  sky is sky_white (pure white UnlitGeneric), no sky_camera. water_ps20b's
-  combos without RefractSampler (pseudotranslucent) still sample
-  ReflectSampler plus lightmap, and every combo has g_PixelFogParams (the
-  map's fog over the surface).
-- Suspected cause: no reflection, and no map distance fog on glass/water
-  (glass.wgsl returned its colour without Bevy's fog). The previous "white
-  water" came from multiplying the reflected sky by the HDR exposure; Source
-  samples an LDR reflection target, so the sky saturates at 1 before the tint.
-- Untested fix: local branch attempt/T-151 (2df932d; cbfa31d + test stub),
-  needs owner review/replay. Sky reflection back on fogged maps, clamped to
-  1 then times `$reflecttint`, Fresnel-mixed with the lit fog; map distance
-  fog applied to glass/water. Autopilot shots: intro3 water now grey with
-  visible flowing ripples at grazing angles (before: flat brown). Whether
-  Portal 2's looks that pale is unknown without a Windows screenshot of the
-  intro3 pool (or laser_intro). Not done: `$pseudotranslucent` alpha blend
-  (`$waterblendfactor`), `$reflectamount` screen-space offset.
-### T-150 Particles missing  (P4, TODO)
-- Fall smoke and water splash (+ sounds) in intro3; the gun's beam when
-  holding things; motion blur/speed lines; the gun's glow seen through the
-  wall after the sp_a2_intro fall.
-### T-152 Lighting and texture quality below the original  (P4, TODO)
-- Scrap pieces in the intro3 fall; turrets in tubes (wakeup); bumped
-  VertexLitGeneric (models with $bumpmap) still drawn without bump.
-### T-143 intro1 12:00 clock: the whole sign blinks, only the digits should  (P4, TODO)
-### T-146 intro1: the first cube-button door should get half stuck  (P4, TODO)
-### T-154 Floating vine/moss/grass texture by the centre wall (intro5)  (P4, TODO)
-### T-166 intro5: a missing wall panel  (P4, TODO)
-
-## Awaiting owner replay (fixed, autopilot evidence)
-
-### T-155 Lasers look poor  (P4, FIXED 2026-10-20, 014ab6e, autopilot only)
-- Playtest 8 section 6: "lasers ugly".
-- Cause: env_portal_laser legs were drawn as an opaque, hard-edged solid
-  cylinder plus an additive red tube, not Portal 2's beam material
-  (client.dll C_PortalLaser uses `sprites/purplelaser1.vmt`: UnlitTwoTexture,
-  additive, a thin white-pink core with a soft red falloff across u).
-- Fix: one camera-facing additive quad per leg, 40 units wide, textured
-  with purplelaser1, colour x2.5 overbright, flickering 0.9..1.05 per frame
-  (the vmt's UniformNoise proxy). Turret sight lines unchanged.
-- Evidence (autopilot shots, sp_a2_laser_relays `3 setpos -420 -460 0;
-  3.5 lookat new_laser` and `setpos -600 -700 0`): before a flat solid
-  red/white band; after a glowing core with a soft red halo. Width and
-  brightness chosen by eye, not compared with Windows Portal 2.
-- Not done: the scrolling `$texture2` (effects/laserplane_atmosphere),
-  impact sparks (m_bShouldSpark) and emitter/impact glow sprites.
-
-### T-140 Game-placed portals: no screen shake or sound  (P3, FIXED 2026-10-20, eb58eac, autopilot only)
-- The first orange portal should shake the screen a little and play its sound.
-- Cause: env_shake was not implemented at all. intro1's
-  portal_red_0_activate_rl fires `shake_portal_spawn_room1 StartShake`
-  (amplitude 4, frequency 2.5, 1 s, radius 500) 0.8 s after Trigger, with
-  the portal's SetActivatedState. The sound already played: map portals send
-  PortalPlaced, so Portal.open_red plays (log, before and after build).
-- Fix: new p2_game shakes.rs (StartShake/StopShake/Amplitude/Frequency,
-  linear radius falloff, spawnflag 1 global, 32 no view shake) feeding
-  p2_core ScreenShakes; p2_view offsets and rolls the main camera (random
-  direction re-picked `frequency` times a second, fading squared). Not done:
-  physics/rope pushes (flags 8/16), the on-ground check. Unit tests:
-  amplitude_fades_with_distance, shake_fades_out.
-- Evidence (autopilot only): `goto portal_red_0 200; input
-  portal_red_0_activate_rl Trigger`: "env_shake start, amplitude 2.34 at
-  207 u", then RUST_LOG=p2_view=trace shows camera offsets peaking ~1.9 u
-  and decaying to 0 over the second; before build: no shake. Owner replay:
-  does it feel like Windows Portal 2 (strength, speed)?
-
-### T-148 Portals behind glass  (P3, FIXED 2026-10-20, cc04a74, autopilot only)
-- Owner section 1 (intro2): portals behind glass look on top of the glass;
-  behind broken glass not drawn at all.
-- Cause: glass/water (Refract) read Bevy's transmission copy, taken once
-  before the transmissive pass, and live portal surfaces were drawn in that
-  same pass. Broken pane (glass_fracture_128x128_b, its Refract mesh sorted
-  after the portal) refracted a copy of the bare wall over the portal;
-  glass sorted before a portal was overdrawn by it.
-- Fix: live surfaces sort first (depth_bias) and p2_render's
-  portal_surface_pass draws them after the Valve scene passes, before the
-  copy; Bevy's second draw fails a strict depth test. Unit test
-  portal_prefix_len.
-- Evidence (autopilot, sp_a1_intro2, portal_blue_1/red_1 activated,
-  `setpos -450 -60 -60; lookat portal_blue_1`): before, no portal behind the
-  cracked pane; after, the portal shows through it with cracks and
-  refraction over it. A view through the intact pane (setpos -100 -40 -60)
-  looks the same before and after; the "on top of normal glass" case was not
-  isolated by autopilot, owner replay needed.
-
-### T-157 Transition into the sp_a2_intro fall not smooth  (P3, PARTIAL 2026-10-20, badb7a9, autopilot only)
-- Owner playtest section 5: the fall works and lands right, but the
-  transition into it isn't smooth.
-- Reproduced (autopilot `input @transition_from_map trigger` in
-  sp_a1_wakeup): the map's exit_fade goes black in 0.3 s, then level_exit
-  waited a fixed 3.5 s, so the screen stayed black 3.6 s before
-  sp_a2_intro loaded (Source changes level as soon as the fade is black).
-- Fixed (badb7a9): when the map already holds an opaque stay-out fade,
-  the next map loads 0.1 s after it is black (unit test
-  level_exit_after_map_fade_loads_once_black). Autopilot after: "leaving"
-  -> "sp_a2_intro loaded" 0.25 s (was 3.65 s). Elevator exits unchanged.
-- Still open: right after the load (only when arriving from wakeup, not
-  when starting sp_a2_intro directly) frames stall ~2.5 s wall clock (was
-  5-8 s before this fix) while the game clock barely moves; `sample` shows
-  threads mostly waiting, prepare_surfaces hot. Suspect: the valve_render
-  GPU mesh cache (PreparedSurfaces.meshes / mesh_index, keyed by Arc
-  pointers) is never cleared between maps, so the old map's buffers stay
-  and a reused pointer could even pick a stale mesh. Not confirmed.
-- dist build 0.1.0+badb7a9.20261020T1656Z.
-
-### T-153 GLaDOS wake-up  (P3, PARTIAL 2026-10-20, c64a60b, autopilot only)
-- White particles hide her; her arms float unattached when grabbing Chell
-  and Wheatley; the portal gun didn't visibly drop; the player is made to
-  look the wrong way (playtests 6-8).
-- Gun drop FIXED (c64a60b): glados_camera.nut fires `gun_shooter Shoot` at
-  6 s, and env_shooter wasn't implemented. The loader now spawns its
-  shootmodel hidden; Shoot throws m_igibs dynamic copies along its facing
-  (m_flvelocity 60, gib life 4 s). Autopilot `input gun_shooter Shoot`:
-  before (dist d1df637) nothing appears; after, w_portalgun
-  falls, lands ~3.5 s later and is removed at 4 s. Not seen inside the
-  full wake-up sequence (autopilot only, not owner-checked).
-- Still open: white particles hiding her, arms floating unattached, the
-  player looking the wrong way.
-
-### T-117 Blocky shadows  (P3, FIXED 2026-10-20, d1df637, autopilot only)
-- Cause: env_projectedtexture shadows (light_room_00 in sp_a1_intro1: 110 deg
-  FOV) used a 1024 map and one 2x2 bilinear compare, so the hanging
-  planter's shadow stepped per texel and its chains broke into dashes
-  (owner screenshot 2).
-- Fix: 2048 shadow maps (projected.rs SHADOW_SIZE) and a 3x3 (1 2 1)
-  Gaussian of bilinear compares (projected_common.wgsl), like Source's
-  flashlight PCF.
-- Evidence (autopilot, sp_a1_intro1, `2 input camera_intro disable; 4 setpos
-  -8640 1720 10 -18 180; 5 shot`): before (dist 0.1.0+b39fff3) stair-stepped
-  pot outline and dashed chains; after smooth outline, solid chains, no
-  acne on the walls. Replay: look at the planter shadow above the closet.
-
-### T-162 Menu animations, logo alignment, styling  (P3, PARTIAL 2026-10-20, b39fff3, autopilot only)
-- Panel/flyout transitions flip oddly; the Portal 2 logo is misaligned.
-- Cause: the logo and item column were placed by eye (logo 6%/9%, 34% wide;
-  items 6% left, 12% from the bottom, 2 px apart). Now from the install:
-  basemodui_scheme.res Logo.X/Y 75,35, 240x60 units; mainmenu.res items at
-  x 88, 20 tall every 30 units, last at y 378 (480-unit layout, Vh-scaled;
-  pause menu uses the same column). Also every menu change rebuilt the
-  buttons, which only learn they are hovered a frame later, so the clicked
-  item flashed unlit for a frame; carry_hover now keeps them lit.
-- Evidence: autopilot main menu + `click SinglePlayer` shots, before (dist
-  89f2bf5-era) vs after b39fff3; Quit row centre at 80.8% of the height as
-  the .res gives. The one-frame flash was found by reading the code, not
-  captured in a shot. Still open: Portal 2's panel fade/slide timings are
-  not implemented (no Windows reference of what the owner saw as "flip");
-  the main/pause font size was not checked against the scheme.
-
-### T-161 Menu background video and music  (P3, FIXED 2026-10-20, f6f129e, autopilot only)
-- Cause: the menu only showed the act's still (background0N_widescreen),
-  and the music indexed the five portal2_background0N tracks by chapter
-  number (chapter 3 played track 3, not act 2's).
-- Fix: Main/New Game/Options play media/menu_act0N.bik for the save's act
-  (ffmpeg streams it looped in real time, newest frame only; still shown
-  until frames arrive or without ffmpeg; stopped in the game). Music uses
-  the same act (unit test `menu_act_by_chapter`).
-- Evidence (autopilot only): dist 89f2bf5 shows the static still; new build
-  logs "menu movie media/menu_act02.bik" (save on laser_over_goo) and shots
-  at 4 s and 6 s show different movie frames; ffmpeg exits after Continue
-  and on quit, never starts on a map launch. Music change not listened to.
-  Owner: check it loops smoothly and the act/track match Windows.
-
-### T-160 Main menu like Portal 2's  (P2, FIXED 2026-10-20, ab64b84, autopilot only)
-- Top level: Play Single Player, Play Cooperative Game, Community Test
-  Chambers, Options, Extras, Quit (unbuilt ones may do nothing yet).
-- Play Single Player: Continue Game, New Game, Load Game, Challenge Mode.
-- New Game: a vertical chapter list, not the gallery.
-- Layouts and art are in the install: resource/ui/basemodui/*.res
-  (mainmenu, campaignflyout, chapter dialogs), materials/vgui.
-- 2026-10-20 (ab64b84): the main menu had only Play Single Player,
-  Options, Quit, and New Game was a 3-column picture grid. Now: Play Single
-  Player, Play Cooperative Game, Community Test Chambers, Options, Extras,
-  Quit (Co-op and Extras do nothing yet; Community Test Chambers opens New
-  Game's community tab when there are community maps, else nothing). The
-  Single Player flyout is Continue Game, New Game, Load Game, Challenge Mode
-  (Continue/Load only with a save, as before; Challenge Mode does nothing
-  yet). New Game is a vertical chapter list (CHAPTER N: TITLE, locked ones
-  greyed) with the picked chapter's picture and title on the right, as in
-  newgamedialog.res; click picks, a second click or START NEW GAME starts.
-  Community tab unchanged (still the grid). Unit test
-  main_menu_items_are_portal_2s.
-- Evidence: autopilot `click SinglePlayer`, `click NewGame`,
-  `click SelectChapter(1)` shots (before: dist 89f2bf5-era build showed the
-  3-item menu and tile grid). Not owner-checked; layout by eye, not the
-  .res pixel positions, and no Windows side-by-side.
-
-### T-123 Portal shots should knock security cameras off  (P2, FIXED 2026-10-20, 2bb0015, autopilot only)
-- intro6 and sp_a2_laser_stairs: in Portal 2 the camera falls off.
-- Cause: npc_security_camera was only a static model; nothing handled its
-  `Ragdoll` input (server.dll CNPC_SecurityCamera::InputRagdoll) or portal
-  shots. Now (crates/p2_game/src/cameras.rs) a camera tears off and becomes
-  a dynamic physics prop (insert_prop_body, shared with props.rs) on
-  `Ragdoll`, when a portal shot's path passes within 20 u of its body, or
-  when a portal opens over its wall (opening + 16 u). Unit tests cover both
-  checks.
-- Evidence (autopilot, sp_a1_intro6, `3 setpos 464 -420 0; 5 lookat 458
-  -270 40; 6.5 fire blue`): dist 89f2bf5 shot fails, camera stays on the
-  wall; new build logs "security camera 563 detached" and later shots show
-  the wall bare and the camera lying on the floor below. laser_stairs not
-  run. Not done: the wall decal left behind (decals_subrect
-  "SecurityCamera.Detachment"), whether the torn-off camera can be carried
-  (it can here, like any prop), detach sound, saves keeping it detached.
-
-### T-112 Missing or flat textures  (P2, PARTIAL 2026-10-20, 991441d, autopilot only)
+### T-112 Missing or flat textures  (P2, PARTIAL: GLaDOS floor better but still murky brown)
+- Owner playtest 9 (2026-10-20, build 014ab6e): "glados chamber floor is still just a weird murky brown ... it does look better than before". Likely needs the water reflection (see T-151, attempt/T-151).
 - GLaDOS chamber floor brown and flat like the old intro3 water (section 5);
   hallway to GLaDOS; after the jumps a black wall you can walk through; a
   blue flat wall behind the intro4 elevator.
@@ -542,7 +272,26 @@ Then the Backlog (prove and sweep the campaign).
 - Still open: the hallway to GLaDOS's chamber, the black walk-through wall
   after the jumps (where?), the blue flat wall behind the intro4 elevator.
 
-### T-149 Chamber signs blank; screens and lights wrong  (P2, PARTIAL 2026-10-20, d314ea7, autopilot only)
+### T-144 Missing props: intro1 portal room clipboard and movable clock  (P2, PARTIAL: props fixed; clipboard should turn to face the player)
+- Owner playtest 9 (2026-10-20, build 014ab6e): fixed, "but the clipboard prop doesn't auto face you so you can read it" (Portal 2 turns some props to a preferred carry angle when picked up; check the model's physgun/carry keyvalues).
+- Cause: physics props had Mass(40) but their rotational inertia came from
+  the collider at avian's default density (1 kg/m3). The radio's hull weighs
+  37 g at that density, so it got about 1/1000 of a 40 kg box's inertia: contacts
+  spun it, it rocked from spawn and sank through the vault floor at ~1.8 s.
+  The unnamed bts_clipboard on the table fell too. Fix: the prop's colliders
+  get the density that makes them weigh 40 kg (unit test
+  prop_colliders_weigh_the_prop_mass).
+- Evidence (autopilot, sp_a1_intro1): dist 2e8df1a radio z 2705 -> 2691 at
+  1.8 s -> 2180 at 3 s; clipboard z 2639 at 0.5 s. New build: radio at
+  (-1208 4324 2705) upright at 0.5/1.6/3/6 s, clipboard at 2727 on the table
+  at 1 and 6 s. Side effect: intro2's spawn cube now settles flat on a face
+  (z -43) instead of leaning at 24 deg (z -39); every prop now has a 40 kg
+  box's inertia (cubes tumble less). "Movable clock" still not identified
+  (the clocks are prop_dynamic and draw); owner to say if anything is still
+  missing.
+
+### T-149 Chamber signs blank; screens and lights wrong  (P2, PARTIAL: signs drawn; elevator videos and intro5 screens open)
+- Owner playtest 9 (2026-10-20, build 014ab6e): signs fixed; "the videos that play in the elevator rooms are a bit buggy and super low quality" (now T-174). Owner screenshot 2026-10-20 2.45.36 PM (sp_a2_laser_over_goo) shows "04/22" with a big "01": check the big number against Windows.
 - The white chamber-number screens ("02") were blank in every level:
   they are `vgui_screen`s with panelname `sp_progress_sign`, which we never
   drew (only the dark sign frame model showed). FIXED: new
@@ -568,66 +317,205 @@ Then the Backlog (prove and sweep the campaign).
 - Still open: intro5's screens and lights wrong (playtest section 4), not
   looked at this run.
 
-### T-144 Missing props: intro1 portal room clipboard and movable clock  (P2, FIXED 2026-10-20, 89f2bf5, autopilot only)
-- Cause: physics props had Mass(40) but their rotational inertia came from
-  the collider at avian's default density (1 kg/m3). The radio's hull weighs
-  37 g at that density, so it got about 1/1000 of a 40 kg box's inertia: contacts
-  spun it, it rocked from spawn and sank through the vault floor at ~1.8 s.
-  The unnamed bts_clipboard on the table fell too. Fix: the prop's colliders
-  get the density that makes them weigh 40 kg (unit test
-  prop_colliders_weigh_the_prop_mass).
-- Evidence (autopilot, sp_a1_intro1): dist 2e8df1a radio z 2705 -> 2691 at
-  1.8 s -> 2180 at 3 s; clipboard z 2639 at 0.5 s. New build: radio at
-  (-1208 4324 2705) upright at 0.5/1.6/3/6 s, clipboard at 2727 on the table
-  at 1 and 6 s. Side effect: intro2's spawn cube now settles flat on a face
-  (z -43) instead of leaning at 24 deg (z -39); every prop now has a 40 kg
-  box's inertia (cubes tumble less). "Movable clock" still not identified
-  (the clocks are prop_dynamic and draw); owner to say if anything is still
-  missing.
-### T-145 Buttons don't animate; cubes don't change colour on a button  (P2, fixed feb5072 + 2e8df1a, autopilot only)
-- Section 0: no press-down when used or when a cube lands; cubes kept their
-  off skin; cubes twitched on buttons (press/unpress flicker as they settle).
-- Press + twitch (feb5072): buttons were a baked pose; now animated
-  (down/idledown/up and variants), release only after 0.15 s clear.
-- Cube skins (2e8df1a): skin was baked in at spawn. Cubes whose model has a
-  lit skin (metal_box 0/1 -> 2/3; reflection/antique have none) spawn both
-  skins' draws in SkinVariant groups; floor_buttons sets ModelSkin lit while
-  the cube rests on a pressed button. Unit test cube_lit_skins.
-- Evidence (autopilot, sp_a1_intro2, `propto box` onto button_1-button): old
-  build cube ring stays blue on the pressed button, new build ring lit
-  yellow; moved off the button, ring blue again. Not owner-verified.
-- Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
+### T-147 intro2: the screen goes black right as the first door opens  (P2, TODO)
+- Section 1; compare T-119. Screenshot 7 (intro2): a dark shard in a door.
 
-### T-102 Cubes through portals not seamless  (P2, fixed 847a581, autopilot only)
-- Sections 1-2 (intro2, intro3). Traversal itself works (owner replays).
-- Cause: only the player body had exit-side ghosts; a cube half through a
-  portal showed nothing coming out of the linked one. Props now get a mirror
-  of their ValveSurface draws through the pair while in the opening
-  (prop_ghosts.rs); unit test a_cube_in_the_opening_gets_a_ghost_out_of_the_exit.
-- Evidence (intro2, red_1 + blue_1/blue_3 activated, cube propto'd half
-  through red_1, view of the blue exit): before no cube at the exit, after
-  the cube's half sticks out of the blue portal. Owner: carry/throw cubes
-  through portals in intro2-intro4 and check for seams or a pop at the swap.
+### T-113 Instructor hints vanish after a few seconds if not done  (P2, TODO)
+- Key labels fixed (owner confirmed).
 
-### T-137 Portals can't be placed as close together as in Portal 2  (P2, fixed 38c09bf, autopilot only)
-- Section 5. Cause: a shot overlapping the other portal on the same wall
-  failed with Overlap (fizzle); Portal 2 bumps the new portal off it so they
-  sit side by side. Fix: rules::bump_off_portals pushes it to the nearest
-  free side (1 u gap, still fitted to the surface, within the max slide).
-- Evidence (sp_a2_laser_intro, blue at (-35,-256,173), orange aimed 42 u
-  beside it): before "Orange shot failed: Overlap"; after "Orange portal
-  placed at (30,-256,186)", both visible side by side. Gap size and which
-  side wins are our choice, not checked against Windows Portal 2.
-### T-136 sp_a1_wakeup end: a portal shows in the tube before GLaDOS drops the player  (P2, fixed 3f96088, autopilot only)
-- Playtests 7 and 8. Cause: relay_incinerator_open links
-  incinerator_entry_portal_1 (floor under the incinerator door) to _2 (top
-  of the tube); our linked_portal_doors were drawn like gun portals (oval
-  flame shader + blue particle rim + hum). Portal 2 draws them as a plain
-  window. Fix: SeamlessPortal marker; the surface shader draws only the view
-  across the quad, p2_fx skips rim and hum (unit test in p2_fx effects).
-  Evidence: autopilot `input relay_incinerator_open trigger` + goto/lookat
-  the door: blue oval ring before (dist 8f8c8b1), continuous tube after.
-  Owner: replay the drop after GLaDOS's scene (also the finale's doors).
+## Open: P3
+
+### T-171 FPS drops, especially looking at portals  (P3, TODO)
+- Owner playtest 9: "I do get frequent fps drops especially looking at
+  portals". Measure frame time with and without a portal in view (portal
+  view renders, recursion depth, shadow maps per portal view).
+
+### T-148 Portals behind glass  (P3, REOPENED: owner says not fixed)
+- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed: "portals still look like they're above glass when they're behind it".
+- Owner section 1 (intro2): portals behind glass look on top of the glass;
+  behind broken glass not drawn at all.
+- Cause: glass/water (Refract) read Bevy's transmission copy, taken once
+  before the transmissive pass, and live portal surfaces were drawn in that
+  same pass. Broken pane (glass_fracture_128x128_b, its Refract mesh sorted
+  after the portal) refracted a copy of the bare wall over the portal;
+  glass sorted before a portal was overdrawn by it.
+- Fix: live surfaces sort first (depth_bias) and p2_render's
+  portal_surface_pass draws them after the Valve scene passes, before the
+  copy; Bevy's second draw fails a strict depth test. Unit test
+  portal_prefix_len.
+- Evidence (autopilot, sp_a1_intro2, portal_blue_1/red_1 activated,
+  `setpos -450 -60 -60; lookat portal_blue_1`): before, no portal behind the
+  cracked pane; after, the portal shows through it with cracks and
+  refraction over it. A view through the intact pane (setpos -100 -40 -60)
+  looks the same before and after; the "on top of normal glass" case was not
+  isolated by autopilot, owner replay needed.
+
+### T-117 Blocky shadows  (P3, REOPENED: better but still blocky)
+- Owner playtest 9 (2026-10-20, build 014ab6e): "shadows look better but still blocky".
+- Cause: env_projectedtexture shadows (light_room_00 in sp_a1_intro1: 110 deg
+  FOV) used a 1024 map and one 2x2 bilinear compare, so the hanging
+  planter's shadow stepped per texel and its chains broke into dashes
+  (owner screenshot 2).
+- Fix: 2048 shadow maps (projected.rs SHADOW_SIZE) and a 3x3 (1 2 1)
+  Gaussian of bilinear compares (projected_common.wgsl), like Source's
+  flashlight PCF.
+- Evidence (autopilot, sp_a1_intro1, `2 input camera_intro disable; 4 setpos
+  -8640 1720 10 -18 180; 5 shot`): before (dist 0.1.0+b39fff3) stair-stepped
+  pot outline and dashed chains; after smooth outline, solid chains, no
+  acne on the walls. Replay: look at the planter shadow above the closet.
+
+### T-152 Lighting and texture quality below the original  (P3, TODO: owner says still an issue)
+- Owner playtest 9 (2026-10-20, build 014ab6e): "lighting/textures being low quality is still an issue". Raised to P3.
+- Scrap pieces in the intro3 fall; turrets in tubes (wakeup); bumped
+  VertexLitGeneric (models with $bumpmap) still drawn without bump.
+
+### T-153 GLaDOS wake-up  (P3, PARTIAL: gun drop fixed; white particles still hide her)
+- Owner playtest 9 (2026-10-20, build 014ab6e): "glados awakening animation is still covered by lots of white particles".
+- White particles hide her; her arms float unattached when grabbing Chell
+  and Wheatley; the portal gun didn't visibly drop; the player is made to
+  look the wrong way (playtests 6-8).
+- Gun drop FIXED (c64a60b): glados_camera.nut fires `gun_shooter Shoot` at
+  6 s, and env_shooter wasn't implemented. The loader now spawns its
+  shootmodel hidden; Shoot throws m_igibs dynamic copies along its facing
+  (m_flvelocity 60, gib life 4 s). Autopilot `input gun_shooter Shoot`:
+  before (dist d1df637) nothing appears; after, w_portalgun
+  falls, lands ~3.5 s later and is removed at 4 s. Not seen inside the
+  full wake-up sequence (autopilot only, not owner-checked).
+- Still open: white particles hiding her, arms floating unattached, the
+  player looking the wrong way.
+
+### T-173 Portal gun view model: no hold beam, no fizzler spark/shake  (P3, TODO)
+- Owner playtest 9: "portal gun still doesn't have that electricity when
+  picking things up and doesn't spark/shake when going through the
+  emancipation grids" (also T-150's gun beam).
+
+### T-140 Game-placed portals: no screen shake or sound  (P3, REOPENED: owner says not fixed)
+- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed (no shake/sound felt on game-placed portals).
+- The first orange portal should shake the screen a little and play its sound.
+- Cause: env_shake was not implemented at all. intro1's
+  portal_red_0_activate_rl fires `shake_portal_spawn_room1 StartShake`
+  (amplitude 4, frequency 2.5, 1 s, radius 500) 0.8 s after Trigger, with
+  the portal's SetActivatedState. The sound already played: map portals send
+  PortalPlaced, so Portal.open_red plays (log, before and after build).
+- Fix: new p2_game shakes.rs (StartShake/StopShake/Amplitude/Frequency,
+  linear radius falloff, spawnflag 1 global, 32 no view shake) feeding
+  p2_core ScreenShakes; p2_view offsets and rolls the main camera (random
+  direction re-picked `frequency` times a second, fading squared). Not done:
+  physics/rope pushes (flags 8/16), the on-ground check. Unit tests:
+  amplitude_fades_with_distance, shake_fades_out.
+- Evidence (autopilot only): `goto portal_red_0 200; input
+  portal_red_0_activate_rl Trigger`: "env_shake start, amplitude 2.34 at
+  207 u", then RUST_LOG=p2_view=trace shows camera offsets peaking ~1.9 u
+  and decaying to 0 over the second; before build: no shake. Owner replay:
+  does it feel like Windows Portal 2 (strength, speed)?
+
+### T-174 Elevator-room videos buggy and very low quality  (P3, TODO)
+- Owner playtest 9: "the videos that play in the elevator rooms are a bit
+  buggy and super low quality" (the vgui movie screens around the arrival
+  and departure elevators; T-129 fixed their placement).
+
+### T-175 sp_a1_intro1 ride: the big room outside the container has no fog in parts, black sky  (P3, TODO)
+- Owner playtest 9: "the big room outside of the moving box has some issues
+  in the wakeup sequence, like parts not being foggy and the sky being just
+  black above" (compare T-116's "odd outside lighting on the ride").
+
+### T-164 Spiky, torn animated debris  (P3, OPEN: owner says not fixed (attempt/T-164 never merged))
+- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed; the fix on attempt/T-164 was not in the build played. Also possibly the "spikes under the button" (T-145).
+- intro1 ride (screenshot 5), sp_a2_intro shaft arms (playtest 7). Animated
+  props draw as rigid per-bone triangles (models.rs split_by_bone); soft
+  weighted meshes tear. Check the weights, then skin them.
+- 2026-10-20 autorun: weights checked (mdlinfo now prints "soft verts" and
+  "mixed tris" per mesh). intro1 ride: the container_ride finedebris_part1/3/
+  5/9/11/12/13 rebars, rust, crumplebeam/crumplecorner, bed02 and frame2
+  meshes blend 2-3 bones (e.g. part12 crumplebeamcol 1257/3265 soft verts,
+  1846 of 3080 tris mixed), so the rigid split tears them: confirmed cause
+  by data. sp_a2_intro: every model is rigid (arm64x64_interior_rusty,
+  crusher, armrubble_* all 0 soft verts), so the shaft-arm spikes are a
+  different problem, still open (check bone poses/interpolation there).
+- Not visually reproduced: in sp_a1_intro1 autopilot (`input
+  actor_container_05 SetAnimation anim2`, `input camera_intro Disable`,
+  `goto`/`lookat`) the view stays on the bed-room intro camera, so no
+  before/after shot of the debris.
+- Untested fix: local branch attempt/T-164 (c34006e), needs owner
+  review/replay. Soft meshes (vertexlit/unlitgeneric) stay whole under the
+  model and are linear-blend skinned on the CPU from their BonePart
+  transforms when those move (plugin.rs skin_soft_meshes, models.rs
+  skin_vertices with a unit test); valve_render re-uploads the vertex
+  buffer when the SkinnedVertices generation changes. Replay the intro1
+  ride's wall breaking and the room transform after `git merge
+  attempt/T-164`.
+
+### T-116 intro1 room details  (P3, BLOCKED: owner will send comparison screenshots)
+- Owner playtest 9 (2026-10-20, build 014ab6e): "that window does look different in the main game, I'll show comparison screenshots".
+- The window is a grey block, should be blinds (screenshot 1); the TV
+  screen sits forward and up from the TV; odd outside lighting on the ride.
+- Autorun 2026-10-20, NOT REPRODUCED (autopilot only, no code change, no
+  attempt branch):
+  - Window: the start room's window (x ~ -8460, behind the plant) is world
+    brushes in glass/glasswindow_frosted_break001a (and
+    glass_underground_dirty01a): LightmappedGeneric, $translucent, a dirty
+    frosted texture with vertical streaks, no blinds in it. P2_HIDE_MAT=glass
+    shows only plain bright white behind it (no model or brush with blinds
+    there; static props in the room are furniture04, closet_curtain01,
+    lab_pod_frame_end_01, container_lightcover). So we draw what the map
+    has; the glass may just read darker than on Windows (the VMT's
+    `"srgb?$alpha" "0.5"` conditional is not applied by us; unconfirmed).
+    The ride container's slatted look (models/container_ride/windowrails,
+    finedebris_part7) is a different room. Needs a Windows screenshot of
+    the same view to say what "blinds" should look like.
+  - TV screen: `tvscreen` (tvscreen01.mdl) belongs to the ride's
+    actor_container_07 and gets SetParentAttachmentMaintainOffset
+    screenattachment from @rl_container_ride. Autopilot shots 1.5 s and
+    9 s into the ride show it on the TV; the start room's TV is part of
+    hotel_container_furniture models. Needs the owner's exact moment/view.
+  - Outside lighting on the ride: not checked this run (ride is seen
+    through point_viewproxy camera_1, see T-020).
+
+## Open: P4
+
+### T-151 Water like Portal 2's (reflections, murk), intro3 and sp_a2_laser_intro  (P4, OPEN: owner says not fixed (attempt/T-151 never merged))
+- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed; the fix on attempt/T-151 was not in the build played.
+- Owner (playtests 8 and 6): "should look like water with reflections";
+  "water ugly, not murky with reflections".
+- Seen 2026-10-20 (autorun, dist eb58eac, `goto fall_splash 250`): intro3
+  water is a flat, ripple-less brown sheet; no reflection at all, because
+  plugin.rs drops the sky reflection on fogged maps (earlier fix: the white
+  sky turned the water white).
+- Material (both maps share it): `nature/water_a1_intro3` /
+  `water_a2_laser_intro`, `$reflecttexture _rt_WaterReflection`,
+  `$reflectskyboxonly 1`, `$reflectonlymarkedentities 1`, `$reflecttint 190`,
+  `$reflectamount 0.4`, flowmap normals, `$lightmapwaterfog`, fog 90 70 20
+  over 0-60, `$pseudotranslucent 1`, `$waterblendfactor 0.75`. Both maps'
+  sky is sky_white (pure white UnlitGeneric), no sky_camera. water_ps20b's
+  combos without RefractSampler (pseudotranslucent) still sample
+  ReflectSampler plus lightmap, and every combo has g_PixelFogParams (the
+  map's fog over the surface).
+- Suspected cause: no reflection, and no map distance fog on glass/water
+  (glass.wgsl returned its colour without Bevy's fog). The previous "white
+  water" came from multiplying the reflected sky by the HDR exposure; Source
+  samples an LDR reflection target, so the sky saturates at 1 before the tint.
+- Untested fix: local branch attempt/T-151 (2df932d; cbfa31d + test stub),
+  needs owner review/replay. Sky reflection back on fogged maps, clamped to
+  1 then times `$reflecttint`, Fresnel-mixed with the lit fog; map distance
+  fog applied to glass/water. Autopilot shots: intro3 water now grey with
+  visible flowing ripples at grazing angles (before: flat brown). Whether
+  Portal 2's looks that pale is unknown without a Windows screenshot of the
+  intro3 pool (or laser_intro). Not done: `$pseudotranslucent` alpha blend
+  (`$waterblendfactor`), `$reflectamount` screen-space offset.
+
+### T-150 Particles missing  (P4, TODO: owner says not fixed)
+- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
+- Fall smoke and water splash (+ sounds) in intro3; the gun's beam when
+  holding things; motion blur/speed lines; the gun's glow seen through the
+  wall after the sp_a2_intro fall.
+
+### T-146 intro1: the first cube-button door should get half stuck  (P4, TODO: owner says not fixed)
+- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
+
+### T-154 Floating vine/moss/grass texture by the centre wall (intro5)  (P4, TODO: owner says not fixed)
+- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
+
+## Awaiting owner replay (fixed, autopilot evidence)
 
 ### T-163 sp_a1_wakeup pod: the player can jump out of the hatch; a stone-brick block appears there  (P2, fixed 8f8c8b1, autopilot only)
 - Playtest 6. Cause: brush entities with startdisabled 1 were never built
@@ -641,56 +529,7 @@ Then the Backlog (prove and sweep the campaign).
   blocker has colliders and feet stay on the lift (8988 1046 351).
 - The "stone-brick block" was not seen by autopilot (the blocker is player
   clip, never drawn); owner replay should say if it is still there.
-### T-134 sp_a1_wakeup: the rising pod's floor turns, the player doesn't  (P2, fixed 5cfe749, autopilot only)
-- Playtests 6, 7, 8. Cause: our func_tracktrain never rotated. breaker_train
-  has orientationtype 2 (linear blend) and its path_tracks carry yaws
-  (path_1 0, path_4 270, path_2 0, path_3 135), so in Source it turns 90
-  degrees right as it sets off (with the floor prop's breaker_shaft_rotate_90)
-  and again while rising. Fix: blend trains' yaw from node to node (yaw-only
-  nodes; nodes that pitch/roll are left alone) and turn riders/standers
-  about the train origin, view yaw included.
-- Evidence (autopilot, setpos onto the lift + `input basement_breakers_start
-  trigger`): before (dist 2542009) yaw 0 and feet (9016 1088) through 7.5-12 s;
-  after yaw 0 -> -63 -> -90 between 7.5 and 9 s, feet orbiting to (8975 1048),
-  back to yaw 0 at path_2 while rising. Not owner-checked.
-- Side effect to replay: blend-oriented trains with yaw-only nodes in
-  sp_a2_bts3/bts5 (panel tracks) and sp_a3_end (pumproom lift) now turn too.
 
-### T-133 sp_a1_intro7: Wheatley floats after the wall panel moves; the panel disappears  (P2, fixed 2542009, autopilot only)
-- Cause: DisableMotion (socket_powered_rl) took Wheatley out of the
-  player's hands but kept the carry's GravityScale(0); when @plug_eject_rl
-  ran EnableMotion/ClearParent he went dynamic with no gravity and hung at
-  the socket. Fix: a locked core gets GravityScale(1) back (props.rs
-  `locked_core`, unit test). Evidence (autopilot: forcepickup, socket
-  powered, eject): before z 1265 at t+9 s (floor 1232); after z 1249 (resting).
-- Panel vanishing NOT REPRODUCED: after the open, heavydoor disables and
-  heavydoor_ghost is enabled and drawn (info). Owner: screenshot if it recurs.
-
-- T-120 elevator car sounds (5bfaf52): func_tracktrain movesound and
-  stopsound were never played, so rides were silent. Now the move sound
-  starts with the train and follows it (World.ElevatorDepartLp looped,
-  World.ElevatorArrive once), the stop sound plays where it stops. intro6
-  autopilot log: before (dist c1079f9) no elevator sounds; after,
-  elevatorarrive at spawn, elevatorarrivestop as the arrival car stops,
-  elevatordepartlp at gain 1.0 through the departure ride. Autopilot only.
-- T-120 elevator ride jitter (c1079f9): trains and their parented children
-  were drawn at 60 Hz tick positions while the view is interpolated, so the
-  eye swung against the car every tick. Movers now draw between ticks
-  (MoverLerp; tick value restored in FixedFirst). P2_RIDE_TRACE on the
-  intro3 arrival ride: eye-minus-car height 1.374..1.499 m (12.5 cm) before,
-  1.499..1.503 m after; car end state identical in shots. Autopilot only.
-- T-114 intro1 announcer over Wheatley: ambient_generic ignored the
-  `Volume` input. The map turns opening_courtesy_vcd down to 3 as the first
-  knock plays (8 s after the second wakeup) and to 0 when the vault door
-  opens; ours stayed at full volume over Wheatley. Fixed (463757d), unit
-  test ambient_volume_input_scales_0_to_10. Autopilot only (intro1,
-  `input @debug_skip_to_second_stasis trigger`, log portal2::audio=debug):
-  before no volume change; after "volume 0.3" at the knock, "volume 0" on
-  door open. Some overlap is original: Windows P2 also starts "Hello?" over
-  the quieted announcer. The door opening on approach is also original
-  (door_open_trigger, enabled 10 s after wakeup via door_hud_hint_trigger;
-  autopilot: closed at 6 s and 9 s, opens on reaching the hint trigger). The
-  "apple" skip was handled earlier by the per-actor voice channel.
 - T-132 Fizzler field not drawn: every trigger_* brush was skipped, so
   visible trigger_portal_cleansers never drew their effects/fizzler faces
   (SolidEnergy, a green-only ripple mask, wasn't translated either). Now
@@ -701,30 +540,6 @@ Then the Backlog (prove and sweep the campaign).
   FireUser1, back on FireUser2; unit test visible_cleansers_draw_their_field.
   Not checked: fizzling through it (logic unchanged); startdisabled
   cleansers still get no mesh (check at sp_a2_fizzler_intro, T-007).
-- T-167 (rest) A held cube at a wall surrounded the camera: the player
-  ignores the held prop's colliders, so walking on pulled the hold point
-  back onto the eye. Now (342b5b1), as in Portal 2 where the held prop is
-  solid to the player, a ray along the view stops the player 17 u plus the
-  prop's depth from a wall (skipped into portals). intro2 box walked into
-  two walls: before (dist) box centre at the eye (36 398 28, feet 36 400),
-  view = inside ring of its face; after the player stops ~41-49 u back and
-  the whole cube shows. Autopilot only; walking into a portal while holding
-  and Wheatley in intro7 not checked.
-- T-167 (part) Wheatley can't be picked up again after a drop: cores were
-  pickable only after an EnablePickup input, which sp_a1_wakeup never sends
-  (he starts force-picked), so once dropped (or stuck-dropped) he was lost.
-  Cores now stay pickable until DisablePickup (intro7's map-spawn disable
-  still applies). wakeup: drop enabled via input, `use` drop, goto + lookat,
-  `use`: before (dist fd9c086) the ray hit him and he stayed on the floor
-  (z 401); after (636fc3f) he is held facing the player at z 441. Only
-  autopilot-checked, wakeup only.
-- T-105 Held props dropped when carried into a wall: the hold point went
-  inside the wall, the prop stayed >64u from it and was dropped after 0.5 s.
-  Now a ray from the eye pulls the hold point in front of static geometry
-  (not through portals). intro2 cube walked into three walls: before
-  (dist build) it fell to the floor (z -46) and stayed; after (fd9c086) it
-  stays held at the wall and returns to its hold distance when backing
-  off. Only the cube was autopilot-checked, not Wheatley in intro7.
 - T-130 Portal shots pass handrails: models compiled `$contents grate`
   (props_bts/handrail_*) now let portal shots through like grate brushes.
   intro5 rail at (380,-330): before, the shot stopped at the rail; after, it
@@ -775,6 +590,15 @@ Then the Backlog (prove and sweep the campaign).
 - Checklists in docs/STATUS.md.
 
 ## Done (newest first; details in git log and docs/STATUS.md)
+- 2026-10-20 Owner-confirmed in playtest 9 (build 014ab6e): T-131 intro3
+  floors/roofs; T-114 intro1 announcer; T-120 ride jitter, car sounds and
+  thumps; T-133 Wheatley float and panel; T-134 pod turn; T-136 wakeup
+  tube portal; T-137 portal spacing; T-102 cubes through portals; T-123
+  security cameras; T-160 main menu items; T-161 menu movie/music; T-020
+  intro1 ride; T-115 intro1 wake/sleep; T-157 fall transition; T-165
+  intro7 rail connector; T-155 lasers; T-143 clock blink; T-166 intro5
+  wall panel. T-125 closed: the owner no longer notices the turn-away
+  delay. Write-ups moved to docs/STATUS.md.
 - 2026-10-20 Owner-confirmed in playtest 8: key labels on hints; Chell carries
   no gun before having one; no more "weird objects" (P0 regression), cubes and
   buttons drawn; T-104 sp_a2_intro fall plays and lands right.
