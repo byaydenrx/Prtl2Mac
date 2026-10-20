@@ -721,6 +721,14 @@ impl CoreState {
     }
 }
 
+/// A core locked into a socket or onto a rail. Taken from the player's
+/// hands it must get its gravity back (carrying zeroes it), or once the
+/// socket ejects it and EnableMotion makes it dynamic it hangs in the air
+/// (sp_a1_intro7: Wheatley after the secret panel, T-133).
+fn locked_core() -> (RigidBody, LinearVelocity, AngularVelocity, GravityScale) {
+    (RigidBody::Kinematic, LinearVelocity::ZERO, AngularVelocity::ZERO, GravityScale(1.0))
+}
+
 fn core_inputs(
     mut commands: Commands,
     mut inputs: MessageReader<EntInput>,
@@ -765,7 +773,7 @@ fn core_inputs(
                             ignore.remove(c);
                         }
                     }
-                    commands.entity(e).remove::<(Held, HeldColliders)>().insert((RigidBody::Kinematic, LinearVelocity::ZERO, AngularVelocity::ZERO));
+                    commands.entity(e).remove::<(Held, HeldColliders)>().insert(locked_core());
                 }
             }
             // Off its rail or arm: a core is a physics object that only
@@ -956,6 +964,13 @@ mod tests {
         assert!(!cores.can_pick_up(3));
         cores.pickup_disabled.remove(&3);
         assert!(cores.can_pick_up(3));
+    }
+
+    #[test]
+    fn locked_core_keeps_its_gravity_for_the_eject() {
+        let (body, _, _, gravity) = super::locked_core();
+        assert_eq!(body, avian3d::prelude::RigidBody::Kinematic);
+        assert_eq!(gravity.0, 1.0, "a core carried into a socket must fall once ejected");
     }
 
     use super::*;
