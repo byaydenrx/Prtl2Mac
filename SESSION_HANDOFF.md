@@ -38,8 +38,13 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-140 shake and sound for game-placed portals (next in the owner's
-   order: T-140, T-151, T-155, T-150, T-152, ...).
+1. T-151 water like Portal 2's (next in the owner's order: T-151, T-155,
+   T-150, T-152, T-143, T-146, T-154, T-166, then T-147).
+   T-140 game-placed portal shake FIXED 2026-10-20 (eb58eac): env_shake
+   was missing entirely (new p2_game shakes.rs + p2_core ScreenShakes,
+   p2_view camera offset/roll); the open sound already played. Autopilot
+   log only, awaiting owner replay.
+   dist build: 0.1.0+eb58eac.20261020T1727Z.
    T-148 portals behind glass FIXED 2026-10-20 (cc04a74): live portal
    surfaces are now drawn before glass/water copy the scene (new
    portal_surface_pass in p2_render; ValveScenePasses set in

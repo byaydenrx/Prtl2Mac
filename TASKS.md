@@ -39,7 +39,7 @@ P3:
 15. (T-161 menu movie and music by act, f6f129e, awaiting owner replay; T-162 logo/item layout and hover flash, b39fff3, awaiting owner replay, panel fades still open.)
 16. (T-020 intro1 ride BLOCKED: not reproduced, needs the camera proxy path or an owner recording; T-164 spiky debris BLOCKED: untested fix on attempt/T-164); T-116 intro1 room BLOCKED: not reproduced, needs a Windows screenshot; (T-117 shadows fixed, d1df637, awaiting owner replay); T-115 wake-up BLOCKED: not reproduced, the map has no get-up/lie-down rig in normal play (blackout is a removed template), needs a Windows recording.
 17. T-153 GLaDOS wake-up: portal gun drop fixed (c64a60b, awaiting owner replay); particles, floating arms, look direction still open (PARTIAL); T-157 fall transition: 3.6 s black wait cut to 0.25 s (badb7a9, awaiting owner replay), a ~2.5 s frame hitch after the load still open (PARTIAL); T-165 Wheatley rail connector BLOCKED: not reproduced, arm props drawn, needs an owner screenshot.
-18. (T-148 portals behind glass fixed, cc04a74, awaiting owner replay); T-140 shake and sound for game-placed portals.
+18. (T-148 portals behind glass fixed, cc04a74, awaiting owner replay); (T-140 env_shake for game-placed portals, eb58eac, awaiting owner replay).
 P4:
 19. T-151 water, T-155 lasers, T-150 particles, T-152 lighting/textures,
     T-143 clock blink, T-146 half-stuck door, T-154 floating moss, T-166 intro5 wall panel.
@@ -298,9 +298,6 @@ Then the Backlog (prove and sweep the campaign).
   branch. Needs an owner screenshot (or Windows reference) showing which part
   is missing and from where.
 
-### T-140 Game-placed portals: no screen shake or sound  (P3, TODO)
-- The first orange portal should shake the screen a little and play its sound.
-
 ## Open: P4
 
 ### T-151 Water like Portal 2's (reflections, murk), intro3 and sp_a2_laser_intro  (P4, TODO)
@@ -318,6 +315,25 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-140 Game-placed portals: no screen shake or sound  (P3, FIXED 2026-10-20, eb58eac, autopilot only)
+- The first orange portal should shake the screen a little and play its sound.
+- Cause: env_shake was not implemented at all. intro1's
+  portal_red_0_activate_rl fires `shake_portal_spawn_room1 StartShake`
+  (amplitude 4, frequency 2.5, 1 s, radius 500) 0.8 s after Trigger, with
+  the portal's SetActivatedState. The sound already played: map portals send
+  PortalPlaced, so Portal.open_red plays (log, before and after build).
+- Fix: new p2_game shakes.rs (StartShake/StopShake/Amplitude/Frequency,
+  linear radius falloff, spawnflag 1 global, 32 no view shake) feeding
+  p2_core ScreenShakes; p2_view offsets and rolls the main camera (random
+  direction re-picked `frequency` times a second, fading squared). Not done:
+  physics/rope pushes (flags 8/16), the on-ground check. Unit tests:
+  amplitude_fades_with_distance, shake_fades_out.
+- Evidence (autopilot only): `goto portal_red_0 200; input
+  portal_red_0_activate_rl Trigger`: "env_shake start, amplitude 2.34 at
+  207 u", then RUST_LOG=p2_view=trace shows camera offsets peaking ~1.9 u
+  and decaying to 0 over the second; before build: no shake. Owner replay:
+  does it feel like Windows Portal 2 (strength, speed)?
 
 ### T-148 Portals behind glass  (P3, FIXED 2026-10-20, cc04a74, autopilot only)
 - Owner section 1 (intro2): portals behind glass look on top of the glass;
