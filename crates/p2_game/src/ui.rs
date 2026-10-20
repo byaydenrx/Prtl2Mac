@@ -109,6 +109,9 @@ struct MenuState {
     /// Load Game / Save Game, and the saves it lists (newest first).
     saves: Option<SavesDialog>,
     save_list: Vec<SaveInfo>,
+    /// The picked row of that list (an index into `save_list`; `None` is
+    /// Save Game's new-save row).
+    save_pick: Option<usize>,
     /// The Options page shown on [`Screen::Options`].
     page: OptionsPage,
     /// Settings as they were when each open page was entered, for Cancel.
@@ -203,6 +206,8 @@ enum Action {
     LoadSave(usize),
     /// A row of Save Game: an existing save to overwrite, or a new one.
     SaveSlot(Option<usize>),
+    /// Pick a row of Load / Save Game (a second click loads or saves it).
+    PickSave(Option<usize>),
     Options,
     /// An Options page, from the Options flyout or a link row.
     Page(OptionsPage),
@@ -1105,48 +1110,83 @@ fn rebuild_menu(
     match *screen {
         Screen::None => {}
         Screen::Main | Screen::Pause if menu.saves.is_some() => {
+            // saveloadgamedialog.res (both Load and Save Game): a tiled
+            // dialog, body 9 x 4 tiles; SaveGameList at 0,25, 200 x 150,
+            // savegameitem rows 25 units (label inset 10), scrolling; the
+            // picked save's picture (SaveGameImage 212,15, 225 x 152) with
+            // AutoSaveLabel over its top right (NewGameChapterName, white
+            // 200) and SaveGameInfo at 212,170 under it.
             let save = menu.saves == Some(SavesDialog::Save);
-            let panel = dialog(&mut commands, &fonts, if save { "SAVE GAME" } else { "LOAD GAME" }, 760.0);
-            commands.entity(panel).with_children(|p| {
-                p.spawn((ScrollList, ScrollPosition(Vec2::ZERO), Node { flex_direction: FlexDirection::Column, overflow: Overflow::scroll_y(), max_height: Val::Vh(56.0), ..default() }))
-                    .with_children(|l| {
+            let shown = shown_saves(&menu.save_list, save);
+            let pick = menu.save_pick.filter(|i| shown.contains(i)).or(if save { None } else { shown.first().copied() });
+            let mut foot = Vec::new();
+            if save {
+                foot.push(("Save Game", Action::SaveSlot(pick)));
+            } else if let Some(i) = pick {
+                foot.push(("Load Game", Action::LoadSave(i)));
+            }
+            foot.push(("Back", Action::Back));
+            commands.spawn(layer(10)).with_children(|p| {
+                if *screen == Screen::Main {
+                    menu_logo(p, &fonts, art.as_deref());
+                }
+                tile_frame(p, &fonts, art.as_deref(), if save { "Save Game" } else { "Load Game" }, 9, 4, &foot, |d| {
+                    d.spawn((
+                        ScrollList,
+                        ScrollPosition(Vec2::new(0.0, scroll.0)),
+                        Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: units(25.0 - 2.5), width: units(200.0), height: units(150.0), overflow: Overflow::scroll_y(), ..default() },
+                    ))
+                    .with_children(|list| {
+                        let mut y = 2.5;
                         if save {
-                            l.spawn((Button, Action::SaveSlot(None), VALUE_LOOK, save_row_node(), BackgroundColor(Color::NONE)))
-                                .with_children(|r| {
-                                    r.spawn((Node { width: Val::Px(128.0), height: Val::Px(72.0), ..default() }, BackgroundColor(theme::EDGE)));
-                                    r.spawn(text(&fonts.menu, 18.0, "NEW SAVED GAME", theme::VALUE));
-                                });
+                            list.spawn(dialog_row(&fonts, "New Save", Action::PickSave(None), pick.is_none(), y));
+                            y += 25.0;
                         }
-                        let shown: Vec<(usize, &SaveInfo)> = menu.save_list.iter().enumerate().filter(|(_, s)| !save || s.header.kind == "save").collect();
-                        if shown.is_empty() && !save {
-                            l.spawn(text(&fonts.regular, 16.0, "No saved games.", theme::LABEL));
-                        }
-                        for (i, s) in shown {
-                            let action = if save { Action::SaveSlot(Some(i)) } else { Action::LoadSave(i) };
-                            let chapter = campaign.chapter_of(&s.header.map);
-                            l.spawn((Button, action, VALUE_LOOK, save_row_node(), BackgroundColor(Color::NONE))).with_children(|r| {
-                                match chapter.and_then(|c| chapter_pics.get(c).cloned().flatten()) {
-                                    Some(img) => {
-                                        r.spawn((ImageNode::new(img), Node { width: Val::Px(128.0), height: Val::Px(72.0), ..default() }));
-                                    }
-                                    None => {
-                                        r.spawn((Node { width: Val::Px(128.0), height: Val::Px(72.0), ..default() }, BackgroundColor(theme::EDGE)));
-                                    }
-                                }
-                                let (title, subtitle) = chapter.and_then(|c| campaign.chapters.get(c)).map_or((String::new(), String::new()), |c| (c.title.to_uppercase(), c.subtitle.to_uppercase()));
-                                r.spawn(Node { flex_direction: FlexDirection::Column, flex_grow: 1.0, row_gap: Val::Px(2.0), ..default() }).with_children(|c| {
-                                    c.spawn(text(&fonts.regular, 13.0, title, theme::LABEL));
-                                    c.spawn(text(&fonts.menu, 18.0, if subtitle.is_empty() { s.header.map.to_uppercase() } else { subtitle }, theme::VALUE));
-                                    c.spawn(text(&fonts.regular, 13.0, s.header.map.clone(), theme::HINT));
-                                });
-                                r.spawn(Node { flex_direction: FlexDirection::Column, align_items: AlignItems::FlexEnd, row_gap: Val::Px(2.0), ..default() }).with_children(|c| {
-                                    c.spawn(text(&fonts.regular, 13.0, crate::saves::time_text(s.header.saved_at), theme::LABEL));
-                                    c.spawn(text(&fonts.regular, 13.0, save_kind_label(&s.header.kind, &s.name), theme::HINT));
-                                });
-                            });
+                        for &i in &shown {
+                            list.spawn(dialog_row(&fonts, &save_row_label(&menu.save_list[i]), Action::PickSave(Some(i)), pick == Some(i), y));
+                            y += 25.0;
                         }
                     });
-                footer(p, &fonts, "", &[Footer::Back]);
+                    if shown.is_empty() && !save {
+                        // LblNoSaves (#GameUI_NoSaveGamesToDisplay).
+                        d.spawn((
+                            Node { position_type: PositionType::Absolute, left: units(10.0), top: units(25.0), width: units(190.0), ..default() },
+                            children![(Text::new("NO SAVED GAMES TO DISPLAY."), TextFont { font: (&fonts.title).into(), font_size: DIALOG_ITEM_FONT, ..default() }, TextColor(theme::DISABLED))],
+                        ));
+                    }
+                    let picked = pick.and_then(|i| menu.save_list.get(i));
+                    let chapter = picked.and_then(|s| campaign.chapter_of(&s.header.map));
+                    let pic = Node { position_type: PositionType::Absolute, left: units(212.0), top: units(15.0), width: units(225.0), height: units(152.0), ..default() };
+                    match chapter.and_then(|c| chapter_pics.get(c).cloned().flatten()) {
+                        Some(img) if picked.is_some() => {
+                            d.spawn((ImageNode { image: img, image_mode: bevy::ui::widget::NodeImageMode::Stretch, ..default() }, pic));
+                        }
+                        _ => {
+                            d.spawn((pic, BackgroundColor(Color::BLACK)));
+                        }
+                    }
+                    let size = bevy::text::FontSize::Vh(18.0 / 1.265 * 100.0 / 480.0);
+                    if let Some(s) = picked.filter(|s| s.header.kind != "save") {
+                        d.spawn((
+                            Node { position_type: PositionType::Absolute, left: units(210.0), top: units(9.0), width: units(223.0), height: units(30.0), justify_content: JustifyContent::FlexEnd, align_items: AlignItems::Center, ..default() },
+                            children![(Text::new(save_kind_label(&s.header.kind, &s.name).to_uppercase()), TextFont { font: (&fonts.title).into(), font_size: size, ..default() }, TextColor(Color::srgba(1.0, 1.0, 1.0, 200.0 / 255.0)))],
+                        ));
+                    }
+                    let (title, subtitle) = match (picked, chapter.and_then(|c| campaign.chapters.get(c))) {
+                        (Some(_), Some(c)) => (c.title.to_uppercase(), c.subtitle.to_uppercase()),
+                        (Some(s), None) => (String::new(), s.header.map.to_uppercase()),
+                        (None, _) => (String::new(), String::new()),
+                    };
+                    d.spawn((
+                        Node { position_type: PositionType::Absolute, left: units(212.0), top: units(170.0), width: units(225.0), height: units(20.0), align_items: AlignItems::Center, ..default() },
+                        children![(
+                            Text::new(if title.is_empty() { String::new() } else { format!("{title}  ") }),
+                            TextFont { font: (&fonts.menu).into(), font_size: size, ..default() },
+                            TextColor(Color::BLACK),
+                            children![(TextSpan::new(subtitle), TextFont { font: (&fonts.title).into(), font_size: size, ..default() }, TextColor(Color::BLACK))],
+                        )],
+                    ));
+                });
             });
         }
         Screen::Main => {
@@ -1351,9 +1391,16 @@ fn rebuild_menu(
     }
 }
 
-/// A Load Game / Save Game row: picture, chapter and map, then time and kind.
-fn save_row_node() -> Node {
-    Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(14.0), padding: UiRect::all(Val::Px(6.0)), ..default() }
+/// The saves a Load (all) or Save Game (named saves only, to overwrite)
+/// list shows: indices into `list`, newest first.
+fn shown_saves(list: &[SaveInfo], save: bool) -> Vec<usize> {
+    list.iter().enumerate().filter(|(_, s)| !save || s.header.kind == "save").map(|(i, _)| i).collect()
+}
+
+/// A savegameitem row's label: when it was saved (the chapter shows under
+/// the picture).
+fn save_row_label(s: &SaveInfo) -> String {
+    crate::saves::time_text(s.header.saved_at)
 }
 
 /// "Autosave", "Quick save" or the save's name.
@@ -1564,6 +1611,9 @@ fn buttons(
                 menu.flyout = None;
                 menu.save_list = list_saves();
                 menu.saves = Some(if *action == Action::SaveGame { SavesDialog::Save } else { SavesDialog::Load });
+                // Load starts on the newest save, Save on the new-save row.
+                menu.save_pick = if *action == Action::LoadGame { shown_saves(&menu.save_list, false).first().copied() } else { None };
+                scroll.0 = 0.0;
             }
             Action::LoadSave(i) => {
                 if let Some(s) = menu.save_list.get(i) {
@@ -1572,6 +1622,22 @@ fn buttons(
                     *screen = Screen::None;
                 }
             }
+            Action::PickSave(i) if menu.save_pick == i => {
+                // A second click on the picked row: load or save it.
+                if menu.saves == Some(SavesDialog::Save) {
+                    let slot = match i.and_then(|i| menu.save_list.get(i)) {
+                        Some(s) => Slot::Named(s.name.clone()),
+                        None => Slot::New,
+                    };
+                    save_game.write(SaveGame(slot));
+                    menu.saves = None;
+                } else if let Some(s) = i.and_then(|i| menu.save_list.get(i)) {
+                    load_game.write(LoadGame(Slot::Named(s.name.clone())));
+                    menu.saves = None;
+                    *screen = Screen::None;
+                }
+            }
+            Action::PickSave(i) => menu.save_pick = i,
             Action::SaveSlot(i) => {
                 let slot = match i.and_then(|i| menu.save_list.get(i)) {
                     Some(s) => Slot::Named(s.name.clone()),
@@ -1642,7 +1708,13 @@ fn buttons(
                 }
                 open_page(&mut menu, &mut scroll, &settings, p);
             }
-            Action::Back if menu.saves.is_some() => menu.saves = None,
+            Action::Back if menu.saves.is_some() => {
+                menu.saves = None;
+                // Back to the Single Player dialog it was opened from.
+                if *screen == Screen::Main {
+                    menu.flyout = Some(Flyout::SinglePlayer);
+                }
+            }
             Action::Back if matches!(*screen, Screen::Main) && menu.flyout.is_some() => menu.flyout = None,
             Action::Back | Action::Done if matches!(*screen, Screen::Options { .. }) => close_page(&mut screen, &mut menu, &mut scroll, &mut settings, true),
             Action::Cancel => close_page(&mut screen, &mut menu, &mut scroll, &mut settings, false),
@@ -2068,6 +2140,18 @@ fn title_card(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn save_game_lists_only_named_saves() {
+        let save = |name: &str, kind: &str| SaveInfo {
+            name: name.into(),
+            header: crate::saves::SaveHeader { version: 1, map: "sp_a1_intro1".into(), saved_at: 0, kind: kind.into(), level_time: 0.0 },
+        };
+        let list = [save("autosave", "autosave"), save("mine", "save"), save("quick", "quick"), save("other", "save")];
+        // Load Game shows every save; Save Game only those it can overwrite.
+        assert_eq!(shown_saves(&list, false), vec![0, 1, 2, 3]);
+        assert_eq!(shown_saves(&list, true), vec![1, 3]);
+    }
 
     #[test]
     fn vfont_decodes_to_the_wrapped_font() {
