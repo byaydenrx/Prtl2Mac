@@ -238,7 +238,7 @@ fn use_key(
     let body = body_of.get(hit.entity).map_or(hit.entity, |c| c.body);
     if let Ok((prop, tf)) = props.get(body) {
         let is_core = ents.as_deref().is_some_and(|e| e.list[prop.ent].class == "npc_personality_core");
-        if is_core && !cores.pickup.contains(&prop.ent) {
+        if is_core && !cores.can_pick_up(prop.ent) {
             return;
         }
         if is_core {
@@ -642,15 +642,24 @@ fn sync_prop_transforms(ents: Option<ResMut<Ents>>, props: Query<(&Prop, &Transf
     }
 }
 
-/// Personality cores the map has made pickable, and whether the player may
-/// drop what they hold (`logic_playerproxy` SetDropEnabled).
+/// Personality cores the map has made unpickable, and whether the player
+/// may drop what they hold (`logic_playerproxy` SetDropEnabled).
 #[derive(Resource, Default)]
 pub struct CoreState {
-    pub pickup: std::collections::HashSet<usize>,
+    /// Cores are pickable until DisablePickup (sp_a1_intro7 disables Wheatley
+    /// at map spawn; sp_a1_wakeup never sends EnablePickup, so dropped there
+    /// he must stay pickable: T-167).
+    pub pickup_disabled: std::collections::HashSet<usize>,
     pub drop_disabled: bool,
     /// Cores whose motion the map turned off (DisableMotion): taken off
     /// their parent they stay put instead of falling.
     pub motion_disabled: std::collections::HashSet<usize>,
+}
+
+impl CoreState {
+    pub fn can_pick_up(&self, core: usize) -> bool {
+        !self.pickup_disabled.contains(&core)
+    }
 }
 
 fn core_inputs(
@@ -677,10 +686,10 @@ fn core_inputs(
         let i = msg.target;
         match (ents.list[i].class.as_str(), msg.input.as_str()) {
             ("npc_personality_core", "enablepickup") => {
-                cores.pickup.insert(i);
+                cores.pickup_disabled.remove(&i);
             }
             ("npc_personality_core", "disablepickup") => {
-                cores.pickup.remove(&i);
+                cores.pickup_disabled.insert(i);
             }
             ("npc_personality_core", "enablemotion" | "wake") => {
                 cores.motion_disabled.remove(&i);
@@ -880,6 +889,16 @@ fn player_proxy_outputs(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn cores_pickable_until_disabled() {
+        let mut cores = super::CoreState::default();
+        assert!(cores.can_pick_up(3), "no EnablePickup needed (sp_a1_wakeup)");
+        cores.pickup_disabled.insert(3);
+        assert!(!cores.can_pick_up(3));
+        cores.pickup_disabled.remove(&3);
+        assert!(cores.can_pick_up(3));
+    }
+
     use super::*;
 
     #[test]
