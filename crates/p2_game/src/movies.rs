@@ -5,9 +5,9 @@
 //! each panel its slice of the picture (`SetUseCustomUVs`, `SetUMin`..
 //! `SetVMax`) and turns them on (`Enable`).
 //!
-//! A screen is a quad `width` x `height` units with its bottom-left corner
-//! at the entity's origin, spanning its right and up axes and facing its
-//! forward. Movies are decoded with ffmpeg (which reads Bink) in the
+//! A screen is a quad `width` x `height` units facing the entity's forward,
+//! with its bottom-left corner (as seen from the front) at the entity's
+//! origin: it spans the entity's left axis (the viewer's right) and up. Movies are decoded with ffmpeg (which reads Bink) in the
 //! background, at reduced size, and cached under the app's data folder;
 //! without ffmpeg the screens stay dark.
 use std::collections::HashMap;
@@ -100,12 +100,15 @@ pub fn angle_vectors(a: Vec3) -> (Vec3, Vec3, Vec3) {
     (forward, right, up)
 }
 
-/// Source-space corners of a screen: bottom-left (the origin), bottom-right,
-/// top-right, top-left. The picture runs along the entity's right axis and
-/// up its up axis, facing its forward (the elevator's screens sit on a ring
-/// around the shaft, facing in).
+/// Source-space corners of a screen as seen from the front: bottom-left (the
+/// origin), bottom-right, top-right, top-left. The screen faces the entity's
+/// forward, so the viewer's right is the entity's left (-right). The
+/// elevator rings prove it: a ring's missing panels leave the exit gap only
+/// this way round (sp_a2_laser_stairs: `@arrival_sign_1` and `_24` would
+/// otherwise stand across the exit and its leaving trigger, T-129).
 pub fn screen_corners(origin: Vec3, angles: Vec3, width: f32, height: f32) -> [Vec3; 4] {
     let (_, right, up) = angle_vectors(angles);
+    let right = -right;
     [origin, origin + right * width, origin + right * width + up * height, origin + up * height]
 }
 
@@ -420,13 +423,22 @@ mod tests {
 
     #[test]
     fn screen_spans_right_and_up_from_its_origin() {
-        // Yaw 0 faces +X: across -Y (its right), up +Z.
+        // Yaw 0 faces +X: a viewer looking along -X has +Y on their right.
         let c = screen_corners(Vec3::ZERO, Vec3::ZERO, 64.0, 128.0);
-        assert!((c[1] - Vec3::new(0.0, -64.0, 0.0)).length() < 1e-3);
+        assert!((c[1] - Vec3::new(0.0, 64.0, 0.0)).length() < 1e-3);
         assert!((c[3] - Vec3::new(0.0, 0.0, 128.0)).length() < 1e-3);
-        // Yaw 90 faces +Y: across +X.
+        // Yaw 90 faces +Y: across -X.
         let c = screen_corners(Vec3::ZERO, Vec3::new(0.0, 90.0, 0.0), 10.0, 10.0);
-        assert!((c[1] - Vec3::new(10.0, 0.0, 0.0)).length() < 1e-3);
+        assert!((c[1] - Vec3::new(-10.0, 0.0, 0.0)).length() < 1e-3);
+    }
+
+    #[test]
+    fn laser_stairs_ring_leaves_the_exit_clear() {
+        // sp_a2_laser_stairs: @arrival_sign_1 spans to @arrival_sign_2's
+        // origin, clear of the exit along y = -352 (T-129).
+        let c = screen_corners(Vec3::new(-1344.74, -383.901, -96.0), Vec3::new(0.0, 165.0, 0.0), 64.0, 128.0);
+        assert!((c[1] - Vec3::new(-1360.85, -444.001, -96.0)).length() < 2.5);
+        assert!(c[0].y < -352.0 && c[1].y < -352.0);
     }
 
     #[test]

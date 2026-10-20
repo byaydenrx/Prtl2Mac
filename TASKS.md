@@ -20,42 +20,35 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 
 ## Priority order (2026-10-20)
 P1:
-1. T-129 Stray screens (one blocks the laser_stairs arrival staircase).
-2. T-130 Portal shots through cubes and handrails (intro6 needs noclip).
-3. T-131 sp_a1_intro3 floors and roofs missing.
-4. T-105 Held objects dropped when pushed into a wall; Wheatley re-pickup.
-5. T-132 Fizzler field not drawn, maybe not working.
+1. T-130 Portal shots through cubes and handrails (intro6 needs noclip).
+2. T-131 sp_a1_intro3 floors and roofs missing.
+3. T-105 Held objects dropped when pushed into a wall; Wheatley re-pickup.
+4. T-132 Fizzler field not drawn, maybe not working.
 P2:
-6. T-114 intro1: Wheatley's door waits for the announcer.
-7. T-120 Elevators (jitter, VO timing, thumps) and T-135 turrets falling through them.
-8. T-133 intro7 Wheatley floats after the wall panel; panel vanishes.
-9. T-134 sp_a1_wakeup pod: the player doesn't turn with the floor; T-163 hatch.
-10. T-136 sp_a1_wakeup end: a portal in the tube before the drop.
-11. T-137 Portal spacing; T-102 seamless cube carry; T-125 turn-away delay.
-12. T-145 Buttons don't animate, cubes don't light up.
-13. T-144 Missing props; T-147 black screen as intro2's first door opens.
-14. T-139 Ambient audio, button sounds, music cut-offs, loud glass.
-15. T-149 Chamber signs blank; screens and lights.
-16. T-112 Missing/flat textures (GLaDOS chamber floor, hallways).
-17. T-123 Security cameras knocked off by portal shots.
-18. T-160 Main menu like Portal 2's.
+5. T-114 intro1: Wheatley's door waits for the announcer.
+6. T-120 Elevators (jitter, VO timing, thumps) and T-135 turrets falling through them.
+7. T-133 intro7 Wheatley floats after the wall panel; panel vanishes.
+8. T-134 sp_a1_wakeup pod: the player doesn't turn with the floor; T-163 hatch.
+9. T-136 sp_a1_wakeup end: a portal in the tube before the drop.
+10. T-137 Portal spacing; T-102 seamless cube carry; T-125 turn-away delay.
+11. T-145 Buttons don't animate, cubes don't light up.
+12. T-144 Missing props; T-147 black screen as intro2's first door opens.
+13. T-139 Ambient audio, button sounds, music cut-offs, loud glass.
+14. T-149 Chamber signs blank; screens and lights.
+15. T-112 Missing/flat textures (GLaDOS chamber floor, hallways).
+16. T-123 Security cameras knocked off by portal shots.
+17. T-160 Main menu like Portal 2's.
 P3:
-19. T-161 Menu video and music; T-162 menu animation, logo, styling.
-20. T-020 intro1 ride; T-164 spiky debris; T-116 intro1 room; T-117 shadows; T-115 wake-up.
-21. T-153 GLaDOS wake-up; T-157 smoother fall transition; T-165 Wheatley rail connector.
-22. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
+18. T-161 Menu video and music; T-162 menu animation, logo, styling.
+19. T-020 intro1 ride; T-164 spiky debris; T-116 intro1 room; T-117 shadows; T-115 wake-up.
+20. T-153 GLaDOS wake-up; T-157 smoother fall transition; T-165 Wheatley rail connector.
+21. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
 P4:
-23. T-151 water, T-155 lasers, T-150 particles, T-152 lighting/textures,
+22. T-151 water, T-155 lasers, T-150 particles, T-152 lighting/textures,
     T-143 clock blink, T-146 half-stuck door, T-154 floating moss, T-166 intro5 wall panel.
 Then the Backlog (prove and sweep the campaign).
 
 ## Open: P1
-
-### T-129 Stray screens in elevator rooms  (P1, TODO)
-- Playtest 8 section 7: a screen in the arrival elevator room blocks the
-  staircase you must take. Section 3 (intro4, also playtest 3): a screen at
-  the entrance of the exit elevator room. Find the entity (vgui/monitor prop
-  placed or parented wrong).
 
 ### T-130 Portal shots stop at things Portal 2 shoots through  (P1, TODO)
 - Section 4: handrails block shots; a portal can't be shot under a resting
@@ -227,6 +220,11 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+- T-129 Stray elevator screens: movie panels were drawn extending to the
+  entity's right instead of its left, so the ring covered its own exit gap
+  (laser_stairs: @arrival_sign_1/_24 across the stairs and leaving trigger).
+  Autopilot before/after shots of the laser_stairs arrival; intro4's exit room
+  (same cause, playtest 3) still needs the owner's replay.
 - T-128 sp_a2_laser_stairs stairs rise: held sequences replay on a negative
   SetPlaybackRate (8ac53a2; screenshots before/after).
 - T-103 sp_a1_wakeup breaker lift carries the player (SetMaxSpeed); owner saw it rise in playtest 6.
