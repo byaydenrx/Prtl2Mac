@@ -27,7 +27,9 @@ reads it first (via `sh scripts/resume.sh`).
   T-120 elevator cars now play their move/stop sounds (5bfaf52, autopilot
   log only). T-133 Wheatley no longer floats after the socket ejects him
   (gravity restored on DisableMotion, 2542009, autopilot only).
-  dist/Prtl2Mac.app = 0.1.0+2542009.20261020T1109Z.
+  T-134 wakeup lift now turns the player with it (orientationtype 2 trains
+  blend path yaws, 5cfe749, autopilot only).
+  dist/Prtl2Mac.app = 0.1.0+5cfe749.20261020T1119Z.
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action

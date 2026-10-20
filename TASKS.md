@@ -25,7 +25,7 @@ P2:
 2. (T-114 fixed, awaiting owner replay.)
 3. T-120 Elevators (thumps, trash; jitter and car sounds fixed); T-135 turrets through the exit elevator is BLOCKED (needs owner reference).
 4. (T-133 Wheatley float fixed, awaiting owner replay; panel part not reproduced.)
-5. T-134 sp_a1_wakeup pod: the player doesn't turn with the floor; T-163 hatch.
+5. (T-134 pod turn fixed, awaiting owner replay); T-163 hatch.
 6. T-136 sp_a1_wakeup end: a portal in the tube before the drop.
 7. T-137 Portal spacing; T-102 seamless cube carry; T-125 turn-away delay.
 8. T-145 Buttons don't animate, cubes don't light up.
@@ -129,9 +129,6 @@ Then the Backlog (prove and sweep the campaign).
   another frame (e.g. a horizontal vac tube above the car)? Needs an owner
   screenshot/clip of this moment in Windows Portal 2 (or depot 624 RE of
   prop_dynamic root-motion handling). No fix attempt branch.
-
-### T-134 sp_a1_wakeup: the rising pod's floor turns, the player doesn't  (P2, TODO)
-- Playtests 6, 7, 8: rotating movers must turn and carry what stands on them.
 
 ### T-163 sp_a1_wakeup pod: the player can jump out of the hatch; a stone-brick block appears there  (P2, TODO)
 - Playtest 6.
@@ -247,6 +244,21 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+### T-134 sp_a1_wakeup: the rising pod's floor turns, the player doesn't  (P2, fixed 5cfe749, autopilot only)
+- Playtests 6, 7, 8. Cause: our func_tracktrain never rotated. breaker_train
+  has orientationtype 2 (linear blend) and its path_tracks carry yaws
+  (path_1 0, path_4 270, path_2 0, path_3 135), so in Source it turns 90
+  degrees right as it sets off (with the floor prop's breaker_shaft_rotate_90)
+  and again while rising. Fix: blend trains' yaw from node to node (yaw-only
+  nodes; nodes that pitch/roll are left alone) and turn riders/standers
+  about the train origin, view yaw included.
+- Evidence (autopilot, setpos onto the lift + `input basement_breakers_start
+  trigger`): before (dist 2542009) yaw 0 and feet (9016 1088) through 7.5-12 s;
+  after yaw 0 -> -63 -> -90 between 7.5 and 9 s, feet orbiting to (8975 1048),
+  back to yaw 0 at path_2 while rising. Not owner-checked.
+- Side effect to replay: blend-oriented trains with yaw-only nodes in
+  sp_a2_bts3/bts5 (panel tracks) and sp_a3_end (pumproom lift) now turn too.
+
 ### T-133 sp_a1_intro7: Wheatley floats after the wall panel moves; the panel disappears  (P2, fixed 2542009, autopilot only)
 - Cause: DisableMotion (socket_powered_rl) took Wheatley out of the
   player's hands but kept the carry's GravityScale(0); when @plug_eject_rl
