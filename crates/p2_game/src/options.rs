@@ -508,10 +508,15 @@ fn key_rows(ctx: &Ctx) -> Vec<Row> {
 }
 
 fn controller_rows(s: &Settings) -> Vec<Row> {
+    // controlleroptions.res order (PC), labels from basemodui/portal2
+    // _english: DrpController, (BtnEditButtons, BtnEditSticks: not built),
+    // SldVertSens + SldHorizSens (one joy_sensitivity here),
+    // DrpVerticalLookType, (DrpHorizontalLookType: no yaw invert),
+    // DrpVibration, (SldAcceleration, BtnDefaults: not built).
     vec![
-        choice("Game controller", on_off(s.joystick), Setting::Joystick),
-        slider(s, "Look sensitivity", Setting::JoySensitivity),
-        choice("Reverse look", on_off(s.joy_invert), Setting::JoyInvert),
+        choice("Controller", on_off(s.joystick), Setting::Joystick),
+        slider(s, "Look Sensitivity", Setting::JoySensitivity),
+        choice("Vertical Look Type", if s.joy_invert { "Inverted" } else { "Normal" }, Setting::JoyInvert),
         choice("Vibration", on_off(s.joy_vibration), Setting::JoyVibration),
     ]
 }
@@ -828,6 +833,8 @@ mod tests {
             ["Reverse Mouse", "Mouse Sensitivity", "Raw Mouse Input", "Mouse Acceleration", "Allow Developer Console", "Mouse Filter"],
             "keyboardmouse.res order"
         );
+        assert_eq!(labels(OptionsPage::Controller), ["Controller", "Look Sensitivity", "Vertical Look Type", "Vibration"], "controlleroptions.res order");
+        assert_eq!(value(OptionsPage::Controller, "Vertical Look Type").as_deref(), Some("Normal"));
         let jump = rows(OptionsPage::Keys, &s, &c).into_iter().find_map(|r| match r {
             Row::Key { label, keys, .. } if label == "Jump" => Some(keys),
             _ => None,

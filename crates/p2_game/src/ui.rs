@@ -653,12 +653,19 @@ fn dialog_tall(rows: usize) -> usize {
     (((rows + 1) * 25).div_ceil(50)).max(3)
 }
 
+/// How many 50-unit tiles the title tab needs: about 13 units a BoldCn 33
+/// capital plus the 10-unit inset each side and a little margin (a 10-letter
+/// title such as CONTROLLER measures ~141 units, so 3 tiles clip it).
+fn title_tab_tiles(title: &str) -> usize {
+    ((title.len() as f32 * 13.0 + 25.0) / 50.0).ceil().max(3.0) as usize
+}
+
 /// The tiles of a Portal 2 dialog ([`tiled_dialog`]): `content` is laid out
 /// in units from the body's top left (under the title tab); the footer
 /// buttons sit below the frame (FooterPanel.OffsetY 12).
 fn tile_frame(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, title: &str, wide: usize, tall: usize, footer: &[(&str, Action)], content: impl FnOnce(&mut ChildSpawnerCommands)) {
     const T: f32 = 50.0;
-    let tab = ((title.len() as f32 * 13.0 + 20.0) / T).ceil().max(3.0) as usize;
+    let tab = title_tab_tiles(title);
     let tab = tab.min(wide);
     let top = 480.0 - 75.0 - (tall as f32 + 1.0) * T;
     p.spawn(Node {
@@ -1531,8 +1538,10 @@ fn rebuild_menu(
             // 6 need 14: packed from 0 like Audio on a 7-tile body.
             // keyboardmouse.res: 7 x 5 (!$OSX), rows every 25 from 25
             // (Edit Keys as a DefaultButton first).
+            // controlleroptions.res: 7 x 5 (!$GAMECONSOLE), rows every 25
+            // from 25.
             let tiled = match page {
-                OptionsPage::KeyboardMouse => Some((7, 5, 25.0)),
+                OptionsPage::KeyboardMouse | OptionsPage::Controller => Some((7, 5, 25.0)),
                 OptionsPage::Audio => Some((7, 5, 0.0)),
                 OptionsPage::Video => Some((7, 4, 25.0)),
                 OptionsPage::AdvancedVideo => Some((11, 7, 0.0)),
@@ -2352,6 +2361,15 @@ fn title_card(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn title_tabs_fit_their_titles() {
+        assert_eq!(title_tab_tiles("CONTROLLER"), 4, "3 tiles clipped the R");
+        // Unchanged from the measured screens.
+        assert_eq!(title_tab_tiles("OPTIONS"), 3);
+        assert_eq!(title_tab_tiles("SINGLE PLAYER"), 4);
+        assert_eq!(title_tab_tiles("KEYBOARD/MOUSE"), 5);
+    }
 
     #[test]
     fn options_dialog_fits_its_rows() {
