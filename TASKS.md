@@ -124,7 +124,7 @@ Then the Backlog (prove and sweep the campaign).
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
 
 ### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
-- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), see below. Left: the Settings panels Video (+ advanced), Keyboard/Mouse, Controller, pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), see below. Left: the Settings panels Advanced Video, Keyboard/Mouse, Controller, pause menu, HUD/crosshair/hints/subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
 - Visual reference (owner, 2026-10-20): https://interfaceingame.com/games/portal-2/
   has screenshots of the real Portal 2 UI: start screen, main menu, options,
   video, keyboard/mouse, edit keys, extras, loading, chapter title, save
@@ -240,6 +240,23 @@ Then the Backlog (prove and sweep the campaign).
   bar colours were NOT autopilot-checked (autopilot has no mouse-move
   command). Not done: the Subtitles sub-page (ours) keeps the old panel,
   labels are ours, not the localized "#L4D360UI_AudioOptions_*" strings.
+- 2026-10-20 autorun, Video DONE (5d16315, autopilot shots only, not
+  owner-checked). video.res: tiled CBaseModFrame dialog, body 7 x 4,
+  controls every 25 units from 25: SldBrightness (hidden when windowed in
+  Portal 2), DrpAspectRatio, DrpResolution, DrpDisplayMode,
+  DrpPowerSavingsMode, DrpSplitScreenDirection, BtnAdvanced (DefaultButton,
+  ShowAdvanced). Ours in that order on the shared tile_frame/
+  tile_option_row (no power savings/split screen: not built); Brightness
+  kept in a window since ours works there; footer Apply/Done/Cancel (Apply
+  is ours) and the old "APPLY to use..." hint is gone. Unit test pins the
+  order. Evidence: autopilot `click Options; click Page(Video)` shots,
+  before (dist 802802d: grey panel, Resolution first, 40% number) vs after.
+  Labels not localized (the strings are not in the loose resource/*.txt;
+  probably in a VPK). Next: advancedvideo.res, body 11 x 5 (WIN32WIDE),
+  rows 350 wide every 25 from 25 (Antialias, Filtering, VSync, Queued
+  mode, Shader, CPU/effect, Model/texture, Paged pool) and a description
+  pane at x 360 (LblDescriptionTitle y 25, LblDescription y 60, 180 wide);
+  ours has 14 rows, so it needs a scroll or a taller body.
 
 ### T-172 Voice lines start late  (P2, TODO)
 - Owner playtest 9: "sometimes voicelines activate late and when I'm going

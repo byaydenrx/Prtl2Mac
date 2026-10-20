@@ -18,13 +18,15 @@ reads it first (via `sh scripts/resume.sh`).
   vgui/fonts/universc.vfont), MainMenuButton colours/size/inset from
   basemodui_scheme.res, flyout owner stays lit. T-162 stays open.
 - T-162 Options dialog DONE (2a6921d), autopilot shots only.
-- dist/Prtl2Mac.app = 0.1.0+802802d.20261020T2040Z.
+- dist/Prtl2Mac.app = 0.1.0+5d16315.20261020T2045Z.
 
 ## Next action
-1. T-162 next screen: the Video panel (video.res + advancedvideo.res,
-   still our old grey dialog()), then Keyboard/Mouse (keyboardmouse.res),
-   Controller (controller.res). Audio is done 802802d (audio.res, 7 x 5
-   tiled dialog; reuse tile_option_row/OnTiles in ui.rs for the others). Then pause menu,
+1. T-162 next screen: Advanced Video (advancedvideo.res: body 11 x 5,
+     rows 350 wide every 25 from 25 + description pane at x 360; our 14
+     rows need a scroll or taller body), then Keyboard/Mouse
+     (keyboardmouse.res), Controller (controller.res). Audio 802802d and
+     Video 5d16315 are done (reuse tile_frame/tile_option_row in ui.rs;
+     the tiled-page table is in rebuild_menu). Then pause menu,
    HUD/hints/subtitles, loading
    screens; one screen per run, new crashes/softlocks still first.
    Then T-170 carry regression, T-145 cubes black/spikes/jitter, T-172 late
