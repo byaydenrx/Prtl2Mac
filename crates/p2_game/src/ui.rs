@@ -49,13 +49,14 @@ impl Plugin for UiPlugin {
             .init_resource::<ChapterTab>()
             .init_resource::<ModsPage>()
             .init_resource::<MenuMovie>()
+            .init_resource::<CarriedHover>()
             .add_message::<ShowChapterTitle>()
             .add_message::<MenuClick>()
             .add_systems(Startup, (load_fonts, load_menu_art, open_main_menu).chain().after(crate::campaign::load_campaign))
             .add_systems(
                 Update,
                 (
-                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, hover_rows, menu_movie).chain(),
+                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, carry_hover, hover_rows, menu_movie).chain(),
                     (menu_view, menu_camera, pause_world, menu_music, title_card).chain(),
                 )
                     .chain()
@@ -303,6 +304,12 @@ const MAIN_ITEMS: [(&str, Action, Option<Flyout>); 6] = [
 /// Menu item text size; dialogs scale from it.
 const ITEM_SIZE: f32 = 24.0;
 
+/// One unit of Portal 2's menu layout (.res files are 480 units tall), as
+/// a share of the screen height.
+const fn units(u: f32) -> Val {
+    Val::Vh(u * 100.0 / 480.0)
+}
+
 fn load_fonts(mut commands: Commands, game: Res<GameFsRes>, mut fonts: ResMut<Assets<Font>>) {
     let load = |fonts: &mut Assets<Font>, paths: &[&str]| -> Option<Handle<Font>> { paths.iter().find_map(|p| game.read(p)).map(|b| fonts.add(Font::from_bytes(b))) };
     let bold = load(&mut fonts, &["resource/linux_fonts/dejavusans-bold.ttf", "resource/linux_fonts/liberationsans-bold.ttf"]).unwrap_or_default();
@@ -464,17 +471,19 @@ fn layer(z: i32) -> impl Bundle {
 
 /// The lower-left item column with an optional flyout beside one item.
 fn item_list(p: &mut ChildSpawnerCommands, fonts: &UiFonts, items: &[(&str, Action, Option<Flyout>)], open: Option<Flyout>, flyout_items: &[(&str, Action)]) {
+    // mainmenu.res (widescreen PC): items at x 88, 20 tall every 30 units,
+    // the last (Quit) at y 378.
     p.spawn(Node {
         position_type: PositionType::Absolute,
-        left: Val::Percent(6.0),
-        bottom: Val::Percent(12.0),
+        left: units(88.0),
+        bottom: units(480.0 - 378.0 - 20.0),
         flex_direction: FlexDirection::Column,
-        row_gap: Val::Px(2.0),
+        row_gap: units(10.0),
         ..default()
     })
     .with_children(|col| {
         for (label, action, fly) in items {
-            col.spawn(Node { flex_direction: FlexDirection::Row, ..default() }).with_children(|row| {
+            col.spawn(Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, height: units(20.0), ..default() }).with_children(|row| {
                 row.spawn(item(fonts, label, *action));
                 if fly.is_some() && *fly == open {
                     row.spawn((
@@ -726,6 +735,43 @@ fn option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row) {
     }
 }
 
+/// Actions whose buttons were hovered when the menu was last rebuilt.
+#[derive(Resource, Default)]
+struct CarriedHover(Vec<Action>);
+
+/// Freshly rebuilt buttons for the actions in [`CarriedHover`] start lit
+/// (and Hovered) instead of flashing idle for a frame before the UI focus
+/// system finds the cursor over them.
+fn carry_hover(
+    mut carried: ResMut<CarriedHover>,
+    mut q: Query<(Entity, &Action, &Look, &mut Interaction, Has<InRow>), Added<Interaction>>,
+    mut bgs: Query<&mut BackgroundColor>,
+    mut texts: Query<&mut TextColor>,
+    children: Query<&Children>,
+) {
+    if carried.0.is_empty() {
+        return;
+    }
+    for (e, action, look, mut interaction, in_row) in &mut q {
+        if !carried.0.contains(action) {
+            continue;
+        }
+        *interaction = Interaction::Hovered;
+        if in_row {
+            continue;
+        }
+        if let Ok(mut bg) = bgs.get_mut(e) {
+            bg.0 = look.bg_hover;
+        }
+        for c in children.iter_descendants(e) {
+            if let Ok(mut t) = texts.get_mut(c) {
+                t.0 = look.text_hover;
+            }
+        }
+    }
+    carried.0.clear();
+}
+
 /// The row under the mouse: dark bar, white text, arrows shown; the
 /// others plain.
 #[allow(clippy::type_complexity)]
@@ -784,6 +830,7 @@ fn rebuild_menu(
     (fonts, art, campaign, settings, actions, defaults): (Option<Res<UiFonts>>, Option<Res<MenuArt>>, Res<Campaign>, Res<Settings>, Res<KeyActions>, Res<DefaultBinds>),
     (tab, community, mods, progress): (Res<ChapterTab>, Res<CommunityMaps>, Res<ModsPage>, Res<Progress>),
     roots: Query<Entity, With<MenuRoot>>,
+    (old, mut carried): (Query<(&Interaction, &Action), With<Button>>, ResMut<CarriedHover>),
     game: Res<GameFsRes>,
     mut images: ResMut<Assets<Image>>,
     (monitors, windows): (Query<&Monitor, With<PrimaryMonitor>>, Query<&Window, With<PrimaryWindow>>),
@@ -797,6 +844,9 @@ fn rebuild_menu(
     if !screen.is_changed() && !menu.is_changed() && !options_changed && !chapters_changed && !fonts.is_added() {
         return;
     }
+    // The rebuilt buttons only learn they are hovered a frame later; keep
+    // the hovered ones lit meanwhile (see carry_hover).
+    carried.0 = old.iter().filter(|(i, _)| **i != Interaction::None).map(|(_, a)| *a).collect();
     for r in &roots {
         commands.entity(r).despawn();
     }
@@ -900,7 +950,8 @@ fn rebuild_menu(
             let mut root = commands.spawn(layer(10));
             root.with_children(|p| {
                 // The logo, top left.
-                let logo_node = Node { position_type: PositionType::Absolute, left: Val::Percent(6.0), top: Val::Percent(9.0), width: Val::Percent(34.0), ..default() };
+                // basemodui_scheme.res: Logo.X 75, Logo.Y 35, 240 x 60 units.
+                let logo_node = Node { position_type: PositionType::Absolute, left: units(75.0), top: units(35.0), width: units(240.0), height: units(60.0), ..default() };
                 match art.as_ref().and_then(|a| a.logo.clone()) {
                     Some(img) => {
                         p.spawn((ImageNode::new(img), logo_node));
