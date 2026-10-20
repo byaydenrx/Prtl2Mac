@@ -38,7 +38,10 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-144 props, then T-147 intro2 black screen. T-145 cube lit skins fixed
+1. T-144 props (in progress, reproduced 2026-10-20 autorun: intro1 vault
+   radio rocks from spawn and falls through the floor at ~1.8 s; it starts
+   0.2 u inside func_wall glass_floor_brush; see the TASKS.md entry for the
+   next steps), then T-147 intro2 black screen. T-145 cube lit skins fixed
    2026-10-20 (2e8df1a: cubes on a pressed button switch to metal_box's lit
    skin and back), button press fixed (feb5072); both awaiting owner replay
    (autopilot-checked only).

@@ -160,6 +160,20 @@ Then the Backlog (prove and sweep the campaign).
   "could you just turn around"), ideally a Windows timing reference.
 
 ### T-144 Missing props: intro1 portal room clipboard and movable clock  (P2, TODO)
+- Reproduced 2026-10-20 (autorun, dist 2e8df1a): the vault props are the
+  physics `radio` (radio_reference.mdl, spawnflags 262) and an unnamed
+  prop_physics_override bts_clipboard.mdl (8196) on table_reference.mdl;
+  the clocks (prop_dynamic clock.mdl) do draw. `info radio` shows the radio
+  rocking from spawn (up tilts +-0.4) and sinking through the floor at
+  ~1.8 s (z 2692 -> 1136 at 4 s -> -602659 by 71 s). Its base (z 2704.8)
+  starts 0.2 u inside func_wall `glass_floor_brush` (*29, top z 2705, on a
+  thin world floor 2696..2703). Suspected: spawn overlap with that brush
+  (and/or a debris prop colliding with things debris ignores) makes avian
+  depenetrate it until it tunnels; clipboard not traced yet (unnamed:
+  needs `info` by class or a ray at -1285 4336). "Movable clock" not
+  identified (the radio may be what the owner meant). Next: trace the
+  clipboard, try spawning physics props lifted out of initial overlap or
+  ignoring glass_floor_brush, check other maps' resting props.
 
 ### T-147 intro2: the screen goes black right as the first door opens  (P2, TODO)
 - Section 1; compare T-119. Screenshot 7 (intro2): a dark shard in a door.
