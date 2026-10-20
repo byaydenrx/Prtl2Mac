@@ -287,6 +287,10 @@ mod theme {
     /// A slider on the hovered (dark) row.
     pub const TRACK_HOT: Color = Color::srgba(1.0, 1.0, 1.0, 0.25);
     pub const FILL_HOT: Color = Color::srgb(0.9, 0.9, 0.91);
+    /// SliderControl.BackgroundColor 150 150 150 (tiled dialogs).
+    pub const TILE_TRACK: Color = Color::srgb(150.0 / 255.0, 150.0 / 255.0, 150.0 / 255.0);
+    /// HybridButton.FocusColor 240 240 240.
+    pub const TILE_FOCUS: Color = Color::srgb(240.0 / 255.0, 240.0 / 255.0, 240.0 / 255.0);
     /// A problem line (the Mods page).
     pub const ERROR: Color = Color::srgb(0.62, 0.12, 0.1);
     /// HybridButton.DisabledColor 140 140 140.
@@ -328,6 +332,8 @@ const MAIN_ITEMS: [(&str, Action, Option<Flyout>); 6] = [
 /// weight 700 (drawn here with the Bold Cn face).
 const TITLE_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(33.0 / 1.265 * 100.0 / 480.0);
 const DIALOG_ITEM_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(18.0 / 1.265 * 100.0 / 480.0);
+/// The ◀ ▶ on a hovered tiled-dialog row (MarlettLarge in Portal 2).
+const TILE_ARROW_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(10.0 * 100.0 / 480.0);
 
 /// Menu item text size; dialogs scale from it.
 const ITEM_SIZE: f32 = 24.0;
@@ -720,6 +726,94 @@ fn row_node(y: f32) -> Node {
     }
 }
 
+/// A Settings row on a tiled dialog (audio.res): 25 units tall at `y`
+/// units below the body's top. LeftDialogButton / DialogListButton:
+/// label at TextInsetX 10, the slider or list value anchored to the right
+/// edge, DialogButton font (UniversLTStd-LightCn tall 18 weight 700 on PC
+/// HiDef; drawn with the Cn face), black on the tiles; the hovered row on
+/// the HybridButton cursor bar (black 240) with 240 text ([`hover_rows`]).
+/// SliderControl: track BackgroundColor 150 grey, fill ForegroundColor
+/// black (FocusColor white), no number.
+fn tile_option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row, y: f32) {
+    let font = |size| TextFont { font: (&fonts.menu).into(), font_size: size, ..default() };
+    let node = Node {
+        position_type: PositionType::Absolute,
+        left: Val::Px(0.0),
+        width: Val::Percent(100.0),
+        top: units(y),
+        height: units(25.0),
+        padding: UiRect::horizontal(units(10.0)),
+        align_items: AlignItems::Center,
+        column_gap: units(2.0),
+        ..default()
+    };
+    let label = |r: &mut ChildSpawnerCommands, s: &str| {
+        r.spawn((Node { flex_grow: 1.0, ..default() }, children![(Text::new(s.to_string()), font(DIALOG_ITEM_FONT), TextColor(Color::BLACK))]));
+    };
+    let arrow = |r: &mut ChildSpawnerCommands, left: bool, action: Action| {
+        r.spawn((
+            Button,
+            action,
+            VALUE_LOOK,
+            InRow,
+            RowArrow,
+            Visibility::Hidden,
+            Node { padding: UiRect::horizontal(units(3.0)), align_items: AlignItems::Center, ..default() },
+            BackgroundColor(Color::NONE),
+            children![(Text::new(if left { "\u{25C0}" } else { "\u{25B6}" }), font(TILE_ARROW_FONT), TextColor(Color::BLACK))],
+        ));
+    };
+    match row {
+        Row::Choice { label: l, value, setting } => {
+            p.spawn((hover_row(), OnTiles)).insert(node.clone()).with_children(|r| {
+                label(r, l);
+                arrow(r, true, Action::Adjust(*setting, -1.0));
+                r.spawn((
+                    Button,
+                    Action::Toggle(*setting),
+                    VALUE_LOOK,
+                    InRow,
+                    Node { min_width: units(130.0), flex_shrink: 0.0, justify_content: JustifyContent::FlexEnd, ..default() },
+                    BackgroundColor(Color::NONE),
+                    children![(Text::new(value.clone()), font(DIALOG_ITEM_FONT), TextColor(Color::BLACK), TextLayout::new(Justify::Right, LineBreak::NoWrap))],
+                ));
+                arrow(r, false, Action::Adjust(*setting, 1.0));
+            });
+        }
+        Row::Slider { label: l, fraction, setting, .. } => {
+            p.spawn((hover_row(), OnTiles)).insert(node.clone()).with_children(|r| {
+                label(r, l);
+                arrow(r, true, Action::Adjust(*setting, -1.0));
+                r.spawn((
+                    Button,
+                    Action::Slide(*setting),
+                    Look { text: Color::BLACK, text_hover: Color::BLACK, bg: Color::NONE, bg_hover: Color::NONE },
+                    InRow,
+                    RelativeCursorPosition::default(),
+                    Node { width: units(130.0), height: units(20.0), align_items: AlignItems::Center, ..default() },
+                    BackgroundColor(Color::NONE),
+                ))
+                .with_children(|t| {
+                    t.spawn((SliderTrack, Node { width: Val::Percent(100.0), height: units(4.0), ..default() }, BackgroundColor(theme::TILE_TRACK)))
+                        .with_child((SliderFill, Node { width: Val::Percent(fraction * 100.0), height: Val::Percent(100.0), ..default() }, BackgroundColor(Color::BLACK)));
+                });
+                arrow(r, false, Action::Adjust(*setting, 1.0));
+            });
+        }
+        Row::Link { label: l, page } => {
+            let look = DIALOG_LOOK;
+            p.spawn((Button, Action::Page(*page), look, node, BackgroundColor(look.bg), children![(Text::new(l.clone()), font(DIALOG_ITEM_FONT), TextColor(look.text))]));
+        }
+        // audio.res has no headings, notes or key rows.
+        _ => {}
+    }
+}
+
+/// A [`HoverRow`] on a tiled dialog: black text idle, the HybridButton
+/// cursor bar when hovered.
+#[derive(Component)]
+struct OnTiles;
+
 /// The Portal 2 logo, top left: basemodui_scheme.res Logo.X 75, Logo.Y 35,
 /// 240 x 60 units.
 fn menu_logo(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>) {
@@ -998,34 +1092,46 @@ fn carry_hover(
 /// others plain.
 #[allow(clippy::type_complexity)]
 fn hover_rows(
-    mut rows: Query<(Entity, &RelativeCursorPosition, &mut HoverRow, &mut BackgroundColor), Without<SliderTrack>>,
+    mut rows: Query<(Entity, &RelativeCursorPosition, &mut HoverRow, &mut BackgroundColor, Has<OnTiles>), Without<SliderTrack>>,
     children: Query<&Children>,
     mut texts: Query<&mut TextColor>,
     mut arrows: Query<&mut Visibility, With<RowArrow>>,
     mut parts: Query<(&mut BackgroundColor, Has<SliderFill>), (Or<(With<SliderTrack>, With<SliderFill>)>, Without<HoverRow>)>,
     menu: Res<MenuState>,
 ) {
-    for (e, cursor, mut row, mut bg) in &mut rows {
+    for (e, cursor, mut row, mut bg, tiles) in &mut rows {
         // Under a confirmation, nothing is hovered.
         let hot = cursor.cursor_over() && menu.confirm.is_none();
         if hot == row.hot {
             continue;
         }
         row.hot = hot;
-        bg.0 = if hot { theme::ROW_HOVER } else { Color::NONE };
+        bg.0 = match (hot, tiles) {
+            (true, true) => DIALOG_LOOK.bg_hover,
+            (true, false) => theme::ROW_HOVER,
+            (false, _) => Color::NONE,
+        };
         for c in children.iter_descendants(e) {
             if let Ok(mut t) = texts.get_mut(c) {
-                t.0 = if hot { Color::WHITE } else { theme::VALUE };
+                t.0 = match (hot, tiles) {
+                    (true, true) => theme::TILE_FOCUS,
+                    (true, false) => Color::WHITE,
+                    (false, true) => Color::BLACK,
+                    (false, false) => theme::VALUE,
+                };
             }
             if let Ok(mut v) = arrows.get_mut(c) {
                 *v = if hot { Visibility::Inherited } else { Visibility::Hidden };
             }
             if let Ok((mut b, fill)) = parts.get_mut(c) {
-                b.0 = match (fill, hot) {
-                    (true, true) => theme::FILL_HOT,
-                    (true, false) => theme::FILL,
-                    (false, true) => theme::TRACK_HOT,
-                    (false, false) => theme::TRACK,
+                b.0 = match (fill, hot, tiles) {
+                    (true, true, true) => Color::WHITE,
+                    (true, false, true) => Color::BLACK,
+                    (false, _, true) => theme::TILE_TRACK,
+                    (true, true, false) => theme::FILL_HOT,
+                    (true, false, false) => theme::FILL,
+                    (false, true, false) => theme::TRACK_HOT,
+                    (false, false, false) => theme::TRACK,
                 };
             }
         }
@@ -1367,6 +1473,20 @@ fn rebuild_menu(
                 (OptionsPage::Video, _) if menu.video.is_some_and(|v| v != VideoMode::of(&settings)) => "APPLY to use the new display settings.".to_string(),
                 _ => String::new(),
             };
+            if page == OptionsPage::Audio {
+                // audio.res: a tiled dialog, body 7 x 5, rows every 25
+                // units from 0 in the .res order (Game Volume, Music
+                // Volume, Speaker Configuration, Captioning, Language;
+                // our Subtitle style follows).
+                let foot: Vec<(&str, Action)> = page.footer().iter().map(|&k| (k.label(), k.into())).collect();
+                commands.spawn(layer(10)).with_children(|p| {
+                    tile_frame(p, &fonts, art.as_deref(), page.title(), 7, 5, &foot, |d| {
+                        for (i, r) in rows.iter().enumerate() {
+                            tile_option_row(d, &fonts, r, 25.0 * i as f32);
+                        }
+                    });
+                });
+            } else {
             let panel = dialog(&mut commands, &fonts, page.title(), if page == OptionsPage::Keys { 760.0 } else { 720.0 });
             commands.entity(panel).with_children(|p| {
                 if matches!(page, OptionsPage::Keys | OptionsPage::Mods) {
@@ -1395,6 +1515,7 @@ fn rebuild_menu(
                 }
                 footer(p, &fonts, &hint, page.footer());
             });
+            }
         }
     }
     if let Some(c) = menu.confirm {
