@@ -18,11 +18,69 @@ pub struct MoversPlugin;
 impl Plugin for MoversPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Movers>()
+            .init_resource::<MoverLerp>()
+            .add_systems(FixedFirst, lerp_restore)
+            .add_systems(PostUpdate, lerp_draw.before(bevy::transform::TransformSystems::Propagate))
             .add_systems(Update, (setup_movers, mover_inputs).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic))
             // On the fixed tick, after the player moves and before physics
             // syncs colliders: the player is carried by exactly the step the
             // colliders make, so the next move sees them both in step.
             .add_systems(FixedUpdate, (run_movers, follow_parents, ride).chain().after(P2Systems::Transit));
+        if std::env::var_os("P2_RIDE_TRACE").is_some() {
+            app.add_systems(PostUpdate, ride_trace.after(bevy::transform::TransformSystems::Propagate));
+        }
+    }
+}
+
+/// Things moved on the last tick: (last tick's translation, this tick's).
+/// They are drawn between the two at the fixed-step overstep, like the
+/// player's feet, so a ride doesn't jitter against the interpolated view;
+/// the tick's own value is put back before the next tick (physics and the
+/// movers only ever see tick positions).
+#[derive(Resource, Default)]
+pub(crate) struct MoverLerp(HashMap<Entity, (Vec3, Vec3)>);
+
+impl MoverLerp {
+    /// Moved again in the same tick (a child of a moved parent): keep the
+    /// first starting point.
+    fn record(&mut self, e: Entity, before: Vec3, after: Vec3) {
+        self.0.entry(e).and_modify(|v| v.1 = after).or_insert((before, after));
+    }
+}
+
+fn lerp_restore(mut lerp: ResMut<MoverLerp>, mut transforms: Query<&mut Transform>) {
+    for (e, (_, curr)) in lerp.0.drain() {
+        if let Ok(mut t) = transforms.get_mut(e) {
+            t.translation = curr;
+        }
+    }
+}
+
+fn lerp_draw(lerp: Res<MoverLerp>, fixed: Res<Time<Fixed>>, mut transforms: Query<&mut Transform>) {
+    let a = fixed.overstep_fraction();
+    for (&e, &(prev, curr)) in &lerp.0 {
+        if let Ok(mut t) = transforms.get_mut(e) {
+            t.translation = prev.lerp(curr, a);
+        }
+    }
+}
+
+/// `P2_RIDE_TRACE`: per frame, the camera's height relative to each train
+/// carrying the player (a steady ride keeps it constant).
+fn ride_trace(
+    ents: Option<Res<Ents>>,
+    movers: Res<Movers>,
+    fixed: Res<Time<Fixed>>,
+    players: Query<&InterpolatedFeet, With<Player>>,
+    globals: Query<&GlobalTransform>,
+) {
+    let Some(ents) = ents else { return };
+    let Ok(feet) = players.single() else { return };
+    let eye = feet.at(fixed.overstep_fraction());
+    for (&i, off) in &movers.riders {
+        let (Some(_), Some(r)) = (off, ents.list[i].entity) else { continue };
+        let Ok(car) = globals.get(r) else { continue };
+        info!("RIDE {} rel {:.4} eye {:.4} car {:.4} overstep {:.2}", ents.list[i].name, eye.y - car.translation().y, eye.y, car.translation().y, fixed.overstep_fraction());
     }
 }
 
@@ -501,6 +559,7 @@ fn run_movers(
     ents: Option<ResMut<Ents>>,
     mut movers: ResMut<Movers>,
     mut transforms: Query<&mut Transform>,
+    mut lerp: ResMut<MoverLerp>,
     mut fire: MessageWriter<FireOutput>,
 ) {
     let Some(mut ents) = ents else { return };
@@ -569,7 +628,9 @@ fn run_movers(
             }
             if let Some(r) = ents.list[i].entity {
                 if let Ok(mut t) = transforms.get_mut(r) {
+                    let before = t.translation;
                     t.translation += delta;
+                    lerp.record(r, before, t.translation);
                 }
             }
         }
@@ -587,6 +648,7 @@ pub(crate) fn follow_parents(
     anims: Option<Res<crate::viewcontrol::PropAnims>>,
     mut tanks: Option<ResMut<crate::tanks::Tanks>>,
     mut transforms: Query<&mut Transform, Without<Player>>,
+    mut lerp: ResMut<MoverLerp>,
 ) {
     let Some(mut ents) = ents else { return };
     // Parents that moved since last tick without being movers.
@@ -620,6 +682,7 @@ pub(crate) fn follow_parents(
         }
         if let Some(r) = ents.list[child].entity {
             if let Ok(mut t) = transforms.get_mut(r) {
+                lerp.record(r, t.translation, world.translation);
                 t.translation = world.translation;
                 t.rotation = world.rotation;
             }
@@ -678,9 +741,10 @@ fn ride(
     if movers.moved.is_empty() {
         return;
     }
+    // Only this tick's end moves: the view is drawn part way along the
+    // carry, as the carrier is (`MoverLerp`).
     let apply = |d: Vec3, tf: &mut Transform, feet: &mut InterpolatedFeet| {
         tf.translation += d;
-        feet.prev += d;
         feet.curr += d;
     };
     // Inside a train's box (an elevator car): carried, standing or not.
@@ -709,5 +773,19 @@ fn ride(
             return;
         }
         cur = parents.get(c).ok().map(|p| p.parent()).or_else(|| body_of.get(c).ok().map(|b| b.body));
+    }
+}
+
+#[cfg(test)]
+mod lerp_tests {
+    use super::*;
+
+    #[test]
+    fn moved_twice_in_a_tick_keeps_the_first_start() {
+        let mut l = MoverLerp::default();
+        let e = Entity::from_raw_u32(7).unwrap();
+        l.record(e, Vec3::ZERO, Vec3::Y);
+        l.record(e, Vec3::Y, Vec3::Y * 3.0);
+        assert_eq!(l.0[&e], (Vec3::ZERO, Vec3::Y * 3.0));
     }
 }
