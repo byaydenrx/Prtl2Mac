@@ -41,7 +41,7 @@ P3:
 17. T-153 GLaDOS wake-up: portal gun drop fixed (c64a60b, awaiting owner replay); particles, floating arms, look direction still open (PARTIAL); T-157 fall transition: 3.6 s black wait cut to 0.25 s (badb7a9, awaiting owner replay), a ~2.5 s frame hitch after the load still open (PARTIAL); T-165 Wheatley rail connector BLOCKED: not reproduced, arm props drawn, needs an owner screenshot.
 18. (T-148 portals behind glass fixed, cc04a74, awaiting owner replay); (T-140 env_shake for game-placed portals, eb58eac, awaiting owner replay).
 P4:
-19. T-151 water BLOCKED: untested fix on attempt/T-151 (needs owner replay or a Windows screenshot); T-155 lasers, T-150 particles, T-152 lighting/textures,
+19. T-151 water BLOCKED: untested fix on attempt/T-151 (needs owner replay or a Windows screenshot); (T-155 lasers textured, 014ab6e, awaiting owner replay); T-150 particles, T-152 lighting/textures,
     T-143 clock blink, T-146 half-stuck door, T-154 floating moss, T-166 intro5 wall panel.
 Then the Backlog (prove and sweep the campaign).
 
@@ -328,7 +328,6 @@ Then the Backlog (prove and sweep the campaign).
   Portal 2's looks that pale is unknown without a Windows screenshot of the
   intro3 pool (or laser_intro). Not done: `$pseudotranslucent` alpha blend
   (`$waterblendfactor`), `$reflectamount` screen-space offset.
-### T-155 Lasers look poor  (P4, TODO)
 ### T-150 Particles missing  (P4, TODO)
 - Fall smoke and water splash (+ sounds) in intro3; the gun's beam when
   holding things; motion blur/speed lines; the gun's glow seen through the
@@ -342,6 +341,22 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-155 Lasers look poor  (P4, FIXED 2026-10-20, 014ab6e, autopilot only)
+- Playtest 8 section 6: "lasers ugly".
+- Cause: env_portal_laser legs were drawn as an opaque, hard-edged solid
+  cylinder plus an additive red tube, not Portal 2's beam material
+  (client.dll C_PortalLaser uses `sprites/purplelaser1.vmt`: UnlitTwoTexture,
+  additive, a thin white-pink core with a soft red falloff across u).
+- Fix: one camera-facing additive quad per leg, 40 units wide, textured
+  with purplelaser1, colour x2.5 overbright, flickering 0.9..1.05 per frame
+  (the vmt's UniformNoise proxy). Turret sight lines unchanged.
+- Evidence (autopilot shots, sp_a2_laser_relays `3 setpos -420 -460 0;
+  3.5 lookat new_laser` and `setpos -600 -700 0`): before a flat solid
+  red/white band; after a glowing core with a soft red halo. Width and
+  brightness chosen by eye, not compared with Windows Portal 2.
+- Not done: the scrolling `$texture2` (effects/laserplane_atmosphere),
+  impact sparks (m_bShouldSpark) and emitter/impact glow sprites.
 
 ### T-140 Game-placed portals: no screen shake or sound  (P3, FIXED 2026-10-20, eb58eac, autopilot only)
 - The first orange portal should shake the screen a little and play its sound.

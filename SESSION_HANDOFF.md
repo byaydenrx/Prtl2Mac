@@ -34,12 +34,17 @@ reads it first (via `sh scripts/resume.sh`).
   (8f8c8b1, autopilot only; all maps' startdisabled func_brushes affected).
   T-136 wakeup incinerator drop: linked_portal_doors now draw seamless (no
   oval/rim/hum; SeamlessPortal marker, 3f96088, autopilot shots only).
-  dist/Prtl2Mac.app = 0.1.0+cc04a74.20261020T1719Z.
+  dist/Prtl2Mac.app = 0.1.0+014ab6e.20261020T1749Z.
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-155 lasers look poor (next in the owner's order: T-155, T-150,
-   T-152, T-143, T-146, T-154, T-166, then T-147).
+1. T-150 particles missing (next in the owner's order: T-150, T-152,
+   T-143, T-146, T-154, T-166, then T-147).
+   T-155 lasers FIXED 2026-10-20 (014ab6e): beams are now camera-facing
+   additive quads with Portal 2's sprites/purplelaser1 texture and flicker
+   (were solid cylinders). Autopilot shots only (laser_relays), width and
+   brightness by eye; awaiting owner replay.
+   dist build: 0.1.0+014ab6e.20261020T1749Z.
    T-151 water BLOCKED (needs owner) 2026-10-20: intro3 water had no
    reflection (sky reflection disabled on fogged maps) and no map fog;
    untested fix on local branch attempt/T-151 (2df932d). No main change.
