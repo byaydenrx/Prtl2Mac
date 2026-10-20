@@ -111,6 +111,8 @@ pub struct Movers {
     parented: Vec<(usize, usize, Transform)>,
     /// Movement of each mover this frame (for children and riders).
     moved: HashMap<usize, Vec3>,
+    /// Turn of each train this frame, about its origin (riders turn too).
+    turned: HashMap<usize, Quat>,
     /// Where each parent was last tick, to catch parents moved by something
     /// other than a mover (a prop's animated attachment carrying the
     /// sp_a1_wakeup socket, whose trigger is parented to it).
@@ -559,6 +561,26 @@ fn path_from(ents: &Ents, from: Option<usize>, dest: Option<usize>) -> Vec<usize
     out
 }
 
+/// A path node's yaw (Source degrees about up) as a world yaw in radians;
+/// `None` for a node that also pitches or rolls (not blended yet).
+fn node_yaw(e: &GameEnt) -> Option<f32> {
+    let v: Vec<f32> = e.get("angles").unwrap_or("0 0 0").split_whitespace().filter_map(|x| x.parse().ok()).collect();
+    let at = |k: usize| v.get(k).copied().unwrap_or(0.0);
+    (at(0) == 0.0 && at(2) == 0.0).then(|| at(1).to_radians())
+}
+
+/// The turn about up of a rotation, radians (positive turns left).
+fn turn_yaw(q: Quat) -> f32 {
+    let f = q * Vec3::NEG_Z;
+    (-f.x).atan2(-f.z)
+}
+
+/// Yaw part way (`t` 0..1) from `a` to `b`, the short way round.
+fn blend_yaw(a: f32, b: f32, t: f32) -> f32 {
+    let d = (b - a + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+    a + d * t.clamp(0.0, 1.0)
+}
+
 fn run_movers(
     time: Res<Time>,
     ents: Option<ResMut<Ents>>,
@@ -570,6 +592,7 @@ fn run_movers(
     let Some(mut ents) = ents else { return };
     let dt = time.delta_secs();
     movers.moved.clear();
+    movers.turned.clear();
     let keys: Vec<usize> = movers.movers.keys().copied().collect();
     for i in keys {
         let Some(m) = movers.movers.get_mut(&i) else { continue };
@@ -623,7 +646,40 @@ fn run_movers(
                 }
             }
         }
+        // `orientationtype 2` (linear blend): the train's yaw goes from the
+        // node it left to the angles of the node it heads for (the
+        // sp_a1_wakeup breaker lift turns 90 degrees as it sets off).
+        let turn = if ents.list[i].get("orientationtype") == Some("2") {
+            let next = match &m.motion {
+                Some(Motion::Path { nodes, .. }) => nodes.first().copied(),
+                _ => None,
+            };
+            let yaw_of = |n: usize| node_yaw(&ents.list[n]);
+            let yaw = match (m.node, next) {
+                (Some(a), Some(b)) => {
+                    let (pa, pb) = (ents.list[a].transform.translation, ents.list[b].transform.translation);
+                    let len = pa.distance(pb);
+                    let t = if len > 1e-5 { 1.0 - (m.pos.distance(pb) / len).min(1.0) } else { 1.0 };
+                    yaw_of(a).zip(yaw_of(b)).map(|(ya, yb)| blend_yaw(ya, yb, t))
+                }
+                (Some(a), None) => yaw_of(a),
+                _ => None,
+            };
+            let now = turn_yaw(ents.list[i].transform.rotation.normalize());
+            yaw.map(|y| blend_yaw(now, y, 1.0) - now).filter(|d| d.abs() > 1e-5).map(Quat::from_rotation_y)
+        } else {
+            None
+        };
         let delta = m.pos - before;
+        if let Some(q) = turn {
+            movers.turned.insert(i, q);
+            let r = (q * ents.list[i].transform.rotation).normalize();
+            ents.list[i].transform.rotation = r;
+            if let Some(mut t) = ents.list[i].entity.and_then(|e| transforms.get_mut(e).ok()) {
+                t.rotation = r;
+            }
+            movers.moved.entry(i).or_insert(Vec3::ZERO);
+        }
         if delta != Vec3::ZERO {
             movers.moved.insert(i, delta);
             ents.list[i].transform.translation += delta;
@@ -703,12 +759,12 @@ pub(crate) fn follow_parents(
 fn ride(
     ents: Option<Res<Ents>>,
     mut movers: ResMut<Movers>,
-    mut players: Query<(&mut Transform, &mut InterpolatedFeet, &Grounded, &mut CharacterVelocity), With<Player>>,
+    mut players: Query<(&mut Transform, &mut InterpolatedFeet, &Grounded, &mut CharacterVelocity, &mut ViewAngles), With<Player>>,
     body_of: Query<&ColliderOf>,
     parents: Query<&ChildOf>,
 ) {
     let Some(ents) = ents else { return };
-    let Ok((mut tf, mut feet, ground, mut vel)) = players.single_mut() else { return };
+    let Ok((mut tf, mut feet, ground, mut vel, mut view)) = players.single_mut() else { return };
     // Elevator rides: locked to the car from its start to its stop.
     let riders: Vec<(usize, Option<Vec3>)> = movers.riders.iter().map(|(k, v)| (*k, *v)).collect();
     for (i, offset) in riders {
@@ -727,7 +783,11 @@ fn ride(
                 }
             }
             Some(d) => {
-                let at = m.pos + d;
+                // A turning car turns its rider about the car's origin.
+                let (pos, stopped) = (m.pos, m.motion.is_none());
+                let q = movers.turned.get(&i).copied();
+                let d = q.map_or(d, |q| q * d);
+                let at = pos + d;
                 // Teleported out of the car (setpos, a trigger_teleport): let go.
                 if tf.translation.distance(at) > 2.0 {
                     movers.riders.remove(&i);
@@ -736,7 +796,11 @@ fn ride(
                 tf.translation = at;
                 *feet = InterpolatedFeet { prev: feet.curr, curr: at };
                 vel.0 = Vec3::ZERO;
-                if m.motion.is_none() {
+                if let Some(q) = q {
+                    movers.riders.insert(i, Some(d));
+                    view.yaw += turn_yaw(q);
+                }
+                if stopped {
                     movers.riders.remove(&i);
                 }
                 return;
@@ -748,10 +812,18 @@ fn ride(
     }
     // Only this tick's end moves: the view is drawn part way along the
     // carry, as the carrier is (`MoverLerp`).
-    let apply = |d: Vec3, tf: &mut Transform, feet: &mut InterpolatedFeet| {
-        tf.translation += d;
-        feet.curr += d;
+    // A turn (`q`, about the carrier's origin `pivot`) turns the player
+    // round the origin and their view with it.
+    let apply = |d: Vec3, turn: Option<(Quat, Vec3)>, tf: &mut Transform, feet: &mut InterpolatedFeet, view: &mut ViewAngles| {
+        let mut to = tf.translation + d;
+        if let Some((q, pivot)) = turn {
+            to = pivot + q * (to - pivot);
+            view.yaw += turn_yaw(q);
+        }
+        feet.curr += to - tf.translation;
+        tf.translation = to;
     };
+    let turn_of = |i: usize| movers.turned.get(&i).map(|&q| (q, ents.list[i].transform.translation));
     // Inside a train's box (an elevator car): carried, standing or not.
     let p = tf.translation;
     for (&i, &d) in &movers.moved {
@@ -762,7 +834,7 @@ fn ride(
         let Some((lo, hi)) = e.bounds else { continue };
         let grow = Vec3::new(0.3, 0.0, 0.3);
         if p.x > lo.x - grow.x && p.x < hi.x + grow.x && p.z > lo.z - grow.z && p.z < hi.z + grow.z && p.y > lo.y - 0.5 && p.y < hi.y + 3.0 {
-            apply(d, &mut tf, &mut feet);
+            apply(d, turn_of(i), &mut tf, &mut feet, &mut view);
             return;
         }
     }
@@ -773,7 +845,7 @@ fn ride(
         let Some(c) = cur else { break };
         if let Some((i, _)) = ents.list.iter().enumerate().find(|(_, e)| e.entity == Some(c)) {
             if let Some(&d) = movers.moved.get(&i) {
-                apply(d, &mut tf, &mut feet);
+                apply(d, turn_of(i), &mut tf, &mut feet, &mut view);
             }
             return;
         }
@@ -784,6 +856,20 @@ fn ride(
 #[cfg(test)]
 mod lerp_tests {
     use super::*;
+
+    #[test]
+    fn train_yaw_blends_the_short_way_and_riders_turn_with_it() {
+        // sp_a1_wakeup: path_1 (yaw 0) -> path_4 (yaw 270) is a quarter
+        // turn right, not three quarters left.
+        let (a, b) = (0f32.to_radians(), 270f32.to_radians());
+        assert!((blend_yaw(a, b, 0.5).to_degrees() + 45.0).abs() < 1e-3);
+        assert!((blend_yaw(a, b, 1.0).to_degrees() + 90.0).abs() < 1e-3);
+        let q = Quat::from_rotation_y(0.3);
+        assert!((turn_yaw(q) - 0.3).abs() < 1e-5);
+        // Viewed yaw and body turn agree (ViewAngles: yaw about +Y).
+        let v = ViewAngles { yaw: 0.3, ..default() };
+        assert!((v.forward() - q * Vec3::NEG_Z).length() < 1e-5);
+    }
 
     #[test]
     fn moved_twice_in_a_tick_keeps_the_first_start() {
