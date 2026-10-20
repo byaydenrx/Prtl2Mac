@@ -47,6 +47,7 @@ player, and touches no cursor or time settings.
 | Corner checks at 2.2 u inset | §3 step 9 | `rules::corner_surfaces` |
 | Floor snap for wall portals within 1.5 u of a floor | §3 step 6 | `rules::floor_snap` |
 | Overlap with another portal facing the same way (dot >= 0.95), box test | §5 | `rules::overlaps` |
+| A shot overlapping another portal on the same wall is bumped off it (1 u gap, nearest free side within the max slide) | §5 | `rules::bump_off_portals` |
 | Positions snapped to 1/512 u | §5 | `rules::place` |
 | Replacing your own same-colour portal: old one despawned, `PortalClosed` sent | §5 | `fire` |
 | Linking: both halves get `PortalLink` when both are open | §5 | `fire` |
@@ -88,7 +89,7 @@ Without `--script` the example shows the chamber with `MouseInputPlugin`
 enabled. It only fires with the cursor grabbed, and the example does not
 grab it (no movement crate here), so use `--script` to test.
 
-The scripted checks cover: a plain wall, an overlap with the other portal,
+The scripted checks cover: a plain wall, a shot bumped off the other portal,
 a linked pair across a room, replacing your own portal, a bump off a wall
 edge, a black (non-portalable) pillar, a floor, a ceiling, and a 45 degree
 angled panel. Each check asserts the portal entity really exists and has

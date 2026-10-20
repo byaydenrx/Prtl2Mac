@@ -280,6 +280,47 @@ pub struct Placed {
     pub surfaces: Vec<Entity>,
 }
 
+/// Fit on the surface, floor snap, then snap to 1/512 u (spec §5).
+fn fit_and_snap(w: &dyn World, frame: PortalFrame, half: Vec2) -> Option<PortalFrame> {
+    let mut fitted = fit_on_surface(w, frame, half)?;
+    fitted.position = floor_snap(w, &fitted, half);
+    let grid = U / 512.0;
+    fitted.position = (fitted.position / grid).round() * grid;
+    Some(fitted)
+}
+
+/// Clearance left between a bumped portal and the one it was pushed off.
+pub const PORTAL_BUMP_GAP: f32 = 1.0 * U;
+
+/// A portal shot onto (part of) another open portal on the same wall is
+/// pushed off it, like Portal 2 does, instead of failing: the shortest
+/// in-plane move that clears the other opening by [`PORTAL_BUMP_GAP`] and
+/// still fits on the surface (each side tried, nearest first, within
+/// [`max_slide`]). `None` if no such spot exists (or the other portal is not
+/// on this wall), which is an `Overlap` failure.
+pub fn bump_off_portals(w: &dyn World, fitted: &PortalFrame, half: Vec2, others: &[Open]) -> Option<PortalFrame> {
+    let (n, r, u) = (fitted.normal(), fitted.right(), fitted.up());
+    let o = others.iter().find(|o| overlaps(fitted, half, &o.frame, o.half))?;
+    if (o.frame.position - fitted.position).dot(n).abs() > 2.0 * U {
+        return None;
+    }
+    let d = fitted.position - o.frame.position;
+    let ext = |a: Vec3| o.frame.right().dot(a).abs() * o.half.x + o.frame.up().dot(a).abs() * o.half.y;
+    let sign = |x: f32| if x < 0.0 { -1.0 } else { 1.0 };
+    let mut moves: Vec<Vec3> = Vec::with_capacity(4);
+    for (axis, h) in [(r, half.x), (u, half.y)] {
+        let (off, need) = (d.dot(axis), h + ext(axis) + PORTAL_BUMP_GAP);
+        moves.push(axis * sign(off) * (need - off.abs()));
+        moves.push(-axis * sign(off) * (need + off.abs()));
+    }
+    moves.sort_by(|a, b| a.length().total_cmp(&b.length()));
+    moves
+        .into_iter()
+        .filter(|m| m.length() <= max_slide(half))
+        .filter_map(|m| fit_and_snap(w, PortalFrame::new(fitted.position + m, fitted.rotation), half))
+        .find(|f| !others.iter().any(|o| overlaps(f, half, &o.frame, o.half)))
+}
+
 /// The whole placement of one shot whose final leg hit `hit`, travelling
 /// `shot_dir`, given the other open portals. Checks run in spec order.
 pub fn place(
@@ -294,13 +335,9 @@ pub fn place(
     }
     let frame = initial_frame(hit.point, hit.normal, shot_dir).ok_or(ShotFailReason::DoesNotFit)?;
     surface_at(w, frame.position, frame.normal()).ok_or(ShotFailReason::DoesNotFit)?;
-    let mut fitted = fit_on_surface(w, frame, half).ok_or(ShotFailReason::DoesNotFit)?;
-    fitted.position = floor_snap(w, &fitted, half);
-    // Final position is snapped to 1/512 u before use (spec §5).
-    let grid = U / 512.0;
-    fitted.position = (fitted.position / grid).round() * grid;
+    let mut fitted = fit_and_snap(w, frame, half).ok_or(ShotFailReason::DoesNotFit)?;
     if others.iter().any(|o| overlaps(&fitted, half, &o.frame, o.half)) {
-        return Err(ShotFailReason::Overlap);
+        fitted = bump_off_portals(w, &fitted, half, others).ok_or(ShotFailReason::Overlap)?;
     }
     let surfaces = corner_surfaces(w, &fitted, half).ok_or(ShotFailReason::DoesNotFit)?;
     Ok(Placed { frame: fitted, surfaces })
@@ -570,7 +607,15 @@ mod tests {
         let wall = wall_z(1, -10.0, 10.0, -10.0, 10.0);
         let w = Quads(vec![wall]);
         let other = Open { frame: PortalFrame::from_normal_up(v(0.6, 0.0, 0.0), Vec3::Z, Vec3::Y).unwrap(), half };
-        assert_eq!(place(&w, hit(1, Vec3::ZERO), Vec3::NEG_Z, half, &[other]).unwrap_err(), ShotFailReason::Overlap);
+        let bumped = place(&w, hit(1, Vec3::ZERO), Vec3::NEG_Z, half, &[other]).expect("bumped off the other portal");
+        // Pushed left until the openings are one unit apart (0.6 - 2 hw - 1 u).
+        assert_close(bumped.frame.position, v(0.6 - 2.0 * half.x - U, 0.0, 0.0), 1e-3, "bumped centre");
+        assert!(!overlaps(&bumped.frame, half, &other.frame, half));
+
+        // No room beside the other portal on a strip one portal wide: Overlap.
+        let w = Quads(vec![wall_z(1, -1.0, 1.0, -1.6, 1.6)]);
+        let other = Open { frame: PortalFrame::from_normal_up(v(0.0, 0.1, 0.0), Vec3::Z, Vec3::Y).unwrap(), half };
+        assert_eq!(place(&w, hit(1, v(0.1, 0.0, 0.0)), Vec3::NEG_Z, half, &[other]).unwrap_err(), ShotFailReason::Overlap);
 
         // Too narrow: DoesNotFit.
         let w = Quads(vec![wall_z(1, -0.7, 0.7, -10.0, 10.0)]);

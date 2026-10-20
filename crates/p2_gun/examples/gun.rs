@@ -97,12 +97,12 @@ fn steps(spots: &RoomSpots) -> Vec<Step> {
             expect: Expect::Placed { centre: Centre::Near(rec_hit), normal: -rec_dir },
         },
         Step {
-            label: "orange 0.6 m beside blue on the same wall (overlap)",
+            label: "orange 0.6 m beside blue on the same wall (bumped off blue)",
             kind: PortalKind::Orange,
             feet: rec.feet,
             yaw: beside_yaw,
             pitch: beside_pitch,
-            expect: Expect::Failed(&[ShotFailReason::Overlap]),
+            expect: Expect::Placed { centre: Centre::Any, normal: -rec_dir },
         },
         Step {
             label: "blue at the white/black edge (must bump onto the white)",
