@@ -91,6 +91,18 @@ date. Any engine bug found becomes its own task (P1 if it blocks the route).
 ### T-123 Portal shots should pass through cameras (and knock them off) and other non-solid props  (P2, TODO)
 - Owner intro6: can't shoot a portal under a security camera; in Portal 2 the camera falls off.
 
+### T-124 sp_a1_intro7: Wheatley doesn't fall off the management rail  (P1, NEEDS_VERIFICATION)
+- Owner playtest 4: after the portal behind him (T-122 works), he never drops.
+- Cause: the drop is GLaDOS's scene table (sp_a1_intro7OnThree04 fires
+  `@sphere ClearParent`, the impact trigger, the detach spark); cores spawn
+  kinematic and ClearParent didn't free them. Now ClearParent makes a core
+  dynamic unless DisableMotion (or spawnflag 8) froze it.
+- Autopilot: sp_a1_intro7_OnThree() -> chain of 4 lines -> Wheatley falls
+  from z 1419 to the floor (1239), sphere_impact_trigger fires.
+- Still open: portal_b_rm4 (orange, tilted 75 deg) shows only half for the
+  owner. Its panel is flush with it (rays); autopilot screenshots of intro7
+  come out black, so not seen yet.
+
 ## Owner playtest issues (P2)
 - T-110 (NEEDS_VERIFICATION) Fix: speech plays on its actor's voice channel, so an actor's new line cuts the previous one (Source CHAN_VOICE); busyactor 2/3 cancel the actor's running scene. Verified by log in intro1 (Wheatley and announcer lines). Different speakers can still overlap, as in Source. Report: jumping/saying "apple" while Wheatley talks, opening the door early; Portal 2 queues or interrupts by scene priority.
 - T-111 Music stops at the stairs (wakeup, way to GLaDOS).

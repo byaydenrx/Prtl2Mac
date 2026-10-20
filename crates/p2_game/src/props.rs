@@ -584,6 +584,9 @@ fn sync_prop_transforms(ents: Option<ResMut<Ents>>, props: Query<(&Prop, &Transf
 pub struct CoreState {
     pub pickup: std::collections::HashSet<usize>,
     pub drop_disabled: bool,
+    /// Cores whose motion the map turned off (DisableMotion): taken off
+    /// their parent they stay put instead of falling.
+    pub motion_disabled: std::collections::HashSet<usize>,
 }
 
 fn core_inputs(
@@ -616,12 +619,14 @@ fn core_inputs(
                 cores.pickup.remove(&i);
             }
             ("npc_personality_core", "enablemotion" | "wake") => {
+                cores.motion_disabled.remove(&i);
                 if let Some((e, _)) = props.iter().find(|(_, p)| p.ent == i) {
                     commands.entity(e).insert(RigidBody::Dynamic);
                 }
             }
             // Locked into a socket or onto a rail: out of the player's hands.
             ("npc_personality_core", "disablemotion") => {
+                cores.motion_disabled.insert(i);
                 if let Some((e, _)) = props.iter().find(|(_, p)| p.ent == i) {
                     if let (Ok(hc), Ok((mut ignore, ..))) = (held.get(e), players.single_mut()) {
                         for c in &hc.0 {
@@ -629,6 +634,17 @@ fn core_inputs(
                         }
                     }
                     commands.entity(e).remove::<(Held, HeldColliders)>().insert((RigidBody::Kinematic, LinearVelocity::ZERO, AngularVelocity::ZERO));
+                }
+            }
+            // Off its rail or arm: a core is a physics object that only
+            // followed its parent, so it falls (sp_a1_intro7: Wheatley drops
+            // from the management rail on "three"), unless its motion is off.
+            ("npc_personality_core", "clearparent") => {
+                let frozen = cores.motion_disabled.contains(&i) || ents.list[i].spawnflags & 8 != 0;
+                if !frozen {
+                    if let Some((e, _)) = props.iter().find(|(_, p)| p.ent == i) {
+                        commands.entity(e).insert(RigidBody::Dynamic);
+                    }
                 }
             }
             // Put straight into the player's hands (sp_a1_wakeup starts
