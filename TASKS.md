@@ -124,12 +124,16 @@ date. Any engine bug found becomes its own task (P1 if it blocks the route).
 - T-118 intro4: loud glass-breaking sound (check against the original); the door animation cuts to black.
 
 ## Owner playtest 3 (2026-10-19, build 2cf59a9), by map (P2 unless noted)
-- intro1: wake-up animation; blocky shadows (T-117); key hints lack labels (E, SPACE: T-113); Wheatley and announcer overlap in the dark room; the moving room jerks the camera and moves the player around; floating parts during the room move; Wheatley moves oddly after the ride and is a black box seen from below during it; 12:00 clock blinks its background too (only the digits should); Chell seen through the first portal holding a gun she hasn't got; no press-down animation on the button; saying "apple" when asked skipped his next line.
+- intro1: wake-up animation; blocky shadows (T-117); key hints lack labels (E, SPACE: T-113); Wheatley and announcer overlap in the dark room; the moving room jerks the camera and moves the player around; floating parts during the room move; Wheatley moves oddly after the ride and is a black box seen from below during it; 12:00 clock blinks its background too (only the digits should); Chell seen through the first portal holding a gun she hasn't got; no press-down animation on the button; saying "apple" when asked skipped his next line; when the door opens Wheatley's first lines and the announcer talk over each other (neither understandable).
 - intro2: cubes don't sit still on buttons (autopilot: a dropped cube settles in 0.5 s with one press/unpress flicker); stairs to the exit elevator missing (floor and sides empty).
 - intro3: the water below the falling platform is far too bright orange.
 - intro4: glass-break sound on arrival (T-118); a stray screen in front of the stairs to the elevator.
 - intro5: a floating grass texture; a missing wall panel.
-- intro7: the auto-placed orange portal (portal_b_rm4, tilted 75 deg onto a panel) shows only half.
+- intro7: the auto-placed orange portal (portal_b_rm4, tilted 75 deg onto a panel) shows only half (T-126).
+
+## Owner playtest 5 (2026-10-20, build 33bca15), by map (P2 unless noted)
+- intro7: the turn-away check worked but felt unreliable (took a while); turning back to pick Wheatley up, he floated attached to nothing; the moving wall that opens disappears once its open animation ends (passable).
+- sp_a1_wakeup: missing textures in the hallway to GLaDOS's chamber and her chamber floor drawn as sky (T-112); crouch needed to enter the main breaker room (T-106), which drops Wheatley, who then floats there; he still plugs in, but the breaker platform rises without the player (T-103, P1 blocker); noclip couldn't fly up past it either (player stuck).
 
 ## Backlog
 
