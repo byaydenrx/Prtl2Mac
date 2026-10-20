@@ -38,8 +38,12 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-165 Wheatley rail connector (next in the owner's order:
-   T-165, T-148, T-140, T-151, T-155, ...).
+1. T-148 Portals behind glass (next in the owner's order:
+   T-148, T-140, T-151, T-155, T-150, ...).
+   T-165 intro7 rail connector BLOCKED (needs owner) 2026-10-20: not
+   reproduced; wheatley_arm_base/main props load and draw (P2_HIDE_MAT
+   comparison); needs an owner screenshot of what is missing. No code
+   change, no attempt branch. dist build unchanged: 0.1.0+badb7a9.20261020T1656Z.
    T-157 fall transition PARTIAL 2026-10-20 (badb7a9): wakeup -> sp_a2_intro
    black wait cut from 3.6 s to 0.25 s (autopilot log only); a ~2.5 s frame
    hitch right after that load is still open (suspect: valve_render GPU

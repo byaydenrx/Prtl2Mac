@@ -38,7 +38,7 @@ P2:
 P3:
 15. (T-161 menu movie and music by act, f6f129e, awaiting owner replay; T-162 logo/item layout and hover flash, b39fff3, awaiting owner replay, panel fades still open.)
 16. (T-020 intro1 ride BLOCKED: not reproduced, needs the camera proxy path or an owner recording; T-164 spiky debris BLOCKED: untested fix on attempt/T-164); T-116 intro1 room BLOCKED: not reproduced, needs a Windows screenshot; (T-117 shadows fixed, d1df637, awaiting owner replay); T-115 wake-up BLOCKED: not reproduced, the map has no get-up/lie-down rig in normal play (blackout is a removed template), needs a Windows recording.
-17. T-153 GLaDOS wake-up: portal gun drop fixed (c64a60b, awaiting owner replay); particles, floating arms, look direction still open (PARTIAL); T-157 fall transition: 3.6 s black wait cut to 0.25 s (badb7a9, awaiting owner replay), a ~2.5 s frame hitch after the load still open (PARTIAL, next run skips to T-165); T-165 Wheatley rail connector.
+17. T-153 GLaDOS wake-up: portal gun drop fixed (c64a60b, awaiting owner replay); particles, floating arms, look direction still open (PARTIAL); T-157 fall transition: 3.6 s black wait cut to 0.25 s (badb7a9, awaiting owner replay), a ~2.5 s frame hitch after the load still open (PARTIAL); T-165 Wheatley rail connector BLOCKED: not reproduced, arm props drawn, needs an owner screenshot.
 18. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
 P4:
 19. T-151 water, T-155 lasers, T-150 particles, T-152 lighting/textures,
@@ -282,7 +282,21 @@ Then the Backlog (prove and sweep the campaign).
   moment looks wrong) and of what happens after using the bed.
 
 
-### T-165 sp_a1_intro7: Wheatley's rail connector invisible  (P3, TODO)
+### T-165 sp_a1_intro7: Wheatley's rail connector invisible  (P3, BLOCKED: needs owner)
+- 2026-10-20 autorun: NOT REPRODUCED. Wheatley's rig is spherebot_train_1_chassis_1
+  (func_tracktrain *2) -> spherebot_1_top_swivel_1 (func_tank *3, yaw) ->
+  spherebot_1_bottom_swivel_1 (func_tank *4, pitch) -> @sphere, plus two nameless
+  prop_dynamics at -370 -416 1592: wheatley_arm_base.mdl (parent chassis) and
+  wheatley_arm_main.mdl (parent top swivel), both bind-pose only, material
+  models/anim_wp/arm_64x64, both load (no warning). Autopilot shots
+  (setpos -300 -330 1560 10 -130 and -330 -330 1640 35 -135) with and without
+  P2_HIDE_MAT=arm_64x64 show the arm pieces drawn around Wheatley under the
+  orange-striped beam; a thin arm sliver shows at the beam's top edge (arm_main
+  spans 15-97 u from its origin at z 1608-1632, mostly inside/behind the beam).
+  Unconfirmed lead: the top swivel is already yawed ~167 deg at t=4 (before any
+  SetTargetEntity), which swings arm_main with it. No code change, no attempt
+  branch. Needs an owner screenshot (or Windows reference) showing which part
+  is missing and from where.
 
 ### T-148 Portals behind glass  (P3, TODO)
 - Drawn as if on top of the glass; behind broken glass not at all (section 1).
