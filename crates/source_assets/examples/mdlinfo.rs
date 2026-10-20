@@ -25,15 +25,21 @@ fn main() -> anyhow::Result<()> {
             let b = w.iter().max_by(|a, b| a.1.total_cmp(&b.1)).map(|x| x.0).unwrap_or(0);
             *bones.entry(b).or_insert(0) += 1;
         }
+        // Soft-skinned vertices (more than one bone with weight) and
+        // triangles whose vertices follow different bones.
+        let soft = mesh.bone_weights.iter().filter(|w| w.iter().filter(|x| x.1 > 0.01).count() > 1).count();
+        let dom = |v: u32| mesh.bone_weights.get(v as usize).and_then(|w| w.iter().max_by(|a, b| a.1.total_cmp(&b.1))).map(|x| x.0);
+        let torn = mesh.indices.chunks_exact(3).filter(|t| dom(t[0]) != dom(t[1]) || dom(t[0]) != dom(t[2])).count();
         let names: Vec<String> = bones.iter().take(4).map(|(b, n)| format!("{}x{}", sk.and_then(|s| s.bones.get(*b as usize)).map(|b| b.name.as_str()).unwrap_or("?"), n)).collect();
         println!(
-            "mesh {i}: mat {:?} tris {} eyeball {:?} lo {:.1?} hi {:.1?} bones {:?}",
+            "mesh {i}: mat {:?} tris {} eyeball {:?} lo {:.1?} hi {:.1?} bones {:?} soft verts {soft}/{} mixed tris {torn}",
             m.material_for(skin, mesh.material_index),
             mesh.indices.len() / 3,
             mesh.eyeball,
             lo,
             hi,
-            names
+            names,
+            mesh.bone_weights.len()
         );
     }
     for (i, piece) in m.physics.iter().enumerate() {

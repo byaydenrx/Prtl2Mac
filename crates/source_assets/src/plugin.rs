@@ -58,6 +58,7 @@ impl Plugin for SourceMapPlugin {
         .add_plugins(crate::proxy::MaterialProxyPlugin)
         .add_plugins(crate::projected::ProjectedLightPlugin)
         .add_plugins(crate::glass::GlassPlugin);
+        app.add_systems(PostUpdate, skin_soft_meshes.before(TransformSystems::Propagate));
         if std::env::var_os("P2_TRACE_BONE").is_some() {
             app.add_systems(PostUpdate, trace_bones.after(TransformSystems::Propagate));
         }
@@ -206,6 +207,56 @@ pub struct SkinVariant(pub i32);
 #[derive(Component, Clone, Copy, Debug)]
 pub struct BonePart {
     pub bone: u16,
+}
+
+/// A soft-skinned mesh of an animated model (a [`crate::valve::ValveSurface`]
+/// directly under the model): its vertices follow its [`BonePart`]s by
+/// weight, re-skinned when they move ([`skin_soft_meshes`]).
+#[derive(Component)]
+pub struct SoftSkin {
+    /// The bind-pose mesh (Source space) with its weights.
+    mesh: crate::models::ModelMesh,
+    /// The vertices as first built (light, UVs); positions/normals replaced.
+    base: Vec<crate::valve::FatVertex>,
+    verts: Arc<crate::valve::SkinnedVertices>,
+    /// Bone part entity per bone index.
+    bones: Vec<Option<Entity>>,
+    pose_to_bone: Vec<bevy::math::Affine3A>,
+    /// Bone matrices last skinned with.
+    last: Vec<bevy::math::Affine3A>,
+}
+
+/// Re-skins [`SoftSkin`] meshes whose bones moved: each bone's model-space
+/// transform back in Source space (`S^-1 T S`), times its pose-to-bone.
+pub fn skin_soft_meshes(mut q: Query<&mut SoftSkin>, parts: Query<&Transform, With<BonePart>>) {
+    let s = bevy::math::Affine3A::from_mat4(crate::valve::source_to_world_matrix());
+    let si = s.inverse();
+    for mut sk in &mut q {
+        let mats: Vec<bevy::math::Affine3A> = sk
+            .bones
+            .iter()
+            .zip(&sk.pose_to_bone)
+            .map(|(b, p)| match b.and_then(|b| parts.get(b).ok()) {
+                Some(t) => si * bevy::math::Affine3A::from_rotation_translation(t.rotation, t.translation) * s * *p,
+                None => bevy::math::Affine3A::IDENTITY,
+            })
+            .collect();
+        if mats == sk.last {
+            continue;
+        }
+        let (pos, nrm) = crate::models::skin_vertices(&sk.mesh, &mats);
+        let mut v = sk.base.clone();
+        for ((v, p), n) in v.iter_mut().zip(pos).zip(nrm) {
+            v.position = [p.x, p.y, p.z, 1.0];
+            v.normal = [n.x, n.y, n.z, 1.0];
+        }
+        {
+            let mut data = sk.verts.0.lock().unwrap();
+            data.0 += 1;
+            data.1 = v;
+        }
+        sk.last = mats;
+    }
 }
 
 pub use shared::PortalShotPassthrough;
@@ -1436,12 +1487,24 @@ fn spawn_model(
         }
     }
     let mut parts = HashMap::new();
-    // (mesh, light normals if not its own source normals, parent entity)
-    let draws: Vec<(Cow<crate::models::ModelMesh>, Option<Vec<Vec3>>, Entity)> = match pose {
-        ModelPose::Stored => model.meshes.iter().map(|m| (eyes(model, Cow::Borrowed(m)), None, e)).collect(),
+    // Soft-skinned meshes of an animated model drawn whole and skinned on
+    // the CPU (only through Valve's vertex-lit shaders, which can re-upload).
+    let soft_ok = |m: &crate::models::ModelMesh| {
+        valve.is_some()
+            && crate::models::is_soft(m)
+            && model
+                .material_for(skin, m.material_index)
+                .and_then(|n| map.material_id(n))
+                .is_some_and(|mi| matches!(map.materials[mi].shader.as_str(), "vertexlitgeneric" | "unlitgeneric"))
+    };
+    let mut soft_bones: Vec<Option<Entity>> = Vec::new();
+    let mut pose_to_bone_all: Vec<bevy::math::Affine3A> = Vec::new();
+    // (mesh, light normals if not its own source normals, parent entity, soft-skinned)
+    let draws: Vec<(Cow<crate::models::ModelMesh>, Option<Vec<Vec3>>, Entity, bool)> = match pose {
+        ModelPose::Stored => model.meshes.iter().map(|m| (eyes(model, Cow::Borrowed(m)), None, e, false)).collect(),
         ModelPose::Posed(seq) => match model.posed_meshes(seq) {
-            Cow::Borrowed(ms) => ms.iter().map(|m| (eyes(model, Cow::Borrowed(m)), None, e)).collect(),
-            Cow::Owned(ms) => ms.into_iter().map(|m| (eyes(model, Cow::Owned(m)), None, e)).collect(),
+            Cow::Borrowed(ms) => ms.iter().map(|m| (eyes(model, Cow::Borrowed(m)), None, e, false)).collect(),
+            Cow::Owned(ms) => ms.into_iter().map(|m| (eyes(model, Cow::Owned(m)), None, e, false)).collect(),
         },
         ModelPose::Animated(seq) => {
             let sk = model.skeleton.as_ref().expect("animated models have a skeleton");
@@ -1450,10 +1513,18 @@ fn spawn_model(
             let split: Vec<_> = model
                 .meshes
                 .iter()
+                .filter(|m| !soft_ok(m))
                 .flat_map(|m| crate::models::split_by_bone(&eyes(model, Cow::Borrowed(m)), &pose_to_bone, &bone_to_model))
                 .collect();
-            let bones: std::collections::BTreeSet<usize> =
-                split.iter().map(|p| p.bone).chain(model.physics_bones.iter().flatten().copied()).filter(|&b| b < sk.bones.len()).collect();
+            let soft: Vec<&crate::models::ModelMesh> = model.meshes.iter().filter(|m| soft_ok(m)).collect();
+            let soft_used = soft.iter().flat_map(|m| m.bone_weights.iter().flatten().filter(|w| w.1 > 0.0).map(|w| w.0 as usize));
+            let bones: std::collections::BTreeSet<usize> = split
+                .iter()
+                .map(|p| p.bone)
+                .chain(model.physics_bones.iter().flatten().copied())
+                .chain(soft_used)
+                .filter(|&b| b < sk.bones.len())
+                .collect();
             for b in bones {
                 let part = commands
                     .spawn((
@@ -1467,12 +1538,20 @@ fn spawn_model(
                 parts.insert(b, part);
             }
             commands.entity(e).insert(AnimatedModel { model: model.path.clone() });
+            soft_bones = (0..sk.bones.len()).map(|b| parts.get(&b).copied()).collect();
+            pose_to_bone_all = pose_to_bone.clone();
+            let posed: Vec<bevy::math::Affine3A> = bone_to_model.iter().zip(&pose_to_bone).map(|(m, p)| *m * *p).collect();
             split
                 .into_iter()
                 .map(|p| {
                     let parent = parts.get(&p.bone).copied().unwrap_or(e);
-                    (Cow::Owned(p.mesh), Some(p.light_normals), parent)
+                    (Cow::Owned(p.mesh), Some(p.light_normals), parent, false)
                 })
+                .chain(soft.into_iter().map(|m| {
+                    // Baked light from the starting pose's normals.
+                    let light = crate::models::skin_vertices(m, &posed).1;
+                    (eyes(model, Cow::Borrowed(m)), Some(light), e, true)
+                }))
                 .collect()
         }
     };
@@ -1490,8 +1569,8 @@ fn spawn_model(
         }
     }
     for (di, skin, variant) in skinned {
-        let (mesh, light_normals, e) = &draws[di];
-        let (mesh, mut e) = (&**mesh, *e);
+        let (mesh, light_normals, e, soft) = &draws[di];
+        let (mesh, mut e, soft) = (&**mesh, *e, *soft);
         if let Some(vis) = variant {
             e = commands.spawn((SkinVariant(skin), Transform::IDENTITY, vis, ChildOf(e))).id();
         }
@@ -1537,13 +1616,28 @@ fn spawn_model(
                     flat_normal: flat,
                 };
                 match crate::valve::vertex_lit_generic(&assets.valve, &mut assets.shaders, &mut env, minfo, verts, mesh.indices.clone()) {
-                    Ok(draw) => {
-                        commands.spawn((
+                    Ok(mut draw) => {
+                        let soft_skin = soft.then(|| {
+                            let verts = Arc::new(crate::valve::SkinnedVertices(std::sync::Mutex::new((0, (*draw.vertices).clone()))));
+                            draw.skinned = Some(verts.clone());
+                            SoftSkin {
+                                mesh: mesh.clone(),
+                                base: (*draw.vertices).clone(),
+                                verts,
+                                bones: soft_bones.clone(),
+                                pose_to_bone: pose_to_bone_all.clone(),
+                                last: Vec::new(),
+                            }
+                        });
+                        let mut ec = commands.spawn((
                             crate::valve::ValveSurface(Arc::new(draw)),
                             Transform::IDENTITY,
                             Visibility::default(),
                             ChildOf(e),
                         ));
+                        if let Some(s) = soft_skin {
+                            ec.insert(s);
+                        }
                         continue;
                     }
                     Err(err) => {

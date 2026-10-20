@@ -243,6 +243,12 @@ impl FatVertex {
     }
 }
 
+/// Vertices of a soft-skinned animated mesh, rewritten on the CPU as its
+/// bones move (`plugin::skin_soft_meshes`); the renderer uploads them again
+/// whenever the generation (`.0`) changes.
+#[derive(Default)]
+pub struct SkinnedVertices(pub std::sync::Mutex<(u64, Vec<FatVertex>)>);
+
 /// Everything needed to draw one mesh with a Valve shader.
 pub struct SurfaceDraw {
     pub pass: Arc<LibraryPass>,
@@ -265,6 +271,8 @@ pub struct SurfaceDraw {
     pub material: String,
     /// Set when the material has proxies we evaluate.
     pub dynamic: Option<DynamicMaterial>,
+    /// Set for soft-skinned meshes: the vertices to draw instead of `vertices`.
+    pub skinned: Option<Arc<SkinnedVertices>>,
 }
 
 /// Draw this entity's mesh with Portal 2's shaders. Vertex positions are in
@@ -633,6 +641,7 @@ pub fn lightmapped_generic(
         eye_w: 0.0,
         material: m.name.clone(),
         dynamic,
+        skinned: None,
     })
 }
 
@@ -862,5 +871,6 @@ pub fn vertex_lit_generic(
         eye_w: if m.blend == BlendKind::Opaque { 0.0 } else { 1.0 },
         material: m.name.clone(),
         dynamic,
+        skinned: None,
     })
 }
