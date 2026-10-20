@@ -27,6 +27,7 @@ const FLAG_ENVMAP: u32 = 16u;
 const FLAG_LIGHTMAP: u32 = 32u;
 const FLAG_VERTEX_LIGHT: u32 = 64u;
 const FLAG_LIGHTMAP_FOG: u32 = 128u;
+const FLAG_WATER_DEPTH: u32 = 256u;
 
 // Estimates, see glass.rs.
 const REFRACT_SCALE: f32 = 0.1;
@@ -124,7 +125,14 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
     if (flags & FLAG_WATER) != 0u {
         // fog along the view ray through an assumed depth of water
         let ndv_geo = max(dot(n_geo, v), 0.15);
-        let ray = WATER_DEPTH / ndv_geo;
+        // map water: the measured depth to the floor (vertex colour alpha)
+        var depth = WATER_DEPTH;
+#ifdef VERTEX_COLORS
+        if (flags & FLAG_WATER_DEPTH) != 0u {
+            depth = in.color.a;
+        }
+#endif
+        let ray = depth / ndv_geo;
         let fog = clamp((ray - params.fog_color.w) / (params.fog.x - params.fog_color.w), 0.0, 1.0);
         // $lightmapwaterfog: the fog is lit by the water's lightmap (murky
         // water under a dark ceiling stays dark), as in Source's water shader.

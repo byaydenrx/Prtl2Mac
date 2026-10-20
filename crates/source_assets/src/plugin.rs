@@ -457,6 +457,9 @@ fn glass_material(assets: &mut SourceMapAssets, map: &LoadedMap, m: &MaterialInf
             flags |= f;
         }
     }
+    if water && lightmap.is_some() {
+        flags |= FLAG_WATER_DEPTH;
+    }
     let params = glass_params(water, &crate::proxy::MaterialVars::of(&m.params), flags, assets.settings.light_scale);
     let program = crate::proxy::ProxyProgram::compile(&m.proxies);
     let proxies = (!program.is_empty()).then(|| GlassProxies {
@@ -636,6 +639,22 @@ fn make_material(
         alpha_mode,
         double_sided: m.no_cull || std::env::var_os("SOURCE_NOCULL").is_some(),
     }
+}
+
+/// The world's opaque brush faces and displacements, for the depth below
+/// map water ([`crate::glass::WaterFloor`]).
+fn water_floor_of(map: &LoadedMap) -> crate::glass::WaterFloor {
+    let mut tris = Vec::new();
+    let mut add = |d: &MeshData| {
+        for t in d.indices.chunks_exact(3) {
+            tris.push([t[0], t[1], t[2]].map(|i| Vec3::from(d.positions[i as usize])));
+        }
+    };
+    for bm in map.brush_meshes.iter().filter(|bm| bm.model == 0 && !crate::glass::is_glass(&map.materials[bm.material])) {
+        add(&bm.mesh);
+    }
+    add(&map.displacement_collision);
+    crate::glass::WaterFloor::new(tris, 1.0)
 }
 
 fn mesh_from_brush(d: &MeshData) -> Mesh {
@@ -832,6 +851,7 @@ pub fn spawn_loaded_map(
     let mut mats: HashMap<usize, Handle<SourceMaterial>> = HashMap::new();
     let mut glass_mats: HashMap<usize, GlassBuilt> = HashMap::new();
     let mut bounds = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
+    let mut water_floor: Option<crate::glass::WaterFloor> = None;
     for bm in map.brush_meshes.iter().chain(map.overlays.iter()) {
         let parent = model_parent.get(&bm.model).copied().unwrap_or(root);
         if bm.model == 0 {
@@ -857,9 +877,27 @@ pub fn spawn_loaded_map(
                     g
                 }
             };
+            // water: cut into a grid carrying the depth to the floor below
+            let mesh = if m.shader == "water" {
+                let floor = water_floor.get_or_insert_with(|| water_floor_of(map));
+                let mut d = crate::glass::subdivide(&bm.mesh, crate::glass::WATER_GRID * shared::SOURCE_UNIT);
+                for (p, c) in d.positions.iter().zip(&mut d.colors) {
+                    c[3] = floor.depth_below(Vec3::from(*p), crate::glass::WATER_BANK * shared::SOURCE_UNIT).map_or(crate::glass::WATER_BOTTOMLESS, |d| d / shared::SOURCE_UNIT);
+                }
+                if std::env::var_os("P2_LIST_MATS").is_some() {
+                    let ds: Vec<f32> = d.colors.iter().map(|c| c[3]).collect();
+                    let y = d.positions.first().map_or(0.0, |p| p[1] / shared::SOURCE_UNIT);
+                    let mean = ds.iter().filter(|&&x| x < crate::glass::WATER_BOTTOMLESS).sum::<f32>() / ds.len().max(1) as f32;
+                    let deep = ds.iter().filter(|&&x| x >= crate::glass::WATER_BOTTOMLESS).count();
+                    info!("TRACE water {} at z {y:.0}: {} verts, mean depth {mean:.1} units, {deep} bottomless", m.name, ds.len());
+                }
+                mesh_from_brush(&d)
+            } else {
+                mesh_from_brush(&bm.mesh)
+            };
             let mut ec = commands.spawn((
                 Name::new(format!("glass {}", m.name)),
-                Mesh3d(assets.meshes.add(mesh_from_brush(&bm.mesh))),
+                Mesh3d(assets.meshes.add(mesh)),
                 MeshMaterial3d(h),
                 Transform::IDENTITY,
                 ChildOf(parent),
