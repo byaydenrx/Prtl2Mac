@@ -1,7 +1,7 @@
 //! Menus and HUD text, laid out like Portal 2's PC menus: the main menu
 //! (logo at the top left, items stacked at the lower left, Play Single
 //! Player and Options opening flyouts beside them) over the game's own
-//! background still and menu music, the New Game chapter dialog with the
+//! act's background movie (the still until it plays) and menu music, the New Game chapter dialog with the
 //! game's chapter pictures and titles, the pause menu, the Options dialogs
 //! (rows and footer buttons; content in options.rs), quit confirmations,
 //! the Load Game and Save Game lists (saves themselves are `saves.rs`) and
@@ -48,13 +48,14 @@ impl Plugin for UiPlugin {
             .init_resource::<TitleCard>()
             .init_resource::<ChapterTab>()
             .init_resource::<ModsPage>()
+            .init_resource::<MenuMovie>()
             .add_message::<ShowChapterTitle>()
             .add_message::<MenuClick>()
             .add_systems(Startup, (load_fonts, load_menu_art, open_main_menu).chain().after(crate::campaign::load_campaign))
             .add_systems(
                 Update,
                 (
-                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, hover_rows).chain(),
+                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, hover_rows, menu_movie).chain(),
                     (menu_view, menu_camera, pause_world, menu_music, title_card).chain(),
                 )
                     .chain()
@@ -62,6 +63,10 @@ impl Plugin for UiPlugin {
             );
     }
 }
+
+/// The background movie's image node (see [`menu_movie`]).
+#[derive(Component)]
+struct MenuMovieNode;
 
 /// Which menu is up. `None` while playing.
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
@@ -784,6 +789,7 @@ fn rebuild_menu(
     (monitors, windows): (Query<&Monitor, With<PrimaryMonitor>>, Query<&Window, With<PrimaryWindow>>),
     mut chapter_pics: Local<Vec<Option<Handle<Image>>>>,
     mut backgrounds: Local<std::collections::HashMap<usize, Option<Handle<Image>>>>,
+    movie: Res<MenuMovie>,
 ) {
     let Some(fonts) = fonts else { return };
     let options_changed = (settings.is_changed() || actions.is_changed() || mods.is_changed()) && matches!(*screen, Screen::Options { .. });
@@ -797,9 +803,8 @@ fn rebuild_menu(
     // Out of the game, the menu sits on the game's own menu still for the
     // act of the saved chapter; in the game, the view shows through dimmed.
     let in_game = matches!(*screen, Screen::Pause | Screen::Options { from_pause: true });
-    if matches!(*screen, Screen::Main | Screen::Chapters | Screen::Options { from_pause: false }) {
-        let chapter = read_save().and_then(|m| campaign.chapter_of(&m)).unwrap_or(0);
-        let act = [1, 2, 2, 2, 3, 4, 4, 5, 5].get(chapter).copied().unwrap_or(1);
+    if screen.shows_backdrop() {
+        let act = menu_act(&campaign);
         let img = backgrounds
             .entry(act)
             .or_insert_with(|| {
@@ -815,6 +820,13 @@ fn rebuild_menu(
                 Node { position_type: PositionType::Absolute, width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
             ));
         }
+        // The act's movie over the still, shown once its frames arrive.
+        bg.with_child((
+            MenuMovieNode,
+            ImageNode { image: movie.image.clone(), image_mode: bevy::ui::widget::NodeImageMode::Stretch, ..default() },
+            Node { position_type: PositionType::Absolute, width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
+            if movie.playing() { Visibility::Inherited } else { Visibility::Hidden },
+        ));
     } else if in_game {
         commands.spawn((layer(9), BackgroundColor(theme::SHADE)));
     }
@@ -1480,6 +1492,145 @@ fn pause_world(
     let _ = in_menu_map;
 }
 
+impl Screen {
+    /// Out of the game, menus sit on the act's background movie.
+    fn shows_backdrop(self) -> bool {
+        matches!(self, Screen::Main | Screen::Chapters | Screen::Options { from_pause: false })
+    }
+}
+
+/// The act (1..=5) of a chapter (index), for the menu's movie, still and music.
+fn act_of_chapter(chapter: usize) -> usize {
+    [1, 2, 2, 2, 3, 4, 4, 5, 5].get(chapter).copied().unwrap_or(1)
+}
+
+/// The act of the newest save's chapter (act 1 without a save).
+fn menu_act(campaign: &Campaign) -> usize {
+    act_of_chapter(read_save().and_then(|m| campaign.chapter_of(&m)).unwrap_or(0))
+}
+
+/// The menu's background movie (`media/menu_act0N.bik`), streamed by ffmpeg
+/// looping in real time; only the newest frame is kept.
+#[derive(Resource)]
+struct MenuMovie {
+    image: Handle<Image>,
+    act: usize,
+    child: Option<std::process::Child>,
+    latest: std::sync::Arc<std::sync::Mutex<Option<Vec<u8>>>>,
+    size: UVec2,
+    shown: bool,
+}
+
+impl Default for MenuMovie {
+    fn default() -> Self {
+        Self { image: Handle::default(), act: 0, child: None, latest: default(), size: UVec2::ZERO, shown: false }
+    }
+}
+
+impl MenuMovie {
+    fn playing(&self) -> bool {
+        self.child.is_some() && self.shown
+    }
+
+    fn stop(&mut self) {
+        if let Some(mut c) = self.child.take() {
+            let _ = c.kill();
+            let _ = c.wait();
+        }
+        self.act = 0;
+        self.shown = false;
+        *self.latest.lock().unwrap() = None;
+    }
+}
+
+impl Drop for MenuMovie {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
+/// Menu movie frame size (the movies are 1280x720).
+const MENU_MOVIE_SIZE: UVec2 = UVec2::new(1280, 720);
+
+/// Starts the act's movie while a backdrop menu is up, stops it in the game,
+/// and puts its newest frame on screen.
+fn menu_movie(
+    screen: Res<Screen>,
+    campaign: Res<Campaign>,
+    game: Res<GameFsRes>,
+    mut movie: ResMut<MenuMovie>,
+    mut images: ResMut<Assets<Image>>,
+    mut nodes: Query<(&mut Visibility, &mut ImageNode), With<MenuMovieNode>>,
+    mut failed: Local<std::collections::HashSet<usize>>,
+) {
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+    use std::io::Read;
+    if !screen.shows_backdrop() {
+        if movie.child.is_some() {
+            movie.stop();
+        }
+        return;
+    }
+    if screen.is_changed() || movie.child.is_none() {
+        let act = menu_act(&campaign);
+        if movie.act != act && !failed.contains(&act) {
+            movie.stop();
+            let path = format!("media/menu_act{act:02}.bik");
+            let size = MENU_MOVIE_SIZE;
+            let spawned = crate::movies::ffmpeg().zip(crate::movies::loose_file(&game, &path)).and_then(|(ff, src)| {
+                std::process::Command::new(ff)
+                    .args(["-v", "error", "-re", "-stream_loop", "-1", "-i"])
+                    .arg(src)
+                    .args(["-vf", &format!("scale={}:{}", size.x, size.y), "-f", "rawvideo", "-pix_fmt", "rgba", "-"])
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::piped())
+                    .spawn()
+                    .ok()
+            });
+            match spawned {
+                Some(mut child) => {
+                    let mut out = child.stdout.take().unwrap();
+                    let slot = movie.latest.clone();
+                    std::thread::spawn(move || {
+                        let mut frame = vec![0u8; (size.x * size.y * 4) as usize];
+                        while out.read_exact(&mut frame).is_ok() {
+                            *slot.lock().unwrap() = Some(frame.clone());
+                        }
+                    });
+                    info!("portal2: menu movie {path}");
+                    if movie.size != size {
+                        let img = Image::new_fill(Extent3d { width: size.x, height: size.y, depth_or_array_layers: 1 }, TextureDimension::D2, &[0, 0, 0, 255], TextureFormat::Rgba8UnormSrgb, bevy::asset::RenderAssetUsages::default());
+                        movie.image = images.add(img);
+                        movie.size = size;
+                    }
+                    movie.child = Some(child);
+                    movie.act = act;
+                }
+                None => {
+                    warn!("portal2: menu movie {path} unavailable (needs ffmpeg); showing the still");
+                    failed.insert(act);
+                }
+            }
+        }
+    }
+    let frame = movie.latest.lock().unwrap().take();
+    if let Some(frame) = frame {
+        if let Some(mut img) = images.get_mut(&movie.image) {
+            img.data = Some(frame);
+        }
+        movie.shown = true;
+    }
+    let want = if movie.playing() { Visibility::Inherited } else { Visibility::Hidden };
+    for (mut v, mut node) in &mut nodes {
+        if *v != want {
+            *v = want;
+        }
+        if node.image != movie.image {
+            node.image = movie.image.clone();
+        }
+    }
+}
+
 /// Put the menu's view in the chamber: a few metres from its puzzle (floor
 /// button, cube, laser), on the side with the most room, facing it.
 fn menu_view(
@@ -1565,9 +1716,8 @@ fn menu_music(mut loaded: MessageReader<LevelLoaded>, mut play: MessageWriter<Pl
     if tracks.is_empty() {
         return;
     }
-    // The track for the act the menu shows, as the game does.
-    let act = campaign.chapter_of(&ev.map).unwrap_or(0);
-    let track = &tracks[act.min(tracks.len() - 1)];
+    // portal2_background0N: the track of the saved chapter's act, like the movie.
+    let track = &tracks[(menu_act(&campaign) - 1).min(tracks.len() - 1)];
     play.write(PlayGameSound { looped: true, ..PlayGameSound::music(track.trim_start_matches("sound/")) });
 }
 
@@ -1669,6 +1819,14 @@ mod tests {
             .to_vec();
         assert_eq!(pick_logo(&vgui).map(String::as_str), Some("materials/vgui/portal2logo_english.vtf"));
         assert_eq!(pick_logo(&vgui[3..]), None);
+    }
+
+    #[test]
+    fn menu_act_by_chapter() {
+        // Chapters 1..9 -> menu_act01..05 (and portal2_background01..05).
+        let acts: Vec<usize> = (0..9).map(act_of_chapter).collect();
+        assert_eq!(acts, [1, 2, 2, 2, 3, 4, 4, 5, 5]);
+        assert_eq!(act_of_chapter(42), 1);
     }
 
     #[test]

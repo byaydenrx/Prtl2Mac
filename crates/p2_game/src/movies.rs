@@ -252,8 +252,14 @@ fn movie_inputs(mut inputs: MessageReader<EntInput>, ents: Option<Res<Ents>>, mu
     }
 }
 
-fn ffmpeg() -> Option<String> {
+pub(crate) fn ffmpeg() -> Option<String> {
     ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"].iter().find(|p| std::path::Path::new(p).exists()).map(|p| p.to_string())
+}
+
+/// Movies are loose files in the game folders (newest first), not in VPKs.
+pub(crate) fn loose_file(game: &GameFsRes, path: &str) -> Option<std::path::PathBuf> {
+    let root = &game.0.config.root;
+    ["update", "portal2_dlc2", "portal2_dlc1", "portal2"].iter().map(|d| root.join(d).join(path)).find(|p| p.exists())
 }
 
 /// Decodes a movie (or reads it from the cache): RGBA frames, top row first.
@@ -269,10 +275,7 @@ fn decode(game: &GameFsRes, path: &str) -> Option<Decoded> {
         }
     }
     let ff = ffmpeg()?;
-    // Movies are loose files in the game folders (newest first), not in VPKs.
-    let root = &game.0.config.root;
-    let loose = ["update", "portal2_dlc2", "portal2_dlc1", "portal2"].iter().map(|d| root.join(d).join(path)).find(|p| p.exists());
-    let (src, temp) = match loose {
+    let (src, temp) = match loose_file(game, path) {
         Some(p) => (p, false),
         None => {
             let bytes = game.read(path)?;
