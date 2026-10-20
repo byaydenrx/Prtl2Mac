@@ -20,7 +20,7 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 
 ## Priority order (2026-10-20)
 P1:
-1. T-105 Held objects dropped when pushed into a wall; Wheatley re-pickup.
+1. T-167 Wheatley re-pickup after a drop; a held prop at a wall surrounds the camera.
 2. T-132 Fizzler field not drawn, maybe not working.
 3. T-131 sp_a1_intro3 floors and roofs missing (BLOCKED: not reproduced, needs owner screenshots).
 P2:
@@ -68,11 +68,15 @@ Then the Backlog (prove and sweep the campaign).
   screenshots with the console `getpos` (or the exact spot); "until the
   next gun use" hints at something tied to portal placement/rendering.
 
-### T-105 Held objects: dropped when pushed into a wall; Wheatley re-pickup  (P1, TODO)
-- Section 5: walking into the breaker room with Wheatley against the wall
-  drops him (he auto-plugs) instead of him coming closer; the same for cubes.
-  Earlier: once dropped or stuck he can't be picked up again (Portal 2 allows it).
-- Verify: drop and pick up in sp_a1_intro7 and sp_a1_wakeup; carry into a wall.
+### T-167 Wheatley re-pickup; held prop surrounds the camera at a wall  (P1, TODO)
+- Split from T-105. Earlier report: once dropped or stuck, Wheatley can't be
+  picked up again (Portal 2 allows it). Verify drop and pick up in
+  sp_a1_intro7 and sp_a1_wakeup.
+- Since fd9c086 a held prop comes toward the player at a wall instead of
+  dropping, but with the eye ~16u from the wall a cube (half 25u) ends up
+  around the camera: the view shows the inside ring of its face. Portal 2
+  keeps it in view; check how (player blocked by the held prop, or the hold
+  distance floor) in depot 624's grab controller before changing movement.
 
 ### T-132 Fizzler field not drawn, maybe not working  (P1, TODO)
 - Section 0: the "incandescent particle field" never showed. Check that
@@ -227,6 +231,13 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+- T-105 Held props dropped when carried into a wall: the hold point went
+  inside the wall, the prop stayed >64u from it and was dropped after 0.5 s.
+  Now a ray from the eye pulls the hold point in front of static geometry
+  (not through portals). intro2 cube walked into three walls: before
+  (dist build) it fell to the floor (z -46) and stayed; after (fd9c086) it
+  stays held at the wall and returns to its hold distance when backing
+  off. Only the cube was autopilot-checked, not Wheatley in intro7.
 - T-130 Portal shots pass handrails: models compiled `$contents grate`
   (props_bts/handrail_*) now let portal shots through like grate brushes.
   intro5 rail at (380,-330): before, the shot stopped at the rail; after, it

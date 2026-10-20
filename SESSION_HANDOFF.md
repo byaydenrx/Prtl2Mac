@@ -15,12 +15,13 @@ reads it first (via `sh scripts/resume.sh`).
   gotchas moved to WORKFLOW.md; PROJECT_STATE map table updated from
   playtest 8 (owner played chapter 1 to sp_a2_laser_stairs).
 - T-130 handrails fixed (grate models pass shots). T-129 fixed (movie screens mirrored; ring covered its exit). Owner replay
-  pending, as for T-128. dist/Prtl2Mac.app = 0.1.0+0454ed8.20261020T0914Z.
+  pending, as for T-128. T-105 wall drop fixed (fd9c086, autopilot only).
+  dist/Prtl2Mac.app = 0.1.0+fd9c086.20261020T0938Z.
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-105 held objects dropped when pushed into a wall; Wheatley re-pickup
-   (P1). Then T-132 fizzler field.
+1. T-167 (split from T-105): Wheatley re-pickup after a drop; held prop
+   around the camera at a wall. Then T-132 fizzler field.
 2. T-131 (intro3 floors/roofs) is BLOCKED: the 2026-10-20 hourly run could
    not reproduce it with autopilot at any of the reported spots (details in
    its TASKS.md entry). Needs owner screenshots plus console `getpos`.
