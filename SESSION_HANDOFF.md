@@ -36,8 +36,9 @@ reads it first (via `sh scripts/resume.sh`).
 1. T-120 Elevators, remaining parts: thumps, trash rising with the car.
    Thumps checked 2026-10-20 (autorun): NOT REPRODUCED (no thump-like sound
    logged on intro5/intro6 rides); car move/stop sounds added (5bfaf52).
-   Next: the trash rising with the car (find which map/props), or T-134
-   (T-133 done 2026-10-20 07:10, awaiting owner replay).
+   Next: the trash rising with the car (find which map/props), or T-163
+   (T-134 pod turn done 2026-10-20 07:20, awaiting owner replay; also
+   replay bts3/bts5/a3_end blend trains, which now turn).
    VO timing / ride length checked 2026-10-20 (autorun): NOT REPRODUCED,
    the ReadyForTransition/TransitionReady chain works (see T-120 entry);
    needs an owner replay of intro5's second button. Possible lead: our new
