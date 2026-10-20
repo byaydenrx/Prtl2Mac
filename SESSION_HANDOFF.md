@@ -55,7 +55,7 @@ reads it first (via `sh scripts/resume.sh`).
    T-135 (vac-tube turrets through the exit elevator) is BLOCKED: the model's
    own elevator_0N animation drops them down the shaft through the car;
    needs a Windows Portal 2 reference of that moment (see its entry).
-   dist build: 0.1.0+38c09bf.20261020T1156Z.
+   dist build: 0.1.0+847a581.20261020T1213Z.
 2. T-131 (intro3 floors/roofs) is BLOCKED: not reproduced by autopilot;
    needs owner screenshots plus console `getpos`.
 

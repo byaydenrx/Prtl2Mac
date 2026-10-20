@@ -27,7 +27,7 @@ P2:
 4. (T-133 Wheatley float fixed, awaiting owner replay; panel part not reproduced.)
 5. (T-134 pod turn and T-163 hatch fixed, awaiting owner replay.)
 6. (T-136 wakeup tube portal fixed, awaiting owner replay.)
-7. (T-137 portal spacing fixed, awaiting owner replay.) T-102 seamless cube carry; T-125 turn-away delay.
+7. (T-137 portal spacing and T-102 cube exit-side drawing fixed, awaiting owner replay.) T-125 turn-away delay.
 8. T-145 Buttons don't animate, cubes don't light up.
 9. T-144 Missing props; T-147 black screen as intro2's first door opens.
 10. T-139 Ambient audio, button sounds, music cut-offs, loud glass.
@@ -144,9 +144,6 @@ Then the Backlog (prove and sweep the campaign).
   screenshot/clip of this moment in Windows Portal 2 (or depot 624 RE of
   prop_dynamic root-motion handling). No fix attempt branch.
 
-### T-102 Cubes through portals not seamless  (P2, TODO)
-- Sections 1-2 (intro2, intro3). Traversal itself works (owner replays).
-
 ### T-125 sp_a1_intro7: the turn-away check is slow to register  (P2, TODO)
 - Works (negative FOV cone fixed) but takes a moment (playtests 5, 7, 8).
   Compare ai_script_conditions timing (MinTimeout, think rate) with Source.
@@ -249,6 +246,17 @@ Then the Backlog (prove and sweep the campaign).
 ### T-166 intro5: a missing wall panel  (P4, TODO)
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+### T-102 Cubes through portals not seamless  (P2, fixed 847a581, autopilot only)
+- Sections 1-2 (intro2, intro3). Traversal itself works (owner replays).
+- Cause: only the player body had exit-side ghosts; a cube half through a
+  portal showed nothing coming out of the linked one. Props now get a mirror
+  of their ValveSurface draws through the pair while in the opening
+  (prop_ghosts.rs); unit test a_cube_in_the_opening_gets_a_ghost_out_of_the_exit.
+- Evidence (intro2, red_1 + blue_1/blue_3 activated, cube propto'd half
+  through red_1, view of the blue exit): before no cube at the exit, after
+  the cube's half sticks out of the blue portal. Owner: carry/throw cubes
+  through portals in intro2-intro4 and check for seams or a pop at the swap.
+
 ### T-137 Portals can't be placed as close together as in Portal 2  (P2, fixed 38c09bf, autopilot only)
 - Section 5. Cause: a shot overlapping the other portal on the same wall
   failed with Overlap (fizzle); Portal 2 bumps the new portal off it so they
