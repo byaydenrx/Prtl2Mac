@@ -38,7 +38,9 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-102 seamless cube carry, then T-125 turn-away delay.
+1. T-125 turn-away delay, then T-145 buttons/cube skins.
+   T-102 cubes through portals fixed 2026-10-20 (847a581: props half in a
+   portal are now drawn coming out of the exit), awaiting owner replay.
    T-137 portal spacing fixed 2026-10-20 (38c09bf, shots overlapping the
    other portal now bump beside it), awaiting owner replay.
    T-120 Elevators is now BLOCKED (needs owner): thumps, trash and VO timing
