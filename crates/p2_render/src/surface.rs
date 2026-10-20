@@ -22,7 +22,7 @@ use bevy::shader::ShaderRef;
 use bevy::mesh::MeshVertexBufferLayoutRef;
 
 use p2_assets::portal_textures::PortalGameAssets;
-use p2_core::{Portal, PortalKind, PORTAL_HALF_SIZE};
+use p2_core::{Portal, PortalKind, SeamlessPortal, PORTAL_HALF_SIZE};
 
 use crate::views::{child_code, NodeImages, PortalInfos, ViewTree};
 use crate::{node_layer, PortalRenderConfig};
@@ -36,6 +36,8 @@ pub const FLAG_CAP: u32 = 2;
 pub const FLAG_WRITEZ: u32 = 4;
 /// The view texture is last frame's image re-mapped by `uv_remap`.
 pub const FLAG_DOUBLER: u32 = 8;
+/// A [`SeamlessPortal`]: the view only, across the whole quad.
+pub const FLAG_SEAMLESS: u32 = 16;
 
 /// Shader inputs. `portal_active` is `1 - $PortalStatic`.
 #[derive(Clone, Copy, Debug, Default, ShaderType)]
@@ -333,6 +335,7 @@ pub(crate) fn sync_surfaces(
     main_near: Res<crate::views::MainView>,
     config: Res<PortalRenderConfig>,
     surfaces: Query<&PortalSurfaces>,
+    seamless: Query<(), With<SeamlessPortal>>,
     mut quad_mats: Query<&mut MeshMaterial3d<PortalSurfaceMaterial>, With<PortalSurfaceQuad>>,
     mut cap_vis: Query<(&mut Visibility, &mut Transform, &mut CapWarmup), With<PortalSurfaceCap>>,
     mut materials: ResMut<Assets<PortalSurfaceMaterial>>,
@@ -349,6 +352,7 @@ pub(crate) fn sync_surfaces(
         let active_static = 1.0 - info.static_amount;
         // Unlinked and opening: depth only, inside the hole (PortalRefract's anims material).
         let writez_now = !linked && open > 0.0 && open < 1.0;
+        let seamless_flag = if seamless.contains(info.entity) { FLAG_SEAMLESS } else { 0 };
 
         for i in 0..n {
             let node = i as u32 + 1;
@@ -381,7 +385,7 @@ pub(crate) fn sync_surfaces(
                 }
             };
             let has_view = view.is_some();
-            let flags = if has_view { FLAG_HAS_VIEW } else { 0 } | if doubler { FLAG_DOUBLER } else { 0 };
+            let flags = if has_view { FLAG_HAS_VIEW } else { 0 } | if doubler { FLAG_DOUBLER } else { 0 } | seamless_flag;
             let want_params = PortalSurfaceParams {
                 open_amount: open,
                 portal_active: active_static,

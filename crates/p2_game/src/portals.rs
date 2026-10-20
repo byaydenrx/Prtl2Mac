@@ -300,8 +300,8 @@ fn log_shots(mut failed: MessageReader<PortalShotFailed>, mut placed: MessageRea
 /// `linked_portal_door`s: fixed world portals the map pairs up itself
 /// (sp_a1_wakeup's drop into the incinerator, the finale). They are kept out
 /// of the gun's two slots so they never replace the player's portals, and
-/// they aren't drawn (the renderer shows the gun's pair); walking or falling
-/// through one carries the player to its partner.
+/// are drawn as [`SeamlessPortal`]s (a plain window, no rim or hum); walking
+/// or falling through one carries the player to its partner.
 #[derive(Resource, Default)]
 struct LinkedDoors {
     /// Map entity -> (open, partner name).
@@ -395,7 +395,7 @@ fn sync_linked_doors(
         let surfaces = surfaces_behind(&spatial, &tf, half, player, &walls);
         let kind = if order.iter().position(|x| *x == i).unwrap_or(0) % 2 == 0 { PortalKind::Blue } else { PortalKind::Orange };
         let id = commands
-            .spawn((Name::new(format!("linked portal door {}", e.name)), Portal { kind, half_size: half, surfaces, placed_at: time.elapsed_secs() }, tf, LinkedPortalDoor { ent: i }, LevelOwned))
+            .spawn((Name::new(format!("linked portal door {}", e.name)), Portal { kind, half_size: half, surfaces, placed_at: time.elapsed_secs() }, tf, LinkedPortalDoor { ent: i }, SeamlessPortal, LevelOwned))
             .id();
         debug!("portal2: linked portal door {} open at {:.2?}", e.name, tf.translation);
         doors.spawned.insert(i, id);

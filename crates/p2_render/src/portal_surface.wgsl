@@ -38,6 +38,7 @@ const FLAG_HAS_VIEW: u32 = 1u;
 const FLAG_CAP: u32 = 2u;
 const FLAG_WRITEZ: u32 = 4u;
 const FLAG_DOUBLER: u32 = 8u;
+const FLAG_SEAMLESS: u32 = 16u;
 
 @group(#{MATERIAL_BIND_GROUP}) @binding(0) var<uniform> params: PortalSurfaceParams;
 @group(#{MATERIAL_BIND_GROUP}) @binding(1) var view_texture: texture_2d<f32>;
@@ -79,8 +80,12 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     // The cap is the view and nothing else; it only exists to cover the
-    // opening when the near plane cuts the quad.
-    if ((params.flags & FLAG_CAP) != 0u) {
+    // opening when the near plane cuts the quad. A seamless portal
+    // (linked_portal_door) is drawn the same way: a plain window.
+    if ((params.flags & (FLAG_CAP | FLAG_SEAMLESS)) != 0u) {
+        if ((params.flags & FLAG_WRITEZ) != 0u) {
+            discard;
+        }
         if (!has_view) {
             discard;
         }

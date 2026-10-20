@@ -10,7 +10,7 @@
 //!   `projectile_delay` a projectile stream from the muzzle to the hit point.
 //! * the first-person top light, a looping effect on the viewmodel layer.
 use bevy::math::Mat3;
-use p2_core::{Crouch, InterpolatedFeet, ViewAngles};
+use p2_core::{Crouch, InterpolatedFeet, SeamlessPortal, ViewAngles};
 use bevy::prelude::*;
 use p2_core::{
     GunFired, P2Systems, Portal, PortalClosed, PortalGun, PortalKind, PortalPlaced, PortalShotFailed, ShotFailReason,
@@ -255,10 +255,11 @@ fn on_shot_failed(mut reader: MessageReader<PortalShotFailed>, settings: Res<FxS
     }
 }
 
-/// Gives every portal a rim and a looping hum, and keeps the rim on its transform.
+/// Gives every portal a rim and a looping hum, and keeps the rim on its
+/// transform. Seamless map portals (linked_portal_door) get neither.
 fn sync_portals(
     settings: Res<FxSettings>,
-    added: Query<(Entity, &Portal, &Transform), Without<PortalFx>>,
+    added: Query<(Entity, &Portal, &Transform), (Without<PortalFx>, Without<SeamlessPortal>)>,
     mut all: Query<(&Portal, &Transform, &PortalFx)>,
     mut effects: Query<&mut ParticleEffect>,
     mut sounds: MessageWriter<PlaySound>,
@@ -379,3 +380,25 @@ fn sync_gun_top_light(
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// T-136: a linked_portal_door (seamless) gets no rim and no hum.
+    #[test]
+    fn seamless_portals_get_no_rim_or_hum() {
+        let mut app = App::new();
+        app.insert_resource(FxSettings { particles: false, ..Default::default() })
+            .add_message::<PlaySound>()
+            .add_systems(Update, sync_portals);
+        let portal = || Portal { kind: PortalKind::Blue, half_size: Vec2::ONE, surfaces: Vec::new(), placed_at: 0.0 };
+        let gun = app.world_mut().spawn((portal(), Transform::default())).id();
+        let door = app.world_mut().spawn((portal(), Transform::default(), SeamlessPortal)).id();
+        app.update();
+        assert!(app.world().get::<PortalFx>(gun).is_some());
+        assert!(app.world().get::<PortalFx>(door).is_none());
+        let sounds = app.world().resource::<Messages<PlaySound>>();
+        assert_eq!(sounds.iter_current_update_messages().count(), 1);
+    }
+}

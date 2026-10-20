@@ -318,6 +318,12 @@ impl Portal {
     }
 }
 
+/// A map-made portal (`linked_portal_door`) that Portal 2 draws as a plain
+/// window onto its partner: no oval, no rim, no hum (sp_a1_wakeup's drop into
+/// the incinerator is meant to look like one continuous tube).
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct SeamlessPortal;
+
 /// The portal this one leads to. Set on both halves of a pair by `p2_gun`;
 /// only linked portals render a view and let things through.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
