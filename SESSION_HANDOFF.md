@@ -8,23 +8,21 @@ reads it first (via `sh scripts/resume.sh`).
 `wheatley`, pushes to `main`).
 
 ## Where things stand
-- T-101 DONE: owner played sp_a1_intro1 through the ride to sp_a1_intro2
-  (build 0.1.0+921edff).
-- T-102 (portal traversal) fixed in autopilot, NEEDS_VERIFICATION by the
-  owner: four causes (cube listed as a portal wall then fizzling it; held
-  cube dragged/double-mapped; floor portals left the lower brush layer
-  solid; dynamic props mirrored as static walls). Details and evidence in
-  TASKS.md T-102.
-- `cargo test --release --workspace` passes (0 failures).
-- Owner's earlier bug list is all in TASKS.md (T-102..T-106, T-110..T-118).
+- Owner playtest of 0.1.0+4858bee (intro1..~intro6): mostly playable; cubes
+  and the player go through portals. New reports filed as T-107, T-108,
+  T-119, T-120; T-110 again.
+- 6d75b6f: doors stay drawn when opening and the black area-portal plane is
+  gone (T-119); an actor's new line cuts its previous one (T-110). Both
+  NEEDS_VERIFICATION by the owner.
+- T-107 (invisible cubes/buttons) can't be reproduced; T-108 (door barrier)
+  needs the owner to say which door. Door walk-through script:
+  scratch tool idea in TASKS T-108 (open each door's relay, walk both ways).
+- `cargo test --release --workspace`: 341 passed, 0 failed.
 
 ## Next action
-1. Owner replays sp_a1_intro2..intro4 with portals and cubes (T-102).
-2. T-103 (wakeup breaker lift doesn't carry the player), then T-105
-   (Wheatley re-pickup), T-106 (crouch into the breaker room), T-104
-   (sp_a2_intro). Reproduce with autopilot first; verify by walking.
-- Debug aids added: `RUST_LOG=p2_movement=trace` logs the ground entity;
-  `p2_transit=trace` logs mirrored exit geometry; `mdlinfo` prints `.phy` pieces.
+1. Owner replays chapter 1 with the new build (doors, voice overlap, T-102).
+2. T-103 (wakeup breaker lift), T-105 (Wheatley re-pickup), T-106, T-104,
+   then T-120 (elevators). Reproduce with autopilot first.
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.
