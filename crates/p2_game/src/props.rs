@@ -534,17 +534,24 @@ pub struct PortalHooks<'w, 's> {
     body_of: Query<'w, 's, &'static ColliderOf>,
 }
 
+impl PortalHooks<'_, '_> {
+    /// Is one of the pair a prop passing through a portal in the other?
+    fn passing(&self, a: Entity, b: Entity) -> bool {
+        let body = |c: Entity| self.body_of.get(c).map_or(c, |o| o.body);
+        [(a, b), (b, a)].into_iter().any(|(x, y)| self.passing.get(body(x)).is_ok_and(|p| p.0.contains(&y) || p.0.contains(&body(y))))
+    }
+}
+
 impl CollisionHooks for PortalHooks<'_, '_> {
     fn filter_pairs(&self, a: Entity, b: Entity, _: &mut Commands) -> bool {
-        let body = |c: Entity| self.body_of.get(c).map_or(c, |o| o.body);
-        for (x, y) in [(a, b), (b, a)] {
-            if let Ok(p) = self.passing.get(body(x)) {
-                if p.0.contains(&y) || p.0.contains(&body(y)) {
-                    return false;
-                }
-            }
-        }
-        true
+        !self.passing(a, b)
+    }
+
+    /// Pairs are only filtered when they start: a cube already resting on
+    /// the floor where a portal opens under it keeps its contact (it would
+    /// sit on the portal). Dropping the contact every step lets it fall in.
+    fn modify_contacts(&self, contacts: &mut ContactPair, _: &mut Commands) -> bool {
+        !self.passing(contacts.collider1, contacts.collider2)
     }
 }
 
@@ -553,7 +560,7 @@ pub fn hook_prop_colliders(mut commands: Commands, props: Query<Entity, Added<Pr
     for p in &props {
         for c in children.iter_descendants(p).chain(std::iter::once(p)) {
             if colliders.contains(c) {
-                commands.entity(c).insert(ActiveCollisionHooks::FILTER_PAIRS);
+                commands.entity(c).insert(ActiveCollisionHooks::FILTER_PAIRS | ActiveCollisionHooks::MODIFY_CONTACTS);
             }
         }
     }

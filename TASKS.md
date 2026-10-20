@@ -77,6 +77,20 @@ date. Any engine bug found becomes its own task (P1 if it blocks the route).
   intro4 door_2 opening show the room beyond, no black plane.
 ### T-120 Elevators: the trash rising with the elevator is buggy; one ride went to the bottom before the next map loaded  (P2, TODO)
 
+### T-121 Portal under a resting cube: the cube doesn't fall in (intro4, intro6)  (P1, NEEDS_VERIFICATION)
+- Owner playtest 3 (2026-10-19). Shots already pass through cubes; the cube
+  kept the floor contact it had before the portal opened (pair filters only
+  run when contacts start). Fix: props in a portal hole drop those contacts
+  every step (props.rs `modify_contacts`). Autopilot intro4: a cube resting
+  on the floor falls through a portal shot under it and out of the ceiling.
+### T-122 func_portal_detector not implemented: intro7 can't progress  (P1, NEEDS_VERIFICATION)
+- Owner: a portal behind Wheatley didn't register. Detectors now fire
+  OnStart/EndTouchPortal (+1/2, Linked, BothLinked) as portals open or leave
+  their brush (portals.rs). Autopilot intro7: a portal in Wheatley's room
+  fires portal_detector -> look_at_me_shortcircuit_relay and the script.
+### T-123 Portal shots should pass through cameras (and knock them off) and other non-solid props  (P2, TODO)
+- Owner intro6: can't shoot a portal under a security camera; in Portal 2 the camera falls off.
+
 ## Owner playtest issues (P2)
 - T-110 (NEEDS_VERIFICATION) Fix: speech plays on its actor's voice channel, so an actor's new line cuts the previous one (Source CHAN_VOICE); busyactor 2/3 cancel the actor's running scene. Verified by log in intro1 (Wheatley and announcer lines). Different speakers can still overlap, as in Source. Report: jumping/saying "apple" while Wheatley talks, opening the door early; Portal 2 queues or interrupts by scene priority.
 - T-111 Music stops at the stairs (wakeup, way to GLaDOS).
@@ -87,6 +101,14 @@ date. Any engine bug found becomes its own task (P1 if it blocks the route).
 - T-116 intro1: the first room's window is a grey block (should be blinds etc.); the TV screen sits forward and up from the TV; glitchy screen at the start of the ride; odd outside lighting on the ride.
 - T-117 Shadows are blocky (shadow-map resolution and filtering).
 - T-118 intro4: loud glass-breaking sound (check against the original); the door animation cuts to black.
+
+## Owner playtest 3 (2026-10-19, build 2cf59a9), by map (P2 unless noted)
+- intro1: wake-up animation; blocky shadows (T-117); key hints lack labels (E, SPACE: T-113); Wheatley and announcer overlap in the dark room; the moving room jerks the camera and moves the player around; floating parts during the room move; Wheatley moves oddly after the ride and is a black box seen from below during it; 12:00 clock blinks its background too (only the digits should); Chell seen through the first portal holding a gun she hasn't got; no press-down animation on the button; saying "apple" when asked skipped his next line.
+- intro2: cubes don't sit still on buttons (autopilot: a dropped cube settles in 0.5 s with one press/unpress flicker); stairs to the exit elevator missing (floor and sides empty).
+- intro3: the water below the falling platform is far too bright orange.
+- intro4: glass-break sound on arrival (T-118); a stray screen in front of the stairs to the elevator.
+- intro5: a floating grass texture; a missing wall panel.
+- intro7: the auto-placed orange portal (portal_b_rm4, tilted 75 deg onto a panel) shows only half.
 
 ## Backlog
 

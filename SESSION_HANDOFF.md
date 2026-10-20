@@ -8,19 +8,15 @@ reads it first (via `sh scripts/resume.sh`).
 `wheatley`, pushes to `main`).
 
 ## Where things stand
-- Owner playtest of 0.1.0+4858bee (intro1..~intro6): mostly playable; cubes
-  and the player go through portals. New reports filed as T-107, T-108,
-  T-119, T-120; T-110 again.
-- 6d75b6f: doors stay drawn when opening and the black area-portal plane is
-  gone (T-119); an actor's new line cuts its previous one (T-110). Both
-  NEEDS_VERIFICATION by the owner.
-- T-107 (invisible cubes/buttons) can't be reproduced; T-108 (door barrier)
-  needs the owner to say which door. Door walk-through script:
-  scratch tool idea in TASKS T-108 (open each door's relay, walk both ways).
+- Owner playtest 3 (build 2cf59a9) reached sp_a1_intro7 (owner counts maps by
+  elevators: 0 = intro1 ... 6 = intro7). Stopped by: no portal under a
+  resting cube (intro6) and no portal detector (intro7). Both fixed in
+  autopilot (T-121, T-122), NEEDS_VERIFICATION. All other reports are in
+  TASKS.md "Owner playtest 3", by map.
 - `cargo test --release --workspace`: 341 passed, 0 failed.
 
 ## Next action
-1. Owner replays chapter 1 with the new build (doors, voice overlap, T-102).
+1. Owner replays intro6 and intro7 (T-121, T-122), then on to sp_a1_wakeup.
 2. T-103 (wakeup breaker lift), T-105 (Wheatley re-pickup), T-106, T-104,
    then T-120 (elevators). Reproduce with autopilot first.
 

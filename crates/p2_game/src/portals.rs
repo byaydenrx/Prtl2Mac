@@ -5,7 +5,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use p2_core::*;
 
-use crate::io::{EntInput, Ents};
+use crate::io::{EntInput, Ents, FireOutput};
 use crate::level::{LevelLoaded, LevelOwned};
 
 pub struct MapPortalsPlugin;
@@ -14,7 +14,7 @@ impl Plugin for MapPortalsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LinkedDoors>().add_systems(
             Update,
-            (spawn_active_portals, portal_inputs, linked_door_inputs, sync_linked_doors, sync_noportal_volumes, sync_placement_helpers, log_shots, clear_portal_tunnels)
+            (spawn_active_portals, portal_inputs, linked_door_inputs, sync_linked_doors, sync_noportal_volumes, sync_placement_helpers, log_shots, clear_portal_tunnels, portal_detectors)
                 .chain()
                 .after(crate::io::run_io)
                 .in_set(crate::level::GameSet::Logic),
@@ -403,6 +403,63 @@ fn sync_linked_doors(
     for (&i, &j) in &partner_of {
         if let (Some(&a), Some(&b)) = (doors.spawned.get(&i), doors.spawned.get(&j)) {
             commands.entity(a).insert(PortalLink(b));
+        }
+    }
+}
+
+/// `func_portal_detector`: fires `OnStartTouchPortal` / `OnEndTouchPortal`
+/// (and the `1`/`2`, `LinkedPortal` and `BothLinkedPortals` variants) as
+/// portals open in or leave its brush. sp_a1_intro7 moves on when the player
+/// puts a portal on the wall behind Wheatley this way.
+fn portal_detectors(
+    ents: Option<Res<Ents>>,
+    portals: Query<(Entity, &Portal, &Transform, Option<&PortalLink>)>,
+    mut inside: Local<std::collections::HashMap<usize, Vec<Entity>>>,
+    mut loaded: MessageReader<LevelLoaded>,
+    mut fire: MessageWriter<FireOutput>,
+) {
+    if loaded.read().count() > 0 {
+        inside.clear();
+    }
+    let Some(ents) = ents else { return };
+    // Portals sit on the surface; the detector brush may stop just short of it.
+    let pad = Vec3::splat(2.0 * shared::SOURCE_UNIT);
+    for (i, e) in ents.list.iter().enumerate() {
+        if e.class != "func_portal_detector" {
+            continue;
+        }
+        let now: Vec<Entity> = match (e.enabled && !e.killed, e.bounds) {
+            (true, Some((lo, hi))) => portals
+                .iter()
+                .filter(|(_, _, tf, _)| {
+                    let p = tf.translation;
+                    p.cmpge(lo - pad).all() && p.cmple(hi + pad).all()
+                })
+                .map(|(pe, ..)| pe)
+                .collect(),
+            _ => Vec::new(),
+        };
+        let before = inside.get(&i).cloned().unwrap_or_default();
+        let both = |set: &[Entity]| set.iter().any(|p| portals.get(*p).is_ok_and(|(_, _, _, l)| l.is_some_and(|l| set.contains(&l.0))));
+        let mut out = |event: String| fire.write(FireOutput { ent: i, event, activator: None });
+        for (set, other, edge) in [(&now, &before, "Start"), (&before, &now, "End")] {
+            for p in set.iter().filter(|p| !other.contains(p)) {
+                out(format!("On{edge}TouchPortal"));
+                if let Ok((_, portal, _, link)) = portals.get(*p) {
+                    out(format!("On{edge}TouchPortal{}", portal.kind.index() + 1));
+                    if link.is_some() {
+                        out(format!("On{edge}TouchLinkedPortal"));
+                    }
+                }
+            }
+            if both(set) && !both(other) {
+                out(format!("On{edge}TouchBothLinkedPortals"));
+            }
+        }
+        if now.is_empty() {
+            inside.remove(&i);
+        } else {
+            inside.insert(i, now);
         }
     }
 }
