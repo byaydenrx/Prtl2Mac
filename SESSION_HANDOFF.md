@@ -38,8 +38,13 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-116 intro1 room details (next in the owner's order: T-116, T-117,
-   T-115, T-153, T-157, ...).
+1. T-117 blocky shadows (next in the owner's order: T-117, T-115, T-153,
+   T-157, T-165, ...).
+   T-116 intro1 room BLOCKED (needs owner) 2026-10-20: not reproduced; the
+   "grey block" window is the map's frosted glass brushes (no blinds in
+   the map there), the TV screen sits on the TV in autopilot shots. No code
+   change, no attempt branch; see its entry.
+   dist build unchanged: 0.1.0+b39fff3.20261020T1546Z.
    T-164 spiky debris BLOCKED (needs owner) 2026-10-20: cause confirmed by
    weights (intro1 finedebris rebar/rust/crumple meshes are soft-skinned,
    the rigid split tears them) but not visually reproduced (intro camera

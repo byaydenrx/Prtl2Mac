@@ -37,7 +37,7 @@ P2:
 14. (T-160 main menu like Portal 2's, ab64b84, awaiting owner replay.)
 P3:
 15. (T-161 menu movie and music by act, f6f129e, awaiting owner replay; T-162 logo/item layout and hover flash, b39fff3, awaiting owner replay, panel fades still open.)
-16. (T-020 intro1 ride BLOCKED: not reproduced, needs the camera proxy path or an owner recording; T-164 spiky debris BLOCKED: untested fix on attempt/T-164); T-116 intro1 room; T-117 shadows; T-115 wake-up.
+16. (T-020 intro1 ride BLOCKED: not reproduced, needs the camera proxy path or an owner recording; T-164 spiky debris BLOCKED: untested fix on attempt/T-164); T-116 intro1 room BLOCKED: not reproduced, needs a Windows screenshot; T-117 shadows; T-115 wake-up.
 17. T-153 GLaDOS wake-up; T-157 smoother fall transition; T-165 Wheatley rail connector.
 18. T-148 Portals behind glass; T-140 shake and sound for game-placed portals.
 P4:
@@ -234,9 +234,30 @@ Then the Backlog (prove and sweep the campaign).
   ride's wall breaking and the room transform after `git merge
   attempt/T-164`.
 
-### T-116 intro1 room details  (P3, TODO)
+### T-116 intro1 room details  (P3, BLOCKED (needs owner))
 - The window is a grey block, should be blinds (screenshot 1); the TV
   screen sits forward and up from the TV; odd outside lighting on the ride.
+- Autorun 2026-10-20, NOT REPRODUCED (autopilot only, no code change, no
+  attempt branch):
+  - Window: the start room's window (x ~ -8460, behind the plant) is world
+    brushes in glass/glasswindow_frosted_break001a (and
+    glass_underground_dirty01a): LightmappedGeneric, $translucent, a dirty
+    frosted texture with vertical streaks, no blinds in it. P2_HIDE_MAT=glass
+    shows only plain bright white behind it (no model or brush with blinds
+    there; static props in the room are furniture04, closet_curtain01,
+    lab_pod_frame_end_01, container_lightcover). So we draw what the map
+    has; the glass may just read darker than on Windows (the VMT's
+    `"srgb?$alpha" "0.5"` conditional is not applied by us; unconfirmed).
+    The ride container's slatted look (models/container_ride/windowrails,
+    finedebris_part7) is a different room. Needs a Windows screenshot of
+    the same view to say what "blinds" should look like.
+  - TV screen: `tvscreen` (tvscreen01.mdl) belongs to the ride's
+    actor_container_07 and gets SetParentAttachmentMaintainOffset
+    screenattachment from @rl_container_ride. Autopilot shots 1.5 s and
+    9 s into the ride show it on the TV; the start room's TV is part of
+    hotel_container_furniture models. Needs the owner's exact moment/view.
+  - Outside lighting on the ride: not checked this run (ride is seen
+    through point_viewproxy camera_1, see T-020).
 
 ### T-117 Blocky shadows  (P3, TODO)
 - Shadow-map resolution and filtering (screenshot 2).
