@@ -28,12 +28,13 @@ P2, scripted sequences, mechanics, audio, missing assets:
 10. T-134 sp_a1_wakeup: the rising pod's floor turns, the player doesn't.
 11. T-136 sp_a2_intro: a portal shows in the tube before GLaDOS drops the player.
 12. T-137 Portals can't be placed as close together as in Portal 2.
+12b. T-102 Cubes through portals not seamless; T-125 the turn-away check slow to register.
 13. T-145 Buttons don't animate when pressed; cubes don't light up on a button.
 14. T-144 Missing props (intro1 portal room: clipboard, movable clock) and the intro2 first-door black screen (T-147).
 15. T-139 Audio: ambient/soundscapes, button clicks, water drips missing; music stops abruptly (T-111); loud glass (T-118).
 16. T-149 Chamber number signs blank in every level; intro5 screens/lights wrong.
-17. T-112 sp_a1_wakeup: GLaDOS chamber floor brown and flat (and hallway textures).
-18. T-123 Portal shots knock security cameras off.
+17. T-112 sp_a1_wakeup: GLaDOS chamber floor brown and flat like the old water (and hallway textures).
+18. T-123 Portal shots knock security cameras off (laser_stairs and earlier).
 19. T-160 Main menu structure (Portal 2's menus, vertical New Game list).
 P3, look and feel that the owner noticed:
 20. T-161 Menu background video and music; T-162 menu animations, logo, styling.
@@ -82,7 +83,7 @@ P4, fidelity polish:
 - Owner: when the pod moves up switching the breakers, you don't move with it. Unplayable.
 - Verify: stand on the lift and ride it to the top without setpos.
 
-### T-104 sp_a2_intro: the incinerator drop  (P1, NEEDS_VERIFICATION)
+### T-104 sp_a2_intro: the incinerator drop  (P1, DONE: owner playtest 8, the fall plays and lands right)
 - Intended (owner + video https://www.youtube.com/watch?v=ddV1ArV_GHc): a
   free-fall cutscene facing down through the pipes, no crosshair, no gun,
   no mouse look, landing on a platform; then walk to the gun pedestal.
@@ -316,6 +317,19 @@ regression). Not reported again: intro2 exit stairs.
 ### T-020 (update) intro1 ride
 - Section 0: walls flash away and back before breaking off; Wheatley a black
   box; spiky pieces. Blocky shadows (T-117) and the window (T-116) unchanged.
+
+### T-102 (update) Cubes through portals still not seamless
+- Section 2 (intro3, also intro2 in playtest 7).
+### T-125 (update) The turn-away check still takes a moment to register
+- Section 5 (intro7; also playtests 5 and 7).
+### T-112 (update) GLaDOS chamber floor brown and flat
+- Section 5: looks like the intro3 water did before (flat brown), not the dirty floor it should be.
+### T-104 (owner-verified) sp_a2_intro fall
+- Section 5: the fall plays and lands in the right place. Left: a smoother
+  transition into it (T-157), gun particles seen through the wall after
+  landing (T-150).
+### T-123 (update) Cameras
+- Section 7 (laser_stairs): still can't shoot portals at cameras to knock them off.
 
 ### T-160 Main menu like Portal 2's  (P2, TODO)
 - Top level: Play Single Player, Play Cooperative Game, Community Test
