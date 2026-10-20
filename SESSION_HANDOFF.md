@@ -38,8 +38,12 @@ reads it first (via `sh scripts/resume.sh`).
 - Depot 624 (Windows server.dll/client.dll) installed as behaviour reference.
 
 ## Next action
-1. T-151 water like Portal 2's (next in the owner's order: T-151, T-155,
-   T-150, T-152, T-143, T-146, T-154, T-166, then T-147).
+1. T-155 lasers look poor (next in the owner's order: T-155, T-150,
+   T-152, T-143, T-146, T-154, T-166, then T-147).
+   T-151 water BLOCKED (needs owner) 2026-10-20: intro3 water had no
+   reflection (sky reflection disabled on fogged maps) and no map fog;
+   untested fix on local branch attempt/T-151 (2df932d). No main change.
+   dist build unchanged: 0.1.0+eb58eac.20261020T1727Z.
    T-140 game-placed portal shake FIXED 2026-10-20 (eb58eac): env_shake
    was missing entirely (new p2_game shakes.rs + p2_core ScreenShakes,
    p2_view camera offset/roll); the open sound already played. Autopilot
@@ -169,6 +173,10 @@ reads it first (via `sh scripts/resume.sh`).
 None outside what this file's commit contains.
 
 ## Fix attempts awaiting the owner
+- attempt/T-151 (2df932d): water reflects the (LDR-clamped) sky on fogged
+  maps and glass/water get the map's distance fog. intro3 water goes from
+  flat brown to grey with flowing ripples; compare with Windows Portal 2's
+  intro3 pool / sp_a2_laser_intro, then merge or delete.
 - attempt/T-164 (c34006e): CPU skinning for soft-weighted animated meshes
   (intro1 ride debris). Review `git log -p wheatley..attempt/T-164`, replay
   the intro1 ride, then `git merge attempt/T-164` or delete the branch.

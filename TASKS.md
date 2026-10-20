@@ -41,7 +41,7 @@ P3:
 17. T-153 GLaDOS wake-up: portal gun drop fixed (c64a60b, awaiting owner replay); particles, floating arms, look direction still open (PARTIAL); T-157 fall transition: 3.6 s black wait cut to 0.25 s (badb7a9, awaiting owner replay), a ~2.5 s frame hitch after the load still open (PARTIAL); T-165 Wheatley rail connector BLOCKED: not reproduced, arm props drawn, needs an owner screenshot.
 18. (T-148 portals behind glass fixed, cc04a74, awaiting owner replay); (T-140 env_shake for game-placed portals, eb58eac, awaiting owner replay).
 P4:
-19. T-151 water, T-155 lasers, T-150 particles, T-152 lighting/textures,
+19. T-151 water BLOCKED: untested fix on attempt/T-151 (needs owner replay or a Windows screenshot); T-155 lasers, T-150 particles, T-152 lighting/textures,
     T-143 clock blink, T-146 half-stuck door, T-154 floating moss, T-166 intro5 wall panel.
 Then the Backlog (prove and sweep the campaign).
 
@@ -300,7 +300,34 @@ Then the Backlog (prove and sweep the campaign).
 
 ## Open: P4
 
-### T-151 Water like Portal 2's (reflections, murk), intro3 and sp_a2_laser_intro  (P4, TODO)
+### T-151 Water like Portal 2's (reflections, murk), intro3 and sp_a2_laser_intro  (P4, BLOCKED: untested fix, needs owner)
+- Owner (playtests 8 and 6): "should look like water with reflections";
+  "water ugly, not murky with reflections".
+- Seen 2026-10-20 (autorun, dist eb58eac, `goto fall_splash 250`): intro3
+  water is a flat, ripple-less brown sheet; no reflection at all, because
+  plugin.rs drops the sky reflection on fogged maps (earlier fix: the white
+  sky turned the water white).
+- Material (both maps share it): `nature/water_a1_intro3` /
+  `water_a2_laser_intro`, `$reflecttexture _rt_WaterReflection`,
+  `$reflectskyboxonly 1`, `$reflectonlymarkedentities 1`, `$reflecttint 190`,
+  `$reflectamount 0.4`, flowmap normals, `$lightmapwaterfog`, fog 90 70 20
+  over 0-60, `$pseudotranslucent 1`, `$waterblendfactor 0.75`. Both maps'
+  sky is sky_white (pure white UnlitGeneric), no sky_camera. water_ps20b's
+  combos without RefractSampler (pseudotranslucent) still sample
+  ReflectSampler plus lightmap, and every combo has g_PixelFogParams (the
+  map's fog over the surface).
+- Suspected cause: no reflection, and no map distance fog on glass/water
+  (glass.wgsl returned its colour without Bevy's fog). The previous "white
+  water" came from multiplying the reflected sky by the HDR exposure; Source
+  samples an LDR reflection target, so the sky saturates at 1 before the tint.
+- Untested fix: local branch attempt/T-151 (2df932d; cbfa31d + test stub),
+  needs owner review/replay. Sky reflection back on fogged maps, clamped to
+  1 then times `$reflecttint`, Fresnel-mixed with the lit fog; map distance
+  fog applied to glass/water. Autopilot shots: intro3 water now grey with
+  visible flowing ripples at grazing angles (before: flat brown). Whether
+  Portal 2's looks that pale is unknown without a Windows screenshot of the
+  intro3 pool (or laser_intro). Not done: `$pseudotranslucent` alpha blend
+  (`$waterblendfactor`), `$reflectamount` screen-space offset.
 ### T-155 Lasers look poor  (P4, TODO)
 ### T-150 Particles missing  (P4, TODO)
 - Fall smoke and water splash (+ sounds) in intro3; the gun's beam when
