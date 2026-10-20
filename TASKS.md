@@ -28,7 +28,7 @@ P2:
    screen per run until all match (done: main menu, SP dialog, New Game,
    Load/Save Game, Options dialog, Audio, Video, Advanced Video,
    Keyboard/Mouse, Controller, pause menu, HUD crosshair + chapter title;
-   left: instructor hints, subtitles, loading screens); T-162's entry lists done/left screens. Any new crash or
+   left: subtitles, loading screens); T-162's entry lists done/left screens. Any new crash or
    softlock still goes first.
 4. T-170 carrying regressed (pushed back at walls, can't push a cube up a wall).
 5. T-145 lit cubes turn black, spikes under buttons, cubes jitter on buttons.
@@ -124,7 +124,7 @@ Then the Backlog (prove and sweep the campaign).
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
 
 ### T-162 Menu animations, logo alignment, styling  (P2, REOPENED: owner priority, style the UI like Portal 2)
-- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), Advanced Video (4ca377c), Keyboard/Mouse (9b0053b), Controller (903118b), pause menu (21f6353), HUD crosshair + chapter title (b417bba), see below. Left: instructor hints, subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
+- Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), Advanced Video (4ca377c), Keyboard/Mouse (9b0053b), Controller (903118b), pause menu (21f6353), HUD crosshair + chapter title (b417bba), instructor hints (9576999), see below. Left: subtitles, loading screens. Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
 - Visual reference (owner, 2026-10-20): https://interfaceingame.com/games/portal-2/
   has screenshots of the real Portal 2 UI: start screen, main menu, options,
   video, keyboard/mouse, edit keys, extras, loading, chapter title, save
@@ -345,6 +345,28 @@ Then the Backlog (prove and sweep the campaign).
   basemodui_scheme.res, scripts/instructor_*), then subtitles
   (HudCloseCaption c-250, y 276, 500x136, BgAlpha 128, CloseCaption_*
   fonts), loading screens.
+- 2026-10-20 autorun, instructor hints DONE (9576999, autopilot shots only,
+  not owner-checked). Reference: the gallery's "Pick Up" and "Create Blue
+  Portal" shots: the icon (key cap / mouse tile from
+  scripts/instructor_textures.txt) about 32 units square and a white
+  caption to its right, no background box. InstructorTitle =
+  UniversLTStd-BoldCn tall 18 (PC; Cn on $OSX), InstructorKeyBindings
+  BoldCn 12 for the key on the cap (basemodui_scheme.res). Ours had a
+  black 55% box, DIN bold 20 px, all hints stacked at 22% from the bottom.
+  Now: hint_static 0 floats over hint_target (+hint_icon_offset), kept on
+  screen; static hints centre under the crosshair at 2/3 of the height
+  (guess, measured from the Create Blue Portal shot), stacked. Also fixed:
+  the hint list was marked changed every frame (timeout retain), so the
+  rows were rebuilt every frame. Captions are the game's upper-case
+  strings (Valve_Hint_Look_Up "LOOK UP"). Unit test (hint_anchor).
+  Evidence: autopilot sp_a1_intro1 `input hint_press_to_crouch showhint;
+  input hint_press_to_use_bed showhint` shots, before (dist b417bba: boxed
+  rows at the bottom) vs after (LOOK UP under the crosshair, SLEEP on the
+  bed button at the screen edge; looking away it drops under the crosshair).
+  Not done: Portal 2's off-screen arrow (we clamp to the edge or fall back
+  under the crosshair), hint fade in/out, instructor_lessons.txt lessons
+  (game-driven hints like Pick Up / Create Blue Portal are not built).
+  Next: subtitles (hudlayout HudCloseCaption), then loading screens.
 
 ### T-172 Voice lines start late  (P2, TODO)
 - Owner playtest 9: "sometimes voicelines activate late and when I'm going

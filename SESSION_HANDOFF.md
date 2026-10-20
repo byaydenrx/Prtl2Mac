@@ -23,14 +23,13 @@ reads it first (via `sh scripts/resume.sh`).
   vgui/fonts/universc.vfont), MainMenuButton colours/size/inset from
   basemodui_scheme.res, flyout owner stays lit. T-162 stays open.
 - T-162 Options dialog DONE (2a6921d), Controller DONE (903118b), autopilot shots only.
-- dist/Prtl2Mac.app = 0.1.0+b417bba.20261020T2146Z.
+- dist/Prtl2Mac.app = 0.1.0+9576999.20261020T2159Z.
 
 ## Next action
-1. T-162 next screen: instructor hints (menus, Settings pages, pause menu,
-       HUD crosshair and chapter title are done; check basemodui_scheme.res
-       InstructorTitle fonts, scripts/instructor_*, English labels via
-       ls --cat resource/basemodui_english.txt | iconv -f UTF-16).
-   Then subtitles (hudlayout HudCloseCaption), loading
+1. T-162 next screen: subtitles (menus, Settings pages, pause menu, HUD
+       crosshair, chapter title and instructor hints are done; hudlayout.res
+       HudCloseCaption c-250, y 276, 500x136, BgAlpha 128, CloseCaption_*
+       fonts in basemodui_scheme.res). Then loading
    screens; one screen per run, new crashes/softlocks still first.
    Then T-170 carry regression, T-145 cubes black/spikes/jitter, T-172 late
    VO, T-135, T-139, T-112, T-144, T-149, T-147, T-113, then P3/P4.
