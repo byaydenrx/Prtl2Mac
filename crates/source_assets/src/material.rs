@@ -19,6 +19,8 @@ pub const FLAG_ALPHA_TEST: u32 = 16;
 pub const FLAG_IGNORE_TEX_ALPHA: u32 = 32;
 /// Debug: output only the baked light.
 pub const FLAG_LIGHT_ONLY: u32 = 64;
+/// The base texture is a mask in its green channel (SolidEnergy fields).
+pub const FLAG_GREEN_MASK: u32 = 128;
 
 #[derive(Clone, Copy, Debug, ShaderType)]
 pub struct SourceMaterialParams {

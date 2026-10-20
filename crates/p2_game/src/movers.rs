@@ -413,6 +413,13 @@ fn mover_inputs(
                 }
                 _ => {}
             },
+            // The fizzler field goes with the cleanser (its trigger logic
+            // reads `enabled`; it has no collision to switch).
+            "trigger_portal_cleanser" => {
+                if let (Some(r), "enable" | "disable") = (ents.list[i].entity, input) {
+                    commands.entity(r).insert(if input == "enable" { Visibility::Inherited } else { Visibility::Hidden });
+                }
+            }
             _ => {}
         }
         if input == "kill" {

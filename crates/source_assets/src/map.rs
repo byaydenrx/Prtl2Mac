@@ -301,6 +301,10 @@ fn brush_entity_solid(e: &SourceEntity) -> bool {
 /// Brush entity classes whose faces are drawn.
 fn brush_entity_drawn(e: &SourceEntity) -> bool {
     let c = e.classname.as_str();
+    // A visible cleanser draws its brush faces: the fizzler field.
+    if c == "trigger_portal_cleanser" {
+        return e.get("visible") == Some("1");
+    }
     if c.starts_with("trigger_")
         || matches!(
             c,
@@ -1001,6 +1005,21 @@ mod tests {
         let fs = GameFs::mount(cfg).unwrap();
         let sp = SurfaceProps::load(&fs);
         Some((fs, sp))
+    }
+
+    #[test]
+    fn visible_cleansers_draw_their_field() {
+        let ent = |class: &str, kv: &[(&str, &str)]| SourceEntity {
+            classname: class.into(),
+            targetname: None,
+            origin: Vec3::ZERO,
+            angles: Vec3::ZERO,
+            keyvalues: kv.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+        };
+        assert!(brush_entity_drawn(&ent("trigger_portal_cleanser", &[("visible", "1")])));
+        assert!(!brush_entity_drawn(&ent("trigger_portal_cleanser", &[("visible", "0")])));
+        assert!(!brush_entity_drawn(&ent("trigger_multiple", &[("visible", "1")])));
+        assert!(brush_entity_drawn(&ent("func_brush", &[])));
     }
 
     #[test]

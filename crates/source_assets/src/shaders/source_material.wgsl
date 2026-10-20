@@ -25,6 +25,7 @@ const FLAG_BLEND2: u32 = 8u;
 const FLAG_ALPHA_TEST: u32 = 16u;
 const FLAG_IGNORE_TEX_ALPHA: u32 = 32u;
 const FLAG_LIGHT_ONLY: u32 = 64u;
+const FLAG_GREEN_MASK: u32 = 128u;
 
 @group(#{MATERIAL_BIND_GROUP}) @binding(0) var<uniform> params: SourceMaterialParams;
 @group(#{MATERIAL_BIND_GROUP}) @binding(1) var base_tex: texture_2d<f32>;
@@ -51,6 +52,9 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
         dot(params.uv_transform_v.xyz, vec3<f32>(uv, 1.0)),
     );
     var albedo = textureSample(base_tex, base_samp, base_uv);
+    if (params.flags & FLAG_GREEN_MASK) != 0u {
+        albedo = vec4<f32>(albedo.ggg, albedo.a);
+    }
     let albedo2 = textureSample(base2_tex, base2_samp, uv);
     let lm = textureSample(lm_tex, lm_samp,
 #ifdef VERTEX_UVS_B

@@ -546,6 +546,11 @@ fn material_params(m: &MaterialInfo, flags: u32, light_scale: f32) -> (SourceMat
         color = Vec4::new(0.6, 0.75, 0.8, 0.15);
         flags |= material::FLAG_IGNORE_TEX_ALPHA;
     }
+    if m.shader == "solidenergy" {
+        let [r, g, b] = solid_energy_tint(m);
+        color = Vec4::new(r, g, b, 1.0);
+        flags |= material::FLAG_GREEN_MASK;
+    }
     let uv = crate::proxy::MaterialVars::of(&m.params).transform("$basetexturetransform");
     (
         SourceMaterialParams {
@@ -559,6 +564,14 @@ fn material_params(m: &MaterialInfo, flags: u32, light_scale: f32) -> (SourceMat
         },
         alpha_mode,
     )
+}
+
+/// SolidEnergy (fizzler, light bridge edges) keeps its ripples in the base
+/// texture's green channel and colours them with the flow colours; without
+/// the flow shader, tint the ripples with a quarter of the vortex colour.
+fn solid_energy_tint(m: &MaterialInfo) -> [f32; 3] {
+    let vortex = m.params.get("$flow_vortex_color").and_then(crate::kv::parse_color).unwrap_or([0.64, 2.058, 2.56]);
+    vortex.map(|c| c * 0.25)
 }
 
 fn pbr_flags(alpha_mode: AlphaMode) -> u32 {

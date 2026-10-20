@@ -269,6 +269,7 @@ pub fn material_info(name: &str, shader: &str, p: &Kv) -> MaterialInfo {
     m.unlit = matches!(
         shader,
         "unlitgeneric" | "unlittwotexture" | "sprite" | "spritecard" | "splinerope" | "cable" | "monitorscreen"
+            | "solidenergy"
     );
 
     // Compile keys decide what vbsp did with the brush side.
