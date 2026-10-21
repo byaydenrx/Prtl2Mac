@@ -204,9 +204,12 @@ fn punch_on_fire(
 }
 
 /// One screen shake's view offset at game time `now`: (position offset in
-/// Source units, view-space x/y/z; roll in degrees). A new random direction
-/// is picked `frequency` times a second (`seed` from that slot); it swings
-/// along it at the frequency, slowing and fading (squared) as the shake ends.
+/// Source units, view-space x/y/z; roll in degrees), following Source's
+/// view-shake: a new random offset (and roll up to a quarter of the
+/// amplitude) is picked `frequency` times a second (`seed` from that slot),
+/// scaled by `sin(now * frequency / fraction)` and the squared remaining
+/// fraction, so it jitters faster and fades as it ends; the amplitude also
+/// drops by `dt / (duration * frequency)` of itself each frame.
 pub fn shake_offset(s: &ScreenShake, now: f32) -> (Vec3, f32) {
     let length = (s.end - s.start).max(1e-3);
     let left = s.end - now;
@@ -218,9 +221,10 @@ pub fn shake_offset(s: &ScreenShake, now: f32) -> (Vec3, f32) {
     let mut seed = 0x9e37_79b9u32 ^ slot.wrapping_mul(0x85eb_ca6b) ^ (s.start.to_bits());
     seed |= 1;
     let mut r = || 2.0 * rand01(&mut seed) - 1.0;
-    let dir = Vec3::new(r(), r(), r()) * s.amplitude;
-    let roll = r() * s.amplitude * 0.25;
-    let swing = (now * s.frequency * fraction).sin() * fraction * fraction;
+    let amplitude = s.amplitude * (-(now - s.start) / (length * s.frequency.max(1e-3))).exp();
+    let dir = Vec3::new(r(), r(), r()) * amplitude;
+    let roll = r() * amplitude * 0.25;
+    let swing = (now * s.frequency / fraction).min(1e8).sin() * fraction * fraction;
     (dir * swing, roll * swing)
 }
 
@@ -320,6 +324,15 @@ mod tests {
         assert_eq!(shake_offset(&s, 0.5).0, Vec3::ZERO);
         let late = (90..100).map(|i| shake_offset(&s, 1.0 + i as f32 * 0.01).0.length()).fold(0.0f32, f32::max);
         assert!(late < 0.1, "late {late}");
+    }
+
+    #[test]
+    fn shake_jitters_frame_to_frame() {
+        // Late in a level (Source's curtime) the swing flips sign most frames.
+        let s = ScreenShake { source: None, start: 300.0, end: 301.0, amplitude: 4.0, frequency: 2.5 };
+        let xs: Vec<f32> = (0..20).map(|i| shake_offset(&s, 300.0 + i as f32 / 60.0).0.x).collect();
+        let flips = xs.windows(2).filter(|w| w[0].signum() != w[1].signum()).count();
+        assert!(flips >= 6, "flips {flips} {xs:?}");
     }
 
     #[test]
