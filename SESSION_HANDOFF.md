@@ -23,14 +23,14 @@ Rubble open (needs owner). Next: T-139.
   by a subagent, merged), 4:3 layout (T-192). Open pieces listed at the
   top of TASKS.md's priority order.
 - Earlier fixes still awaiting the owner: T-176, T-169, T-162, T-170.
-- dist/Prtl2Mac.app = 0.1.0+efe0631.20261021T1257Z (T-139 soundscapes; T-135 vac-tube turrets before it).
+- dist/Prtl2Mac.app = 0.1.0+910da9a.20261021T1324Z (T-144 clipboard carry angle; T-139 soundscapes before it).
 
 ## Next action
-1. T-144 clipboard should turn to face the player (T-112 GLaDOS floor:
-   untested world-reflection fix on attempt/T-112, blocked on owner;
-   T-139 music pieces, T-135 rubble open; T-172 blocked;
-   T-195..T-197 awaiting owner replay).
-2. Then T-149, T-147, T-113,
+1. T-149 intro5 screens/lights; sign big number check (T-144 clipboard
+   carry angle FIXED 910da9a, awaiting owner replay; T-112 untested fix on
+   attempt/T-112, blocked on owner; T-139 music pieces, T-135 rubble open;
+   T-172 blocked; T-195..T-197 awaiting owner replay).
+2. Then T-147, T-113,
    then P3/P4. Skip T-116, T-164, T-151 (owner).
 MENUS FROZEN: only T-196/T-195/T-197 may touch menu code; no other menu
 changes (owner, 2026-10-21). A separate session may port upstream engine

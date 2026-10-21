@@ -27,7 +27,7 @@ NEXT UP (owner round 4, 2026-10-21): T-196 black screen after flips
 (FIXED f8c9be3, awaiting owner replay), T-195 pause menu as Windows
 (FIXED 8af5fa3, awaiting owner replay), T-197 even tile grid (FIXED 209c358,
 awaiting owner replay). T-172 not reproduced (blocked, needs owner).
-Next T-144 onward (no more menu work; T-112 attempt branch awaits owner).
+T-144 clipboard FIXED 910da9a (awaiting owner replay). Next T-149 onward (no more menu work; T-112 attempt branch awaits owner).
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
 before every other task. Owner notes after build fb0090a (12 items,
 listed under the spec heading) come first: T-179 flip like the video,
@@ -51,7 +51,7 @@ P2:
 4. (T-135 vac-tube turrets FIXED 41e3839, awaiting owner replay; rubble open, needs owner.)
 5. T-139 soundscapes FIXED (efe0631, awaiting owner replay); music stopping/not playing along still open.
 6. (T-112 GLaDOS floor: BLOCKED, untested world-reflection fix on attempt/T-112, needs owner.)
-7. T-144 clipboard should turn to face the player.
+7. (T-144 clipboard carry angle FIXED 910da9a, awaiting owner replay.)
 8. T-149 intro5 screens/lights; sign big number check.
 9. T-147 intro2 black screen at the first door; T-113 hints vanish.
 P3:
@@ -793,24 +793,6 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   If the owner still sees brown, the next suspects are `$refracttint
   {151 135 34}` (not gamma-converted here) and the fog colour.
 
-### T-144 Missing props: intro1 portal room clipboard and movable clock  (P2, PARTIAL: props fixed; clipboard should turn to face the player)
-- Owner playtest 9 (2026-10-20, build 014ab6e): fixed, "but the clipboard prop doesn't auto face you so you can read it" (Portal 2 turns some props to a preferred carry angle when picked up; check the model's physgun/carry keyvalues).
-- Cause: physics props had Mass(40) but their rotational inertia came from
-  the collider at avian's default density (1 kg/m3). The radio's hull weighs
-  37 g at that density, so it got about 1/1000 of a 40 kg box's inertia: contacts
-  spun it, it rocked from spawn and sank through the vault floor at ~1.8 s.
-  The unnamed bts_clipboard on the table fell too. Fix: the prop's colliders
-  get the density that makes them weigh 40 kg (unit test
-  prop_colliders_weigh_the_prop_mass).
-- Evidence (autopilot, sp_a1_intro1): dist 2e8df1a radio z 2705 -> 2691 at
-  1.8 s -> 2180 at 3 s; clipboard z 2639 at 0.5 s. New build: radio at
-  (-1208 4324 2705) upright at 0.5/1.6/3/6 s, clipboard at 2727 on the table
-  at 1 and 6 s. Side effect: intro2's spawn cube now settles flat on a face
-  (z -43) instead of leaning at 24 deg (z -39); every prop now has a 40 kg
-  box's inertia (cubes tumble less). "Movable clock" still not identified
-  (the clocks are prop_dynamic and draw); owner to say if anything is still
-  missing.
-
 ### T-149 Chamber signs blank; screens and lights wrong  (P2, PARTIAL: signs drawn; elevator videos and intro5 screens open)
 - Owner playtest 9 (2026-10-20, build 014ab6e): signs fixed; "the videos that play in the elevator rooms are a bit buggy and super low quality" (now T-174). Owner screenshot 2026-10-20 2.45.36 PM (sp_a2_laser_over_goo) shows "04/22" with a big "01": check the big number against Windows.
 - The white chamber-number screens ("02") were blank in every level:
@@ -1037,6 +1019,37 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-144 Missing props: intro1 portal room clipboard and movable clock  (P2, FIXED 910da9a, awaiting owner replay: props and clipboard carry angle)
+- Owner playtest 9 (2026-10-20, build 014ab6e): fixed, "but the clipboard prop doesn't auto face you so you can read it" (Portal 2 turns some props to a preferred carry angle when picked up; check the model's physgun/carry keyvalues).
+- Cause: physics props had Mass(40) but their rotational inertia came from
+  the collider at avian's default density (1 kg/m3). The radio's hull weighs
+  37 g at that density, so it got about 1/1000 of a 40 kg box's inertia: contacts
+  spun it, it rocked from spawn and sank through the vault floor at ~1.8 s.
+  The unnamed bts_clipboard on the table fell too. Fix: the prop's colliders
+  get the density that makes them weigh 40 kg (unit test
+  prop_colliders_weigh_the_prop_mass).
+- Evidence (autopilot, sp_a1_intro1): dist 2e8df1a radio z 2705 -> 2691 at
+  1.8 s -> 2180 at 3 s; clipboard z 2639 at 0.5 s. New build: radio at
+  (-1208 4324 2705) upright at 0.5/1.6/3/6 s, clipboard at 2727 on the table
+  at 1 and 6 s. Side effect: intro2's spawn cube now settles flat on a face
+  (z -43) instead of leaning at 24 deg (z -39); every prop now has a 40 kg
+  box's inertia (cubes tumble less). "Movable clock" still not identified
+  (the clocks are prop_dynamic and draw); owner to say if anything is still
+  missing.
+- Clipboard (2026-10-21, 910da9a): cause: held props were always carried
+  level at their pickup yaw; Source holds models with
+  `physgun_interactions { preferred_carryangles }` at those angles in the
+  player's frame (bts_clipboard: "90 180 0", face toward you). Fix: the MDL
+  `$keyvalues` (studiohdr keyvalueindex/size, bytes 312/316) are read at
+  pickup and the hold target is the player's Source frame times those
+  angles (unit tests carry_angles_from_model_keyvalues,
+  clipboard_carry_angles_turn_its_face_to_the_player). Evidence (autopilot
+  only, sp_a1_intro1, camera_intro disabled, setpos -1250 4336 2705 55 180,
+  use): dist efe0631 holds it flat; new build holds it upright with the
+  sheet facing the view, still facing after turning 90 deg. Not done:
+  `carry_distance_offset` (-15) is ignored; a clipboard held across a
+  save/load comes back level.
 
 ### T-135 Turrets fall through the exit elevator  (P2, FIXED 41e3839 for the vac-tube turrets, awaiting owner replay; rubble open)
 - Owner playtest 9 (2026-10-20, build 014ab6e): "things still falling through elevators"; rubble and turrets both fall through (T-120's trash is the same bug).
