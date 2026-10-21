@@ -39,26 +39,27 @@ pub enum OptionsPage {
     Mods,
 }
 
-/// The buttons along the bottom of a dialog.
+/// The buttons along the bottom of a dialog (gameui/basemodui English;
+/// dialogs draw them in upper case).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Footer {
     Back,
     Done,
-    Cancel,
     Apply,
     UseDefaults,
+    EditKey,
     ClearKey,
 }
 
 impl Footer {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Back => "BACK",
-            Self::Done => "DONE",
-            Self::Cancel => "CANCEL",
-            Self::Apply => "APPLY",
-            Self::UseDefaults => "USE DEFAULTS",
-            Self::ClearKey => "CLEAR KEY",
+            Self::Back => "Back",
+            Self::Done => "Done",
+            Self::Apply => "Apply",
+            Self::UseDefaults => "Use Defaults",
+            Self::EditKey => "Edit Key",
+            Self::ClearKey => "Clear Key",
         }
     }
 }
@@ -68,9 +69,8 @@ impl OptionsPage {
     pub fn parent(self) -> Option<OptionsPage> {
         match self {
             Self::List => None,
-            Self::KeyboardMouse | Self::Controller | Self::Audio | Self::Video | Self::Speedrun | Self::Mods => Some(Self::List),
+            Self::KeyboardMouse | Self::Controller | Self::Audio | Self::Video | Self::Subtitles | Self::Speedrun | Self::Mods => Some(Self::List),
             Self::Keys => Some(Self::KeyboardMouse),
-            Self::Subtitles => Some(Self::Audio),
             Self::AdvancedVideo => Some(Self::Video),
         }
     }
@@ -82,7 +82,7 @@ impl OptionsPage {
             Self::Keys => "CUSTOMIZE KEYBOARD",
             Self::Controller => "CONTROLLER",
             Self::Audio => "AUDIO",
-            Self::Subtitles => "SUBTITLE STYLE",
+            Self::Subtitles => "SUBTITLES",
             Self::Video => "VIDEO",
             Self::AdvancedVideo => "ADVANCED VIDEO",
             Self::Speedrun => "SPEEDRUN",
@@ -90,14 +90,57 @@ impl OptionsPage {
         }
     }
 
-    pub fn footer(self) -> &'static [Footer] {
+    /// The footer, by whether the page has unapplied changes (owner
+    /// spec 2026-10-21 and the Windows shots): Video and Advanced Video
+    /// always offer Use Defaults; other pages show Done until something
+    /// changes; then every page shows Back, Apply and Use Defaults. Edit
+    /// Keys' changes go back to Keyboard/Mouse, which applies them.
+    pub fn footer(self, changed: bool) -> &'static [Footer] {
         match self {
             Self::List => &[Footer::Back],
-            Self::Keys => &[Footer::UseDefaults, Footer::ClearKey, Footer::Done, Footer::Cancel],
-            Self::Video => &[Footer::Apply, Footer::Done, Footer::Cancel],
+            Self::Keys => &[Footer::Back, Footer::EditKey, Footer::ClearKey, Footer::UseDefaults],
             // Mod changes are written as they're made (with their own undo).
             Self::Mods => &[Footer::Done],
-            _ => &[Footer::Done, Footer::Cancel],
+            _ if changed => &[Footer::Back, Footer::Apply, Footer::UseDefaults],
+            Self::Video | Self::AdvancedVideo => &[Footer::Back, Footer::UseDefaults],
+            _ => &[Footer::Done],
+        }
+    }
+
+    /// Use Defaults asks first on the video pages (PORTAL2_VideoSettings
+    /// UseDefaultsQ); elsewhere it just resets the page.
+    pub fn defaults_ask(self) -> bool {
+        matches!(self, Self::Video | Self::AdvancedVideo)
+    }
+
+    /// Put this page's settings back to their defaults (pending until
+    /// Apply). Video keeps the display size and mode: defaults would throw
+    /// the window around.
+    pub fn reset(self, s: &mut Settings) {
+        let d = Settings::default();
+        match self {
+            Self::KeyboardMouse => {
+                (s.invert_mouse, s.mouse_sensitivity, s.raw_input, s.mouse_accel, s.mouse_filter) = (d.invert_mouse, d.mouse_sensitivity, d.raw_input, d.mouse_accel, d.mouse_filter);
+                s.tools.dev_console = d.tools.dev_console;
+            }
+            Self::Keys => s.binds = None,
+            Self::Controller => (s.joystick, s.joy_sensitivity, s.joy_invert, s.joy_vibration) = (d.joystick, d.joy_sensitivity, d.joy_invert, d.joy_vibration),
+            Self::Audio => (s.master_volume, s.music_volume, s.speakers, s.captions, s.language) = (d.master_volume, d.music_volume, d.speakers, d.captions, d.language),
+            Self::Subtitles => (s.subtitle_size, s.subtitle_color, s.subtitle_background) = (d.subtitle_size, d.subtitle_color, d.subtitle_background),
+            Self::Video => s.gamma = d.gamma,
+            Self::AdvancedVideo => {
+                (s.msaa, s.anisotropy, s.trilinear, s.vsync, s.multicore) = (d.msaa, d.anisotropy, d.trilinear, d.vsync, d.multicore);
+                (s.shader_detail, s.effect_detail, s.model_detail, s.paged_pool) = (d.shader_detail, d.effect_detail, d.model_detail, d.paged_pool);
+                (s.motion_blur, s.fov, s.frame_limit, s.enhanced_graphics) = (d.motion_blur, d.fov, d.frame_limit, d.enhanced_graphics);
+                (s.tools.show_fps, s.tools.show_pos) = (d.tools.show_fps, d.tools.show_pos);
+            }
+            Self::Speedrun => {
+                let dev = s.tools.dev_console;
+                let (fps, pos) = (s.tools.show_fps, s.tools.show_pos);
+                s.tools = d.tools;
+                (s.tools.dev_console, s.tools.show_fps, s.tools.show_pos) = (dev, fps, pos);
+            }
+            Self::List | Self::Mods => {}
         }
     }
 }
@@ -411,6 +454,7 @@ fn list_rows() -> Vec<Row> {
         link("VIDEO", OptionsPage::Video),
         link("KEYBOARD/MOUSE", OptionsPage::KeyboardMouse),
         link("CONTROLLER", OptionsPage::Controller),
+        link("SUBTITLES", OptionsPage::Subtitles),
         link("SPEEDRUN", OptionsPage::Speedrun),
         link("MODS", OptionsPage::Mods),
     ]
@@ -528,7 +572,6 @@ fn audio_rows(s: &Settings) -> Vec<Row> {
         choice("Speaker configuration", speakers_label(s.speakers), Setting::Speakers),
         choice("Captioning", caption_label(s.captions), Setting::Captions),
         choice("Language", language_label(&s.language), Setting::Language),
-        Row::Link { label: "Subtitle style".into(), page: OptionsPage::Subtitles },
     ]
 }
 
@@ -722,7 +765,9 @@ mod tests {
             OptionsPage::Mods,
         ] {
             assert!(!rows(page, &s, &c).is_empty(), "{page:?}");
-            assert!(page.footer().iter().any(|f| matches!(f, Footer::Back | Footer::Done)), "{page:?}");
+            for changed in [false, true] {
+                assert!(page.footer(changed).iter().any(|f| matches!(f, Footer::Back | Footer::Done)), "{page:?}");
+            }
             // Every link leads to a page whose parent is this one.
             for r in rows(page, &s, &c) {
                 if let Row::Link { page: to, .. } = r {
@@ -730,6 +775,26 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn footers_follow_changes() {
+        // Owner spec 2026-10-21 and the Windows shots.
+        assert_eq!(OptionsPage::Audio.footer(false), [Footer::Done]);
+        assert_eq!(OptionsPage::Audio.footer(true), [Footer::Back, Footer::Apply, Footer::UseDefaults]);
+        assert_eq!(OptionsPage::Video.footer(false), [Footer::Back, Footer::UseDefaults]);
+        assert_eq!(OptionsPage::AdvancedVideo.footer(true), [Footer::Back, Footer::Apply, Footer::UseDefaults]);
+        assert_eq!(OptionsPage::Keys.footer(true), [Footer::Back, Footer::EditKey, Footer::ClearKey, Footer::UseDefaults]);
+    }
+
+    #[test]
+    fn use_defaults_resets_only_its_page() {
+        let mut s = Settings { master_volume: 0.2, mouse_sensitivity: 9.0, shader_detail: 0, ..Settings::default() };
+        OptionsPage::Audio.reset(&mut s);
+        assert_eq!(s.master_volume, 1.0);
+        assert_eq!((s.mouse_sensitivity, s.shader_detail), (9.0, 0));
+        OptionsPage::AdvancedVideo.reset(&mut s);
+        assert_eq!((s.mouse_sensitivity, s.shader_detail), (9.0, Settings::default().shader_detail));
     }
 
     #[test]

@@ -94,11 +94,15 @@ enum SavesDialog {
     Save,
 }
 
-/// "Are you sure?" before quitting.
+/// "Are you sure?" dialogs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Confirm {
     QuitGame,
     QuitToMenu,
+    /// Back from an Options page with unapplied changes.
+    Discard,
+    /// Use Defaults on the video pages.
+    Defaults,
 }
 
 /// Where the menus are within a screen.
@@ -114,10 +118,12 @@ pub(crate) struct MenuState {
     save_pick: Option<usize>,
     /// The Options page shown on [`Screen::Options`].
     page: OptionsPage,
-    /// Settings as they were when each open page was entered, for Cancel.
-    undo: Vec<Settings>,
-    /// The Video page's unapplied resolution and display mode.
-    video: Option<VideoMode>,
+    /// Options' working copy: what the pages show and change, applied to
+    /// the real settings on Apply.
+    pending: Option<Settings>,
+    /// The working copy as each open page found it: the page has changes
+    /// while `pending` differs from its entry; Discard goes back to it.
+    base: Vec<Settings>,
     /// Key-list row waiting for a key, and the row last clicked.
     capture: Option<usize>,
     selected: Option<usize>,
@@ -215,9 +221,9 @@ enum Action {
     Page(OptionsPage),
     Back,
     Done,
-    Cancel,
     Apply,
     UseDefaults,
+    EditKey,
     ClearKey,
     Quit,
     Resume,
@@ -247,7 +253,7 @@ impl From<Footer> for Action {
         match f {
             Footer::Back => Action::Back,
             Footer::Done => Action::Done,
-            Footer::Cancel => Action::Cancel,
+            Footer::EditKey => Action::EditKey,
             Footer::Apply => Action::Apply,
             Footer::UseDefaults => Action::UseDefaults,
             Footer::ClearKey => Action::ClearKey,
@@ -826,14 +832,17 @@ fn footer_art(art: Option<Res<MenuArt>>, mut q: Query<(&Interaction, &mut ImageN
 /// centred on the icon; the footer at 417.
 fn confirm_dialog(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, title: &str, message: &str, buttons: &[(&str, Action)]) {
     let tab = ((title.len() as f32 * 9.0 + 25.0) / 50.0).ceil().max(2.0) as usize;
-    let frame = Frame { tab, top: 259.0, width: 320.0, body: 81.5, title_font: CONFIRM_TITLE_FONT, upper: false };
+    // Wider for longer messages, so they stay on one line (~6.3 units a
+    // character of ConfirmationText, from the quit message's 188 units).
+    let width = (55.0 + message.len() as f32 * 7.0 + 20.0).max(320.0);
+    let frame = Frame { tab, top: 259.0, width, body: 81.5, title_font: CONFIRM_TITLE_FONT, upper: false };
     tile_frame_sized(p, fonts, art, title, frame, buttons, |d| {
         if let Some(icon) = art.and_then(|a| a.info.clone()) {
             d.spawn((ImageNode::new(icon), Node { position_type: PositionType::Absolute, left: units(10.5), top: units(31.5), width: units(29.0), height: units(29.0), ..default() }));
         }
         d.spawn((
-            Node { position_type: PositionType::Absolute, left: units(55.0), top: units(31.5), width: units(255.0), height: units(29.0), align_items: AlignItems::Center, ..default() },
-            children![(Text::new(message), TextFont { font: (&fonts.menu).into(), font_size: CONFIRM_FONT, ..default() }, TextColor(theme::CONFIRM_TEXT))],
+            Node { position_type: PositionType::Absolute, left: units(55.0), top: units(31.5), width: units(width - 65.0), height: units(29.0), align_items: AlignItems::Center, ..default() },
+            children![(Text::new(message), TextFont { font: (&fonts.menu).into(), font_size: CONFIRM_FONT, ..default() }, TextColor(theme::CONFIRM_TEXT), TextLayout::linebreak(bevy::text::LineBreak::NoWrap))],
         ));
     });
 }
@@ -1649,23 +1658,31 @@ fn rebuild_menu(
                 footer(p, &fonts, "", &[Footer::Back]);
             });
         }
+        // A confirmation (discard, defaults) takes the page's place.
+        Screen::Options { from_pause } if menu.confirm.is_some() => {
+            if !from_pause {
+                commands.spawn(layer(10)).with_children(|p| menu_logo(p, &fonts, art.as_deref()));
+            }
+        }
         Screen::Options { from_pause } => {
             // The logo stays up over every Options page from the main menu.
             if !from_pause {
                 commands.spawn(layer(10)).with_children(|p| menu_logo(p, &fonts, art.as_deref()));
             }
             let page = menu.page;
+            let settings = menu.pending.as_ref().unwrap_or(&settings);
+            let changed = menu.changed();
             let binds = settings.binds.clone().unwrap_or_else(|| defaults.0.clone());
             let ctx = Ctx {
                 native: native_size(&monitors, &windows),
-                video: menu.video.unwrap_or_else(|| VideoMode::of(&settings)),
+                video: VideoMode::of(settings),
                 keys: &actions.0,
                 binds: &binds,
                 capture: menu.capture,
                 selected: menu.selected,
                 mods: Some(&mods),
             };
-            let rows = options::rows(page, &settings, &ctx);
+            let rows = options::rows(page, settings, &ctx);
             let hint = match (page, menu.capture) {
                 (OptionsPage::Keys, Some(i)) => {
                     let name = match actions.0.get(i) {
@@ -1675,7 +1692,6 @@ fn rebuild_menu(
                     format!("Press a key for \"{name}\".  ESC cancels.")
                 }
                 (OptionsPage::Keys, None) => "Click an action, then press its new key.".to_string(),
-                (OptionsPage::Video, _) if menu.video.is_some_and(|v| v != VideoMode::of(&settings)) => "APPLY to use the new display settings.".to_string(),
                 _ => String::new(),
             };
             // Tiled dialogs: (body wide, tall, first row's y in units).
@@ -1699,7 +1715,7 @@ fn rebuild_menu(
                 _ => None,
             };
             if let Some((wide, tall, y0)) = tiled {
-                let foot: Vec<(&str, Action)> = page.footer().iter().map(|&k| (k.label(), k.into())).collect();
+                let foot: Vec<(&str, Action)> = page.footer(changed).iter().map(|&k| (k.label(), k.into())).collect();
                 let described = page == OptionsPage::AdvancedVideo;
                 commands.spawn(layer(10)).with_children(|p| {
                     tile_frame(p, &fonts, art.as_deref(), page.title(), wide, tall, &foot, |d| {
@@ -1742,7 +1758,7 @@ fn rebuild_menu(
                         children![text(&fonts.regular, settings.subtitle_size, "Subtitles will look like this.", settings.subtitle_color.color().unwrap_or(theme::VALUE))],
                     ));
                 }
-                footer(p, &fonts, &hint, page.footer());
+                footer(p, &fonts, &hint, page.footer(changed));
             });
             }
         }
@@ -1751,6 +1767,8 @@ fn rebuild_menu(
         let (title, message, ok) = match c {
             Confirm::QuitGame => ("Portal 2", "Are you sure you want to quit?", "Quit"),
             Confirm::QuitToMenu => ("Exit To Main Menu?", "Any unsaved progress will be lost.", "OK"),
+            Confirm::Discard => (menu.page.title(), "Changes have been made. Discard current changes?", "Discard"),
+            Confirm::Defaults => (menu.page.title(), "Reset settings to their recommended values?", "OK"),
         };
         // The menu under it is hidden (see rebuild_menu's screens); the
         // shade keeps clicks off whatever else shows.
@@ -1789,32 +1807,58 @@ fn dummy_ctx() -> Ctx<'static> {
 
 /// Into an Options page from its parent (or the Options flyout).
 fn open_page(menu: &mut MenuState, scroll: &mut MenuScroll, settings: &Settings, page: OptionsPage) {
-    menu.undo.push(settings.clone());
+    let pending = menu.pending.get_or_insert_with(|| settings.clone()).clone();
+    menu.base.push(pending);
     menu.page = page;
     menu.capture = None;
     menu.selected = None;
-    if page == OptionsPage::Video {
-        menu.video = None;
-    }
     scroll.0 = 0.0;
 }
 
-/// Out of the current Options page to its parent, keeping its changes
-/// (Done, Esc) or putting them back (Cancel). Out of a top page leaves
-/// Options for the menu it came from. Settings are saved either way.
-fn close_page(screen: &mut Screen, menu: &mut MenuState, scroll: &mut MenuScroll, settings: &mut Settings, keep: bool) {
-    let video = menu.video.take();
-    let before = menu.undo.pop();
-    if keep {
-        if menu.page == OptionsPage::Video {
-            if let Some(v) = video {
-                v.apply(settings);
-            }
-        }
-    } else if let Some(b) = before {
-        *settings = b;
+impl MenuState {
+    /// The open Options page has unapplied changes.
+    fn changed(&self) -> bool {
+        matches!((&self.pending, self.base.last()), (Some(p), Some(b)) if p != b)
     }
-    settings.save();
+}
+
+/// Back, Done or Esc on an Options page: with unapplied changes, ask to
+/// discard them (Edit Keys hands its changes back to Keyboard/Mouse, and
+/// Mods writes its own as it goes); without, go to the parent page.
+fn back_page(screen: &mut Screen, menu: &mut MenuState, scroll: &mut MenuScroll) {
+    if menu.changed() && !matches!(menu.page, OptionsPage::Keys | OptionsPage::Mods) {
+        menu.confirm = Some(Confirm::Discard);
+        return;
+    }
+    menu.base.pop();
+    leave_page(screen, menu, scroll);
+}
+
+/// Apply: the working copy becomes the settings (saved), then back to the
+/// parent page, as Portal 2's Apply does.
+fn apply_page(screen: &mut Screen, menu: &mut MenuState, scroll: &mut MenuScroll, settings: &mut Settings) {
+    if let Some(p) = &menu.pending {
+        *settings = p.clone();
+        settings.save();
+        for b in &mut menu.base {
+            *b = p.clone();
+        }
+    }
+    menu.base.pop();
+    leave_page(screen, menu, scroll);
+}
+
+/// Discard: the page's changes go, back to the parent page.
+fn discard_page(screen: &mut Screen, menu: &mut MenuState, scroll: &mut MenuScroll) {
+    if let Some(b) = menu.base.pop() {
+        menu.pending = Some(b);
+    }
+    leave_page(screen, menu, scroll);
+}
+
+/// To the current page's parent; out of a top page leaves Options for the
+/// menu it came from.
+fn leave_page(screen: &mut Screen, menu: &mut MenuState, scroll: &mut MenuScroll) {
     menu.capture = None;
     menu.selected = None;
     scroll.0 = 0.0;
@@ -1822,7 +1866,8 @@ fn close_page(screen: &mut Screen, menu: &mut MenuState, scroll: &mut MenuScroll
         Some(p) if p != OptionsPage::List => menu.page = p,
         _ => {
             menu.page = OptionsPage::List;
-            menu.undo.clear();
+            menu.base.clear();
+            menu.pending = None;
             // Back to the Options dialog the page was opened from.
             menu.flyout = Some(Flyout::Options);
             *screen = match *screen {
@@ -1842,7 +1887,6 @@ fn capture_key(
     wheel: Option<Res<AccumulatedMouseScroll>>,
     mut menu: ResMut<MenuState>,
     mut eaten: ResMut<InputEaten>,
-    mut settings: ResMut<Settings>,
     defaults: Res<DefaultBinds>,
     actions: Res<KeyActions>,
 ) {
@@ -1855,11 +1899,11 @@ fn capture_key(
     }
     let input = InputState { keys: Some(&keys), mouse: mouse.as_deref(), scroll: wheel.as_deref() };
     let Some(name) = InputButton::all().find(|b| input.just_pressed(*b)).and_then(InputButton::name) else { return };
-    if let Some(KeyAction::Command { command, .. }) = actions.0.get(i) {
-        let mut table = settings.binds.clone().unwrap_or_else(|| defaults.0.clone());
+    if let (Some(KeyAction::Command { command, .. }), Some(pending)) = (actions.0.get(i), menu.pending.as_mut()) {
+        let mut table = pending.binds.clone().unwrap_or_else(|| defaults.0.clone());
         table.rebind(command, name);
         info!("portal2: bound {name} to {command}");
-        settings.binds = Some(table);
+        pending.binds = Some(table);
     }
     menu.capture = None;
     eaten.0 = true;
@@ -1874,7 +1918,6 @@ fn escape_key(
     mut menu: ResMut<MenuState>,
     mut scroll: ResMut<MenuScroll>,
     map: Option<Res<CurrentMap>>,
-    mut settings: ResMut<Settings>,
     mut play: MessageWriter<PlayGameSound>,
 ) {
     if eaten.0 || !keys.just_pressed(KeyCode::Escape) {
@@ -1894,7 +1937,7 @@ fn escape_key(
     }
     let in_game = map.as_ref().is_some_and(|m| !m.menu);
     match *screen {
-        Screen::Options { .. } => close_page(&mut screen, &mut menu, &mut scroll, &mut settings, true),
+        Screen::Options { .. } => back_page(&mut screen, &mut menu, &mut scroll),
         Screen::Main | Screen::Pause if menu.flyout.is_some() => menu.flyout = None,
         Screen::Chapters => *screen = Screen::Main,
         Screen::None if in_game => {
@@ -2014,7 +2057,7 @@ fn buttons(
             continue;
         }
         info!("portal2: menu {:?}", action);
-        let back = matches!(action, Action::Back | Action::Cancel | Action::ConfirmCancel);
+        let back = matches!(action, Action::Back | Action::ConfirmCancel);
         play.write(PlayGameSound::ui(if back { MENU_BACK } else { MENU_ACCEPT }));
         let native = native_size(&monitors, &windows);
         match *action {
@@ -2111,7 +2154,8 @@ fn buttons(
                 if !matches!(*screen, Screen::Options { .. }) {
                     *screen = Screen::Options { from_pause: *screen == Screen::Pause };
                     menu.flyout = None;
-                    menu.undo.clear();
+                    menu.base.clear();
+                    menu.pending = None;
                 }
                 if p == OptionsPage::Mods {
                     mods.note.clear();
@@ -2127,34 +2171,41 @@ fn buttons(
                 }
             }
             Action::Back if matches!(*screen, Screen::Main | Screen::Pause) && menu.flyout.is_some() => menu.flyout = None,
-            Action::Back | Action::Done if matches!(*screen, Screen::Options { .. }) => close_page(&mut screen, &mut menu, &mut scroll, &mut settings, true),
-            Action::Cancel => close_page(&mut screen, &mut menu, &mut scroll, &mut settings, false),
+            Action::Back | Action::Done if matches!(*screen, Screen::Options { .. }) => back_page(&mut screen, &mut menu, &mut scroll),
             Action::Back | Action::Done => *screen = Screen::Main,
-            Action::Apply => {
-                if let Some(v) = menu.video.take() {
-                    v.apply(&mut settings);
-                    settings.save();
-                }
-            }
+            Action::Apply => apply_page(&mut screen, &mut menu, &mut scroll, &mut settings),
+            Action::UseDefaults if menu.page.defaults_ask() => menu.confirm = Some(Confirm::Defaults),
             Action::UseDefaults => {
-                settings.binds = None;
+                let page = menu.page;
+                if let Some(p) = menu.pending.as_mut() {
+                    page.reset(p);
+                }
                 menu.selected = None;
             }
             Action::ClearKey => {
-                if let Some(KeyAction::Command { command, .. }) = menu.selected.and_then(|i| actions.0.get(i)) {
-                    let mut table = settings.binds.clone().unwrap_or_else(|| defaults.0.clone());
+                let selected = menu.selected.and_then(|i| actions.0.get(i));
+                if let (Some(KeyAction::Command { command, .. }), Some(p)) = (selected, menu.pending.as_mut()) {
+                    let mut table = p.binds.clone().unwrap_or_else(|| defaults.0.clone());
                     table.clear(command);
-                    settings.binds = Some(table);
+                    p.binds = Some(table);
                 }
             }
-            Action::Bind(i) => {
-                menu.selected = Some(i);
-                menu.capture = Some(i);
-            }
+            // A key row: the first click picks it, a second click (or Edit
+            // Key) waits for its new key.
+            Action::Bind(i) if menu.selected == Some(i) => menu.capture = Some(i),
+            Action::Bind(i) => menu.selected = Some(i),
+            Action::EditKey => menu.capture = menu.selected,
             Action::Quit => menu.confirm = Some(Confirm::QuitGame),
             Action::MainMenu => menu.confirm = Some(Confirm::QuitToMenu),
             Action::ConfirmCancel => menu.confirm = None,
             Action::ConfirmOk => match menu.confirm.take() {
+                Some(Confirm::Discard) => discard_page(&mut screen, &mut menu, &mut scroll),
+                Some(Confirm::Defaults) => {
+                    let page = menu.page;
+                    if let Some(p) = menu.pending.as_mut() {
+                        page.reset(p);
+                    }
+                }
                 Some(Confirm::QuitGame) => {
                     settings.save();
                     exit.write(AppExit::Success);
@@ -2167,11 +2218,11 @@ fn buttons(
                 None => {}
             },
             Action::Resume => *screen = Screen::None,
-            Action::Adjust(s, d) => step_setting(&mut menu, &mut settings, native, s, if d < 0.0 { -1 } else { 1 }, false),
-            Action::Toggle(s) => step_setting(&mut menu, &mut settings, native, s, 1, true),
+            Action::Adjust(s, d) => step_setting(&mut menu, native, s, if d < 0.0 { -1 } else { 1 }, false),
+            Action::Toggle(s) => step_setting(&mut menu, native, s, 1, true),
             Action::Slide(s) => {
-                if let (Some((lo, hi, _)), Some(n)) = (options::slider_range(s), cursor.get(e).ok().and_then(|c| c.normalized)) {
-                    options::set_slider(&mut settings, s, lo + (n.x + 0.5).clamp(0.0, 1.0) * (hi - lo));
+                if let (Some((lo, hi, _)), Some(n), Some(p)) = (options::slider_range(s), cursor.get(e).ok().and_then(|c| c.normalized), menu.pending.as_mut()) {
+                    options::set_slider(p, s, lo + (n.x + 0.5).clamp(0.0, 1.0) * (hi - lo));
                 }
             }
         }
@@ -2180,12 +2231,11 @@ fn buttons(
 
 /// One step of an Options value. The Video page's resolution, aspect and
 /// display mode collect in [`MenuState::video`] until Apply/Done.
-fn step_setting(menu: &mut MenuState, settings: &mut Settings, native: UVec2, s: Setting, dir: i32, wrap: bool) {
-    let mut video = menu.video.unwrap_or_else(|| VideoMode::of(settings));
-    options::adjust(settings, &mut video, native, s, dir, wrap);
-    if matches!(s, Setting::Resolution | Setting::Aspect | Setting::DisplayMode) {
-        menu.video = Some(video);
-    }
+fn step_setting(menu: &mut MenuState, native: UVec2, s: Setting, dir: i32, wrap: bool) {
+    let Some(p) = menu.pending.as_mut() else { return };
+    let mut video = VideoMode::of(p);
+    options::adjust(p, &mut video, native, s, dir, wrap);
+    video.apply(p);
 }
 
 /// Paused or in a menu: stop the world, free the mouse. Playing: grab it.

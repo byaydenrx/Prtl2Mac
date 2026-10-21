@@ -221,15 +221,20 @@ fn options_pages_work() {
     click(&mut app, "Page(KeyboardMouse)");
     assert!(matches!(screen(&app), crate::ui::Screen::Options { .. }));
     click(&mut app, "Toggle(DevConsole)");
-    click(&mut app, "Done");
+    // Changes wait for Apply (owner spec 2026-10-21), which goes back.
+    assert!(!app.world().resource::<Settings>().tools.dev_console);
+    click(&mut app, "Apply");
+    assert!(app.world().resource::<Settings>().tools.dev_console);
     assert_eq!(screen(&app), crate::ui::Screen::Main);
     click(&mut app, "Options");
     click(&mut app, "Page(Video)");
     click(&mut app, "Page(AdvancedVideo)");
     click(&mut app, "Toggle(ShowFps)");
     click(&mut app, "Toggle(ShowPos)");
-    click(&mut app, "Done");
-    click(&mut app, "Done");
+    click(&mut app, "Apply");
+    // Apply went back to Video, which now has nothing unapplied.
+    assert!(matches!(screen(&app), crate::ui::Screen::Options { .. }));
+    click(&mut app, "Back");
     let t = app.world().resource::<Settings>().tools.clone();
     assert!(t.dev_console && t.show_fps && t.show_pos);
     // Leaving a page goes back to the Options dialog (options.res).
@@ -244,19 +249,24 @@ fn options_pages_work() {
     click(&mut app, "Adjust(SaveCheckpointKey,-1.0)");
     click(&mut app, "Adjust(LoadCheckpointKey,1.0)");
     click(&mut app, "Adjust(CheckpointSlot,1.0)");
+    // APPLY saves settings.cfg with the new keys.
+    click(&mut app, "Apply");
     let t = app.world().resource::<Settings>().tools.clone();
     assert!(t.speedrun_timer && t.quick_restart && t.practice);
     assert_eq!(t.speedrun_mode, crate::tool_settings::SpeedrunMode::SingleMap);
     assert_eq!((t.quick_restart_key, t.checkpoint_save_key, t.checkpoint_load_key, t.checkpoint_slot), (KeyCode::F7, KeyCode::F6, KeyCode::F9, 2));
-    // DONE saves settings.cfg with the new keys.
-    click(&mut app, "Done");
     let cfg = std::fs::read_to_string(root.join("data/settings.cfg")).unwrap();
     assert!(cfg.contains("speedrun_timer 1") && cfg.contains("quick_restart_key F7") && cfg.contains("con_enable 1"), "{cfg}");
     assert_eq!(screen(&app), crate::ui::Screen::Main);
-    // CANCEL puts a page back as it was.
+    // BACK with changes asks; Cancel stays with them, Discard drops them.
     click(&mut app, "Page(Speedrun)");
     click(&mut app, "Toggle(SpeedrunTimer)");
-    click(&mut app, "Cancel");
+    click(&mut app, "Back");
+    click(&mut app, "ConfirmCancel");
+    assert!(matches!(screen(&app), crate::ui::Screen::Options { .. }));
+    click(&mut app, "Back");
+    click(&mut app, "ConfirmOk");
+    assert_eq!(screen(&app), crate::ui::Screen::Main);
     assert!(app.world().resource::<Settings>().tools.speedrun_timer);
     // The Mods page with no mod folder, and back.
     click(&mut app, "ModsOptions");

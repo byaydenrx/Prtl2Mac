@@ -131,6 +131,21 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   that fails to load, near-identical timestamps. Never invent data.
 
 ### T-184 Options framework: pending/applied, footer, dialogs, navigation  (P2, TODO; spec 3, 11, 12, 14)
+- 2026-10-21 pending/applied DONE (unit tests + autopilot shots): Options
+  pages edit a working copy; the real settings change (and settings.cfg is
+  written) only on Apply, which then returns to the parent page. Footer:
+  Done (Audio, Keyboard/Mouse, Controller...) or Back + Use Defaults
+  (Video, Advanced Video) until something changes, then Back, Apply, Use
+  Defaults. Back/Esc with changes opens "Changes have been made. Discard
+  current changes?" (Discard leaves and drops them, Cancel stays with
+  them); the page hides under it. Use Defaults resets only that page's
+  settings (pending), asking "Reset settings to their recommended
+  values?" on the video pages. Edit Keys hands its changes back to
+  Keyboard/Mouse; a key row's first click selects, the second (or Edit
+  Key) waits for a key. Cancel buttons removed (Portal 2 has none here).
+  Subtitle style moved from Audio to its own Options row (SUBTITLES) so
+  Audio matches Portal 2's rows. Not done: keyboard navigation/focus,
+  confirmation tile flips (T-179).
 - 2026-10-21 footer buttons DONE (autopilot shots): every tiled dialog's
   footer is now FooterPanel's button: the install's vgui/btn_bg_alt face
   (idle), btn_bg_over (hovered, brighter), btn_bg_click (blue, while held),
