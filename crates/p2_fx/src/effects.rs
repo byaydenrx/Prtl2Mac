@@ -8,12 +8,16 @@
 //! * `PortalShotFailed`: `portal_badsurface` at the hit point and a fizzle sound;
 //! * `GunFired`: the fire sound, a first-person muzzle flash, and after
 //!   `projectile_delay` a projectile stream from the muzzle to the hit point.
-//! * the first-person top light, a looping effect on the viewmodel layer.
+//! * the first-person top light, a looping effect on the viewmodel layer;
+//! * while the gun carries something ([`GunHolding`]), the first-person hold
+//!   beam `portalgun_beam_holding_FP` from the muzzle to the object and the
+//!   hold hum; [`GunCleansed`]: the fizzler shimmy sound.
 use bevy::math::Mat3;
 use p2_core::{Crouch, InterpolatedFeet, SeamlessPortal, ViewAngles};
 use bevy::prelude::*;
+use bevy::camera::visibility::RenderLayers;
 use p2_core::{
-    GunFired, P2Systems, Portal, PortalClosed, PortalGun, PortalKind, PortalPlaced, PortalShotFailed, ShotFailReason,
+    GunCleansed, GunFired, GunHolding, MainCamera, P2Systems, Portal, PortalClosed, PortalGun, PortalKind, PortalPlaced, PortalShotFailed, ShotFailReason,
     ViewmodelAttachments, LAYER_VIEWMODEL,
 };
 
@@ -35,6 +39,10 @@ pub(crate) struct GunFx {
     last_kind: PortalKind,
 }
 
+/// The first-person hold beam of a gun that carries something.
+#[derive(Component, Clone, Copy, Debug)]
+pub(crate) struct HoldBeam(Entity);
+
 /// A shot in flight: the projectile stream starts after a delay and runs to the hit point.
 #[derive(Component, Clone, Copy, Debug)]
 pub(crate) struct PendingShot {
@@ -55,6 +63,7 @@ pub(crate) fn plugin(app: &mut App) {
             on_portal_placed,
             on_portal_closed,
             on_shot_failed,
+            on_gun_cleansed,
             sync_portals,
             drive_shots,
         )
@@ -65,7 +74,7 @@ pub(crate) fn plugin(app: &mut App) {
     // P2Systems::View), and ride along through portals.
     .add_systems(
         PostUpdate,
-        (follow_eye, sync_gun_top_light)
+        (follow_eye, sync_gun_top_light, sync_hold_beam)
             .chain()
             .in_set(P2Systems::Effects)
             .before(crate::render::step_effects),
@@ -380,6 +389,87 @@ fn sync_gun_top_light(
     }
 }
 
+fn on_gun_cleansed(mut reader: MessageReader<GunCleansed>, settings: Res<FxSettings>, mut sounds: MessageWriter<PlaySound>) {
+    for _ in reader.read() {
+        if settings.sounds {
+            sounds.write(PlaySound::new("Portal.FizzlerShimmy"));
+        }
+    }
+}
+
+/// Moves an eye-space point seen by a camera of vertical field of view
+/// `world_fov` so the viewmodel camera (`viewmodel_fov`) draws it at the same
+/// spot on screen: the hold beam is drawn with the gun but ends on an object
+/// the world camera draws.
+fn to_viewmodel_fov(p: Vec3, world_fov: f32, viewmodel_fov: f32) -> Vec3 {
+    let k = (viewmodel_fov * 0.5).tan() / (world_fov * 0.5).tan();
+    Vec3::new(p.x * k, p.y * k, p.z)
+}
+
+/// Starts, aims and stops the first-person hold beam: control point 0 at the
+/// muzzle, 1 at the carried object.
+#[allow(clippy::too_many_arguments)]
+fn sync_hold_beam(
+    settings: Res<FxSettings>,
+    fixed: Res<Time<Fixed>>,
+    guns: Query<(Entity, &ViewmodelAttachments, &GunHolding, &InterpolatedFeet, &Crouch, &ViewAngles, Option<&HoldBeam>)>,
+    main_cam: Query<&Projection, With<MainCamera>>,
+    cams: Query<(&Projection, &RenderLayers), Without<MainCamera>>,
+    mut effects: Query<&mut ParticleEffect>,
+    mut sounds: MessageWriter<PlaySound>,
+    mut commands: Commands,
+) {
+    let fov = |p: &Projection| match p {
+        Projection::Perspective(p) => Some(p.fov),
+        _ => None,
+    };
+    let world_fov = main_cam.iter().find_map(fov);
+    let vm_fov = cams.iter().filter(|(_, l)| l.intersects(&RenderLayers::layer(LAYER_VIEWMODEL))).find_map(|(p, _)| fov(p));
+    for (gun, att, holding, feet, crouch, view, beam) in &guns {
+        let aim = match (holding.0, att.muzzle) {
+            // `top_light` doubles as "the gun is shown" (hosts hide it before
+            // the gun is picked up): no gun, no beam.
+            (Some(target), Some(muzzle)) if settings.particles && settings.top_light => Some((target, muzzle)),
+            _ => None,
+        };
+        let Some((target, muzzle)) = aim else {
+            if let Some(b) = beam {
+                commands.entity(b.0).despawn();
+                commands.entity(gun).remove::<HoldBeam>();
+            }
+            continue;
+        };
+        let eye = eye_of(feet, crouch, view, fixed.overstep_fraction());
+        let inv = eye.compute_affine().inverse();
+        let rot = Mat3::from_quat(eye.rotation.inverse() * muzzle.rotation);
+        let mut end = inv.transform_point3(target);
+        if let (Some(w), Some(v)) = (world_fov, vm_fov) {
+            end = to_viewmodel_fov(end, w, v);
+        }
+        let start = inv.transform_point3(muzzle.translation);
+        match beam.and_then(|b| effects.get_mut(b.0).ok()) {
+            Some(mut fx) => {
+                fx.set_cp(0, start, rot);
+                fx.set_cp(1, end, rot);
+            }
+            None if beam.is_none() => {
+                let mut fx = ParticleEffect::new("portalgun_beam_holding_FP");
+                fx.render_layer = Some(LAYER_VIEWMODEL);
+                fx.restart_when_done = true;
+                fx.despawn_when_done = false;
+                fx.set_cp(0, start, rot);
+                fx.set_cp(1, end, rot);
+                // A transform for the hum looping as its child.
+                let e = commands.spawn((Name::new("hold beam (first person)"), fx, FollowEye, Transform::default())).id();
+                if settings.sounds {
+                    sounds.write(PlaySound { loop_on: Some(e), ..PlaySound::new("Weapon_Portalgun.HoldSound") });
+                }
+                commands.entity(gun).insert(HoldBeam(e));
+            }
+            None => {}
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -400,5 +490,16 @@ mod tests {
         assert!(app.world().get::<PortalFx>(door).is_none());
         let sounds = app.world().resource::<Messages<PlaySound>>();
         assert_eq!(sounds.iter_current_update_messages().count(), 1);
+    }
+
+    /// T-173: the hold beam's far end lands where the world camera draws the object.
+    #[test]
+    fn hold_beam_end_matches_world_projection() {
+        let (world, vm) = (1.2_f32, 0.7_f32);
+        let p = Vec3::new(0.3, -0.2, -1.5);
+        let q = to_viewmodel_fov(p, world, vm);
+        let ndc = |v: Vec3, fov: f32| Vec2::new(v.x, v.y) / (-v.z * (fov * 0.5).tan());
+        assert!((ndc(p, world) - ndc(q, vm)).length() < 1e-5);
+        assert_eq!(q.z, p.z);
     }
 }

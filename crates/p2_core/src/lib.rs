@@ -393,6 +393,19 @@ pub struct GunFired {
     pub to: Vec3,
 }
 
+/// What the gun is carrying, if anything: the world position of the held
+/// object's centre. Hosts with pick-up keep it current on the gun's entity;
+/// it drives the first-person hold beam and the carry anims.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+pub struct GunHolding(pub Option<Vec3>);
+
+/// The gun went through an emancipation grid (`trigger_portal_cleanser`):
+/// the viewmodel `fizzle` shake and the shimmy sound.
+#[derive(Message, Clone, Copy, Debug)]
+pub struct GunCleansed {
+    pub gun: Entity,
+}
+
 /// A portal was opened (after any replaced one was closed).
 #[derive(Message, Clone, Copy, Debug)]
 pub struct PortalPlaced {
@@ -601,6 +614,7 @@ impl Plugin for CorePlugin {
             .init_resource::<ScreenShakes>()
             .add_message::<FirePortal>()
             .add_message::<GunFired>()
+            .add_message::<GunCleansed>()
             .add_message::<PortalPlaced>()
             .add_message::<PortalClosed>()
             .add_message::<PortalShotFailed>()

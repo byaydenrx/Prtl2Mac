@@ -76,10 +76,11 @@ fn touch_triggers(
     map: Option<Res<CurrentMap>>,
     mut touching: ResMut<Touching>,
     mut looks: ResMut<LookTimes>,
-    mut players: Query<(&mut Transform, &mut InterpolatedFeet, &mut CharacterVelocity, &mut ViewAngles, &Crouch, &mut PortalGun), With<Player>>,
+    mut players: Query<(Entity, &mut Transform, &mut InterpolatedFeet, &mut CharacterVelocity, &mut ViewAngles, &Crouch, &mut PortalGun), With<Player>>,
     props: Query<(Entity, &Prop, &Position, Has<Held>, &LinearVelocity)>,
     mut fire: MessageWriter<FireOutput>,
     mut fizzle: MessageWriter<FizzlePortals>,
+    mut cleansed: MessageWriter<GunCleansed>,
     mut loaded: MessageReader<LevelLoaded>,
     time: Res<Time>,
     mut damage: MessageWriter<crate::health::DamagePlayer>,
@@ -94,7 +95,7 @@ fn touch_triggers(
     if map.menu {
         return;
     }
-    let Ok((mut ptf, mut feet, mut vel, mut view, crouch, mut gun)) = players.single_mut() else { return };
+    let Ok((player, mut ptf, mut feet, mut vel, mut view, crouch, mut gun)) = players.single_mut() else { return };
     let hull = crouch.hull() * 0.5;
     let p_lo = ptf.translation - Vec3::new(hull.x, 0.0, hull.z);
     let p_hi = ptf.translation + Vec3::new(hull.x, hull.y * 2.0, hull.z);
@@ -243,6 +244,10 @@ fn touch_triggers(
                 }
                 "trigger_portal_cleanser" if t == PLAYER => {
                     fizzle.write(FizzlePortals);
+                    // The gun shakes and sparks going through the grid.
+                    if gun.can_fire.contains(&true) {
+                        cleansed.write(GunCleansed { gun: player });
+                    }
                     fire.write(FireOutput { ent: i, event: "OnFizzle".into(), activator: Some(t) });
                 }
                 _ => {}

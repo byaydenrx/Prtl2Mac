@@ -23,7 +23,7 @@ use p2_assets::anim::Animator;
 use p2_assets::source_assets;
 use p2_assets::GameFsRes;
 use p2_core::{
-    Crouch, GunFired, InterpolatedFeet, PortalShotFailed, Player, ViewAngles, ViewmodelAttachments,
+    Crouch, GunCleansed, GunFired, GunHolding, InterpolatedFeet, PortalShotFailed, Player, ViewAngles, ViewmodelAttachments,
     LAYER_VIEWMODEL, U,
 };
 
@@ -51,6 +51,8 @@ pub struct ViewmodelRig {
     time: f32,
     /// Sequence to return to when a one-shot finishes.
     idle: usize,
+    /// Carrying something (`idle_carrying` is the idle then).
+    holding: bool,
     /// Source `lastFacing` (world space), for CalcViewModelLag.
     last_facing: Option<Vec3>,
 }
@@ -268,6 +270,7 @@ pub(crate) fn spawn_viewmodel_camera_and_gun(
         seq: draw,
         time: 0.0,
         idle,
+        holding: false,
         last_facing: None,
     });
 }
@@ -326,7 +329,7 @@ fn model_transforms(animator: &Animator, pose: &[(Vec3, Quat)]) -> Vec<Affine3A>
 }
 
 /// Drives the gun for the local player: the Source viewmodel lag, the
-/// sequences (draw, idle, fire, fizzle), the joint poses, and
+/// sequences (draw, idle, fire, fizzle, carrying), the joint poses, and
 /// [`ViewmodelAttachments`] on the player. Runs in `P2Systems::View` after
 /// the camera pose.
 #[allow(clippy::too_many_arguments)]
@@ -334,27 +337,45 @@ pub(crate) fn update_viewmodel(
     time: Res<Time>,
     fixed: Res<Time<Fixed>>,
     mut players: Query<
-        (Entity, &InterpolatedFeet, &ViewAngles, &Crouch, &mut ViewmodelAttachments),
+        (Entity, &InterpolatedFeet, &ViewAngles, &Crouch, &mut ViewmodelAttachments, Option<&GunHolding>),
         With<Player>,
     >,
     mut rigs: Query<(&mut ViewmodelRig, &mut Transform)>,
     mut joints: Query<&mut Transform, Without<ViewmodelRig>>,
     mut fired: MessageReader<GunFired>,
     mut failed: MessageReader<PortalShotFailed>,
+    mut cleansed: MessageReader<GunCleansed>,
     mut teleported: MessageReader<p2_core::PortalTeleported>,
 ) {
-    let Some((player, feet, angles, crouch, mut attach)) = players.iter_mut().next() else {
+    let Some((player, feet, angles, crouch, mut attach, holding)) = players.iter_mut().next() else {
         fired.clear();
         failed.clear();
+        cleansed.clear();
         teleported.clear();
         return;
     };
     let Ok((mut rig, mut root)) = rigs.single_mut() else {
         fired.clear();
         failed.clear();
+        cleansed.clear();
         teleported.clear();
         return;
     };
+
+    // Picking up / letting go (ACT_VM_PICKUP, ACT_VM_RELEASE); the carrying
+    // idle loops in between.
+    let holding = holding.is_some_and(|h| h.0.is_some());
+    if holding != rig.holding {
+        rig.holding = holding;
+        let (change, idle) = if holding { ("idle_to_carrying", "idle_carrying") } else { ("carrying_to_idle", "idle") };
+        if let Some(i) = rig.animator.find(idle) {
+            rig.idle = i;
+        }
+        if !rig.play(change) {
+            rig.seq = rig.idle;
+            rig.time = 0.0;
+        }
+    }
 
     // Reactions. A failed shot also sends GunFired, so the fizzle read last wins.
     for f in fired.read() {
@@ -365,6 +386,12 @@ pub(crate) fn update_viewmodel(
     for f in failed.read() {
         if f.gun == player && !rig.play("fizzle") {
             rig.play("dryfire");
+        }
+    }
+    // An emancipation grid shakes the gun (ACT_VM_FIZZLE).
+    for c in cleansed.read() {
+        if c.gun == player {
+            rig.play("fizzle");
         }
     }
 

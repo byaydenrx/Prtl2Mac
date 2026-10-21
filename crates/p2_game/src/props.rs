@@ -24,6 +24,7 @@ impl Plugin for PropsPlugin {
             .init_resource::<HoldObstructions>()
             .add_systems(Update, (make_props_dynamic, hook_prop_colliders, sync_prop_transforms, core_inputs, use_key, prop_inputs, floor_buttons, apply_model_skins).chain().in_set(crate::level::GameSet::Logic))
             .add_systems(Update, player_proxy_outputs.in_set(crate::level::GameSet::Logic))
+            .add_systems(PostUpdate, gun_holding.before(P2Systems::Effects))
             .add_systems(FixedUpdate, (hold_obstructions, carry, hold_clearance, prop_transit, wall_passthrough).chain().after(P2Systems::Transit))
             .add_systems(FixedUpdate, held_prop_blocks_player.before(P2Systems::Move));
     }
@@ -676,6 +677,33 @@ fn hold_obstructions(
         };
         if let Some(hit) = spatial.cast_ray_predicate(eye, dir, to.length(), true, &filter, &solid) {
             out.0.insert(e, (hit.distance, box_support(prop.half, tf.rotation, *dir)));
+        }
+    }
+}
+
+/// Tells the gun what it carries ([`GunHolding`]: the hold beam and carry
+/// anims). A prop held through a portal is on the far side: the beam ends at
+/// its hold point on this side instead.
+fn gun_holding(
+    mut commands: Commands,
+    mut players: Query<(Entity, Option<&mut GunHolding>), With<Player>>,
+    held: Query<(Entity, &GlobalTransform), With<Held>>,
+    targets: Res<HoldTargets>,
+) {
+    let Ok((player, now)) = players.single_mut() else { return };
+    let at = held.iter().next().map(|(e, tf)| {
+        let p = tf.translation();
+        match targets.0.get(&e) {
+            Some(&t) if t.distance(p) > HOLD_BREAK_DISTANCE => t,
+            _ => p,
+        }
+    });
+    match now {
+        Some(mut h) => {
+            h.set_if_neq(GunHolding(at));
+        }
+        None => {
+            commands.entity(player).insert(GunHolding(at));
         }
     }
 }
