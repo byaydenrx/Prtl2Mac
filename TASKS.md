@@ -27,7 +27,7 @@ NEXT UP (owner round 4, 2026-10-21): T-196 black screen after flips
 (FIXED f8c9be3, awaiting owner replay), T-195 pause menu as Windows
 (FIXED 8af5fa3, awaiting owner replay), T-197 even tile grid (FIXED 209c358,
 awaiting owner replay). T-172 not reproduced (blocked, needs owner).
-T-144 clipboard FIXED 910da9a (awaiting owner replay). T-149 not reproduced (blocked, needs owner shots). T-147 not reproduced (blocked, needs owner). T-113 hints FIXED 693f8ce (awaiting owner replay). T-171 portal hitch PARTIAL FIX d4fd841 (awaiting owner replay). T-148 glass FIXED dcc0c0e (awaiting owner replay). Next T-117 onward (no more menu work; T-112 attempt branch awaits owner).
+T-144 clipboard FIXED 910da9a (awaiting owner replay). T-149 not reproduced (blocked, needs owner shots). T-147 not reproduced (blocked, needs owner). T-113 hints FIXED 693f8ce (awaiting owner replay). T-171 portal hitch PARTIAL FIX d4fd841 (awaiting owner replay). T-148 glass FIXED dcc0c0e (awaiting owner replay). T-117 shadows not confirmed (blocked, attempt/T-117 awaits owner). Next T-152 onward (no more menu work; T-112 and T-117 attempt branches await owner).
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
 before every other task. Owner notes after build fb0090a (12 items,
 listed under the spec heading) come first: T-179 flip like the video,
@@ -57,7 +57,7 @@ P2:
 P3:
 10. (T-171 portal first-look hitch: PARTIAL FIX d4fd841, awaiting owner replay.)
 11. (T-148 portals behind glass: FIXED dcc0c0e, awaiting owner replay.)
-12. T-117 shadows still blocky.
+12. (T-117 shadows still blocky: NOT CONFIRMED 2026-10-21, BLOCKED needs owner; untested fix on attempt/T-117.)
 13. T-152 lighting/texture quality.
 14. T-153 GLaDOS wake-up particles; T-173 gun hold beam and fizzler spark.
 15. T-140 game-placed portal shake/sound (reopened).
@@ -860,7 +860,7 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 
 ## Open: P3
 
-### T-117 Blocky shadows  (P3, REOPENED: better but still blocky)
+### T-117 Blocky shadows  (P3, BLOCKED (needs owner): untested fix on attempt/T-117)
 - Owner playtest 9 (2026-10-20, build 014ab6e): "shadows look better but still blocky".
 - Cause: env_projectedtexture shadows (light_room_00 in sp_a1_intro1: 110 deg
   FOV) used a 1024 map and one 2x2 bilinear compare, so the hanging
@@ -873,6 +873,19 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   -8640 1720 10 -18 180; 5 shot`): before (dist 0.1.0+b39fff3) stair-stepped
   pot outline and dashed chains; after smooth outline, solid chains, no
   acne on the walls. Replay: look at the planter shadow above the closet.
+- Autorun 2026-10-21: could not confirm which shadow still looks blocky (no
+  owner screenshot). Autopilot intro1 planter view (dist dcc0c0e) shows a
+  smooth outline and solid chains at 2048 + 3x3 PCF; Windows client.dll has
+  r_flashlightdepthres 1024 (so our maps are not lower-res). Suspected
+  cause: our penumbra is narrower than Source's flashlight 5x5 Gaussian PCF
+  (taps out to 2 texels), so edges read sharper/steppier, worst on wide
+  lights (elevator light_elevator_dynamic 120 deg / 2000 u, intro2+).
+  Tried: binomial (1 4 6 4 1) grid of bilinear compares folded into 6x6
+  per-texel weights (same 36 loads as before). Autopilot before/after on
+  the planter: edge softer, chains still visible but lighter; tests pass.
+  Untested fix: local branch attempt/T-117 (31262e5), needs owner
+  review/replay (which shadow was blocky? compare intro1 planter and an
+  elevator arrival with Windows).
 
 ### T-152 Lighting and texture quality below the original  (P3, TODO: owner says still an issue)
 - Owner playtest 9 (2026-10-20, build 014ab6e): "lighting/textures being low quality is still an issue". Raised to P3.

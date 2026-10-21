@@ -26,7 +26,8 @@ change, no attempt branch. Next: T-113.
 - dist/Prtl2Mac.app = 0.1.0+dcc0c0e.20261021T1412Z (T-148 frosted glass drawn over portals behind it; T-171 portal-view shader warm-up before it).
 
 ## Next action
-1. P3: T-117 shadows still blocky (T-148 glass FIXED dcc0c0e, awaiting
+1. P3: T-152 lighting/texture quality (T-117 shadows NOT CONFIRMED, untested
+   fix on attempt/T-117, blocked on owner; T-148 glass FIXED dcc0c0e, awaiting
    owner replay; T-171 first-portal hitch PARTIAL FIX
    d4fd841, awaiting owner replay; T-113 hints FIXED 693f8ce,
    awaiting owner replay; T-147 intro2 black door NOT REPRODUCED,
@@ -34,7 +35,7 @@ change, no attempt branch. Next: T-113.
    T-144 clipboard FIXED 910da9a, awaiting owner replay; T-112 untested fix
    on attempt/T-112, blocked on owner; T-139 music pieces, T-135 rubble
    open; T-172 blocked; T-195..T-197 awaiting owner replay).
-2. Then T-152, T-153, ... /P4. Skip T-116, T-164, T-151 (owner).
+2. Then T-153, T-173, T-140, ... /P4. Skip T-116, T-164, T-151 (owner).
 MENUS FROZEN: only T-196/T-195/T-197 may touch menu code; no other menu
 changes (owner, 2026-10-21). A separate session may port upstream engine
 changes (Stink-O/Portal2-rust-engine) into main; merge origin/main often.
@@ -43,6 +44,9 @@ changes (Stink-O/Portal2-rust-engine) into main; merge origin/main often.
 None outside what this file's commit contains.
 
 ## Fix attempts awaiting the owner
+- attempt/T-117 (31262e5): projected-texture shadows use a Source-style
+  5x5 binomial PCF (softer penumbra, same cost). Replay intro1's planter
+  shadow and an elevator arrival vs Windows, then merge or delete.
 - attempt/T-112 (cc81fdb): world-reflecting water (GLaDOS chamber,
   water_glados_01) samples a mirrored half-res camera view with an oblique
   clip plane at the water. Small change at shallow angles; replay
