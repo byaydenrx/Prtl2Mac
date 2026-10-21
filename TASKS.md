@@ -19,10 +19,14 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 7 sp_a2_laser_stairs.
 
 ## Priority order (2026-10-21, owner menu/intro spec first)
+MENUS FROZEN (owner, 2026-10-21): the menus/UI are right as they are. Only
+T-196, T-195 and T-197 may change menu code, touching just what each needs;
+every other menu task (T-162, T-177..T-194, including their "open pieces"
+and the dead-control list) is on hold, not for autoruns.
 NEXT UP (owner round 4, 2026-10-21): T-196 black screen after flips
 (P1, first), then T-195 pause menu as Windows (logo, no title tab, DONE,
-blurred/desaturated game behind), then T-197 even tile grid. Then the
-open menu pieces below, then T-172 onward.
+blurred/desaturated game behind), then T-197 even tile grid. Then T-172
+onward (no more menu work).
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
 before every other task. Owner notes after build fb0090a (12 items,
 listed under the spec heading) come first: T-179 flip like the video,

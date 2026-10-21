@@ -27,9 +27,11 @@ to take these first.
 2. T-195 in-game pause menu as the owner's Windows shots (logo, no title
    tab, DONE, blurred/bloomed/desaturated game behind).
 3. T-197 even tile grid.
-4. Then the open menu pieces (TASKS.md priority header), then T-172 late
-   VO, T-135, T-139, T-112, T-144, T-149, T-147, T-113, then P3/P4. Skip
-   T-116, T-164, T-151 (owner).
+4. Then T-172 late VO, T-135, T-139, T-112, T-144, T-149, T-147, T-113,
+   then P3/P4. Skip T-116, T-164, T-151 (owner).
+MENUS FROZEN: only T-196/T-195/T-197 may touch menu code; no other menu
+changes (owner, 2026-10-21). A separate session may port upstream engine
+changes (Stink-O/Portal2-rust-engine) into main; merge origin/main often.
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.
