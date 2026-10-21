@@ -29,6 +29,7 @@ skipped; T-120 done enough. Don't work on anything already fixed.
 Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles.
 1. T-212 loud glass smash at sp_a3_00 load (owner report).
 2. T-213 PotatOS missing from the portal gun (owner report).
+2b. T-215 Windows reference capture tool (makes every look/feel task checkable).
 3. T-150 gun glow seen through the wall after the sp_a2_intro fall (motion blur FIXED 7cc1096, awaiting owner replay).
 4. T-198 aerial faith plate physics (owner report, chapter 2).
 5. Common to many maps: T-203 switchable lights (50/63 maps), T-199
@@ -730,6 +731,18 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
   Reverse-engineering server.dll (depot 624) for CTriggerCatapult is allowed.
 
 ## Open: engine gaps (2026-10-21 audit: upstream READMEs + all-maps sweep; docs/UPSTREAM_GAPS.md)
+
+### T-215 Windows reference capture tool (CrossOver)  (P1, TODO; tooling)
+- Make `scripts/winref.sh <map> <shot.jpg> [setpos x y z] [setang p y r]
+  [extra console commands]` that takes a reliable screenshot from Windows
+  Portal 2 in the CrossOver bottle (recipe and paths in WORKFLOW.md "Windows
+  Portal 2 reference"). The launch, cfg exec and `jpeg` work; the problem:
+  `wait` frames run out during the (slow, CrossOver) map load, so the shot
+  shows the loading screen. Options: poll `-condebug` console.log for the
+  map's spawn line then send commands, or a much longer wait, or several
+  timed jpegs; disable the HUD/crosshair/subtitles to match our shots; shut
+  Steam down after. Then use it for before/after comparisons (T-198 arcs,
+  T-203 lights, T-199 particles, gels, the owner's open look issues).
 
 ### T-212 sp_a3_00 (start of chapter 6): loud glass smash at load  (P2, TODO; owner 2026-10-21)
 - Owner: "when you booted up chapter 6 the fall a loud glass noise played".

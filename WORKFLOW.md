@@ -100,6 +100,22 @@ sessions, only for independent tasks with separate files.
   them: `git branch --list 'attempt/*'`, `git log -p wheatley..attempt/T-<n>`;
   merge with `git merge attempt/T-<n>` after a replay, or delete the branch.
 
+## Windows Portal 2 reference and reverse engineering
+- Windows Portal 2 is installed in the owner's CrossOver bottle "Steam":
+  `~/Library/Application Support/CrossOver/Bottles/Steam/drive_c/Program Files (x86)/Steam/steamapps/common/Portal 2`
+  (portal2/bin/server.dll, client.dll; same as depot 624). Proven 2026-10-21:
+  `/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/wine --bottle Steam "C:\Program Files (x86)\Steam\steam.exe" -silent -applaunch 620 -windowed -w 1280 -h 720 -novid +map <map> +exec <cfg>`
+  runs a cfg from portal2/cfg (sv_cheats 1, setpos, setang, wait, jpeg,
+  quit); `jpeg` writes portal2/screenshots/snapshotNNNN.jpg. Not solved yet:
+  under CrossOver the map load outlasts `wait 2000`, so shots catch the
+  loading screen (T-215). Always shut Steam down afterwards:
+  `wine --bottle Steam "C:\Program Files (x86)\Steam\steam.exe" -shutdown`.
+  Don't change the owner's Steam account or settings.
+- Ghidra 12.1.4: `/opt/homebrew/Cellar/ghidra/12.1.4/libexec/support/analyzeHeadless`
+  (headless analysis/scripts) for server.dll/client.dll behaviour (entity
+  logic, cvar defaults, physics constants). Understand, then write our own
+  code; never use leaked source.
+
 ## Gotchas (map logic)
 - Departure elevators only arrive after the player walks through
   `departure_elevator-source_elevator_door_open_trigger`; some exits are
