@@ -405,6 +405,9 @@ pub(crate) struct GroundTrace<'w, 's> {
     body_of: Query<'w, 's, &'static avian3d::prelude::ColliderOf>,
     sensors: Query<'w, 's, (), With<avian3d::prelude::Sensor>>,
     water: Query<'w, 's, (&'static source_assets::glass::WorldReflectWater, &'static GlobalTransform)>,
+    players: Query<'w, 's, (), With<p2_core::Player>>,
+    see_through: Query<'w, 's, (), With<p2_core::PortalShotPassthrough>>,
+    cams: Query<'w, 's, &'static GlobalTransform, With<p2_core::MainCamera>>,
 }
 
 impl GroundTrace<'_, '_> {
@@ -429,6 +432,27 @@ impl GroundTrace<'_, '_> {
             (f, w) => f.or(w)?,
         };
         Some(world_to_source(Vec3::new(from.x, y, from.z)).z)
+    }
+
+    /// Whether the main camera sees `point` (Source space): 1 when nothing
+    /// solid lies between (moving props, the player, player clips and
+    /// grates don't count), else 0.
+    /// The last `radius` units next to the point don't count, so a proxy
+    /// resting on a surface stays visible.
+    fn visibility(&self, point: Vec3, radius: f32) -> f32 {
+        let (Some(spatial), Some(cam)) = (self.spatial.as_ref(), self.cams.iter().next()) else { return 1.0 };
+        let (from, to) = (cam.translation(), source_to_world(point));
+        let Ok((dir, len)) = Dir3::new_and_length(to - from) else { return 1.0 };
+        let reach = len - radius.max(2.0) * SOURCE_UNIT;
+        if reach <= 0.0 {
+            return 1.0;
+        }
+        let blocks = |c: Entity| {
+            let body = self.body_of.get(c).map_or(c, |b| b.body);
+            !self.sensors.contains(c) && !self.see_through.contains(c) && !self.players.contains(body) && !matches!(self.bodies.get(body), Ok(avian3d::prelude::RigidBody::Dynamic))
+        };
+        let filter = avian3d::prelude::SpatialQueryFilter::default();
+        if spatial.cast_ray_predicate(from, dir, reach, true, &filter, &blocks).is_some() { 0.0 } else { 1.0 }
     }
 }
 
@@ -489,6 +513,9 @@ pub(crate) fn step_effects(
         inst.set_player(eye);
         if inst.wants_ground() {
             inst.set_ground(&mut |cp| ground.below(cp));
+        }
+        if inst.wants_visibility() {
+            inst.set_visibility(&mut |cp, r| ground.visibility(cp, r));
         }
         inst.update(dt, lib);
         inst.for_each(&mut |s| {
@@ -579,8 +606,9 @@ fn build_system_mesh(inst: &SystemInstance, card: &CardInfo, time: f32) -> Optio
     let mut main_only = false;
     let mut parts: Vec<&Particle> = inst.particles.iter().collect();
     parts.sort_by_key(|p| p.id);
-    let color = |p: &Particle| [p.tint.x, p.tint.y, p.tint.z, (p.alpha * p.alpha2).clamp(0.0, 1.0)];
     for r in &def.renderers {
+        let vis = inst.visibility_alpha(r);
+        let color = |p: &Particle| [p.tint.x, p.tint.y, p.tint.z, (p.alpha * p.alpha2 * vis).clamp(0.0, 1.0)];
         if r.i("cull system starting at this recursion depth", -1) >= 1 {
             main_only = true;
         }

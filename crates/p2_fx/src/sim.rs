@@ -299,6 +299,9 @@ pub struct SystemInstance {
     /// Height (Source z) of the ground or water below control point 0, for
     /// `Position Modify Place On Ground` (traced by the caller each frame).
     pub ground: Option<f32>,
+    /// How much of the renderer's visibility proxy the camera sees (0..1,
+    /// traced by the caller each frame; 1 when untraced).
+    pub visibility: f32,
     /// Particles `Cull Random` has already spared (decided once each).
     spared: BTreeSet<u32>,
 }
@@ -476,6 +479,7 @@ impl SystemInstance {
             end_cap_at: None,
             player: None,
             ground: None,
+            visibility: 1.0,
             spared: BTreeSet::new(),
         }
     }
@@ -1862,6 +1866,48 @@ impl SystemInstance {
         }
     }
 
+    /// The control point and radius (Source units) of the first renderer
+    /// with a visibility proxy (`Visibility Proxy Input Control Point Number`).
+    fn visibility_proxy(&self) -> Option<(usize, f32)> {
+        self.def.renderers.iter().find_map(|r| {
+            let cp = r.i("Visibility Proxy Input Control Point Number", -1);
+            (0..MAX_CONTROL_POINTS as i32).contains(&cp).then(|| (cp as usize, r.f("Visibility Proxy Radius", 1.0)))
+        })
+    }
+
+    /// Whether this system or a running child fades by a visibility proxy.
+    pub fn wants_visibility(&self) -> bool {
+        let mut any = false;
+        self.for_each(&mut |s| any |= s.visibility_proxy().is_some());
+        any
+    }
+
+    /// Give this system and its running children how visible their proxy
+    /// is (`trace` gets the proxy point, Source space, and its radius).
+    /// Source measures it with an occlusion query; a line of sight stands
+    /// in for it here.
+    pub fn set_visibility(&mut self, trace: &mut dyn FnMut(Vec3, f32) -> f32) {
+        self.visibility = self.visibility_proxy().map_or(1.0, |(cp, r)| trace(self.cps[cp].pos, r));
+        for c in &mut self.children {
+            if let Some(s) = &mut c.system {
+                s.set_visibility(trace);
+            }
+        }
+    }
+
+    /// The alpha scale renderer `r` gets from the proxy's visibility:
+    /// `Visibility input minimum/maximum` mapped onto `Visibility Alpha Scale
+    /// minimum/maximum` (1 without a proxy).
+    pub fn visibility_alpha(&self, r: &OpDef) -> f32 {
+        if r.i("Visibility Proxy Input Control Point Number", -1) < 0 {
+            return 1.0;
+        }
+        let (lo, hi) = (r.f("Visibility input minimum", 0.0), r.f("Visibility input maximum", 1.0));
+        let t = if hi > lo { ((self.visibility - lo) / (hi - lo)).clamp(0.0, 1.0) } else { (self.visibility >= hi) as u8 as f32 };
+        let (a0, a1) = (r.f("Visibility Alpha Scale minimum", 0.0), r.f("Visibility Alpha Scale maximum", 1.0));
+        a0 + (a1 - a0) * t
+    }
+
     /// Visit this system and all running children.
     pub fn for_each<'a>(&'a self, f: &mut dyn FnMut(&'a SystemInstance)) {
         f(self);
@@ -2034,6 +2080,34 @@ mod tests {
             s.update(1.0 / 30.0, &lib);
         }
         assert!((40..=70).contains(&s.particles.len()), "moving: {}", s.particles.len());
+    }
+
+    #[test]
+    fn visibility_proxy_fades_hidden_glows() {
+        // electrical_arc_01_cp0_glow: a $ignorez glow, hidden by the world
+        // only through its visibility proxy at control point 0.
+        let proxy = op("render_animated_sprites", &[("Visibility Proxy Input Control Point Number", Attr::Int(0))]);
+        let mut def = (*system(vec![burst(1)], vec![lifetime(10.0)], vec![], vec![])).clone();
+        def.renderers = vec![proxy.clone()];
+        let mut s = SystemInstance::new(Arc::new(def), 1);
+        assert!(s.wants_visibility());
+        s.cps[0].pos = Vec3::new(1.0, 2.0, 3.0);
+        let mut seen = None;
+        s.set_visibility(&mut |p, r| {
+            seen = Some((p, r));
+            0.0
+        });
+        assert_eq!(seen, Some((Vec3::new(1.0, 2.0, 3.0), 1.0)));
+        assert_eq!(s.visibility_alpha(&proxy), 0.0);
+        s.set_visibility(&mut |_, _| 1.0);
+        assert_eq!(s.visibility_alpha(&proxy), 1.0);
+        // Its own alpha range; renderers without a proxy are never faded.
+        let ranged = op("render_animated_sprites", &[("Visibility Proxy Input Control Point Number", Attr::Int(0)), ("Visibility Alpha Scale minimum", Attr::Float(0.25))]);
+        s.set_visibility(&mut |_, _| 0.0);
+        assert_eq!(s.visibility_alpha(&ranged), 0.25);
+        assert_eq!(s.visibility_alpha(&op("render_animated_sprites", &[])), 1.0);
+        let plain = SystemInstance::new(system(vec![burst(1)], vec![], vec![], vec![]), 1);
+        assert!(!plain.wants_visibility());
     }
 
     #[test]
