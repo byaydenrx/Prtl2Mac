@@ -136,3 +136,6 @@ fog looks better, torn debries whatever fix you implemented revert it it made mo
 
 ## Owner note 2026-10-21 (round 7 follow-up), the owner's words
 dont work on anything thats already been fixed though ... 164 is the torn spiky shit skip that for now i said, fix 153 for sure, ride jitter in 120s been fixed, 152 has to wait for screenshots, 150 for sure fix, 151 has to wait for screenshots, 154 has to wait for screenshots.
+
+## Owner note 2026-10-21 (campaign), the owner's words
+i just saw the door fixed, and continue to get the rest of the game runnning rather than small fixes after these 2, get chapters 2-9 fully playable. chapter 2 is mostly there but the fling things ariel plates i think their called have something wrong with the physics idk what it is, aiming for a full campaign, have the auto sessions do it so your no longer working in this one

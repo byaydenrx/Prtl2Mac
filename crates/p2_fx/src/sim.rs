@@ -296,6 +296,9 @@ pub struct SystemInstance {
     end_cap_at: Option<f32>,
     /// The player's eye (Source space), for `Set Control Point To Player`.
     pub player: Option<ControlPoint>,
+    /// Height (Source z) of the ground or water below control point 0, for
+    /// `Position Modify Place On Ground` (traced by the caller each frame).
+    pub ground: Option<f32>,
     /// Particles `Cull Random` has already spared (decided once each).
     spared: BTreeSet<u32>,
 }
@@ -306,6 +309,7 @@ const KNOWN_INITIALIZERS: &[&str] = &[
     "Position Along Ring",
     "Position Modify Warp Random",
     "Position Modify Offset Random",
+    "Position Modify Place On Ground",
     "Position Along Path Sequential",
     "Lifetime Random",
     "Alpha Random",
@@ -471,6 +475,7 @@ impl SystemInstance {
             restart_at: None,
             end_cap_at: None,
             player: None,
+            ground: None,
             spared: BTreeSet::new(),
         }
     }
@@ -816,7 +821,7 @@ impl SystemInstance {
         // authored order (modifiers and remaps read the created position).
         let rank = |f: &str| match f {
             "Position Within Sphere Random" | "Position Along Ring" | "Position Along Path Sequential" | "Position Within Box Random" | "Position Along Path Random" => 0,
-            "Position Modify Warp Random" | "Position Modify Offset Random" | "Velocity Repulse from World" => 1,
+            "Position Modify Warp Random" | "Position Modify Offset Random" | "Velocity Repulse from World" | "Position Modify Place On Ground" => 1,
             _ => 2,
         };
         let mut order: Vec<usize> = (0..def.initializers.len()).collect();
@@ -918,6 +923,19 @@ impl SystemInstance {
                 // Scale position and previous position in the CP's frame.
                 p.pos = cp.to_world(cp.to_local(p.pos) * w);
                 p.prev = cp.to_world(cp.to_local(p.prev) * w);
+            }
+            // Source traces down from each particle; one trace below control
+            // point 0 per frame (`ground`) stands in for it (flat floors and
+            // water, e.g. GLaDOS's head drag splashes on her chamber's pool).
+            "Position Modify Place On Ground" => {
+                let Some(ground) = self.ground else { return };
+                let reach = op.f("max trace length", 128.0);
+                let drop = p.pos.z - ground;
+                if (0.0..=reach).contains(&drop) {
+                    let z = ground + op.f("offset", 0.0);
+                    p.prev.z += z - p.pos.z;
+                    p.pos.z = z;
+                }
             }
             "Position Modify Offset Random" => {
                 let cp = self.cp(op.i("control_point_number", 0));
@@ -1826,6 +1844,24 @@ impl SystemInstance {
         }
     }
 
+    /// Whether this system or a running child places particles on the ground.
+    pub fn wants_ground(&self) -> bool {
+        let mut any = false;
+        self.for_each(&mut |s| any |= s.def.initializers.iter().any(|o| o.function == "Position Modify Place On Ground"));
+        any
+    }
+
+    /// Give this system and its running children the ground height below
+    /// their control point 0 (`trace` gets that point, Source space).
+    pub fn set_ground(&mut self, trace: &mut dyn FnMut(Vec3) -> Option<f32>) {
+        self.ground = trace(self.cps[0].pos);
+        for c in &mut self.children {
+            if let Some(s) = &mut c.system {
+                s.set_ground(trace);
+            }
+        }
+    }
+
     /// Visit this system and all running children.
     pub fn for_each<'a>(&'a self, f: &mut dyn FnMut(&'a SystemInstance)) {
         f(self);
@@ -1998,6 +2034,26 @@ mod tests {
             s.update(1.0 / 30.0, &lib);
         }
         assert!((40..=70).contains(&s.particles.len()), "moving: {}", s.particles.len());
+    }
+
+    #[test]
+    fn place_on_ground_drops_particles_within_reach() {
+        // GLaDOS's head drag droplets: spawned at her head, landed on the pool.
+        let ground = op("Position Modify Place On Ground", &[("max trace length", Attr::Float(512.0)), ("include water", Attr::Bool(true))]);
+        let def = system(vec![burst(4)], vec![lifetime(10.0), ground], vec![], vec![]);
+        let lib = ParticleLibrary::default();
+        let mut s = SystemInstance::new(def.clone(), 1);
+        s.cps[0].pos = Vec3::new(9000.0, 1200.0, 460.0);
+        s.set_ground(&mut |_| Some(396.0));
+        s.update(1.0 / 30.0, &lib);
+        assert_eq!(s.particles.len(), 4);
+        assert!(s.particles.iter().all(|p| (p.pos.z - 396.0).abs() < 1e-3), "{:?}", s.particles.iter().map(|p| p.pos.z).collect::<Vec<_>>());
+        // Out of reach (or nothing below): left where they were made.
+        let mut far = SystemInstance::new(def, 1);
+        far.cps[0].pos = Vec3::new(9000.0, 1200.0, 2000.0);
+        far.set_ground(&mut |_| Some(396.0));
+        far.update(1.0 / 30.0, &lib);
+        assert!(far.particles.iter().all(|p| (p.pos.z - 2000.0).abs() < 1e-3));
     }
 
     #[test]

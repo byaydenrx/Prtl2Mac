@@ -396,6 +396,42 @@ fn load_particles(game: Option<Res<GameFsRes>>, mut particles: ResMut<Particles>
     particles.library = Arc::new(lib);
 }
 
+/// What `Position Modify Place On Ground` lands on: the static world, or a
+/// marked water surface above it (`include water`).
+#[derive(bevy::ecs::system::SystemParam)]
+pub(crate) struct GroundTrace<'w, 's> {
+    spatial: Option<avian3d::prelude::SpatialQuery<'w, 's>>,
+    bodies: Query<'w, 's, &'static avian3d::prelude::RigidBody>,
+    body_of: Query<'w, 's, &'static avian3d::prelude::ColliderOf>,
+    sensors: Query<'w, 's, (), With<avian3d::prelude::Sensor>>,
+    water: Query<'w, 's, (&'static source_assets::glass::WorldReflectWater, &'static GlobalTransform)>,
+}
+
+impl GroundTrace<'_, '_> {
+    /// Source z of the ground (or water) up to 512 units below `cp` (Source space).
+    fn below(&self, cp: Vec3) -> Option<f32> {
+        let from = source_to_world(cp);
+        let reach = 512.0 * SOURCE_UNIT;
+        let world = |c: Entity| {
+            let body = self.body_of.get(c).map_or(c, |b| b.body);
+            matches!(self.bodies.get(body), Ok(avian3d::prelude::RigidBody::Static)) && !self.sensors.contains(c)
+        };
+        let filter = avian3d::prelude::SpatialQueryFilter::default();
+        let floor = self.spatial.as_ref()?.cast_ray_predicate(from, Dir3::NEG_Y, reach, true, &filter, &world).map(|h| from.y - h.distance);
+        let water = self
+            .water
+            .iter()
+            .map(|(w, g)| g.transform_point(Vec3::Y * w.height).y)
+            .filter(|&h| h <= from.y && from.y - h <= reach)
+            .max_by(f32::total_cmp);
+        let y = match (floor, water) {
+            (Some(f), Some(w)) => f.max(w),
+            (f, w) => f.or(w)?,
+        };
+        Some(world_to_source(Vec3::new(from.x, y, from.z)).z)
+    }
+}
+
 /// Advance every effect and count particles. Runs in `PostUpdate`.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn step_effects(
@@ -407,6 +443,7 @@ pub(crate) fn step_effects(
     mut reported: Local<HashSet<String>>,
     mut commands: Commands,
     player: Query<(&Transform, &p2_core::ViewAngles, &p2_core::Crouch), With<p2_core::Player>>,
+    ground: GroundTrace,
 ) {
     let Some(particles) = particles else { return };
     // The player's eye, for `Set Control Point To Player`.
@@ -450,6 +487,9 @@ pub(crate) fn step_effects(
             inst.stop_emission();
         }
         inst.set_player(eye);
+        if inst.wants_ground() {
+            inst.set_ground(&mut |cp| ground.below(cp));
+        }
         inst.update(dt, lib);
         inst.for_each(&mut |s| {
             if s.emitted_last > 0 {

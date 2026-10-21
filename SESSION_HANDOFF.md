@@ -4,21 +4,22 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-21 (owner session). Owner round 7: T-175 run-time fog, T-140 shake,
-T-117 shadows confirmed (Done); T-153 gun drop/arms confirmed, some particles
-remain; T-164 CPU skinning REVERTED (e88ae41: ride parts shook). Screenshot
-tasks (T-173, T-174, T-145, T-147, T-149, T-116) and menus are ON HOLD.
+2026-10-21 (owner session, ending). T-146 owner-confirmed. T-153 leftover
+spray FIXED (Position Modify Place On Ground), awaiting owner replay. The
+owner wants the auto sessions to take over: T-150, then the full campaign
+(chapters 2-9), starting with T-198 aerial faith plate physics.
 
 ## Where things stand
-- dist/Prtl2Mac.app = 0.1.0+de1d09b.20261021T1845Z (T-146 door wiggle, T-164 reverted).
-- Awaiting the owner: T-112 GLaDOS floor reflection (merged 2c08d11).
+- dist/Prtl2Mac.app = BUILD_ID.
+- Awaiting the owner: T-112 GLaDOS floor reflection, T-153 particles.
+- ON HOLD: menus (no menu code changes), screenshot tasks (T-173, T-174,
+  T-145, T-147, T-149, T-116, T-152, T-151, T-154), T-164, T-120.
 
 ## Next action
-1. T-153 remaining particles around GLaDOS at wake-up (owner: fix for sure).
-2. T-150 motion blur/speed lines + gun glow through the wall after the
-   sp_a2_intro fall (owner: fix for sure).
-ON HOLD: menus, screenshot tasks, T-164, T-120. Don't redo fixed tasks.
-T-146 door wiggle FIXED (oscillator logic_timer), awaiting owner replay.
+1. T-150 motion blur/speed lines + gun glow through the wall after the
+   sp_a2_intro fall.
+2. T-198 aerial faith plates (chapter 2), then prove/sweep T-002..T-015 in
+   map order (TASKS.md priority order).
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.

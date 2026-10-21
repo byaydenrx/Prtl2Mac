@@ -18,15 +18,20 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 4 intro5/intro6, 5 intro7 + sp_a1_wakeup + sp_a2_intro, 6 sp_a2_laser_intro,
 7 sp_a2_laser_stairs.
 
-## Priority order (2026-10-21, owner round 7)
-ON HOLD (owner): menus; screenshot tasks T-173, T-174, T-145, T-147, T-149,
-T-116, T-152, T-151, T-154; T-164 skipped; T-120 done enough. Don't work on
-anything already fixed.
-Awaiting the owner: T-112 GLaDOS floor, T-146 door wiggle.
-Owner says fix for sure:
-1. T-153 particles still around GLaDOS at wake-up (P3).
-2. T-150 motion blur/speed lines and the gun glow through the wall after
-   the sp_a2_intro fall (P4).
+## Priority order (2026-10-21, owner: campaign next)
+Owner 2026-10-21: after T-153 and T-150, stop small fixes and get chapters
+2-9 fully playable (a full campaign), done by the auto sessions.
+ON HOLD (owner): menus (no menu code changes at all); screenshot tasks
+T-173, T-174, T-145, T-147, T-149, T-116, T-152, T-151, T-154; T-164
+skipped; T-120 done enough. Don't work on anything already fixed.
+Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles.
+1. T-150 motion blur/speed lines + gun glow through the wall after the
+   sp_a2_intro fall (owner: fix for sure).
+2. T-198 aerial faith plate physics (chapter 2).
+3. Campaign, in map order: T-002..T-008 (prove chapter 2-3 maps), T-010
+   (ch4), T-011 (ch5), T-012 (ch6), T-013 (ch7), T-014 (ch8), T-015 (ch9).
+   Every engine bug found on the way becomes its own task, taken next if it
+   blocks progress (softlocks/crashes first).
 Then the Backlog (prove and sweep the campaign).
 
 ## On hold: menus (owner 2026-10-21)
@@ -706,11 +711,60 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
 
 ## Open: P1
 
+### T-198 Aerial faith plates: physics wrong (chapter 2)  (P1, TODO)
+- Owner 2026-10-21: "chapter 2 is mostly there but the fling things aerial
+  plates i think they're called have something wrong with the physics idk
+  what it is". trigger_catapult in sp_a2_catapult_intro, sp_a2_trust_fling,
+  sp_a2_pit_flings, sp_a2_fizzler_intro... Compare launch arcs with Source's
+  trigger_catapult (playerSpeed/physicsSpeed, launchTarget, useExactVelocity,
+  usethresholdcheck, lowerThreshold/upperThreshold, apex height), air control
+  during flight, landing; cubes too. scripts/check_faith_plates.py exists.
+  Reverse-engineering server.dll (depot 624) for CTriggerCatapult is allowed.
+
 ## Open: P2
 
 ## Open: P3
 
-### T-153 GLaDOS wake-up  (P3, OPEN: some particles still around her; gun drop, arms, view owner-confirmed)
+## Open: P4
+
+### T-150 Particles missing  (P4, PARTIAL: intro3 splash/dust owner-confirmed "for now"; rest open)
+- Owner round 5 (2026-10-21): splash and dust fixed for now.
+- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
+- 2026-10-21 autorun, intro3 fall: FIXED b8a2d76. Cause: the two entities
+  behind it had no code at all: `env_splash` "fall_splash" (input Splash
+  from the trigger at the pool) and `env_ar2explosion` "breakable_floor_dust"
+  (input Explode when the floor gives way by the gun pedestal). Now
+  Splash plays `water_splash_01/02/03` by scale (16 -> 03) pointing up,
+  with `Physics.WaterSplash` (client.dll's watersplash/FX_GunshotSplash
+  names; the scale thresholds 2/4 are our choice), and Explode throws a
+  one-shot cloud of 48 grey puffs (~3.5 s) drawn like env_steam. The
+  splash's spawnflag 1 (find the water below) isn't traced; the entity sits
+  on the water. Evidence (autopilot only): `goto/lookat fall_splash; input
+  fall_splash splash` and the same for breakable_floor_dust explode, dist
+  d0822f2 shows nothing, b8a2d76 the splash spray and the dust ball. Not
+  checked through the real fall path (the floor break is scripted).
+- Still open: the gun's beam while holding (done in T-173), motion
+  blur/speed lines, the gun's glow seen through the wall after the
+  sp_a2_intro fall.
+- Fall smoke and water splash (+ sounds) in intro3; the gun's beam when
+  holding things; motion blur/speed lines; the gun's glow seen through the
+  wall after the sp_a2_intro fall.
+
+## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-153 GLaDOS wake-up  (P3, FIXED, awaiting owner replay: leftover particles)
+- 2026-10-21: the leftover white spray was glados_head_drag_droplets (800/s
+  water_splash droplets on a ring around her head; bisected by
+  DestroyImmediately on each fx: only fx_glados_head_01 removes it). Its
+  `Position Modify Place On Ground` (include water) was unsupported, so the
+  droplets sprayed in mid-air around her head instead of on the pool. Now
+  p2_fx traces once per frame below each such system's CP0 (static world via
+  avian, or a WorldReflectWater plane above it) and the initializer drops
+  particles onto it within `max trace length`. Unit test
+  place_on_ground_drops_particles_within_reach. Autopilot sp_a1_wakeup
+  (`input glados_start Trigger`, shots 9/13/17/21 s, dist de1d09b vs new):
+  the spray is smaller, sits at the water, gone by 17 s (before: mid-air
+  through 21 s). New tool: p2_fx example `pcfdump <file.pcf> <system>`.
 - Owner round 7 (2026-10-21, build 6e0efbf): "still has some particles
   around it but its better, portal gun visibly drops, her arms are
   connected, and the rest is good there".
@@ -743,48 +797,6 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
   unsupported (wakes sit at the attachment instead of on the water).
 - Still open: arms floating unattached, the player looking the wrong way.
 
-
-## Open: P4
-
-### T-150 Particles missing  (P4, PARTIAL: intro3 splash/dust owner-confirmed "for now"; rest open)
-- Owner round 5 (2026-10-21): splash and dust fixed for now.
-- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
-- 2026-10-21 autorun, intro3 fall: FIXED b8a2d76. Cause: the two entities
-  behind it had no code at all: `env_splash` "fall_splash" (input Splash
-  from the trigger at the pool) and `env_ar2explosion` "breakable_floor_dust"
-  (input Explode when the floor gives way by the gun pedestal). Now
-  Splash plays `water_splash_01/02/03` by scale (16 -> 03) pointing up,
-  with `Physics.WaterSplash` (client.dll's watersplash/FX_GunshotSplash
-  names; the scale thresholds 2/4 are our choice), and Explode throws a
-  one-shot cloud of 48 grey puffs (~3.5 s) drawn like env_steam. The
-  splash's spawnflag 1 (find the water below) isn't traced; the entity sits
-  on the water. Evidence (autopilot only): `goto/lookat fall_splash; input
-  fall_splash splash` and the same for breakable_floor_dust explode, dist
-  d0822f2 shows nothing, b8a2d76 the splash spray and the dust ball. Not
-  checked through the real fall path (the floor break is scripted).
-- Still open: the gun's beam while holding (done in T-173), motion
-  blur/speed lines, the gun's glow seen through the wall after the
-  sp_a2_intro fall.
-- Fall smoke and water splash (+ sounds) in intro3; the gun's beam when
-  holding things; motion blur/speed lines; the gun's glow seen through the
-  wall after the sp_a2_intro fall.
-
-## Awaiting owner replay (fixed, autopilot evidence)
-
-### T-146 intro1: the first cube-button door should get half stuck  (P4, FIXED, awaiting owner replay)
-- Cause: the exit door's right half (func_door exit_door_right_a00) is
-  wiggled by logic_timer exit_door_right_a00_wiggle (spawnflags 1 =
-  Oscillator, random 0.1-1.5 s: OnTimerHigh -> Open, OnTimerLow -> Close;
-  door_open_rl_2 enables it with the spark). io.rs only ever fired OnTimer,
-  and random timers always waited the midpoint. Fix: Ents::fire_timer
-  alternates High/Low for oscillators; timer_period picks a fresh random
-  time per firing. Unit tests oscillator_timer_alternates_high_and_low,
-  random_timer_periods_vary_within_bounds.
-- Evidence (autopilot, `propto box -624 4432 2700` onto button_1, `info
-  exit_door_right_a00` every 0.5 s): before, the right half opens to x -760
-  and stays; after, it jerks between -716 and -760, often reversing midway
-  (-721, -729, -738...), wiggle fires high/low.
-- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
 
 
 ### T-112 Missing or flat textures  (P2, attempt MERGED 2c08d11 for owner testing)
@@ -866,6 +878,7 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
 - Checklists in docs/STATUS.md.
 
 ## Done (newest first; details in git log and docs/STATUS.md)
+- 2026-10-21 T-146 intro1 exit door wiggles half stuck (de1d09b): owner confirmed ("i just saw the door fixed"). Oscillator logic_timers fire OnTimerHigh/Low in turn.
 - 2026-10-21 Owner-confirmed (round 7, build 6e0efbf): T-175 sp_a1_intro1 ride: the big room outside the container has no fog in parts, black sky; T-140 Game-placed portals: no screen shake or sound; T-117 Blocky shadows (run-time fog "looks better", portal shake good, shadows good). T-153: gun drop and arms confirmed.
 - 2026-10-21 Owner-confirmed (round 6, build ef0144c): T-169 sp_a2_laser_over_goo: GLaDOS never moves the walls, the way on is blocked; T-171 FPS drops, especially looking at portals; T-148 Portals behind glass; T-135 Turrets fall through the exit elevator; T-139 Audio; T-162 Menu animations, logo alignment, styling. Menus: "all menu items are fixed for now, buttons just don't function" (on hold, see "On hold: menus").
 - 2026-10-21 Owner-confirmed after replaying build b8a2d76 (owner notes 2026-10-21 round 5, docs/PLAYTESTS.md): T-196 Screen goes black after every tile flip; T-195 In-game pause menu as Windows; T-197 Tile grid not even; T-182 New Game chapter list; T-186 Video settings; T-192 Menu scaling and display changes; T-176 Can't catch or grab objects in the air; T-170 Carrying regressed: pushed back at walls, can't push a cube up a wall, not smooth; T-163 sp_a1_wakeup pod: the player can jump out of the hatch; a stone-brick block appears there; T-113 Instructor hints vanish after a few seconds if not done; T-144 Missing props: intro1 portal room clipboard and movable clock; T-172 Voice lines start late; T-108 A chamber door had an invisible barrier, needed noclip; T-107 Cubes and floor buttons invisible. Also confirmed there: T-135's vac-tube turrets, T-173's fizzler shake, T-150's intro3 splash/dust, T-139's soundscapes (those entries stay open for their other parts). Details in git log.

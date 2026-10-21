@@ -29,9 +29,9 @@
 //! See `crates/p2_fx/README.md` for the spec sections, the effects, and the gaps.
 use bevy::prelude::*;
 
-mod dmx;
+pub mod dmx;
 mod effects;
-mod pcf;
+pub mod pcf;
 mod render;
 mod sim;
 mod sounds;
