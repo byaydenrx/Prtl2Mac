@@ -118,3 +118,8 @@ Black screen after every flip (regression from the round-3 fix), pause
 menu inaccurate (shots in ~/Documents/Screenshots/pausemenu; blur/bloom +
 desaturated game behind), tile grid spacing/offsets uneven. Tracked as
 T-196, T-195, T-197.
+
+## Owner round 5 (2026-10-21, build b8a2d76), the owner's words
+Tracked in TASKS.md (confirmed fixes moved to Done; T-173, T-174, T-179 reopened).
+
+merge t-140, merge t-117, keep t-175 open, keep t-112 open, close t-151, just replayed that intro ride and still saw the spikes idk if it was merged on the app tho so idk for t-164. 196 fixed, 195 fixed, 197 fixed, 179 semi fixed needs work, 182 fixed, 186 and 192 fixed. 176 fixed, im not sure what the laser over goo walls is so idk for 169, 170 fixed, 163 fixed, 174 kind of fixed the quality looks a little better but the panels are like awkwardly not together and some are in the wrong places, the gun hold beam is not fixed it looks terrible, the fizzler shakes are fixed. the first portal stutter idk what that is explain it, i havent tested glados, splash and dust is fixed for now, soundscapes are fixed for now. 113 fixed, clipboard and clock fixed, turrets falling through elevators fixed. 172 is fixed, 108/107 are fixed and ill send screenshots for whats left.

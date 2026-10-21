@@ -18,53 +18,43 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 4 intro5/intro6, 5 intro7 + sp_a1_wakeup + sp_a2_intro, 6 sp_a2_laser_intro,
 7 sp_a2_laser_stairs.
 
-## Priority order (2026-10-21, owner menu/intro spec first)
+## Priority order (2026-10-21, after owner round 5)
 MENUS FROZEN (owner, 2026-10-21): the menus/UI are right as they are. Only
-T-196, T-195 and T-197 may change menu code, touching just what each needs;
-every other menu task (T-162, T-177..T-194, including their "open pieces"
-and the dead-control list) is on hold, not for autoruns.
-NEXT UP (owner round 4, 2026-10-21): T-196 black screen after flips
-(FIXED f8c9be3, awaiting owner replay), T-195 pause menu as Windows
-(FIXED 8af5fa3, awaiting owner replay), T-197 even tile grid (FIXED 209c358,
-awaiting owner replay). T-172 not reproduced (blocked, needs owner).
-T-144 clipboard FIXED 910da9a (awaiting owner replay). T-149 not reproduced (blocked, needs owner shots). T-147 not reproduced (blocked, needs owner). T-113 hints FIXED 693f8ce (awaiting owner replay). T-171 portal hitch PARTIAL FIX d4fd841 (awaiting owner replay). T-148 glass FIXED dcc0c0e (awaiting owner replay). T-117 shadows not confirmed (blocked, attempt/T-117 awaits owner). Next T-152 onward (no more menu work; T-112 and T-117 attempt branches await owner).
-OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
-before every other task. Owner notes after build fb0090a (12 items,
-listed under the spec heading) come first: T-179 flip like the video,
-T-193 scrolling/arrows, T-194 Options list, T-178/T-185/T-187/T-189/T-177
-tweaks, T-192 spacing. Status 2026-10-21 (build cec807a+): all of
-T-177..T-192 built, autopilot-checked only, awaiting the owner's replay.
-Open pieces: T-188 gamepad input (none at all yet), T-189 raw mouse
-input / key conflicts / keyboard scrolling of Edit Keys, T-187 detail
-levels not driving the renderer, T-179 flip look vs Windows (no video
-reference), T-192 real fullscreen switching, T-182 Windows comparison.
-Then the list below.
+T-179 (owner: "semi fixed, needs work", waiting for what exactly) may
+change menu code next; every other menu task (T-162, T-177..T-194,
+including their "open pieces" and the dead-control list) is on hold.
+Owner round 5 (2026-10-21, build b8a2d76): T-196, T-195, T-197, T-182,
+T-186, T-192, T-176, T-170, T-163, T-113, T-144, T-172, T-108, T-107
+confirmed (Done). Attempts: T-140 and T-117 merged (be91da3), T-175 and
+T-112 kept open, T-151's attempt dropped, T-164 not judged (the replayed
+app didn't contain attempt/T-164).
 P0:
-1. (none; T-168 box-button crash owner-confirmed fixed.)
+1. (none.)
 P1:
-2. (none; T-176 fixed 2bf3d20 and T-169 fixed a1cd026, awaiting owner replay.)
+2. (T-169 laser_over_goo walls FIXED a1cd026, awaiting owner replay: owner
+   hasn't recognised it yet.)
 P2:
-   (T-162 UI styling: every screen done 2026-10-20, awaiting owner replay.)
-   (T-170 carrying at walls fixed 9f1ed5a, awaiting owner replay.)
-   (T-145 lit cubes black still open, cause not found; companion/rusted lit skins merged cc8d8e0; spikes/jitter still open.)
-3. (T-172 late VO: NOT REPRODUCED 2026-10-21, BLOCKED needs owner; timings match Valve's scripts.)
-4. (T-135 vac-tube turrets FIXED 41e3839, awaiting owner replay; rubble open, needs owner.)
-5. T-139 soundscapes FIXED (efe0631, awaiting owner replay); music stopping/not playing along still open.
-6. (T-112 GLaDOS floor: BLOCKED, untested world-reflection fix on attempt/T-112, needs owner.)
-7. (T-144 clipboard carry angle FIXED 910da9a, awaiting owner replay.)
-8. (T-149 intro5 screens/lights, big number: NOT REPRODUCED 2026-10-21, BLOCKED needs owner screenshots.)
-9. (T-147 intro2 black screen at the first door: NOT REPRODUCED 2026-10-21, BLOCKED needs owner.) T-113 hints vanish.
+3. T-179 tile flips: semi fixed, needs the owner's list of what is still off.
+4. T-135 turrets confirmed; rubble falling through the elevator: ask owner.
+5. T-139 soundscapes confirmed "for now"; music stopping/not playing along still open.
+6. (T-112 GLaDOS floor: attempt/T-112 kept open; it barely changes the
+   floor (autopilot), real cause still unknown.)
+7. (T-145 lit cubes black, spikes/jitter; T-149 intro5 screens; T-147 intro2
+   black door: BLOCKED, owner screenshots coming.)
 P3:
-10. (T-171 portal first-look hitch: PARTIAL FIX d4fd841, awaiting owner replay.)
-11. (T-148 portals behind glass: FIXED dcc0c0e, awaiting owner replay.)
-12. (T-117 shadows still blocky: NOT CONFIRMED 2026-10-21, BLOCKED needs owner; untested fix on attempt/T-117.)
-13. (T-152 lighting/texture quality: STUCK 2026-10-21, bumped-model shader path needs a multi-run job; plan in the entry.)
-14. (T-153 GLaDOS white particles FIXED 69426f1, awaiting owner replay; arms/view still open.) (T-173 gun hold beam/fizzler shake FIXED fd1310c, awaiting owner replay; gun spark not done.)
-15. (T-140 game-placed portal shake/sound: NOT REPRODUCED 2026-10-21, BLOCKED needs owner; untested fix on attempt/T-140.)
-16. (T-174 elevator videos FIXED b250e5f, awaiting owner replay.) (T-175 intro1 ride fog/sky: NOT REPRODUCED 2026-10-21, BLOCKED needs owner; untested fix on attempt/T-175.) T-164 debris
-    (try attempt/T-164); T-116 window (owner screenshots coming).
+8. T-173 gun hold beam: owner says it "looks terrible" (fizzler shake confirmed).
+9. T-174 elevator videos: sharper, but the panels don't sit together and some
+   are in the wrong places (needs owner screenshots).
+10. T-175 intro1 ride fog: attempt/T-175 right by data; add the fog inputs
+    (SetColor/SetStartDist/SetEndDist) before merging.
+11. (T-140 shake and T-117 shadows merged be91da3, awaiting owner replay.)
+12. (T-171 portal first-look hitch PARTIAL FIX d4fd841; T-148 glass FIXED
+    dcc0c0e; T-153 GLaDOS white particles FIXED 69426f1: awaiting owner replay.)
+13. T-164 debris (attempt/T-164 never in an owner build); T-116 window
+    (owner screenshots coming); T-152 lighting quality (STUCK, plan in entry).
 P4:
-17. T-151 water (try attempt/T-151), T-150 particles (intro3 splash/dust PARTIAL FIX b8a2d76, awaiting owner replay; motion blur, gun glow open), T-146 half-stuck door,
+14. T-146 half-stuck door, T-150 rest (motion blur, gun glow through the
+    wall), T-151 water (attempt dropped; Source fogs the reflected sky),
     T-154 floating moss.
 Then the Backlog (prove and sweep the campaign).
 
@@ -78,126 +68,6 @@ Then the Backlog (prove and sweep the campaign).
   pixels sideways instead of one flat, even grid (T-197); (4) the paused
   game behind the pause menu should be blurred/bloomed and slightly
   desaturated (T-195).
-
-### T-196 Screen goes black after every tile flip  (P1, FIXED f8c9be3, awaiting owner replay; owner round 4 item 1)
-- FIXED f8c9be3 (build 0.1.0+f8c9be3.20261021T1212Z), autopilot-checked
-  only. Cause: when a flip's time was up, run_flip despawned the overlay
-  in the same frame it asked rebuild_menu (which runs before it, so the
-  next frame) to build the menu again on the window; for that one frame
-  the menu was still drawn off screen and the overlay was gone, so the
-  dialog and menu items (at startup also the logo/backdrop: the whole
-  screen) went black. Fix: the overlay stays until the rebuilt menu is on
-  the window (FlipView.rebuilding; flip_end() decides, unit test
-  flip_end_keeps_the_overlay_till_the_menu_is_back). Evidence: shots every
-  12 ms across the Options flip's end: before (d36e250 dist) one frame
-  with the dialog area at brightness 20 vs 173 (menu gone), after none.
-  Checked after the fix, same as before: Esc mid-flip lands on the main
-  menu, Options -> Keyboard/Mouse -> Esc -> Options list, Single Player
-  and back; windowed and fullscreen (temporary local hack, not kept).
-  The startup full-screen flip's end frame wasn't caught by the burst in
-  either build (frames too sparse while loading); same code path.
-  Owner: please replay a few flips (startup, Options, pages, Back).
-- Regression from d36e250 (round-3 fix in ui.rs run_flip): when a flip
-  ends, the overlay is despawned and MenuState is marked changed so
-  rebuild_menu respawns the roots on the window. Owner sees black after
-  every flip. Suspects: the rebuild's roots get tagged UiTargetCamera
-  again because `active` (now < until || pending_screen) is still true on
-  that frame, or pending_screen never clears, or the off-screen camera
-  stays active/default; the old roots were drawn off screen and the
-  despawn/rebuild ordering leaves nothing on the window. Autopilot shots
-  after flips looked fine, so reproduce with the real app path (intro on,
-  window focused) and with dialog flips (Options, Single Player, back).
-  Fix so menus are always on the window once a flip ends; unit/autopilot
-  check several flips in a row, Esc mid-flip, flip into a page then Back.
-
-### T-195 In-game pause menu as Windows  (P2, FIXED 8af5fa3, awaiting owner replay; owner round 4 items 2, 4)
-- Reference: ~/Documents/Screenshots/pausemenu (2 shots: the pause menu
-  and Options from it). In game Portal 2 shows the PORTAL 2 logo top left
-  (ours shows none in game); the pause dialog has no title tab, a flat
-  5 x 4 tile body with RETURN TO GAME, SAVE GAME, LOAD LAST SAVE,
-  OPTIONS, EXIT TO MAIN MENU, and a DONE footer button; Options from
-  pause is the normal Options dialog with the logo. The game view behind
-  is blurred with a bloom/glow and slightly desaturated (ours: a flat dark
-  shade). Measure positions against the shots (note their size differs
-  from the earlier ones: scale by the 16:9 game area inside the window).
-  Keep: no tile flips in pause menus (round 3).
-- FIXED 2026-10-21 (8af5fa3, build 0.1.0+8af5fa3.20261021T1221Z), awaiting
-  owner replay. Cause: pause_dialog used the tabbed frame with a blank
-  title and no footer; the logo layer only spawned with the out-of-game
-  backdrop; in game the view was a flat 50% black shade. Now: the pause
-  frame has no tab (tile_piece/tile_frame_sized accept tab 0), a flat 5x4
-  body whose top is Options' tab top (as the Windows shots), a DONE footer
-  (returns to the game); the logo shows on every in-game menu; the backdrop
-  is the game view captured as the pause menu opens from play (the menu is
-  hidden for those 1-3 frames, at most 0.5 s, so only the game is in it),
-  downscaled to 384 wide, blurred, bright parts glowing, 75% saturation
-  (pause_blur), stretched full screen; Options and back keep it, each new
-  pause recaptures. Unit tests pause_dialog_has_no_tab and
-  pause_backdrop_blurs_glows_and_desaturates. Autopilot-checked only
-  (sp_a1_intro2): pause, Options from pause, Back, Resume, a second pause
-  at a bright view, Esc paths; main menu and Options out of game are
-  pixel-identical to the previous build. Not owner-verified; blur/glow
-  strength tuned by eye against the shots.
-
-### T-197 Tile grid not even  (P2, FIXED 209c358, awaiting owner replay; owner round 4 item 3)
-- FIXED 2026-10-21 (209c358, build 0.1.0+209c358.20261021T1229Z),
-  autopilot-checked only. Cause: tile_frame_sized placed each tile in Vh
-  units, rounded to pixels on its own; where a 50-unit tile isn't a whole
-  number of pixels (102.3 px on a 982-high window; the owner's 1964-high
-  display gives 204.6) tiles stepped 102 or 103 apart and some seams were
-  one dark pixel, others two light ones. Fix: rebuild_menu snaps the tile
-  to whole physical pixels once (TILE_PX, rebuilds when it changes) and
-  every tile sits at integer multiples of it (tile_spot; last column/row
-  still pulled in to the frame size, as before). Unit test
-  tiles_sit_on_one_whole_pixel_grid. Evidence (--size 1512x982): Options
-  seams before at x 306/307, 409, 511/512, 614 and rows 520, 623, 725/726;
-  after every 102 px (306, 408, 510, 612; 520, 622, 724), same on Audio,
-  Advanced Video, Keyboard/Mouse, the Quit confirmation. At 1280x720
-  (75 px tiles, already whole) main menu, Options, Audio, Advanced Video,
-  Quit confirmation shots are byte-identical before/after; main menu also
-  identical at 982. Flip tiles still slice by units (<1 px off, transient;
-  flip left as is, menus frozen). Edit Keys list not shot (autopilot can't
-  open that row); same frame code. Owner: please check the grid on your
-  display (Options, Audio, Advanced Video, Edit Keys, confirmations).
-- The dialog tiles' spacing is off and some tiles sit a few pixels to the
-  side, so the grid isn't one flat even grid. Likely tile_frame_sized's
-  pulled-in last column/row (x = width - 50 overlaps) and rounding of
-  units (Vh) to pixels per tile; build each frame from whole-pixel tile
-  positions on one grid (compute pixel size once, place by integer
-  multiples), and check every dialog (Options, Audio, Advanced Video,
-  Edit Keys, confirmations) against the owner's Windows shots.
-
-- Owner notes 2026-10-21 round 3 (build ac6a02d, "looking great"): (1) drop
-  the startup loading screen: straight from the "powered by Source" screen
-  to the main menu (T-177); (2) the full-screen tile flip into the main
-  menu is still the old animation: use the same turn as the menus, full
-  screen (T-179); (3) no tile animation in the in-game (pause) menus
-  (T-179); (4) "Chapter 1 - The Courtesy Call": a dash between chapter and
-  name on Load/Save Game and New Game (T-182/T-183).
-- Owner notes 2026-10-21 (after build fb0090a), the owner's words, filed:
-  (1) tile animation should match https://www.youtube.com/watch?v=qtm2U-M-lHA
-  (first 2-3 s), with its sound, and be basically instant, not waiting
-  for the tiles to finish and then the menu fading in (T-179);
-  (2) scrolling breaks: scrolling past the end keeps scrolling "behind the
-  scenes", so you must scroll back the same amount before it moves up
-  (repro: Edit Keys, scroll far down, then up) (T-193);
-  (3) scrollbar arrows and the slider default arrow render very pixely
-  (T-193); (4) the arrows shown when hovering an option render as empty
-  "missing glyph" boxes (T-193);
-  (5) Options list should be only Audio, Video, Keyboard/Mouse, Controller,
-  Mods: remove Speedrun, merge the subtitle options into Audio, grey out
-  Mods and make it unhoverable (T-194);
-  (6) spacing still feels off; it should scale correctly to different
-  aspect ratios and resolutions (T-192);
-  (7) move Robot Enrichment down a little; its text aligned with the rest
-  of the menu, the icon to the left of it (T-178);
-  (8) grey out Setup Microphone, Enable Voice and Push To Talk Key for now
-  (T-185); (9) remove Graphics Original/Enhanced from Advanced Video
-  (T-187); (10) Edit Keys/Buttons' hover bar is a different colour from
-  the rest of the menu (T-189); (11) hide the cursor during the intro logos
-  and loading screens, back with the menu (T-177); (12) list every control
-  that isn't greyed out but doesn't work or can't be tested (answered in
-  chat, kept in T-194).
 
 ### T-193 Scrolling and arrow glyphs  (P2, FIXED, awaiting owner replay; owner notes 2026-10-21 items 2-4)
 - 2026-10-21 FIXED: the wheel position is clamped to the list's real
@@ -286,7 +156,9 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   Chambers: original positions, greyed, not hoverable or clickable, skipped
   by mouse and keyboard.
 
-### T-179 Tile-flip transitions  (P2, FIXED (approximation), needs owner comparison; spec 1, 10, 11, 15)
+### T-179 Tile-flip transitions  (P2, SEMI FIXED: owner says it needs work; spec 1, 10, 11, 15)
+- Owner round 5 (2026-10-21, build b8a2d76): "semi fixed needs work". Waiting
+  for what still looks off (a short screen recording of Windows vs ours helps).
 - 2026-10-21 round 3: the full-screen flip into the main menu (startup,
   back from a level) is now the same turn as the dialogs, each tile a
   slice of the whole menu (backdrop, logo, items), sweeping from the top
@@ -345,16 +217,6 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   Commentary (last two greyed, not hoverable/clickable).
 - Continue loads the most recent valid save at its place and state; the
   menu background video matches that save's chapter; no saves: graceful.
-
-### T-182 New Game chapter list  (P2, UNCHANGED (built under T-162), needs owner check; spec 2, 13)
-- 2026-10-21: already as specified from T-162 (list on the left, the
-  picked chapter's picture with "CHAPTER N" + bold name beneath, locked
-  chapters grey, second click / Start New Game starts that chapter); now
-  also flips in (T-179). No Windows New Game shot to compare against yet:
-  owner, send one if anything differs.
-- Played chapters hover/select properly; each entry shows its screenshot
-  with the chapter title beneath (save-menu layout); titles bold; selecting
-  starts that chapter.
 
 ### T-183 Load Game list  (P2, FIXED, awaiting owner replay; spec 2, 13)
 - 2026-10-21 round 3: "CHAPTER 1 - THE COURTESY CALL" (dash) here and on
@@ -441,25 +303,6 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   overlay where supported).
 - Settings must work (caption level, language where supported); Steam/voice
   features fail gracefully.
-
-### T-186 Video settings  (P2, ROWS DONE, display switching not replayed; spec 5, 14)
-- 2026-10-21 rows DONE (unit test + autopilot shot): Aspect Ratio
-  (Widescreen 16:9 / 16:10 / Normal 4:3 as the Windows shot spells
-  them), Resolution (the display's own modes; native marked "(Native)"),
-  Display Mode (Windowed (No Border) = borderless over the screen,
-  Fullscreen = exclusive at the chosen size or the display's mode, Run in
-  a Window), Laptop Power Savings (caps at 30 fps), Splitscreen Direction
-  (Default/Vertical; stored, no splitscreen), ADVANCED VIDEO (bold).
-  Brightness only shows in Fullscreen, as in Portal 2. Apply applies the
-  display change. Mode switching was not tried on a real display (the
-  autopilot stays windowed): owner replay needed.
-- Rows: Aspect Ratio (16:9 / 16:10 / 4:3, default from the display),
-  Resolution (the display's real modes, native marked "(Native)" and
-  default), Display Mode (Windowed (No Border)/Fullscreen/Run in a Window,
-  really switching, safe fallback), Laptop Power Savings (Enabled/Disabled),
-  Splitscreen Direction (Default (Horizontal)/Vertical), Advanced Video
-  (always bold, opens its section).
-- UI stays correctly scaled after changes; values show the active config.
 
 ### T-187 Advanced Video settings  (P2, FIXED except per-setting render effects, awaiting owner replay; spec 6)
 - 2026-10-21 FIXED (unit test + autopilot shot): the eight Portal 2 rows
@@ -555,38 +398,10 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   quit?", Quit / Cancel; same look and tile flip as the discard dialog;
   doesn't trigger the menu behind it.
 
-### T-192 Menu scaling and display changes  (P2, PARTIAL: 16:9, 16:10, 4:3 windows checked; fullscreen switching needs owner replay; spec 14)
-- 2026-10-21 owner note "spacing still feels off; should scale to aspect
-  ratios and resolutions": not yet pinned down. Everything is laid out in
-  480-unit .res space scaled by height (as Source does), 4:3 shifts left;
-  the owner's Windows shots are CrossOver windows letterboxed to 16:9.
-  Needs an owner screenshot pair of what looks off (resolution/aspect).
-- 2026-10-21 (autopilot --size 1280x720, 1280x800, 1024x768): the menu
-  scales with the window height in .res units; on non-widescreen screens
-  everything now moves 25 units left as the .res files do without
-  $WIN32WIDE (dialogs at 75, items at 63, logo at 50), so the 11-tile
-  Advanced Video fits 4:3 (it ran off the right edge). Not checked:
-  real fullscreen / borderless switches on a display, 5:4, very small
-  windows.
-- Layout correct at native/non-native resolutions, fullscreen, borderless,
-  windowed and each aspect ratio; no clipping or overlap; scrolling
-  sections usable at small sizes.
-
 ## Open: P0
 (none)
 
 ## Open: P1
-
-### T-108 A chamber door had an invisible barrier, needed noclip  (P1, NEEDS INFO)
-- intro4 doors pass both ways in a walk test. Need the door and map from the owner.
-
-### T-107 Cubes and floor buttons invisible  (P1, CAN'T REPRODUCE)
-- Owner screenshot 8 (intro2, cube held above the button): corner tiles
-  drawn, red top and ring gone, a black ellipse in the pit, a straight
-  diagonal edge cutting the model, like a portal clip plane applied to it.
-  Not reproduced (load, changelevel, cube toggled 14 times, BindPose, views
-  from above). Next: intro2 portals active, cube carried through onto the
-  button. Playtest 8: cubes and buttons drawn.
 
 ## Open: P2
 
@@ -628,43 +443,6 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   build cube ring stays blue on the pressed button, new build ring lit
   yellow; moved off the button, ring blue again. Not owner-verified.
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
-
-### T-172 Voice lines start late  (P2, BLOCKED: not reproduced, needs owner)
-- Owner playtest 9: "sometimes voicelines activate late and when I'm going
-  through the elevator, making the elevator ride go on longer" (global).
-  Elevator rides wait for the exit VO's TransitionReady (T-120), so late VO
-  stretches them. Measure scene start vs its trigger (logic_choreographed_scene
-  Start, glados.nut queue, sound decode/load latency) on several maps.
-- 2026-10-21 autorun: NOT REPRODUCED, no code change, no attempt branch (no
-  engine-side cause found). Measured on sp_a1_intro2 with
-  `RUST_LOG=portal2::scenes=debug,portal2::audio=debug,portal2::io=debug`,
-  real solve path (`input room_01-glados_congrats_trigger enable`, walk into
-  it, then the departure elevator):
-  - Every VCD speak event equals its wave length (afinfo: PreHub19 5.43,
-    PreHub20 11.86, PreHub27 6.55, PreHub28 7.50, GOOD02 0.44,
-    testchamber03 13.01 s); a scene's `play` is logged within 1 ms of its
-    Start, the wave is read and handed to the mixer the same frame.
-  - Chain gaps match glados.nut exactly: postdelay + up to one 0.1 s
-    GladosThink tick + 0.18 s after ding_on (good02 -> prehub19 +0.71 s,
-    prehub19 -> prehub20 +5.67 s, prehub27 -> prehub28 +6.84 s); Entry01
-    has predelay 1.3 s (started 1.25 s after load). Game clock and wall clock
-    agree (no drift/hitches in these runs).
-  - The ride: path_tracks call ReadyForTransition(); the car only leaves
-    once the scene table's `fires` runs TransitionReady() at the END of the
-    exit chain (intro2: Good02 + PreHub19 + PreHub20, ~18.5 s after the
-    congrats trigger; transition fired 0.14 s after PreHub20 ended). So a
-    player who solves quickly rides until the success chain is over; same
-    scripts as Windows. If the congrats trigger is skipped the car rides the
-    whole shaft to the failsafe node (~22 s).
-  - Suspects not confirmed: (a) the chamber's Entry chain is still talking
-    when the player is already in the exit elevator because the player was
-    fast (by design); (b) owner-machine frame hitches longer than Bevy's
-    0.25 s max delta would slow the scene clock (none seen here); (c) audio
-    output latency on the owner's device (not measurable by autopilot).
-  - Needs from the owner: which map(s) and which line felt late (or a
-    Windows recording of the same moment), ideally a run with
-    `RUST_LOG=portal2::scenes=debug,portal2::audio=debug` so the log shows
-    trigger -> scene -> play times.
 
 ### T-120 Elevators  (P2, OPEN: VO timing only; jitter, car sounds, thumps owner-confirmed)
 - Owner playtest 9 (2026-10-20, build 014ab6e): jittery rides FIXED, thumps FIXED; VO timing NOT fixed (voice lines start late, also while riding, which stretches the ride: see T-172); rubble/turrets still fall through the elevator (T-135).
@@ -709,7 +487,8 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   BLOCKED: needs the owner to say which ride and what looked wrong, or a
   Windows reference of intro5's departure.
 
-### T-139 Audio  (P2, PARTIAL: glass and soundscapes fixed, awaiting owner replay; music pieces open)
+### T-139 Audio  (P2, PARTIAL: glass fixed; soundscapes owner-confirmed "for now"; music pieces open)
+- Owner round 5 (2026-10-21): soundscapes fixed for now.
 - Owner playtest 9 (2026-10-20, build 014ab6e): glass fixed; "some music doesn't play along with ambient sounds"; voice lines late (T-172).
 - No soundscapes/ambience (water drips), no button clicks (sections 1, 5).
   Soundscapes FIXED 2026-10-21 (efe0631, autopilot only, awaiting owner
@@ -745,7 +524,11 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   when autopilot walks into the ramp trigger (`goto glass_shard`), with the
   pane door opening. Unit test `only_looping_audible_ambients_autostart`.
 
-### T-112 Missing or flat textures  (P2, BLOCKED (needs owner): GLaDOS floor world reflection attempt on attempt/T-112)
+### T-112 Missing or flat textures  (P2, OPEN: attempt/T-112 kept open by the owner, barely changes the floor)
+- 2026-10-21 check (attempt merged onto wheatley, sp_a1_wakeup `setpos 9060
+  1120 440 15 20`): floor pixels change by 1-2/255 vs dist b8a2d76, still the
+  yellow-brown sheet. Owner: keep the branch open. Next suspects: $refracttint
+  {151 135 34} gamma, the fog colour.
 - Owner playtest 9 (2026-10-20, build 014ab6e): "glados chamber floor is still just a weird murky brown ... it does look better than before". Likely needs the water reflection (see T-151, attempt/T-151).
 - GLaDOS chamber floor brown and flat like the old intro3 water (section 5);
   hallway to GLaDOS; after the jumps a black wall you can walk through; a
@@ -860,7 +643,10 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 
 ## Open: P3
 
-### T-117 Blocky shadows  (P3, BLOCKED (needs owner): untested fix on attempt/T-117)
+### T-117 Blocky shadows  (P3, attempt MERGED be91da3, awaiting owner replay)
+- 2026-10-21: before/after on intro1's planter: edge smoother, no stair
+  steps, chains a bit fainter; elevator arrival (intro2) unchanged. Owner OK
+  to merge; replay the planter shadow.
 - Owner playtest 9 (2026-10-20, build 014ab6e): "shadows look better but still blocky".
 - Cause: env_projectedtexture shadows (light_room_00 in sp_a1_intro1: 110 deg
   FOV) used a 1024 map and one 2x2 bilinear compare, so the hanging
@@ -940,7 +726,10 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   unsupported (wakes sit at the attachment instead of on the water).
 - Still open: arms floating unattached, the player looking the wrong way.
 
-### T-140 Game-placed portals: no screen shake or sound  (P3, BLOCKED (needs owner): not reproduced 2026-10-21)
+### T-140 Game-placed portals: no screen shake or sound  (P3, attempt MERGED cda9f10, awaiting owner replay)
+- 2026-10-21: intro1 vault portal (trace of view offsets, dist b8a2d76 vs
+  attempt): mean offset 0.25 -> 0.55 u, x sign flips 10 -> 49 over the
+  shake, fading out over ~1 s (Source CalcShake). Owner OK to merge.
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed (no shake/sound felt on game-placed portals).
 - The first orange portal should shake the screen a little and play its sound.
 - Cause: env_shake was not implemented at all. intro1's
@@ -979,7 +768,11 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   sin(t * frequency / fraction) * fraction^2 and the per-frame amplitude
   decay dt/(duration*frequency) (slightly weaker, faster jitter at the end).
 
-### T-175 sp_a1_intro1 ride: the big room outside the container has no fog in parts, black sky  (P3, BLOCKED: needs owner)
+### T-175 sp_a1_intro1 ride: the big room outside the container has no fog in parts, black sky  (P3, OPEN: attempt/T-175 kept open, needs fog inputs)
+- 2026-10-21 check: ride shots go from dark teal (fog_destroyed_chambers) to
+  lighter grey with more depth (fog_intro_ride), as Source picks the master.
+  Owner: keep open. To finish: env_fog_controller SetColor/SetStartDist/
+  SetEndDist (the vault trigger), then merge.
 - Owner playtest 9: "the big room outside of the moving box has some issues
   in the wakeup sequence, like parts not being foggy and the sky being just
   black above" (compare T-116's "odd outside lighting on the ride").
@@ -1001,7 +794,11 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   inputs, else the wrecked vault keeps the light ride fog; 3D skybox.
   Owner: a screenshot of the black sky / unfogged parts (where in the ride).
 
-### T-164 Spiky, torn animated debris  (P3, OPEN: owner says not fixed (attempt/T-164 never merged))
+### T-164 Spiky, torn animated debris  (P3, OPEN: attempt/T-164 never in an owner build)
+- Owner round 5 (2026-10-21): still saw spikes on the intro1 ride, but in
+  build b8a2d76, which does not contain attempt/T-164. Autopilot couldn't
+  show the ride animating from outside (`@rl_container_ride Trigger` +
+  setpos: the container stays put in both builds), so no before/after.
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed; the fix on attempt/T-164 was not in the build played. Also possibly the "spikes under the button" (T-145).
 - intro1 ride (screenshot 5), sp_a2_intro shaft arms (playtest 7). Animated
   props draw as rigid per-bone triangles (models.rs split_by_bone); soft
@@ -1055,7 +852,11 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 
 ## Open: P4
 
-### T-151 Water like Portal 2's (reflections, murk), intro3 and sp_a2_laser_intro  (P4, OPEN: owner says not fixed (attempt/T-151 never merged))
+### T-151 Water like Portal 2's (reflections, murk), intro3 and sp_a2_laser_intro  (P4, OPEN: attempt dropped 2026-10-21)
+- 2026-10-21 check: attempt/T-151 (2df932d) turned the intro3 water bright
+  glossy white in a dark room (reflects the raw white sky; Source fogs the
+  sky to the fog colour on fogged maps). Owner: close it; branch deleted
+  (recreate with `git branch attempt/T-151 2df932d`).
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed; the fix on attempt/T-151 was not in the build played.
 - Owner (playtests 8 and 6): "should look like water with reflections";
   "water ugly, not murky with reflections".
@@ -1085,7 +886,8 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   intro3 pool (or laser_intro). Not done: `$pseudotranslucent` alpha blend
   (`$waterblendfactor`), `$reflectamount` screen-space offset.
 
-### T-150 Particles missing  (P4, PARTIAL FIX b8a2d76, awaiting owner replay for the intro3 fall; rest open)
+### T-150 Particles missing  (P4, PARTIAL: intro3 splash/dust owner-confirmed "for now"; rest open)
+- Owner round 5 (2026-10-21): splash and dust fixed for now.
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
 - 2026-10-21 autorun, intro3 fall: FIXED b8a2d76. Cause: the two entities
   behind it had no code at all: `env_splash` "fall_splash" (input Splash
@@ -1115,7 +917,10 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 
 ## Awaiting owner replay (fixed, autopilot evidence)
 
-### T-174 Elevator-room videos buggy and very low quality  (P3, FIXED b250e5f, awaiting owner replay)
+### T-174 Elevator-room videos buggy and very low quality  (P3, OPEN: quality better, panel layout wrong)
+- Owner round 5 (2026-10-21): "the quality looks a little better but the
+  panels are like awkwardly not together and some are in the wrong places".
+  Needs owner screenshots (which map, which screens).
 - Owner playtest 9: "the videos that play in the elevator rooms are a bit
   buggy and super low quality" (the vgui movie screens around the arrival
   and departure elevators; T-129 fixed their placement).
@@ -1131,7 +936,10 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   persists (entry/exit_emergency.bik don't exist in the game files; that
   warning is harmless).
 
-### T-173 Portal gun view model: hold beam, carry anims, fizzler shake  (P3, FIXED fd1310c, awaiting owner replay)
+### T-173 Portal gun view model: hold beam, carry anims, fizzler shake  (P3, OPEN: hold beam "looks terrible"; fizzler shake owner-confirmed)
+- Owner round 5 (2026-10-21): "the gun hold beam is not fixed it looks
+  terrible, the fizzler shakes are fixed". A screenshot or clip of ours while
+  holding a cube would pin down what is wrong.
 - Owner playtest 9: "portal gun still doesn't have that electricity when
   picking things up and doesn't spark/shake when going through the
   emancipation grids" (also T-150's gun beam).
@@ -1222,50 +1030,8 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   drops still happen and where (first portal, every portal, steady).
 
 
-### T-113 Instructor hints vanish after a few seconds if not done  (P2, FIXED 693f8ce, awaiting owner replay)
-- Key labels fixed (owner confirmed).
-- Cause: env_instructor_hint with hint_timeout 0 or unset (every intro1
-  hint) got an 8 s timeout; Source's FGD: "0 will persist until stopped
-  with EndHint". Fix: ai.rs hint_until (no timeout = until EndHint/Kill);
-  unit test zero_or_no_timeout_waits_for_endhint.
-- Evidence (autopilot, sp_a1_intro1, `3 input hint_press_to_use_bed
-  showhint`): dist 910da9a shows SLEEP at 5 s, gone at 14 s; 693f8ce still
-  shows it at 14 s and EndHint at 15 s removes it. The map sends EndHint
-  for every hint it shows (bed, talk, apple, crouch); other maps' hints not
-  replayed.
-
-### T-144 Missing props: intro1 portal room clipboard and movable clock  (P2, FIXED 910da9a, awaiting owner replay: props and clipboard carry angle)
-- Owner playtest 9 (2026-10-20, build 014ab6e): fixed, "but the clipboard prop doesn't auto face you so you can read it" (Portal 2 turns some props to a preferred carry angle when picked up; check the model's physgun/carry keyvalues).
-- Cause: physics props had Mass(40) but their rotational inertia came from
-  the collider at avian's default density (1 kg/m3). The radio's hull weighs
-  37 g at that density, so it got about 1/1000 of a 40 kg box's inertia: contacts
-  spun it, it rocked from spawn and sank through the vault floor at ~1.8 s.
-  The unnamed bts_clipboard on the table fell too. Fix: the prop's colliders
-  get the density that makes them weigh 40 kg (unit test
-  prop_colliders_weigh_the_prop_mass).
-- Evidence (autopilot, sp_a1_intro1): dist 2e8df1a radio z 2705 -> 2691 at
-  1.8 s -> 2180 at 3 s; clipboard z 2639 at 0.5 s. New build: radio at
-  (-1208 4324 2705) upright at 0.5/1.6/3/6 s, clipboard at 2727 on the table
-  at 1 and 6 s. Side effect: intro2's spawn cube now settles flat on a face
-  (z -43) instead of leaning at 24 deg (z -39); every prop now has a 40 kg
-  box's inertia (cubes tumble less). "Movable clock" still not identified
-  (the clocks are prop_dynamic and draw); owner to say if anything is still
-  missing.
-- Clipboard (2026-10-21, 910da9a): cause: held props were always carried
-  level at their pickup yaw; Source holds models with
-  `physgun_interactions { preferred_carryangles }` at those angles in the
-  player's frame (bts_clipboard: "90 180 0", face toward you). Fix: the MDL
-  `$keyvalues` (studiohdr keyvalueindex/size, bytes 312/316) are read at
-  pickup and the hold target is the player's Source frame times those
-  angles (unit tests carry_angles_from_model_keyvalues,
-  clipboard_carry_angles_turn_its_face_to_the_player). Evidence (autopilot
-  only, sp_a1_intro1, camera_intro disabled, setpos -1250 4336 2705 55 180,
-  use): dist efe0631 holds it flat; new build holds it upright with the
-  sheet facing the view, still facing after turning 90 deg. Not done:
-  `carry_distance_offset` (-15) is ignored; a clipboard held across a
-  save/load comes back level.
-
-### T-135 Turrets fall through the exit elevator  (P2, FIXED 41e3839 for the vac-tube turrets, awaiting owner replay; rubble open)
+### T-135 Turrets fall through the exit elevator  (P2, turrets owner-confirmed; rubble open)
+- Owner round 5 (2026-10-21): turrets falling through elevators fixed.
 - Owner playtest 9 (2026-10-20, build 014ab6e): "things still falling through elevators"; rubble and turrets both fall through (T-120's trash is the same bug).
 - Sections 5 (sp_a2_intro) and 6 (sp_a2_laser_intro).
 - 2026-10-20 autorun (HEAD abc5618), cause not confirmed. The turrets are
@@ -1311,61 +1077,6 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   tube_blockage rubble is a held prop_dynamic resting on the car roof
   (see T-120 notes); not changed by this fix. Needs the owner to say which
   map/ride shows the rubble falling through.
-
-### T-170 Carrying regressed: pushed back at walls, can't push a cube up a wall, not smooth  (P2, FIXED 9f1ed5a, awaiting owner replay)
-- Owner playtest 9: "trying to move a cube up on a wall or something stops
-  me from moving forward, it's buggy, and carrying them around in general
-  isn't too smooth"; "something about what fixed dropping cubes when pushing
-  them in the wall made carrying stuff around a bit buggy and push me back
-  when close to walls".
-- Suspects: T-167's player stop (342b5b1: a ray along the view stops the
-  player 17 u + the prop's depth from a wall) and T-105's hold point pulled
-  in front of walls (fd9c086). In Portal 2 the held prop is solid to the
-  player but slides along walls; aiming at a wall or floor should not freeze
-  movement.
-- History (the fixes that caused it):
-  - T-167 (rest) A held cube at a wall surrounded the camera: the player
-    ignores the held prop's colliders, so walking on pulled the hold point
-    back onto the eye. Now (342b5b1), as in Portal 2 where the held prop is
-    solid to the player, a ray along the view stops the player 17 u plus the
-    prop's depth from a wall (skipped into portals). intro2 box walked into
-    two walls: before (dist) box centre at the eye (36 398 28, feet 36 400),
-    view = inside ring of its face; after the player stops ~41-49 u back and
-    the whole cube shows. Autopilot only; walking into a portal while holding
-    and Wheatley in intro7 not checked.
-  - T-167 (part) Wheatley can't be picked up again after a drop: cores were
-    pickable only after an EnablePickup input, which sp_a1_wakeup never sends
-    (he starts force-picked), so once dropped (or stuck-dropped) he was lost.
-    Cores now stay pickable until DisablePickup (intro7's map-spawn disable
-    still applies). wakeup: drop enabled via input, `use` drop, goto + lookat,
-    `use`: before (dist fd9c086) the ray hit him and he stayed on the floor
-    (z 401); after (636fc3f) he is held facing the player at z 441. Only
-    autopilot-checked, wakeup only.
-  - T-105 Held props dropped when carried into a wall: the hold point went
-    inside the wall, the prop stayed >64u from it and was dropped after 0.5 s.
-    Now a ray from the eye pulls the hold point in front of static geometry
-    (not through portals). intro2 cube walked into three walls: before
-    (dist build) it fell to the floor (z -46) and stayed; after (fd9c086) it
-    stays held at the wall and returns to its hold distance when backing
-    off. Only the cube was autopilot-checked, not Wheatley in intro7.
-- FIXED 2026-10-20 (9f1ed5a). Cause: T-167's stop used a level ray along
-  the view against any wall (17 u + 2x the prop's depth) instead of the
-  prop: looking up to push a cube up a wall the player froze ~60 u out, and
-  turning toward a wall within ~65 u backed them off at 60 u/s. Now the
-  prop itself blocks the player, like Portal 2's solid held prop: only when
-  level with the hull, touching it along the view and pinned by a wall
-  (shape cast of the prop), and only along that wall's normal (slides along
-  it). Carry keeps the hold point out of the hull: looking up it goes over
-  the head (up the wall), otherwise out in front. intro2 box, before (dist
-  0bc1dd1) / after: walk into the wall level: stops 340 / 349 (whole cube
-  visible, T-167 kept); looking up 55 deg: frozen at 340 / walks to the wall
-  (400), cube over the head at z 27; back to the wall then turn to face it:
-  pushed 62 u / eased out only because the cube doesn't fit (16 u room);
-  looking down 65 deg on open floor: 126 / 127 u in 1.5 s; cube pressed to
-  the glass then walking at 160 deg: slides 150 u / 156 u (an intermediate
-  build that blocked along the view froze here). Autopilot only; intro3
-  (cubes unnamed, dropper) and Wheatley in intro7 not checked.
-
 
 ### T-162 Menu animations, logo alignment, styling  (P2, ALL SCREENS DONE 0bc1dd1, awaiting owner replay)
 - Owner playtest 9 (2026-10-20, build 014ab6e): T-160/T-161 confirmed, but "the ui not being styled like portal 2 ... is big for me, please get that as close as possible". Raised to P2, right after softlocks (owner, 2026-10-20). Screens done: main menu (e6e5e91), Single Player (8737034), New Game (3ca8329), Load/Save Game (47757a0), Options dialog (2a6921d), Audio (802802d), Video (5d16315), Advanced Video (4ca377c), Keyboard/Mouse (9b0053b), Controller (903118b), pause menu (21f6353), HUD crosshair + chapter title (b417bba), instructor hints (9576999), subtitles (f475223), loading screens (0bc1dd1), see below. Left: none (the 0.3 s dialog fades and other "Not done" notes below remain). Covers the main, pause, options, new game and load menus (fonts, colours, panels, transitions) against the install's resource/ui/basemodui/*.res and basemodui_scheme.res.
@@ -1651,38 +1362,6 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   the autopilot clock restarts per level). Main-menu loads (startup
   background, Exit to Main Menu) show no loading screen.
 
-### T-176 Can't catch or grab objects in the air  (P1, FIXED 2bf3d20, awaiting owner replay)
-- Owner, 2026-10-20 (after playtest 9): "you can't catch falling things or
-  grab things midair, like the faithplate level i couldnt continue because
-  i couldnt grab the cube and wheatly i couldnt catch when he fell earlier
-  in the playthrough". Faith plate level: probably sp_a2_catapult_intro
-  (the owner had reached sp_a2_laser_over_goo); Wheatley falling: sp_a1_intro7
-  (after the wall panel) or sp_a1_wakeup.
-- Portal 2 lets +use pick up a cube or Wheatley in flight. Check the use
-  trace/filter and the pickup conditions for moving or airborne bodies
-  (speed limits, sleeping/contact requirements, the use-cone range against a
-  fast target), and that the held-object code accepts a body with velocity.
-  Related: T-105/T-170 (carrying), T-004 (prove catapult_intro).
-- Verify: autopilot `use` on a cube mid-flight off a faith plate and on a
-  dropped Wheatley, before/after.
-- Cause: use_key only picked up a prop hit exactly by one thin ray from the
-  eye. A cube flying off a faith plate or Wheatley dropping crosses that
-  line for a frame or two, so in practice they could not be grabbed (a
-  falling cube WAS taken when the autopilot aimed exactly at it; the
-  pickup code itself accepts moving bodies).
-- Fix (2bf3d20): like Source's FindUseEntity, when the ray hits no prop,
-  take the prop nearest the view line inside a ~26 degree cone whose near
-  side is within use range, not behind the surface the ray hit, and with a
-  clear line of sight (props.rs cone_pick, unit test). Buttons still win
-  (their search runs first).
-- Evidence (autopilot only): sp_a1_intro2, cube 55 u away, view turned ~20
-  degrees off it: old build ray hits nothing, cube not taken; new build
-  cone picks it (cos 0.937, sight clear) and the next use drops it. Ground
-  carry still follows the player after walking (cube 39 u in front).
-  Not replayed on catapult_intro's real throw or Wheatley's drop in intro7
-  (scripted drops kept hitting the arrival elevator's walls).
-
-
 ### T-169 sp_a2_laser_over_goo: GLaDOS never moves the walls, the way on is blocked  (P1, FIXED a1cd026, awaiting owner replay)
 - Owner playtest 9: "there's a point where glados never moves the walls so
   I can't move past here" (entry corridor, sign 04/22; owner noclipped).
@@ -1695,53 +1374,6 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   (4000,-2256), walls never move; after, corridor_repair + repair_wall_1..3
   fire, the corridor opens, the player walks to the landing (3632,-1616,32)
   and entry_landing_open fires. Unit test trigger_box_turns_with_its_angles.
-
-### T-163 sp_a1_wakeup pod: the player can jump out of the hatch; a stone-brick block appears there  (P2, fixed 8f8c8b1, autopilot only)
-- Playtest 6. Cause: brush entities with startdisabled 1 were never built
-  (no mesh, no collider), so an Enable had nothing to switch on. The hatch is
-  sealed by basement_breakers_upper_blocker (toolsplayerclip ring, z 392-576,
-  enabled by the socket relay). Fix: build them hidden with ColliderDisabled
-  (Always Solid func_brushes keep collision); applies to every map.
-- Evidence (autopilot: setpos on the lift, enable blocker, trigger
-  basement_breakers_start, walk + jump outward at the top): before (dist
-  5cfe749) feet reached (9133 1017 428) outside the hatch; after, the
-  blocker has colliders and feet stay on the lift (8988 1046 351).
-- The "stone-brick block" was not seen by autopilot (the blocker is player
-  clip, never drawn); owner replay should say if it is still there.
-
-- T-132 Fizzler field not drawn: every trigger_* brush was skipped, so
-  visible trigger_portal_cleansers never drew their effects/fizzler faces
-  (SolidEnergy, a green-only ripple mask, wasn't translated either). Now
-  (99392c0) visible cleansers draw, SolidEnergy is unlit additive with the
-  mask tinted by a quarter of $FLOW_VORTEX_COLOR (no flow animation yet),
-  Enable/Disable shows/hides it. Autopilot only (intro2 exit, `setpos -320
-  740 -60 0 -90`): before no field, after a blue field, hidden on
-  FireUser1, back on FireUser2; unit test visible_cleansers_draw_their_field.
-  Not checked: fizzling through it (logic unchanged); startdisabled
-  cleansers still get no mesh (check at sp_a2_fizzler_intro, T-007).
-- T-130 Portal shots pass handrails: models compiled `$contents grate`
-  (props_bts/handrail_*) now let portal shots through like grate brushes.
-  intro5 rail at (380,-330): before, the shot stopped at the rail; after, it
-  reaches the wall behind. Loose cubes already pass shots (dynamic bodies
-  are skipped); not reproduced in intro6, where the dropped cube landed on
-  non-portalable dirt floor at (1947,381) tilted, ~25 u up a wall. Owner:
-  replay intro6 and say where the cube was when the shot failed.
-- T-129 Stray elevator screens: movie panels were drawn extending to the
-  entity's right instead of its left, so the ring covered its own exit gap
-  (laser_stairs: @arrival_sign_1/_24 across the stairs and leaving trigger).
-  Autopilot before/after shots of the laser_stairs arrival; intro4's exit room
-  (same cause, playtest 3) still needs the owner's replay.
-- T-128 sp_a2_laser_stairs stairs rise: held sequences replay on a negative
-  SetPlaybackRate (8ac53a2; screenshots before/after).
-- T-103 sp_a1_wakeup breaker lift carries the player (SetMaxSpeed); owner saw it rise in playtest 6.
-- T-106 Walk into the breaker room standing (hull fits an exact 72 u).
-- T-121 A cube resting where a portal opens falls in (contacts dropped in the hole).
-- T-122 func_portal_detector fires (intro7 progresses).
-- T-126 Tilted map portal drawn whole (quad stands 1 u off).
-- T-127 The panel GLaDOS swings into place takes a portal (sensor colliders).
-- T-119 Doors stay drawn while opening; no area-portal black plane.
-- T-110 An actor's new line cuts its previous one (voice channel).
-- T-021 Owner checks: intro1 ride, wakeup socket, sp_a2_intro portal route.
 
 ## Backlog
 
@@ -1769,6 +1401,7 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 - Checklists in docs/STATUS.md.
 
 ## Done (newest first; details in git log and docs/STATUS.md)
+- 2026-10-21 Owner-confirmed after replaying build b8a2d76 (owner notes 2026-10-21 round 5, docs/PLAYTESTS.md): T-196 Screen goes black after every tile flip; T-195 In-game pause menu as Windows; T-197 Tile grid not even; T-182 New Game chapter list; T-186 Video settings; T-192 Menu scaling and display changes; T-176 Can't catch or grab objects in the air; T-170 Carrying regressed: pushed back at walls, can't push a cube up a wall, not smooth; T-163 sp_a1_wakeup pod: the player can jump out of the hatch; a stone-brick block appears there; T-113 Instructor hints vanish after a few seconds if not done; T-144 Missing props: intro1 portal room clipboard and movable clock; T-172 Voice lines start late; T-108 A chamber door had an invisible barrier, needed noclip; T-107 Cubes and floor buttons invisible. Also confirmed there: T-135's vac-tube turrets, T-173's fizzler shake, T-150's intro3 splash/dust, T-139's soundscapes (those entries stay open for their other parts). Details in git log.
 - 2026-10-21 Upstream check (Stink-O/Portal2-rust-engine): only change since
   our base v0.1.0 is 18230b3, a relicense to GPL-3.0-only with no code.
   Nothing ported; NOTICE records that we stay on 0.1.0's MIT terms. See
