@@ -4,11 +4,10 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-21 05:10, owner session. Menu spec rounds 1-3 done (build d36e250).
-Owner's round-4 notes filed, NOT worked: T-196 (P1 black screen after
-flips, regression from d36e250's run_flip change), T-195 pause menu,
-T-197 tile grid. Autorun re-enabled by the owner as scheduled task `prtl2mac-auto-resume-2` (every 10 min, Auto mode)
-to take these first.
+2026-10-21 08:13, autorun (prtl2mac-auto-resume-2). T-196 FIXED (f8c9be3):
+the end of every menu tile flip left one frame with neither the flip
+overlay nor the menu on the window (black flash; at startup the whole
+screen). Autopilot-checked only, awaiting owner replay. Next: T-195.
 
 ## Where things stand
 - Upstream checked 2026-10-21: no code changes since our base v0.1.0, only a
@@ -23,14 +22,13 @@ to take these first.
   by a subagent, merged), 4:3 layout (T-192). Open pieces listed at the
   top of TASKS.md's priority order.
 - Earlier fixes still awaiting the owner: T-176, T-169, T-162, T-170.
-- dist/Prtl2Mac.app = 0.1.0+d36e250.20261021T0856Z (menu spec + owner notes round 3).
+- dist/Prtl2Mac.app = 0.1.0+f8c9be3.20261021T1212Z (T-196 flip-end black frame fix).
 
 ## Next action
-1. T-196 black screen after every tile flip (P1, regression; see entry).
-2. T-195 in-game pause menu as the owner's Windows shots (logo, no title
+1. T-195 in-game pause menu as the owner's Windows shots (logo, no title
    tab, DONE, blurred/bloomed/desaturated game behind).
-3. T-197 even tile grid.
-4. Then T-172 late VO, T-135, T-139, T-112, T-144, T-149, T-147, T-113,
+2. T-197 even tile grid.
+3. Then T-172 late VO, T-135, T-139, T-112, T-144, T-149, T-147, T-113,
    then P3/P4. Skip T-116, T-164, T-151 (owner).
 MENUS FROZEN: only T-196/T-195/T-197 may touch menu code; no other menu
 changes (owner, 2026-10-21). A separate session may port upstream engine

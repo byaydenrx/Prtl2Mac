@@ -24,7 +24,7 @@ T-196, T-195 and T-197 may change menu code, touching just what each needs;
 every other menu task (T-162, T-177..T-194, including their "open pieces"
 and the dead-control list) is on hold, not for autoruns.
 NEXT UP (owner round 4, 2026-10-21): T-196 black screen after flips
-(P1, first), then T-195 pause menu as Windows (logo, no title tab, DONE,
+(FIXED f8c9be3, awaiting owner replay), then T-195 pause menu as Windows (logo, no title tab, DONE,
 blurred/desaturated game behind), then T-197 even tile grid. Then T-172
 onward (no more menu work).
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
@@ -78,7 +78,24 @@ Then the Backlog (prove and sweep the campaign).
   game behind the pause menu should be blurred/bloomed and slightly
   desaturated (T-195).
 
-### T-196 Screen goes black after every tile flip  (P1, TODO; owner round 4 item 1)
+### T-196 Screen goes black after every tile flip  (P1, FIXED f8c9be3, awaiting owner replay; owner round 4 item 1)
+- FIXED f8c9be3 (build 0.1.0+f8c9be3.20261021T1212Z), autopilot-checked
+  only. Cause: when a flip's time was up, run_flip despawned the overlay
+  in the same frame it asked rebuild_menu (which runs before it, so the
+  next frame) to build the menu again on the window; for that one frame
+  the menu was still drawn off screen and the overlay was gone, so the
+  dialog and menu items (at startup also the logo/backdrop: the whole
+  screen) went black. Fix: the overlay stays until the rebuilt menu is on
+  the window (FlipView.rebuilding; flip_end() decides, unit test
+  flip_end_keeps_the_overlay_till_the_menu_is_back). Evidence: shots every
+  12 ms across the Options flip's end: before (d36e250 dist) one frame
+  with the dialog area at brightness 20 vs 173 (menu gone), after none.
+  Checked after the fix, same as before: Esc mid-flip lands on the main
+  menu, Options -> Keyboard/Mouse -> Esc -> Options list, Single Player
+  and back; windowed and fullscreen (temporary local hack, not kept).
+  The startup full-screen flip's end frame wasn't caught by the burst in
+  either build (frames too sparse while loading); same code path.
+  Owner: please replay a few flips (startup, Options, pages, Back).
 - Regression from d36e250 (round-3 fix in ui.rs run_flip): when a flip
   ends, the overlay is despawned and MenuState is marked changed so
   rebuild_menu respawns the roots on the window. Owner sees black after
