@@ -112,3 +112,9 @@ instant; scroll overshoot; pixely/missing arrows; Options list trimmed
 (Mods greyed, subtitles into Audio, no Speedrun); spacing per aspect;
 Robot Enrichment lower and aligned; voice rows greyed; no Graphics row;
 Edit Keys hover colour; no cursor during intro; list dead controls.
+
+## Owner notes 2026-10-21 round 4 (build d36e250), menus
+Black screen after every flip (regression from the round-3 fix), pause
+menu inaccurate (shots in ~/Documents/Screenshots/pausemenu; blur/bloom +
+desaturated game behind), tile grid spacing/offsets uneven. Tracked as
+T-196, T-195, T-197.

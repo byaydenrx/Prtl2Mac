@@ -19,6 +19,10 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 7 sp_a2_laser_stairs.
 
 ## Priority order (2026-10-21, owner menu/intro spec first)
+NEXT UP (owner round 4, 2026-10-21): T-196 black screen after flips
+(P1, first), then T-195 pause menu as Windows (logo, no title tab, DONE,
+blurred/desaturated game behind), then T-197 even tile grid. Then the
+open menu pieces below, then T-172 onward.
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
 before every other task. Owner notes after build fb0090a (12 items,
 listed under the spec heading) come first: T-179 flip like the video,
@@ -60,6 +64,51 @@ P4:
 Then the Backlog (prove and sweep the campaign).
 
 ## Owner menu/intro spec (2026-10-21): T-177..T-192, before everything else
+- Owner notes 2026-10-21 round 4 (build d36e250), not worked yet:
+  (1) the screen turns black after each flip animation plays, caused by
+  the round-3 fix (T-196); (2) the in-game pause menu is inaccurate; owner
+  reference shots in ~/Documents/Screenshots/pausemenu (2704x1756 CrossOver
+  window, a different size/aspect from the earlier shots) (T-195);
+  (3) grid/box inaccuracies: tile spacing off, some tiles shifted a few
+  pixels sideways instead of one flat, even grid (T-197); (4) the paused
+  game behind the pause menu should be blurred/bloomed and slightly
+  desaturated (T-195).
+
+### T-196 Screen goes black after every tile flip  (P1, TODO; owner round 4 item 1)
+- Regression from d36e250 (round-3 fix in ui.rs run_flip): when a flip
+  ends, the overlay is despawned and MenuState is marked changed so
+  rebuild_menu respawns the roots on the window. Owner sees black after
+  every flip. Suspects: the rebuild's roots get tagged UiTargetCamera
+  again because `active` (now < until || pending_screen) is still true on
+  that frame, or pending_screen never clears, or the off-screen camera
+  stays active/default; the old roots were drawn off screen and the
+  despawn/rebuild ordering leaves nothing on the window. Autopilot shots
+  after flips looked fine, so reproduce with the real app path (intro on,
+  window focused) and with dialog flips (Options, Single Player, back).
+  Fix so menus are always on the window once a flip ends; unit/autopilot
+  check several flips in a row, Esc mid-flip, flip into a page then Back.
+
+### T-195 In-game pause menu as Windows  (P2, TODO; owner round 4 items 2, 4)
+- Reference: ~/Documents/Screenshots/pausemenu (2 shots: the pause menu
+  and Options from it). In game Portal 2 shows the PORTAL 2 logo top left
+  (ours shows none in game); the pause dialog has no title tab, a flat
+  5 x 4 tile body with RETURN TO GAME, SAVE GAME, LOAD LAST SAVE,
+  OPTIONS, EXIT TO MAIN MENU, and a DONE footer button; Options from
+  pause is the normal Options dialog with the logo. The game view behind
+  is blurred with a bloom/glow and slightly desaturated (ours: a flat dark
+  shade). Measure positions against the shots (note their size differs
+  from the earlier ones: scale by the 16:9 game area inside the window).
+  Keep: no tile flips in pause menus (round 3).
+
+### T-197 Tile grid not even  (P2, TODO; owner round 4 item 3)
+- The dialog tiles' spacing is off and some tiles sit a few pixels to the
+  side, so the grid isn't one flat even grid. Likely tile_frame_sized's
+  pulled-in last column/row (x = width - 50 overlaps) and rounding of
+  units (Vh) to pixels per tile; build each frame from whole-pixel tile
+  positions on one grid (compute pixel size once, place by integer
+  multiples), and check every dialog (Options, Audio, Advanced Video,
+  Edit Keys, confirmations) against the owner's Windows shots.
+
 - Owner notes 2026-10-21 round 3 (build ac6a02d, "looking great"): (1) drop
   the startup loading screen: straight from the "powered by Source" screen
   to the main menu (T-177); (2) the full-screen tile flip into the main
