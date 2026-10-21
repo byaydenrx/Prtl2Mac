@@ -8,10 +8,11 @@
 //! A screen is a quad `width` x `height` units facing the entity's forward,
 //! with its bottom-left corner (as seen from the front) at the entity's
 //! origin: it spans the entity's left axis (the viewer's right) and up. Movies are decoded with ffmpeg (which reads Bink) in the
-//! background, at reduced size, and cached under the app's data folder;
+//! background at their own size and frame rate (up to `MAX_DECODE_WIDTH`),
+//! kept as YUV 4:2:0 and turned into RGBA one shown frame at a time;
 //! without ffmpeg the screens stay dark.
 use std::collections::HashMap;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::sync::{Arc, Mutex};
 
 use bevy::asset::RenderAssetUsages;
@@ -33,10 +34,11 @@ impl Plugin for MoviesPlugin {
     }
 }
 
-/// Decoded width (height follows the movie's aspect).
-const DECODE_WIDTH: u32 = 192;
-/// Decoded frame rate.
-const DECODE_FPS: u32 = 12;
+/// Widest decode (the elevator movies are 640x400 / 480x640 at 24 fps);
+/// a wider movie is scaled down, keeping its aspect.
+const MAX_DECODE_WIDTH: u32 = 640;
+/// Frame rate when ffmpeg doesn't report one.
+const DEFAULT_FPS: f32 = 24.0;
 
 struct Screen {
     ent: usize,
@@ -59,6 +61,7 @@ struct MasterState {
     looping: bool,
 }
 
+/// YUV 4:2:0 frames (even `w`, `h`): each is the Y plane, then U, then V.
 struct Decoded {
     w: u32,
     h: u32,
@@ -67,10 +70,41 @@ struct Decoded {
 }
 
 impl Decoded {
+    fn frame_len(&self) -> usize {
+        (self.w * self.h * 3 / 2) as usize
+    }
     fn count(&self) -> usize {
-        let n = (self.w * self.h * 4) as usize;
+        let n = self.frame_len();
         if n == 0 { 0 } else { self.frames.len() / n }
     }
+}
+
+/// One YUV 4:2:0 frame (BT.601, TV range, as Bink stores it) into RGBA.
+pub fn yuv420_to_rgba(w: usize, h: usize, yuv: &[u8], out: &mut [u8]) {
+    let (y_plane, rest) = yuv.split_at(w * h);
+    let (u_plane, v_plane) = rest.split_at(w * h / 4);
+    let cw = w / 2;
+    for row in 0..h {
+        for col in 0..w {
+            let c = (row / 2) * cw + col / 2;
+            let y = (y_plane[row * w + col] as i32 - 16) * 298;
+            let u = u_plane[c] as i32 - 128;
+            let v = v_plane[c] as i32 - 128;
+            let o = (row * w + col) * 4;
+            out[o] = ((y + 409 * v + 128) >> 8).clamp(0, 255) as u8;
+            out[o + 1] = ((y - 100 * u - 208 * v + 128) >> 8).clamp(0, 255) as u8;
+            out[o + 2] = ((y + 516 * u + 128) >> 8).clamp(0, 255) as u8;
+            out[o + 3] = 255;
+        }
+    }
+}
+
+/// Decode size for a `sw` x `sh` movie: its own size up to `MAX_DECODE_WIDTH`
+/// wide, both sides even (4:2:0).
+pub fn decode_size(sw: u32, sh: u32) -> (u32, u32) {
+    let w = sw.min(MAX_DECODE_WIDTH) & !1;
+    let h = ((w as f32 * sh as f32 / sw as f32 / 2.0).round() as u32 * 2).max(2);
+    (w.max(2), h)
 }
 
 struct Clip {
@@ -262,18 +296,12 @@ pub(crate) fn loose_file(game: &GameFsRes, path: &str) -> Option<std::path::Path
     ["update", "portal2_dlc2", "portal2_dlc1", "portal2"].iter().map(|d| root.join(d).join(path)).find(|p| p.exists())
 }
 
-/// Decodes a movie (or reads it from the cache): RGBA frames, top row first.
+/// Decodes a movie: YUV 4:2:0 frames, top row first.
 fn decode(game: &GameFsRes, path: &str) -> Option<Decoded> {
     let dir = crate::settings::data_dir().join("movies");
     let stem = path.rsplit('/').next()?.trim_end_matches(".bik").to_string();
-    let cache = dir.join(format!("{stem}_{DECODE_WIDTH}_{DECODE_FPS}.rgba"));
-    if let Ok(d) = std::fs::read(&cache) {
-        if d.len() >= 12 && &d[0..4] == b"P2MV" {
-            let w = u32::from_le_bytes(d[4..8].try_into().ok()?);
-            let h = u32::from_le_bytes(d[8..12].try_into().ok()?);
-            return Some(Decoded { w, h, fps: DECODE_FPS as f32, frames: d[12..].to_vec() });
-        }
-    }
+    // Earlier builds cached 192-wide 12 fps RGBA copies here; they're unused.
+    let _ = std::fs::remove_file(dir.join(format!("{stem}_192_12.rgba")));
     let ff = ffmpeg()?;
     let (src, temp) = match loose_file(game, path) {
         Some(p) => (p, false),
@@ -285,8 +313,7 @@ fn decode(game: &GameFsRes, path: &str) -> Option<Decoded> {
             (p, true)
         }
     };
-    std::fs::create_dir_all(&dir).ok()?;
-    // ffmpeg prints the stream's size; the output keeps its aspect.
+    // ffmpeg prints the stream's size and frame rate.
     let info = std::process::Command::new(&ff).args(["-hide_banner", "-i"]).arg(&src).output().ok()?;
     let text = String::from_utf8_lossy(&info.stderr);
     let (sw, sh) = text
@@ -294,12 +321,16 @@ fn decode(game: &GameFsRes, path: &str) -> Option<Decoded> {
         .filter_map(|t| t.split_once('x'))
         .filter_map(|(a, b)| Some((a.parse::<u32>().ok()?, b.parse::<u32>().ok()?)))
         .find(|(a, b)| *a > 16 && *b > 16)?;
-    let w = DECODE_WIDTH;
-    let h = ((w as f32 * sh as f32 / sw as f32 / 2.0).round() as u32 * 2).max(2);
+    let fps = text
+        .split(',')
+        .filter_map(|t| t.trim().strip_suffix(" fps")?.parse::<f32>().ok())
+        .find(|f| *f > 1.0 && *f <= 120.0)
+        .unwrap_or(DEFAULT_FPS);
+    let (w, h) = decode_size(sw, sh);
     let mut child = std::process::Command::new(&ff)
         .args(["-v", "error", "-i"])
         .arg(&src)
-        .args(["-vf", &format!("scale={w}:{h},fps={DECODE_FPS}"), "-f", "rawvideo", "-pix_fmt", "rgba", "-"])
+        .args(["-vf", &format!("scale={w}:{h}:flags=bicubic"), "-f", "rawvideo", "-pix_fmt", "yuv420p", "-"])
         .stdout(std::process::Stdio::piped())
         .spawn()
         .ok()?;
@@ -309,16 +340,11 @@ fn decode(game: &GameFsRes, path: &str) -> Option<Decoded> {
     if temp {
         let _ = std::fs::remove_file(&src);
     }
-    if frames.len() < (w * h * 4) as usize {
+    let d = Decoded { w, h, fps, frames };
+    if d.count() == 0 {
         return None;
     }
-    if let Ok(mut f) = std::fs::File::create(&cache) {
-        let _ = f.write_all(b"P2MV");
-        let _ = f.write_all(&w.to_le_bytes());
-        let _ = f.write_all(&h.to_le_bytes());
-        let _ = f.write_all(&frames);
-    }
-    Some(Decoded { w, h, fps: DECODE_FPS as f32, frames })
+    Some(d)
 }
 
 /// Which frame shows `t` seconds into a movie of `n` frames.
@@ -372,15 +398,18 @@ fn play_movies(
         if clip.shown == Some(k) && clip.sized {
             continue;
         }
-        let n = (d.w * d.h * 4) as usize;
-        let Some(bytes) = d.frames.get(k * n..(k + 1) * n) else { continue };
+        let n = d.frame_len();
+        let Some(yuv) = d.frames.get(k * n..(k + 1) * n) else { continue };
+        let (w, h) = (d.w as usize, d.h as usize);
         if !clip.sized {
-            let img = Image::new(Extent3d { width: d.w, height: d.h, depth_or_array_layers: 1 }, TextureDimension::D2, bytes.to_vec(), TextureFormat::Rgba8UnormSrgb, RenderAssetUsages::default());
+            let mut rgba = vec![0u8; w * h * 4];
+            yuv420_to_rgba(w, h, yuv, &mut rgba);
+            let img = Image::new(Extent3d { width: d.w, height: d.h, depth_or_array_layers: 1 }, TextureDimension::D2, rgba, TextureFormat::Rgba8UnormSrgb, RenderAssetUsages::default());
             let _ = images.insert(&clip.image, img);
             clip.sized = true;
         } else if let Some(mut img) = images.get_mut(&clip.image) {
             if let Some(data) = img.data.as_mut() {
-                data.copy_from_slice(bytes);
+                yuv420_to_rgba(w, h, yuv, data);
             }
         }
         clip.shown = Some(k);
@@ -455,5 +484,23 @@ mod tests {
     fn movie_paths_normalise() {
         assert_eq!(movie_path("media\\Exercises_Horiz.bik").as_deref(), Some("media/exercises_horiz.bik"));
         assert_eq!(movie_path("media/"), None);
+    }
+
+    #[test]
+    fn movies_decode_at_their_own_size() {
+        assert_eq!(decode_size(640, 400), (640, 400));
+        assert_eq!(decode_size(480, 640), (480, 640));
+        assert_eq!(decode_size(1280, 720), (640, 360));
+    }
+
+    #[test]
+    fn yuv_converts_black_white_and_red() {
+        // 2x2 frame: Y plane, then one U and one V sample.
+        let mut out = [0u8; 16];
+        yuv420_to_rgba(2, 2, &[16, 235, 16, 235, 128, 128], &mut out);
+        assert_eq!(&out[0..4], &[0, 0, 0, 255]);
+        assert_eq!(&out[4..8], &[255, 255, 255, 255]);
+        yuv420_to_rgba(2, 2, &[81, 81, 81, 81, 90, 240], &mut out);
+        assert!(out[0] > 250 && out[1] < 5 && out[2] < 5, "{:?}", &out[0..4]);
     }
 }
