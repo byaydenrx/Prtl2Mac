@@ -58,7 +58,7 @@ P3:
 10. (T-171 portal first-look hitch: PARTIAL FIX d4fd841, awaiting owner replay.)
 11. (T-148 portals behind glass: FIXED dcc0c0e, awaiting owner replay.)
 12. (T-117 shadows still blocky: NOT CONFIRMED 2026-10-21, BLOCKED needs owner; untested fix on attempt/T-117.)
-13. T-152 lighting/texture quality.
+13. (T-152 lighting/texture quality: STUCK 2026-10-21, bumped-model shader path needs a multi-run job; plan in the entry.)
 14. T-153 GLaDOS wake-up particles; T-173 gun hold beam and fizzler spark.
 15. T-140 game-placed portal shake/sound (reopened).
 16. T-174 elevator videos; T-175 intro1 ride outside fog/sky; T-164 debris
@@ -887,10 +887,28 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   review/replay (which shadow was blocky? compare intro1 planter and an
   elevator arrival with Windows).
 
-### T-152 Lighting and texture quality below the original  (P3, TODO: owner says still an issue)
+### T-152 Lighting and texture quality below the original  (P3, STUCK 2026-10-21: bumped-model path too large for one run; plan below)
 - Owner playtest 9 (2026-10-20, build 014ab6e): "lighting/textures being low quality is still an issue". Raised to P3.
 - Scrap pieces in the intro3 fall; turrets in tubes (wakeup); bumped
   VertexLitGeneric (models with $bumpmap) still drawn without bump.
+- Autorun 2026-10-21 (STUCK, no code change): no owner shot pins one
+  surface, so the only concrete item is the bumped VertexLitGeneric path.
+  Texture filtering is already 16x anisotropic with mips (vtf.rs,
+  valve_render.rs), so that's not the cause. Findings for the next attempt
+  (`examples/shaders vertexlit_and_unlit_generic_bump_ps20b|vs20 --statics`):
+  ps20b has 32768 static x 80 dynamic combos (544 stored); bumped statics use
+  BumpmapSampler@s3, cAmbientCube@c5 (6 regs), cLightInfo@c13,
+  g_ShaderControls@c12, cLightScale@c30, g_DiffuseModulation@c1. vs20 is 64 x
+  24 (24 stored), reads a TANGENT input (Input6), has cLightInfo@c27,
+  g_bLightEnabled@b0, cModel@c58, and NO COLOR1 static-light input. So a
+  bumped prop needs (1) VVD tangents in ModelMesh (model_vertices writes a
+  dummy tangent today), (2) a per-prop ambient cube (6 colours, from the same
+  leaf ambient samples that bake COLOR1 now) plus the nearest local lights
+  packed into cLightInfo, (3) the static/dynamic combo digits mapped like
+  vertex_lit_generic's (NUM_LIGHTS in the dynamic index), (4) a new
+  ConstRecipe. Keep the current non-bump path as the fallback when any step
+  fails. Next run: start with (1)+(2) on an attempt branch, check the intro3
+  rubble and the wakeup tube turrets before/after.
 
 ### T-153 GLaDOS wake-up  (P3, PARTIAL: gun drop fixed; white particles still hide her)
 - Owner playtest 9 (2026-10-20, build 014ab6e): "glados awakening animation is still covered by lots of white particles".
