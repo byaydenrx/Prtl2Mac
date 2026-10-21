@@ -68,7 +68,7 @@ sessions, only for independent tasks with separate files.
   `duck`, `jump`, `use`, `fire blue|orange`, `goto|lookat <name> [dist]`,
   `input <target> <input> [param]`, `info <name>` (state, bounds),
   `portalable x y z r`, `ray x y z [dx dy dz]`, `propto <name> x y z`,
-  `shot <file.png>`, `log`, `click <Action>`, `quit`.
+  `shot <file.png>`, `log`, `click <Action>`, `hover <Action>`, `quit`.
   `RUST_LOG=info,portal2::io=debug` logs every entity output that fires.
 - Debug env: P2_TRACE, P2_NOCROSSHAIR, P2_HIDE_MAT (hide materials by name
   substring: find which material a bad surface is), P2_LIST_MATS,

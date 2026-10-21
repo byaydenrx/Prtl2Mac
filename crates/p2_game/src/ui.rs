@@ -163,6 +163,8 @@ struct MenuArt {
     /// materials/vgui/menu_tiles: the 50-unit tiles Portal 2 builds its
     /// dialogs from, in [`TILES`] order.
     tiles: Option<Vec<Handle<Image>>>,
+    /// Robot Enrichment's icon (materials/vgui/store/store_button).
+    econ: Option<Handle<Image>>,
 }
 
 /// The dialog tile pieces (materials/vgui/menu_tiles/ui_tile_128_*).
@@ -194,11 +196,6 @@ enum Action {
     /// A row of New Game's chapter list: pick it (a second click starts it).
     SelectChapter(usize),
     Chapter(usize),
-    /// Main menu items not built yet: they do nothing.
-    Coop,
-    CommunityChambers,
-    Extras,
-    ChallengeMode,
     /// Open Load Game / Save Game.
     LoadGame,
     SaveGame,
@@ -264,10 +261,13 @@ mod theme {
     // FocusColor white, CursorColor 255 255 255 15.
     pub const ITEM: Color = Color::srgb(120.0 / 255.0, 120.0 / 255.0, 120.0 / 255.0);
     pub const ITEM_HOVER: Color = Color::WHITE;
-    // Source blends in gamma space (15/255 white lifts a dark 17 to ~31);
-    // Bevy blends in linear light, where 15/255 gives 72. ~3/255 gives
-    // vgui's result over the menu's dark backgrounds.
-    pub const HIGHLIGHT: Color = Color::srgba(1.0, 1.0, 1.0, 3.0 / 255.0);
+    // The focused item's bar, measured on a Windows Portal 2 1080p main
+    // menu shot: grey ~75 over a backdrop of 10-20 (white at ~0.245 in
+    // vgui's gamma-space blend). Bevy blends in linear light, where white
+    // at 17/255 gives the same result over those backdrops.
+    pub const HIGHLIGHT: Color = Color::srgba(1.0, 1.0, 1.0, 17.0 / 255.0);
+    /// A main menu item that is not built yet (greyed, not clickable).
+    pub const ITEM_OFF: Color = Color::srgb(60.0 / 255.0, 60.0 / 255.0, 60.0 / 255.0);
     pub const ROW_HOVER: Color = Color::srgb(0.2, 0.2, 0.21);
     pub const SELECTED: Color = Color::srgb(0.24, 0.24, 0.25);
     pub const TITLE: Color = Color::srgb(0.05, 0.05, 0.06);
@@ -316,15 +316,15 @@ const VALUE_LOOK: Look = Look { text: theme::VALUE, text_hover: Color::WHITE, bg
 const DIALOG_LOOK: Look = Look { text: Color::BLACK, text_hover: Color::srgb(240.0 / 255.0, 240.0 / 255.0, 240.0 / 255.0), bg: Color::NONE, bg_hover: Color::srgba(0.0, 0.0, 0.0, 240.0 / 255.0) };
 const BUTTON_LOOK: Look = Look { text: theme::BUTTON_TEXT, text_hover: Color::WHITE, bg: theme::BUTTON, bg_hover: theme::BUTTON_HOVER };
 
-/// The main menu, as in Portal 2 (Co-op, Extras and Challenge Mode are
-/// not built yet and do nothing).
-const MAIN_ITEMS: [(&str, Action, Option<Flyout>); 6] = [
-    ("PLAY SINGLE PLAYER", Action::SinglePlayer, Some(Flyout::SinglePlayer)),
-    ("PLAY COOPERATIVE GAME", Action::Coop, None),
-    ("COMMUNITY TEST CHAMBERS", Action::CommunityChambers, None),
-    ("OPTIONS", Action::Options, Some(Flyout::Options)),
-    ("EXTRAS", Action::Extras, None),
-    ("QUIT", Action::Quit, None),
+/// The main menu, as in Portal 2. `None`: not built yet, so greyed out
+/// and not clickable (Co-op, Community Test Chambers, Extras).
+const MAIN_ITEMS: [(&str, Option<Action>); 6] = [
+    ("PLAY SINGLE PLAYER", Some(Action::SinglePlayer)),
+    ("PLAY COOPERATIVE GAME", None),
+    ("COMMUNITY TEST CHAMBERS", None),
+    ("OPTIONS", Some(Action::Options)),
+    ("EXTRAS", None),
+    ("QUIT", Some(Action::Quit)),
 ];
 
 /// DialogTitle: UniversLTStd-BoldCn tall 33; DialogMenuItem: tall 18
@@ -335,9 +335,6 @@ const DESC_TITLE_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(24.0 / 1.
 const DESC_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(17.0 / 1.265 * 100.0 / 480.0);
 /// The ◀ ▶ on a hovered tiled-dialog row (MarlettLarge in Portal 2).
 const TILE_ARROW_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(10.0 * 100.0 / 480.0);
-
-/// Menu item text size; dialogs scale from it.
-const ITEM_SIZE: f32 = 24.0;
 
 /// The main/pause menu item font: MainMenuItem is UniversLTStd-Cn "tall"
 /// 22 units. vgui's tall is the Windows cell height (OS/2 winAscent +
@@ -442,7 +439,8 @@ fn load_menu_art(mut commands: Commands, game: Res<GameFsRes>, mut images: ResMu
     if tiles.is_none() {
         warn!("portal2: materials/vgui/menu_tiles missing; dialogs use plain panels");
     }
-    commands.insert_resource(MenuArt { logo, tiles });
+    let econ = source_assets::vtf::VtfTexture::parse(&game.read("materials/vgui/store/store_button.vtf").unwrap_or_default()).ok().map(|v| images.add(v.into_image(false, true)));
+    commands.insert_resource(MenuArt { logo, tiles, econ });
 }
 
 fn pick_logo(files: &[String]) -> Option<&String> {
@@ -517,19 +515,30 @@ fn button(font: &Handle<Font>, label: impl Into<String>, action: Action, size: f
     )
 }
 
-/// A main/pause menu item (MainMenuButton: text inset 10 units).
-/// `open`: its flyout is showing, so it stays lit as in Portal 2.
-fn item(fonts: &UiFonts, label: &str, action: Action, open: bool) -> impl Bundle + use<> {
-    let look = if open { Look { text: ITEM_LOOK.text_hover, bg: ITEM_LOOK.bg_hover, ..ITEM_LOOK } } else { ITEM_LOOK };
-    (
-        Button,
-        action,
-        look,
-        Node { padding: UiRect::axes(units(10.0), Val::Px(0.0)), height: Val::Percent(100.0), align_items: AlignItems::Center, ..default() },
-        BackgroundColor(look.bg),
-        children![(Text::new(label.to_string()), TextFont { font: (&fonts.menu).into(), font_size: ITEM_FONT, ..default() }, TextColor(look.text))],
-    )
+/// A main menu item's node (MainMenuButton: text inset 10 units). The
+/// focus bar is the same size on every item, as in Portal 2: measured on
+/// a Windows 1080p shot it starts 1 unit left of the column and is 281
+/// units wide and 25 tall, the text centred in it.
+fn item_node() -> Node {
+    Node { padding: UiRect::new(units(11.0), Val::Px(0.0), units(1.0), Val::Px(0.0)), width: units(281.0), height: units(MAIN_ITEM_TALL), align_items: AlignItems::Center, ..default() }
 }
+
+/// A main menu item: clickable, or greyed out when `action` is `None`.
+fn spawn_item(col: &mut ChildSpawnerCommands, fonts: &UiFonts, label: &str, action: Option<Action>) {
+    let font = TextFont { font: (&fonts.menu).into(), font_size: ITEM_FONT, ..default() };
+    let colour = if action.is_some() { ITEM_LOOK.text } else { theme::ITEM_OFF };
+    let mut e = col.spawn((item_node(), BackgroundColor(Color::NONE), children![(Text::new(label.to_string()), font, TextColor(colour))]));
+    if let Some(a) = action {
+        e.insert((Button, a, ITEM_LOOK));
+    }
+}
+
+/// Main menu items: 25 units tall (the focus bar), one every 30 units.
+const MAIN_ITEM_TALL: f32 = 25.0;
+/// The first item's top. mainmenu.res lists Community Maps and Playtest
+/// Demos first, but on PC Portal 2 shows Play Single Player first at 198
+/// (measured: its bar at 198-223, Options' at 288, Quit's at 348).
+const MAIN_ITEM_TOP: f32 = 198.0;
 
 /// The native size: the primary monitor's, else the window's.
 fn native_size(monitors: &Query<&Monitor, With<PrimaryMonitor>>, windows: &Query<&Window, With<PrimaryWindow>>) -> UVec2 {
@@ -551,47 +560,31 @@ fn layer(z: i32) -> impl Bundle {
     )
 }
 
-/// The lower-left item column with an optional flyout beside one item.
-fn item_list(p: &mut ChildSpawnerCommands, fonts: &UiFonts, items: &[(&str, Action, Option<Flyout>)], open: Option<Flyout>, flyout_items: &[(&str, Action)]) {
-    // mainmenu.res (widescreen PC): items at x 88, 20 tall every 30 units,
-    // the last (Quit) at y 378.
+/// The lower-left item column, then Robot Enrichment (BtnEconUI: the
+/// store's atom icon, vgui/store/store_button, and its label in
+/// NewGameChapter). Measured on a Windows 1080p shot: icon 17 units square
+/// at 89,380, label from x 113; greyed out here (no store).
+fn item_list(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, items: &[(&str, Option<Action>)]) {
     p.spawn(Node {
         position_type: PositionType::Absolute,
-        left: units(88.0),
-        bottom: units(480.0 - 378.0 - 20.0),
+        left: units(87.0),
+        top: units(MAIN_ITEM_TOP),
         flex_direction: FlexDirection::Column,
-        row_gap: units(10.0),
+        row_gap: units(30.0 - MAIN_ITEM_TALL),
         ..default()
     })
     .with_children(|col| {
-        for (label, action, fly) in items {
-            col.spawn(Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, height: units(20.0), ..default() }).with_children(|row| {
-                row.spawn(item(fonts, label, *action, fly.is_some() && *fly == open));
-                if fly.is_some() && *fly == open {
-                    row.spawn((
-                        Node {
-                            position_type: PositionType::Absolute,
-                            left: Val::Percent(100.0),
-                            top: Val::Px(0.0),
-                            margin: UiRect::left(Val::Px(16.0)),
-                            flex_direction: FlexDirection::Column,
-                            padding: UiRect::all(Val::Px(6.0)),
-                            border: UiRect::all(Val::Px(1.0)),
-                            min_width: Val::Px(240.0),
-                            ..default()
-                        },
-                        BackgroundColor(theme::PANEL),
-                        BorderColor::all(theme::EDGE),
-                    ))
-                    .with_children(|f| {
-                        for (label, action) in flyout_items {
-                            f.spawn(button(&fonts.menu, *label, *action, ITEM_SIZE * 0.8, VALUE_LOOK));
-                        }
-                    });
-                }
-            });
+        for (label, action) in items {
+            spawn_item(col, fonts, label, *action);
         }
     });
+    p.spawn(Node { position_type: PositionType::Absolute, left: units(89.0), top: units(379.0), height: units(17.0), align_items: AlignItems::Center, column_gap: units(7.0), ..default() })
+        .with_children(|row| {
+            if let Some(icon) = art.and_then(|a| a.econ.clone()) {
+                row.spawn((ImageNode { image: icon, color: theme::ITEM_OFF, ..default() }, Node { width: units(17.0), height: units(17.0), ..default() }));
+            }
+            row.spawn((Text::new("Robot Enrichment"), TextFont { font: (&fonts.menu).into(), font_size: DIALOG_ITEM_FONT, ..default() }, TextColor(theme::ITEM_OFF)));
+        });
 }
 
 /// Which [`TILES`] piece sits at column `c`, row `r` of a tiled dialog:
@@ -904,9 +897,11 @@ fn describe_rows(
 struct OnTiles;
 
 /// The Portal 2 logo, top left: basemodui_scheme.res Logo.X 75, Logo.Y 35,
-/// 240 x 60 units.
+/// 240 x 60 units. Moved 0.7 units left so the P's edge lines up exactly
+/// with the menu items' text at x 100 (owner, 2026-10-21; Portal 2 has it
+/// 0.8 units off).
 fn menu_logo(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>) {
-    let logo_node = Node { position_type: PositionType::Absolute, left: units(75.0), top: units(35.0), width: units(240.0), height: units(60.0), ..default() };
+    let logo_node = Node { position_type: PositionType::Absolute, left: units(74.3), top: units(35.0), width: units(240.0), height: units(60.0), ..default() };
     match art.and_then(|a| a.logo.clone()) {
         Some(img) => {
             p.spawn((ImageNode::new(img), logo_node));
@@ -1412,14 +1407,14 @@ fn rebuild_menu(
                         ("Continue Game", on(Action::Continue)),
                         ("New Game", Some(Action::NewGame)),
                         ("Load Game", on(Action::LoadGame)),
-                        ("Challenge Mode", Some(Action::ChallengeMode)),
+                        ("Challenge Mode", None),
                         ("Developer Commentary", None),
                     ];
                     tiled_dialog(p, &fonts, art.as_deref(), "Single Player", 5, 4, &rows);
                 } else if menu.flyout == Some(Flyout::Options) {
                     options_dialog(p, &fonts, art.as_deref(), &options_flyout);
                 } else {
-                    item_list(p, &fonts, &MAIN_ITEMS, menu.flyout, &options_flyout);
+                    item_list(p, &fonts, art.as_deref(), &MAIN_ITEMS);
                 }
             });
         }
@@ -1523,7 +1518,11 @@ fn rebuild_menu(
                 footer(p, &fonts, "", &[Footer::Back]);
             });
         }
-        Screen::Options { .. } => {
+        Screen::Options { from_pause } => {
+            // The logo stays up over every Options page from the main menu.
+            if !from_pause {
+                commands.spawn(layer(10)).with_children(|p| menu_logo(p, &fonts, art.as_deref()));
+            }
             let page = menu.page;
             let binds = settings.binds.clone().unwrap_or_else(|| defaults.0.clone());
             let ctx = Ctx {
@@ -1777,14 +1776,16 @@ const CLICK_ALIASES: [(&str, &str); 4] = [("chapters", "newgame"), ("speedrunopt
 
 fn scripted_clicks(mut clicks: MessageReader<MenuClick>, mut screen: ResMut<Screen>, mut q: Query<(&mut Interaction, &Action)>) {
     for c in clicks.read() {
-        let want = c.0.replace(' ', "").to_ascii_lowercase();
+        // "hover:<Action>" (autopilot `hover`) only lights the button.
+        let (state, name) = c.0.strip_prefix("hover:").map_or((Interaction::Pressed, c.0.as_str()), |n| (Interaction::Hovered, n));
+        let want = name.replace(' ', "").to_ascii_lowercase();
         let want = CLICK_ALIASES.iter().find(|(old, _)| *old == want).map_or(want.clone(), |(_, now)| now.to_string());
         if want == "pause" {
             *screen = Screen::Pause;
             continue;
         }
         match q.iter_mut().find(|(_, a)| format!("{a:?}").replace(' ', "").to_ascii_lowercase() == want) {
-            Some((mut i, _)) => *i = Interaction::Pressed,
+            Some((mut i, _)) => *i = state,
             None => warn!("portal2: no menu button {:?}; have {:?}", c.0, q.iter().map(|(_, a)| format!("{a:?}")).collect::<Vec<_>>()),
         }
     }
@@ -1903,15 +1904,6 @@ fn buttons(
                 }
             }
             Action::SelectChapter(i) => tab.chapter = i,
-            Action::CommunityChambers => {
-                community.rescan();
-                if !community.maps.is_empty() {
-                    menu.flyout = None;
-                    *screen = Screen::Chapters;
-                    *tab = ChapterTab { community: true, ..default() };
-                }
-            }
-            Action::Coop | Action::Extras | Action::ChallengeMode => {}
             Action::CommunityPage(d) => {
                 let pages = community.maps.len().div_ceil(COMMUNITY_PER_PAGE).max(1);
                 tab.page = (tab.page as i32 + d).clamp(0, pages as i32 - 1) as usize;
@@ -2537,6 +2529,11 @@ mod tests {
     fn main_menu_items_are_portal_2s() {
         let labels: Vec<&str> = MAIN_ITEMS.iter().map(|i| i.0).collect();
         assert_eq!(labels, ["PLAY SINGLE PLAYER", "PLAY COOPERATIVE GAME", "COMMUNITY TEST CHAMBERS", "OPTIONS", "EXTRAS", "QUIT"]);
+        // Only the built ones are clickable (owner spec 2026-10-21).
+        let live: Vec<&str> = MAIN_ITEMS.iter().filter(|i| i.1.is_some()).map(|i| i.0).collect();
+        assert_eq!(live, ["PLAY SINGLE PLAYER", "OPTIONS", "QUIT"]);
+        // Quit's bar at 348 as measured on Windows Portal 2.
+        assert_eq!(MAIN_ITEM_TOP + 30.0 * 5.0, 348.0);
     }
 
     #[test]

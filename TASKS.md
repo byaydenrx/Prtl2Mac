@@ -65,7 +65,23 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   (the head turn), "Powered by Source" screen, the initial Portal 2 loading
   screen, then the main menu. No skip, overlap or repeat.
 
-### T-178 Main menu layout  (P2, TODO; spec 1, 11, 16)
+### T-178 Main menu layout  (P2, FIXED, awaiting owner replay; spec 1, 11, 16)
+- 2026-10-21 FIXED (autopilot shots only). Measured a Windows 1080p main
+  menu (interfaceingame.com) against ours: font size, 30-unit pitch and
+  text x already matched; our column sat 30 units low (placed from
+  mainmenu.res, whose PC order starts with two hidden community buttons),
+  now Play Single Player's bar at 198 and Quit's at 348 (text tops 204.7
+  and 354.7 vs 204.4 and 354.7 on Windows). Focus bar now fixed 281 x 25
+  units from x 87 on every item, grey ~77 over the backdrop (Windows ~75;
+  was alpha 3/255, nearly invisible, sized to the label). Co-op,
+  Community, Extras greyed (60 grey, not buttons, so no hover/click; their
+  actions removed); Robot Enrichment added under Quit (store_button atom
+  icon 17 units at 89,379, label in the 18-tall Cn font), greyed. Logo
+  moved 0.7 units so the P lines up with the text (x 100). The logo now
+  also shows over every Options page from the main menu (Options pages
+  never drew it). Challenge Mode in Single Player greyed too. New
+  autopilot `hover <Action>` for hover shots. Keyboard navigation is not
+  built at all yet (T-184).
 - Robot Enrichment section and its icon missing (greyed out).
 - Gap between the Portal 2 logo and PLAY SINGLE PLAYER about one text line
   too big; check spacing and font size against the original.

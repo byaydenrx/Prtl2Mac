@@ -99,6 +99,9 @@ fn drive(
                 "click" => {
                     click.write(crate::ui::MenuClick(a.join("")));
                 }
+                "hover" => {
+                    click.write(crate::ui::MenuClick(format!("hover:{}", a.join(""))));
+                }
                 "shot" => {
                     if let Some(path) = a.first() {
                         commands
@@ -412,6 +415,9 @@ fn drive(
             },
             "click" => {
                 click.write(crate::ui::MenuClick(a.join("")));
+            }
+            "hover" => {
+                click.write(crate::ui::MenuClick(format!("hover:{}", a.join(""))));
             }
             "quit" => {
                 exit.write(AppExit::Success);
