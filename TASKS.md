@@ -61,7 +61,7 @@ P3:
 13. (T-152 lighting/texture quality: STUCK 2026-10-21, bumped-model shader path needs a multi-run job; plan in the entry.)
 14. (T-153 GLaDOS white particles FIXED 69426f1, awaiting owner replay; arms/view still open.) (T-173 gun hold beam/fizzler shake FIXED fd1310c, awaiting owner replay; gun spark not done.)
 15. (T-140 game-placed portal shake/sound: NOT REPRODUCED 2026-10-21, BLOCKED needs owner; untested fix on attempt/T-140.)
-16. T-174 elevator videos; T-175 intro1 ride outside fog/sky; T-164 debris
+16. (T-174 elevator videos FIXED b250e5f, awaiting owner replay.) T-175 intro1 ride outside fog/sky; T-164 debris
     (try attempt/T-164); T-116 window (owner screenshots coming).
 P4:
 17. T-151 water (try attempt/T-151), T-150 particles, T-146 half-stuck door,
@@ -979,11 +979,6 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   sin(t * frequency / fraction) * fraction^2 and the per-frame amplitude
   decay dt/(duration*frequency) (slightly weaker, faster jitter at the end).
 
-### T-174 Elevator-room videos buggy and very low quality  (P3, TODO)
-- Owner playtest 9: "the videos that play in the elevator rooms are a bit
-  buggy and super low quality" (the vgui movie screens around the arrival
-  and departure elevators; T-129 fixed their placement).
-
 ### T-175 sp_a1_intro1 ride: the big room outside the container has no fog in parts, black sky  (P3, TODO)
 - Owner playtest 9: "the big room outside of the moving box has some issues
   in the wakeup sequence, like parts not being foggy and the sky being just
@@ -1086,6 +1081,22 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-174 Elevator-room videos buggy and very low quality  (P3, FIXED b250e5f, awaiting owner replay)
+- Owner playtest 9: "the videos that play in the elevator rooms are a bit
+  buggy and super low quality" (the vgui movie screens around the arrival
+  and departure elevators; T-129 fixed their placement).
+- Cause: movies.rs decoded every Bink at 192 px wide and 12 fps (the
+  elevator movies are 640x400 / 480x640 at 24 fps), so the big panels were
+  blurry and choppy. Now decoded at their own size (up to 640 wide) and
+  frame rate, kept as YUV 4:2:0 and converted per shown frame; the old
+  `*_192_12.rgba` caches are removed. Unit tests for size and colour.
+- Evidence (autopilot only): sp_a2_laser_stairs arrival, `lookat
+  @arrival_sign_3/_5` at 9-10 s, dist fd1310c vs b250e5f: the Aperture logo
+  and "Thermal Discouragement" text go from smeared to sharp. "Buggy" not
+  pinned down beyond the choppy 12 fps: owner, say what looks wrong if it
+  persists (entry/exit_emergency.bik don't exist in the game files; that
+  warning is harmless).
 
 ### T-173 Portal gun view model: hold beam, carry anims, fizzler shake  (P3, FIXED fd1310c, awaiting owner replay)
 - Owner playtest 9: "portal gun still doesn't have that electricity when
