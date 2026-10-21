@@ -10,7 +10,7 @@ owner wants the auto sessions to take over: T-150, then the full campaign
 (chapters 2-9), starting with T-198 aerial faith plate physics.
 
 ## Where things stand
-- dist/Prtl2Mac.app = BUILD_ID.
+- dist/Prtl2Mac.app = 0.1.0+d1fe5a4.20261021T1856Z.
 - Awaiting the owner: T-112 GLaDOS floor reflection, T-153 particles.
 - ON HOLD: menus (no menu code changes), screenshot tasks (T-173, T-174,
   T-145, T-147, T-149, T-116, T-152, T-151, T-154), T-164, T-120.
