@@ -25,8 +25,8 @@ every other menu task (T-162, T-177..T-194, including their "open pieces"
 and the dead-control list) is on hold, not for autoruns.
 NEXT UP (owner round 4, 2026-10-21): T-196 black screen after flips
 (FIXED f8c9be3, awaiting owner replay), T-195 pause menu as Windows
-(FIXED 8af5fa3, awaiting owner replay), then T-197 even tile grid. Then T-172
-onward (no more menu work).
+(FIXED 8af5fa3, awaiting owner replay), T-197 even tile grid (FIXED 209c358,
+awaiting owner replay). Next T-172 onward (no more menu work).
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
 before every other task. Owner notes after build fb0090a (12 items,
 listed under the spec heading) come first: T-179 flip like the video,
@@ -138,7 +138,26 @@ Then the Backlog (prove and sweep the campaign).
   pixel-identical to the previous build. Not owner-verified; blur/glow
   strength tuned by eye against the shots.
 
-### T-197 Tile grid not even  (P2, TODO; owner round 4 item 3)
+### T-197 Tile grid not even  (P2, FIXED 209c358, awaiting owner replay; owner round 4 item 3)
+- FIXED 2026-10-21 (209c358, build 0.1.0+209c358.20261021T1229Z),
+  autopilot-checked only. Cause: tile_frame_sized placed each tile in Vh
+  units, rounded to pixels on its own; where a 50-unit tile isn't a whole
+  number of pixels (102.3 px on a 982-high window; the owner's 1964-high
+  display gives 204.6) tiles stepped 102 or 103 apart and some seams were
+  one dark pixel, others two light ones. Fix: rebuild_menu snaps the tile
+  to whole physical pixels once (TILE_PX, rebuilds when it changes) and
+  every tile sits at integer multiples of it (tile_spot; last column/row
+  still pulled in to the frame size, as before). Unit test
+  tiles_sit_on_one_whole_pixel_grid. Evidence (--size 1512x982): Options
+  seams before at x 306/307, 409, 511/512, 614 and rows 520, 623, 725/726;
+  after every 102 px (306, 408, 510, 612; 520, 622, 724), same on Audio,
+  Advanced Video, Keyboard/Mouse, the Quit confirmation. At 1280x720
+  (75 px tiles, already whole) main menu, Options, Audio, Advanced Video,
+  Quit confirmation shots are byte-identical before/after; main menu also
+  identical at 982. Flip tiles still slice by units (<1 px off, transient;
+  flip left as is, menus frozen). Edit Keys list not shot (autopilot can't
+  open that row); same frame code. Owner: please check the grid on your
+  display (Options, Audio, Advanced Video, Edit Keys, confirmations).
 - The dialog tiles' spacing is off and some tiles sit a few pixels to the
   side, so the grid isn't one flat even grid. Likely tile_frame_sized's
   pulled-in last column/row (x = width - 50 overlaps) and rounding of
