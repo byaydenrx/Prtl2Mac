@@ -98,3 +98,9 @@ Other notes: most of these are global and not all of them; lighting/textures bei
 
 ## Owner note 2026-10-20 (after playtest 9)
 - Can't catch falling things or grab things mid-air: the faith plate level's cube couldn't be grabbed (couldn't continue); Wheatley couldn't be caught when he fell earlier (T-176).
+
+## Owner menu/intro spec (2026-10-21)
+Full text in docs/MENU_SPEC.md (startup intros, main menu, Single Player,
+New/Load Game, Options/Audio/Video/Advanced Video/Controller/Keyboard-Mouse,
+Edit Keys, sliders, quit dialog, navigation, persistence, scaling). Tracked
+as T-177..T-192; the owner wants these fixed before any other task.

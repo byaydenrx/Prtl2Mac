@@ -18,7 +18,13 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 4 intro5/intro6, 5 intro7 + sp_a1_wakeup + sp_a2_intro, 6 sp_a2_laser_intro,
 7 sp_a2_laser_stairs.
 
-## Priority order (2026-10-20, after owner playtest 9)
+## Priority order (2026-10-21, owner menu/intro spec first)
+OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
+before every other task. Working order: T-178 main menu, T-191 quit dialog,
+T-180 sounds, T-184 options framework, T-190 sliders, T-185 audio, T-186
+video, T-187 advanced video, T-188 controller, T-189 keyboard/mouse + edit
+keys, T-181 single player, T-182 new game, T-183 load game, T-179 tile
+flips, T-177 startup intros, T-192 scaling. Then the list below.
 P0:
 1. (none; T-168 box-button crash owner-confirmed fixed.)
 P1:
@@ -47,6 +53,141 @@ P4:
 17. T-151 water (try attempt/T-151), T-150 particles, T-146 half-stuck door,
     T-154 floating moss.
 Then the Backlog (prove and sweep the campaign).
+
+## Owner menu/intro spec (2026-10-21): T-177..T-192, before everything else
+The owner's spec, verbatim: docs/MENU_SPEC.md (section numbers below are
+its sections). The owner can send Windows screenshots for any screen.
+Reference: Windows Portal 2 (install .res files, client.dll in depot 624,
+https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
+
+### T-177 Startup intros missing  (P2, TODO; spec 1, 15)
+- Play in order, with their music/audio, timing and transitions: Valve logo
+  (the head turn), "Powered by Source" screen, the initial Portal 2 loading
+  screen, then the main menu. No skip, overlap or repeat.
+
+### T-178 Main menu layout  (P2, TODO; spec 1, 11, 16)
+- Robot Enrichment section and its icon missing (greyed out).
+- Gap between the Portal 2 logo and PLAY SINGLE PLAYER about one text line
+  too big; check spacing and font size against the original.
+- Align the logo and the menu items with each other (left edges).
+- The logo stays visible on every menu (Options etc.), same position.
+- Hover highlight: same size on every item (now it changes colour and
+  shrinks to the label); match the original size, position and colour.
+- Robot Enrichment + icon, Play Cooperative Campaign, Extras, Community Test
+  Chambers: original positions, greyed, not hoverable or clickable, skipped
+  by mouse and keyboard.
+
+### T-179 Tile-flip transitions  (P2, TODO; spec 1, 10, 11, 15)
+- Fullscreen tile flip from the intro screen to the main menu; tile flip
+  opening Options, Extras, Community, Play Single Player, Play Co-op; flips
+  between subsections (Video -> Advanced Video); dialogs (quit, discard).
+  Match direction, timing and look, not a fade/slide.
+
+### T-180 Menu sounds  (P2, TODO; spec 1, 11, 15)
+- Original hover, click/select, menu/section switch sounds, at the right
+  moments, once per interaction.
+
+### T-181 Play Single Player dialog  (P2, TODO; spec 2, 13, 16)
+- Rows: Continue Game, New Game, Load Game, Challenge Mode, Developer
+  Commentary (last two greyed, not hoverable/clickable).
+- Continue loads the most recent valid save at its place and state; the
+  menu background video matches that save's chapter; no saves: graceful.
+
+### T-182 New Game chapter list  (P2, TODO; spec 2, 13)
+- Played chapters hover/select properly; each entry shows its screenshot
+  with the chapter title beneath (save-menu layout); titles bold; selecting
+  starts that chapter.
+
+### T-183 Load Game list  (P2, TODO; spec 2, 13)
+- Saves newest first; each with screenshot, save title, chapter name (title
+  and chapter bold); date like "Saturday, Jun 27 7:32 PM" from the save's
+  real timestamp; "Auto Save" in the screenshot's top-right only for
+  autosaves; loads the selected save; all fields from the same save.
+- Edge cases: no saves, only autosaves, mixed, missing screenshot, a save
+  that fails to load, near-identical timestamps. Never invent data.
+
+### T-184 Options framework: pending/applied, footer, dialogs, navigation  (P2, TODO; spec 3, 11, 12, 14)
+- Settings functional; shown values = active or pending.
+- Use Defaults appears beside Apply and Back once anything changed
+  (Advanced Video too), restores defaults; hidden when nothing changed.
+- Footer buttons look like the original: brighter on hover/focus, blue
+  when clicked; sizes, spacing, focus, transitions.
+- Pending vs applied kept apart; persist across sections, reopening and
+  restarts; bad/missing settings file -> defaults, no crash.
+- Back goes to the right parent (Advanced Video -> Video, key bindings ->
+  Keyboard/Mouse); discard dialog "Changes have been made. Discard current
+  changes?" Discard/Cancel (Cancel keeps pending); dialogs capture input.
+- Shared components for buttons, sliders, highlights, dialogs. Menus don't
+  jump or resize when rows change; keyboard focus visible and ordered.
+
+### T-185 Audio settings  (P2, TODO; spec 4)
+- Rows: Sound Quality (Low/High), Puzzle Maker Sounds (Disabled/Enabled),
+  Closed Captioning (renamed from Captioning: None/Subtitles Only/Full
+  Captions), Closed Captioning Language, Enable Voice (Open Microphone/Push
+  to Talk/Disabled), Push to Talk Key (greyed unless Push to Talk; default
+  C; opens Edit Keys scrolled to and highlighting that binding; shows the
+  new key on return), Setup Microphone (always bold; opens the Steam
+  overlay where supported).
+- Settings must work (caption level, language where supported); Steam/voice
+  features fail gracefully.
+
+### T-186 Video settings  (P2, TODO; spec 5, 14)
+- Rows: Aspect Ratio (16:9 / 16:10 / 4:3, default from the display),
+  Resolution (the display's real modes, native marked "(Native)" and
+  default), Display Mode (Windowed (No Border)/Fullscreen/Run in a Window,
+  really switching, safe fallback), Laptop Power Savings (Enabled/Disabled),
+  Splitscreen Direction (Default (Horizontal)/Vertical), Advanced Video
+  (always bold, opens its section).
+- UI stays correctly scaled after changes; values show the active config.
+
+### T-187 Advanced Video settings  (P2, TODO; spec 6)
+- Exact order: Anti-Aliasing Mode (None/2x MSAA/4x MSAA), Filtering Mode
+  (Bilinear/Trilinear/Anisotropic 2x/4x/8x/16x), Wait for Vertical Sync
+  (Disabled/Enabled (Double Buffered)/Enabled (Triple Buffered)), Multicore
+  Rendering (Enabled/Disabled), Shader Detail (Low/Medium/High/Very High),
+  Effect Detail (Low/Medium/High), Model / Texture Detail (Low/Medium/High),
+  Paged Pool Memory Available (Low/Medium/High); project extras after.
+- Scrolls inside the window (not a bigger window); scrolling doesn't break
+  selection or the footer.
+- Apply applies and returns to Video; Back with changes -> discard dialog
+  (Discard leaves and drops, Cancel stays and keeps). Map each to the
+  closest real renderer setting, nothing purely decorative.
+
+### T-188 Controller settings  (P2, TODO; spec 7)
+- Only "Controller" Enabled/Disabled; really toggles controller input;
+  persists.
+
+### T-189 Keyboard/Mouse and Edit Keys  (P2, TODO; spec 8)
+- Rows: Edit Keys/Buttons (always bold), Reverse Mouse, Mouse Sensitivity
+  (slider), Raw Mouse Input, Mouse Acceleration, Acceleration Amount
+  (slider), Allow Developer Console (gates the console). All functional.
+- Edit Keys: section headings left (Movement, Actions, Co-op,
+  Miscellaneous, Miscellaneous Movement) with "Key/Button" column right.
+  Movement: Move Forward, Move Back, Move Left (Strafe), Move Right
+  (Strafe), Jump, Duck. Actions: Fire Blue Portal, Fire Orange Portal, Use
+  Item (Buttons, Machines, ...), Toggle Zoom, Zoom In, Zoom Out. Co-op:
+  Partner Remote View, Communication Menu, Gesture Menu, Push to Talk Key,
+  Chat Message. Miscellaneous: View Leaderboard, Take Screenshot, Quick
+  Save, Quick Load, Pause Game, Quit Game, Toggle Developer Console, Swap
+  Splitscreen Control. Miscellaneous Movement: Turn Left, Turn Right, Look
+  Up, Look Down, Strafe Modifier, Keyboard Look Modifier.
+- Footer: Back, Edit Key, Clear Key, Use Defaults. Rebinding updates the
+  real action, handles conflicts, can be cancelled, persists over restart;
+  deep link scrolls to and highlights a binding.
+
+### T-190 Sliders  (P2, TODO; spec 9)
+- Small arrow above the slider at its default value; no side arrows; one
+  shared slider for every use; values in range, mouse and keyboard.
+
+### T-191 Quit confirmation dialog  (P2, TODO; spec 10)
+- Main menu Quit opens dialog: title "Portal 2", "Are you sure you want to
+  quit?", Quit / Cancel; same look and tile flip as the discard dialog;
+  doesn't trigger the menu behind it.
+
+### T-192 Menu scaling and display changes  (P2, TODO; spec 14)
+- Layout correct at native/non-native resolutions, fullscreen, borderless,
+  windowed and each aspect ratio; no clipping or overlap; scrolling
+  sections usable at small sizes.
 
 ## Open: P0
 (none)

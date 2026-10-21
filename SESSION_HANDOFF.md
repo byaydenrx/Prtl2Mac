@@ -43,11 +43,11 @@ playtest 10 report and comparisons in TASKS.md first.
 - dist/Prtl2Mac.app = 0.1.0+b796a33.20261021T0431Z (owner playtest build).
 
 ## Next action
-1. T-172 late VO (stretches elevator rides). Then T-135, T-139, T-112,
-   T-144, T-149, T-147, T-113, then P3/P4. New crashes/softlocks still
-   first. T-145's dark-lit-cube cause, spikes and jitter remain (see its
-   entry). Skip T-116 (owner screenshots coming), T-164, T-151 (attempt
-   branches await the owner).
+1. OWNER PRIORITY (2026-10-21): menu/intro spec docs/MENU_SPEC.md, tasks
+   T-177..T-192 (order in TASKS.md "Priority order"), before everything
+   else. Owner working with the session interactively; autorun stays off.
+   Then T-172 late VO, T-135, T-139, T-112, T-144, T-149, T-147, T-113,
+   then P3/P4. Skip T-116, T-164, T-151 (owner).
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.
