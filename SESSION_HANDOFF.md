@@ -40,7 +40,7 @@ playtest 10 report and comparisons in TASKS.md first.
   spawned Hidden. Next check written in the T-145 entry. Spikes under the
   button and jitter not looked at yet.
 - T-145 skin table (cc8d8e0) merged 2026-10-21, untested in game.
-- dist/Prtl2Mac.app = see the make_app line in the latest commit message.
+- dist/Prtl2Mac.app = 0.1.0+b796a33.20261021T0431Z (owner playtest build).
 
 ## Next action
 1. T-172 late VO (stretches elevator rides). Then T-135, T-139, T-112,
