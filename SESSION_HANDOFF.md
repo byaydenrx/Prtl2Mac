@@ -4,11 +4,11 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-21 08:52, autorun (prtl2mac-auto-resume-2). T-135 PARTIAL: the
-departure elevators' vac-tube turrets were never killed (anim event 1100
-fired with no activator, so tube_object_kill's `!activator | kill` missed)
-and kept falling through the car; fixed 41e3839 (autopilot log only).
-Rubble open (needs owner). Next: T-139.
+2026-10-21 09:45, autorun (prtl2mac-auto-resume-2). T-147 NOT REPRODUCED:
+intro2's entry door opens and is walked through with no black frame on the
+current build and dist 910da9a (autopilot shots, several view angles);
+blocked on the owner (does it still happen, screenshot/video). No code
+change, no attempt branch. Next: T-113.
 
 ## Where things stand
 - Upstream checked 2026-10-21: no code changes since our base v0.1.0, only a
@@ -26,13 +26,12 @@ Rubble open (needs owner). Next: T-139.
 - dist/Prtl2Mac.app = 0.1.0+910da9a.20261021T1324Z (T-144 clipboard carry angle; T-139 soundscapes before it).
 
 ## Next action
-1. T-147 intro2 black screen at the first door (T-149 intro5 screens/
-   lights and sign big number NOT REPRODUCED, blocked on owner shots;
+1. T-113 instructor hints vanish (T-147 intro2 black door NOT REPRODUCED,
+   blocked on owner; T-149 not reproduced, blocked on owner shots;
    T-144 clipboard FIXED 910da9a, awaiting owner replay; T-112 untested fix
    on attempt/T-112, blocked on owner; T-139 music pieces, T-135 rubble
    open; T-172 blocked; T-195..T-197 awaiting owner replay).
-2. Then T-113,
-   then P3/P4. Skip T-116, T-164, T-151 (owner).
+2. Then P3 (T-171, T-148, ...)/P4. Skip T-116, T-164, T-151 (owner).
 MENUS FROZEN: only T-196/T-195/T-197 may touch menu code; no other menu
 changes (owner, 2026-10-21). A separate session may port upstream engine
 changes (Stink-O/Portal2-rust-engine) into main; merge origin/main often.

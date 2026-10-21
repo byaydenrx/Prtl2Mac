@@ -27,7 +27,7 @@ NEXT UP (owner round 4, 2026-10-21): T-196 black screen after flips
 (FIXED f8c9be3, awaiting owner replay), T-195 pause menu as Windows
 (FIXED 8af5fa3, awaiting owner replay), T-197 even tile grid (FIXED 209c358,
 awaiting owner replay). T-172 not reproduced (blocked, needs owner).
-T-144 clipboard FIXED 910da9a (awaiting owner replay). T-149 not reproduced (blocked, needs owner shots). Next T-147 onward (no more menu work; T-112 attempt branch awaits owner).
+T-144 clipboard FIXED 910da9a (awaiting owner replay). T-149 not reproduced (blocked, needs owner shots). T-147 not reproduced (blocked, needs owner). Next T-113 onward (no more menu work; T-112 attempt branch awaits owner).
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
 before every other task. Owner notes after build fb0090a (12 items,
 listed under the spec heading) come first: T-179 flip like the video,
@@ -53,7 +53,7 @@ P2:
 6. (T-112 GLaDOS floor: BLOCKED, untested world-reflection fix on attempt/T-112, needs owner.)
 7. (T-144 clipboard carry angle FIXED 910da9a, awaiting owner replay.)
 8. (T-149 intro5 screens/lights, big number: NOT REPRODUCED 2026-10-21, BLOCKED needs owner screenshots.)
-9. T-147 intro2 black screen at the first door; T-113 hints vanish.
+9. (T-147 intro2 black screen at the first door: NOT REPRODUCED 2026-10-21, BLOCKED needs owner.) T-113 hints vanish.
 P3:
 10. T-171 FPS drops looking at portals.
 11. T-148 portals behind glass drawn on top (reopened).
@@ -841,8 +841,22 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
     of what looks wrong in intro5/intro6 ("screens and lights") is needed.
   - No fix attempt branch (no plausible cause to try).
 
-### T-147 intro2: the screen goes black right as the first door opens  (P2, TODO)
+### T-147 intro2: the screen goes black right as the first door opens  (P2, BLOCKED (needs owner): not reproduced)
 - Section 1; compare T-119. Screenshot 7 (intro2): a dark shard in a door.
+- 2026-10-21 autorun: NOT REPRODUCED. Owner saw it on build 1faf8d2
+  (playtest 8, which already had the T-119 door/area-portal fix 6d75b6f);
+  not reported again in playtest 9. Autopilot sp_a1_intro2 on the current
+  build and on dist 910da9a: the natural path (elevator opens, walk to
+  @entry_door-testchamber_door; arrival_elevator-leaving_elevator_trigger
+  fires @entry_door_open_rl after 0.5 s) with shots every 0.2-0.5 s while
+  the door opens and the player walks through, plus off-axis looks
+  (pitch +10/-20, yaw +-25, looking back) mid-opening: the door, its
+  frame and the chamber behind stay drawn in every frame, no black frame
+  (looking back shows the dark stairwell wall, lit normally). The exit
+  door was not checked by walking. No cause found, so no attempt branch.
+- Needs the owner: does it still happen on the current build; if so a
+  screenshot or a short video, and whether it is the whole screen or a
+  shape in the door (screenshot 7's dark shard).
 
 ### T-113 Instructor hints vanish after a few seconds if not done  (P2, TODO)
 - Key labels fixed (owner confirmed).
