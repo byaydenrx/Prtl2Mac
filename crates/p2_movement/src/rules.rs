@@ -140,12 +140,24 @@ pub fn smoothstep(t: f32) -> f32 {
 /// Apply mouse counts to yaw and pitch. Moving the mouse right turns right
 /// (yaw falls); moving it up looks up (pitch rises). Pitch is clamped.
 pub fn look(cfg: &MovementConfig, yaw: f32, pitch: f32, counts: Vec2) -> (f32, f32) {
+    let counts = accelerate_mouse(counts, cfg.mouse_accel);
     let k = cfg.radians_per_count();
     let limit = cfg.pitch_limit_deg.to_radians();
     let yaw = (yaw - counts.x * k).rem_euclid(2.0 * PI);
     let sign = if cfg.invert_pitch { -1.0 } else { 1.0 };
     let pitch = (pitch - counts.y * k * sign).clamp(-limit, limit);
     (yaw, pitch)
+}
+
+/// Mouse acceleration: faster movement turns further per count, by the
+/// frame's movement raised to `exponent - 1` (no change at exponent 1 or
+/// for movement under a count).
+pub fn accelerate_mouse(counts: Vec2, exponent: f32) -> Vec2 {
+    let speed = counts.length();
+    if exponent <= 1.0 || speed <= 1.0 {
+        return counts;
+    }
+    counts * speed.powf(exponent - 1.0)
 }
 
 /// Eye height above the feet, eased with smoothstep over a duck (down) or an
@@ -217,6 +229,17 @@ pub const CROUCHED_EYE: f32 = VIEW_DUCK;
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn mouse_acceleration() {
+        let v = Vec2::new(30.0, 40.0);
+        assert_eq!(accelerate_mouse(v, 1.0), v);
+        assert_eq!(accelerate_mouse(Vec2::new(0.5, 0.0), 1.3), Vec2::new(0.5, 0.0));
+        // 50 counts at exponent 1.2: x 50^0.2 (about 2.19).
+        let a = accelerate_mouse(v, 1.2);
+        assert!((a.length() / 50.0 - 50f32.powf(0.2)).abs() < 1e-4);
+    }
+
     use super::*;
 
     const DT: f32 = 1.0 / 60.0;

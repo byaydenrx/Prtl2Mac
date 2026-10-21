@@ -17,7 +17,7 @@ use p2_assets::GameFsRes;
 use p2_core::*;
 
 use crate::audio::PlayGameSound;
-use crate::bindings::{DefaultBinds, KeyAction, KeyActions};
+use crate::bindings::{DefaultBinds, GameStrings, KeyAction, KeyActions};
 use crate::campaign::Campaign;
 use crate::community::CommunityMaps;
 use crate::level::{CurrentMap, LevelLoaded, LoadLevel};
@@ -56,7 +56,7 @@ impl Plugin for UiPlugin {
             .add_systems(
                 Update,
                 (
-                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, carry_hover, footer_art, hover_rows, describe_rows, menu_movie).chain(),
+                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, carry_hover, footer_art, hover_rows, describe_rows, scroll_nobs, menu_movie).chain(),
                     (menu_view, menu_camera, pause_world, menu_music, title_card).chain(),
                 )
                     .chain()
@@ -127,8 +127,6 @@ pub(crate) struct MenuState {
     /// Key-list row waiting for a key, and the row last clicked.
     capture: Option<usize>,
     selected: Option<usize>,
-    /// A key-list row to scroll into view (opened from Push To Talk Key).
-    reveal: Option<usize>,
 }
 
 /// The New Game dialog's tab: the campaign, or the community maps (the
@@ -309,6 +307,10 @@ mod theme {
     pub const ERROR: Color = Color::srgb(0.62, 0.12, 0.1);
     /// HybridButton.DisabledColor 140 140 140.
     pub const DISABLED: Color = Color::srgb(140.0 / 255.0, 140.0 / 255.0, 140.0 / 255.0);
+    /// Edit Keys' section headings and their rule.
+    pub const KEYS_HEADER: Color = Color::srgb(150.0 / 255.0, 150.0 / 255.0, 150.0 / 255.0);
+    /// Edit Keys' picked / hovered row.
+    pub const KEY_PICKED: Color = Color::srgb(200.0 / 255.0, 200.0 / 255.0, 200.0 / 255.0);
     /// A confirmation's message (grey on the tiles, as on Windows).
     pub const CONFIRM_TEXT: Color = Color::srgb(110.0 / 255.0, 110.0 / 255.0, 110.0 / 255.0);
     /// The chosen chapter-dialog tab.
@@ -851,6 +853,9 @@ fn confirm_dialog(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&Me
     });
 }
 
+/// KeyBindingsHeader: UniversLTStd-BoldCn tall 20.
+const KEYS_HEADER_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(20.0 / 1.265 * 100.0 / 480.0);
+
 /// The confirmation title: its capitals measure 16.25 units on Windows,
 /// UniversLTStd-BoldCn tall ~28.
 const CONFIRM_TITLE_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(28.0 / 1.265 * 100.0 / 480.0);
@@ -906,7 +911,7 @@ fn tile_option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row, y: 
         ..default()
     };
     let label = |r: &mut ChildSpawnerCommands, s: &str| {
-        r.spawn((Node { flex_grow: 1.0, ..default() }, children![(Text::new(s.to_string()), font(DIALOG_ITEM_FONT), TextColor(Color::BLACK))]));
+        r.spawn((Node { flex_grow: 1.0, ..default() }, children![(Text::new(s.to_string()), font(DIALOG_ITEM_FONT), TextColor(Color::BLACK), TextLayout::linebreak(LineBreak::NoWrap))]));
     };
     let arrow = |r: &mut ChildSpawnerCommands, left: bool, action: Action| {
         r.spawn((
@@ -931,7 +936,7 @@ fn tile_option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row, y: 
                     Action::Toggle(*setting),
                     VALUE_LOOK,
                     InRow,
-                    Node { min_width: units(130.0), flex_shrink: 0.0, justify_content: JustifyContent::FlexEnd, ..default() },
+                    Node { flex_shrink: 0.0, justify_content: JustifyContent::FlexEnd, ..default() },
                     BackgroundColor(Color::NONE),
                     children![(Text::new(value.clone()), font(DIALOG_ITEM_FONT), TextColor(Color::BLACK), TextLayout::new(Justify::Right, LineBreak::NoWrap))],
                 ));
@@ -965,6 +970,25 @@ fn tile_option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row, y: 
                     t.spawn((SliderTrack, Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: units(7.0), width: Val::Percent(100.0), height: units(6.0), ..default() }, BackgroundColor(theme::TILE_TRACK)))
                         .with_child((SliderFill, Node { width: Val::Percent(fraction * 100.0), height: Val::Percent(100.0), ..default() }, BackgroundColor(Color::BLACK)));
                 });
+            });
+        }
+        Row::Heading(h) => {
+            // KeyBindingsHeader (BoldCn 20), grey, the Key/Button column
+            // heading at 201 units, a rule under it (owner's Windows shot).
+            let head = TextFont { font: (&fonts.title).into(), font_size: KEYS_HEADER_FONT, ..default() };
+            p.spawn(Node { padding: UiRect::horizontal(units(4.0)), ..node.clone() }).with_children(|r| {
+                r.spawn((Node { width: units(197.0), ..default() }, children![(Text::new(h.to_uppercase()), head.clone(), TextColor(theme::KEYS_HEADER))]));
+                r.spawn((Text::new("KEY/BUTTON"), head, TextColor(theme::KEYS_HEADER)));
+                r.spawn((Node { position_type: PositionType::Absolute, left: Val::Px(0.0), right: Val::Px(0.0), bottom: units(0.5), height: units(1.0), ..default() }, BackgroundColor(theme::KEYS_HEADER)));
+            });
+        }
+        Row::Key { label: l, keys, index, selected } => {
+            // A binding: the action at 4 units, its key at 201; the picked
+            // row and the hovered one on a light grey bar.
+            let look = Look { text: Color::BLACK, text_hover: Color::BLACK, bg: if *selected { theme::KEY_PICKED } else { Color::NONE }, bg_hover: theme::KEY_PICKED };
+            p.spawn((Button, Action::Bind(*index), look, Node { padding: UiRect::horizontal(units(4.0)), ..node.clone() }, BackgroundColor(look.bg))).with_children(|r| {
+                r.spawn((Node { width: units(197.0), ..default() }, children![(Text::new(l.clone()), font(DIALOG_ITEM_FONT), TextColor(Color::BLACK))]));
+                r.spawn((Text::new(keys.to_uppercase()), font(DIALOG_ITEM_FONT), TextColor(Color::BLACK)));
             });
         }
         Row::Disabled { label: l, value } => {
@@ -1008,14 +1032,64 @@ struct DescText;
 /// wrapped, VideoSettingsDescription (LightCn tall 17 weight 700 on HiDef,
 /// drawn with the Cn face); both black. Filled by [`describe_rows`].
 /// Starts on `first` (Portal 2 focuses the first row when the dialog opens).
-fn description_pane(p: &mut ChildSpawnerCommands, fonts: &UiFonts, first: Option<&Row>) {
+fn description_pane(p: &mut ChildSpawnerCommands, fonts: &UiFonts, first: Option<&Row>, strings: Option<&GameStrings>) {
     let (label, desc) = match first {
-        Some(Row::Choice { label, setting, .. } | Row::Slider { label, setting, .. }) => (label.clone(), options::describe(*setting)),
-        _ => (String::new(), ""),
+        Some(Row::Choice { label, setting, .. } | Row::Slider { label, setting, .. }) => (label.clone(), describe(*setting, strings)),
+        _ => (String::new(), String::new()),
     };
     let at = |y: f32, tall: f32| Node { position_type: PositionType::Absolute, left: units(360.0), top: units(y), width: units(180.0), height: units(tall), ..default() };
     p.spawn((at(25.0, 25.0), children![(DescTitle, Text::new(label), TextFont { font: (&fonts.title).into(), font_size: DESC_TITLE_FONT, ..default() }, TextColor(Color::BLACK))]));
     p.spawn((at(60.0, 180.0), children![(DescText, Text::new(desc), TextFont { font: (&fonts.menu).into(), font_size: DESC_FONT, ..default() }, TextColor(Color::BLACK))]));
+}
+
+/// A setting's description: the install's own text for Portal 2's
+/// settings, ours for the rest.
+fn describe(setting: Setting, strings: Option<&GameStrings>) -> String {
+    options::describe_token(setting).and_then(|t| strings?.get(t)).map(|t| t.trim().to_string()).unwrap_or_else(|| options::describe(setting).to_string())
+}
+
+/// ScrollBar.Wide 12 (basemodui_scheme), in units.
+const SCROLLBAR_WIDE: f32 = 12.0;
+
+/// The nob of a scrolling list's bar, and the list it follows.
+#[derive(Component)]
+struct ScrollNob(Entity);
+
+/// A scrollbar beside a scrolling list (ScrollBar: black nob on a 40-alpha
+/// track, ▲/▼ at the ends), `x`, `y`, `tall` in units in the body.
+fn scrollbar(d: &mut ChildSpawnerCommands, list: Entity, x: f32, y: f32, tall: f32) {
+    let w = SCROLLBAR_WIDE;
+    let tri = |d: &mut ChildSpawnerCommands, top: f32, down: bool| {
+        for (i, tw) in [7.0f32, 5.0, 3.0, 1.0].into_iter().enumerate() {
+            let row = if down { i as f32 } else { 3.0 - i as f32 };
+            d.spawn((Node { position_type: PositionType::Absolute, left: units(x + (w - tw) / 2.0), top: units(top + row * 1.0), width: units(tw), height: units(1.0), ..default() }, BackgroundColor(Color::BLACK)));
+        }
+    };
+    tri(d, y + 3.0, false);
+    tri(d, y + tall - 7.0, true);
+    let track = (y + 10.0, tall - 20.0);
+    d.spawn((
+        Node { position_type: PositionType::Absolute, left: units(x + 3.0), top: units(track.0), width: units(w - 6.0), height: units(track.1), ..default() },
+        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 40.0 / 255.0)),
+    ))
+    .with_child((ScrollNob(list), Node { position_type: PositionType::Absolute, left: Val::Px(0.0), width: Val::Percent(100.0), top: Val::Percent(0.0), height: Val::Percent(100.0), ..default() }, BackgroundColor(Color::BLACK)));
+}
+
+/// Nobs follow their list: as tall as the share shown, as far down as it
+/// is scrolled.
+fn scroll_nobs(lists: Query<(&ComputedNode, &ScrollPosition)>, mut nobs: Query<(&ScrollNob, &mut Node)>) {
+    for (nob, mut node) in &mut nobs {
+        let Ok((c, pos)) = lists.get(nob.0) else { continue };
+        let content = c.content_size.y * c.inverse_scale_factor;
+        let shown = c.size.y * c.inverse_scale_factor;
+        if content <= 0.0 {
+            continue;
+        }
+        let share = (shown / content).clamp(0.05, 1.0);
+        let at = (pos.0.y / content).clamp(0.0, 1.0 - share);
+        node.height = Val::Percent(share * 100.0);
+        node.top = Val::Percent(at * 100.0);
+    }
 }
 
 /// Show the hovered row's label and description in the pane; the last one
@@ -1024,13 +1098,14 @@ fn describe_rows(
     rows: Query<(&HoverRow, &RowHelp), Changed<HoverRow>>,
     mut title: Query<&mut Text, (With<DescTitle>, Without<DescText>)>,
     mut text: Query<&mut Text, (With<DescText>, Without<DescTitle>)>,
+    strings: Option<Res<GameStrings>>,
 ) {
     let Some((_, help)) = rows.iter().find(|(r, _)| r.hot) else { return };
     for mut t in &mut title {
         t.0 = help.label.clone();
     }
     for mut t in &mut text {
-        t.0 = options::describe(help.setting).to_string();
+        t.0 = describe(help.setting, strings.as_deref());
     }
 }
 
@@ -1414,7 +1489,7 @@ fn rebuild_menu(
     (monitors, windows): (Query<&Monitor, With<PrimaryMonitor>>, Query<&Window, With<PrimaryWindow>>),
     mut chapter_pics: Local<Vec<Option<Handle<Image>>>>,
     mut backgrounds: Local<std::collections::HashMap<usize, Option<Handle<Image>>>>,
-    movie: Res<MenuMovie>,
+    (movie, strings): (Res<MenuMovie>, Option<Res<GameStrings>>),
 ) {
     let Some(fonts) = fonts else { return };
     let options_changed = (settings.is_changed() || actions.is_changed() || mods.is_changed()) && matches!(*screen, Screen::Options { .. });
@@ -1740,23 +1815,47 @@ fn rebuild_menu(
                 OptionsPage::KeyboardMouse | OptionsPage::Controller => Some((7, 5, 25.0)),
                 OptionsPage::Audio => Some((7, 5, 0.0)),
                 OptionsPage::Video => Some((7, 4, 25.0)),
-                OptionsPage::AdvancedVideo => Some((11, 7, 0.0)),
+                // advancedvideo.res (WIN32WIDE) 11 x 5, rows from 25: the
+                // rows past the eighth scroll (owner spec: no bigger window).
+                OptionsPage::AdvancedVideo => Some((11, 5, 25.0)),
+                // Edit Keys/Buttons as the owner's Windows shot measures:
+                // 8 x 5 tiles, the whole body a scrolling list.
+                OptionsPage::Keys => Some((8, 5, 0.0)),
                 _ => None,
             };
             if let Some((wide, tall, y0)) = tiled {
                 let foot: Vec<(&str, Action)> = page.footer(changed).iter().map(|&k| (k.label(), k.into())).collect();
                 let described = page == OptionsPage::AdvancedVideo;
+                let scrolls = matches!(page, OptionsPage::AdvancedVideo | OptionsPage::Keys);
+                // A key row asked for (Push To Talk Key): scroll it into view.
                 commands.spawn(layer(10)).with_children(|p| {
                     tile_frame(p, &fonts, art.as_deref(), page.title(), wide, tall, &foot, |d| {
-                        let width = if described { units(350.0) } else { Val::Percent(100.0) };
-                        d.spawn(Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: Val::Px(0.0), width, height: Val::Percent(100.0), ..default() })
-                            .with_children(|c| {
-                                for (i, r) in rows.iter().enumerate() {
-                                    tile_option_row(c, &fonts, r, y0 + 25.0 * i as f32);
-                                }
-                            });
+                        let width = if described { 350.0 } else { wide as f32 * 50.0 };
+                        let height = tall as f32 * 50.0 - y0;
+                        let mut list = d.spawn(Node {
+                            position_type: PositionType::Absolute,
+                            left: Val::Px(0.0),
+                            top: units(y0),
+                            width: units(if scrolls { width - SCROLLBAR_WIDE } else { width }),
+                            height: units(height),
+                            flex_direction: FlexDirection::Column,
+                            overflow: if scrolls { Overflow::scroll_y() } else { Overflow::visible() },
+                            ..default()
+                        });
+                        if scrolls {
+                            list.insert((ScrollList, ScrollPosition(Vec2::new(0.0, scroll.0))));
+                        }
+                        let list_id = list.id();
+                        list.with_children(|c| {
+                            for r in &rows {
+                                c.spawn(Node { width: Val::Percent(100.0), height: units(25.0), flex_shrink: 0.0, ..default() }).with_children(|w| tile_option_row(w, &fonts, r, 0.0));
+                            }
+                        });
+                        if scrolls {
+                            scrollbar(d, list_id, width - SCROLLBAR_WIDE, y0, height);
+                        }
                         if described {
-                            description_pane(d, &fonts, rows.first());
+                            description_pane(d, &fonts, rows.first(), strings.as_deref());
                         }
                     });
                 });
@@ -2190,7 +2289,9 @@ fn buttons(
                 open_page(&mut menu, &mut scroll, &settings, OptionsPage::Keys);
                 let i = actions.0.iter().position(|a| matches!(a, KeyAction::Command { command, .. } if command == options::PUSH_TO_TALK));
                 menu.selected = i;
-                menu.reveal = i;
+                // Scroll it into view, two rows down from the top.
+                let unit = windows.single().map(|w| w.height() / 480.0).unwrap_or(1.5);
+                scroll.0 = i.map_or(0.0, |i| (i as f32 - 2.0).max(0.0) * 25.0 * unit);
             }
             Action::Command(RowCommand::Page(p)) | Action::Page(p) => {
                 if !matches!(*screen, Screen::Options { .. }) {

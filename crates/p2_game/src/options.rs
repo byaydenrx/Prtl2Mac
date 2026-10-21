@@ -79,7 +79,7 @@ impl OptionsPage {
         match self {
             Self::List => "OPTIONS",
             Self::KeyboardMouse => "KEYBOARD/MOUSE",
-            Self::Keys => "CUSTOMIZE KEYBOARD",
+            Self::Keys => "EDIT KEYS/BUTTONS",
             Self::Controller => "CONTROLLER",
             Self::Audio => "AUDIO",
             Self::Subtitles => "SUBTITLES",
@@ -603,7 +603,7 @@ fn key_rows(ctx: &Ctx) -> Vec<Row> {
                     if k.is_empty() {
                         String::new()
                     } else {
-                        k.iter().take(2).map(|k| key_label(k)).collect::<Vec<_>>().join(", ")
+                        key_label(&k[0])
                     }
                 };
                 Row::Key { label: label.clone(), keys, index, selected: ctx.selected == Some(index) }
@@ -701,6 +701,23 @@ fn advanced_video_rows(s: &Settings, ctx: &Ctx) -> Vec<Row> {
         choice("Show Frame Rate", on_off(s.tools.show_fps), Setting::ShowFps),
         choice("Show Movement Stats", on_off(s.tools.show_pos), Setting::ShowPos),
     ]
+}
+
+/// The install's own description for a Portal 2 video setting
+/// (basemodui_english), shown in the Advanced Video pane.
+pub fn describe_token(setting: Setting) -> Option<&'static str> {
+    Some(match setting {
+        Setting::AntiAliasing => "PORTAL2_VideoOptions_Antialiasing_Info",
+        Setting::Filtering => "PORTAL2_VideoOptions_Filtering_Info",
+        Setting::VSync => "PORTAL2_VideoOptions_WaitForVSync_Info",
+        Setting::Multicore => "PORTAL2_VideoOptions_QueuedMode_Info",
+        Setting::ShaderDetail => "PORTAL2_VideoOptions_ShaderDetail_Info",
+        Setting::EffectDetail => "PORTAL2_VideoOptions_CPUDetail_Info",
+        Setting::ModelDetail => "PORTAL2_VideoOptions_ModelDetail_Info",
+        Setting::PagedPool => "L4D360UI_VideoOptions_Paged_Pool_Mem_Info",
+        Setting::PowerSavings => "PORTAL2_VideoOptions_PowerSavings_Info",
+        _ => return None,
+    })
 }
 
 /// The Advanced Video description pane's text (advancedvideo.res

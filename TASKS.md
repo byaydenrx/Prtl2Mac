@@ -207,7 +207,19 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   (always bold, opens its section).
 - UI stays correctly scaled after changes; values show the active config.
 
-### T-187 Advanced Video settings  (P2, TODO; spec 6)
+### T-187 Advanced Video settings  (P2, FIXED except per-setting render effects, awaiting owner replay; spec 6)
+- 2026-10-21 FIXED (unit test + autopilot shot): the eight Portal 2 rows
+  in order with the spec's values (Anti-Aliasing None/2x/4x MSAA -> the
+  cameras' MSAA; Filtering Bilinear..Anisotropic 16X; Wait For Vertical
+  Sync Disabled / Enabled (Double Buffered) / Enabled (Triple Buffered) ->
+  present mode + frame latency 2/3; Multicore; Shader/Effect/Model detail;
+  Paged Pool), then ours (Motion Blur, FOV, Max Frame Rate, Graphics, Show
+  Frame Rate/Movement Stats). The frame stays 11 x 5 (was grown to fit 14
+  rows, covering the logo); rows from 25 scroll with the wheel and a
+  ScrollBar (black nob, arrows). The description pane now shows the
+  install's own text (basemodui PORTAL2_VideoOptions_*_Info). Apply/Back/
+  discard as T-184. Gaps: shader/effect/model/paged-pool detail and
+  multicore are stored but the renderer draws everything at one level.
 - Exact order: Anti-Aliasing Mode (None/2x MSAA/4x MSAA), Filtering Mode
   (Bilinear/Trilinear/Anisotropic 2x/4x/8x/16x), Wait for Vertical Sync
   (Disabled/Enabled (Double Buffered)/Enabled (Triple Buffered)), Multicore
@@ -227,7 +239,22 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 - Only "Controller" Enabled/Disabled; really toggles controller input;
   persists.
 
-### T-189 Keyboard/Mouse and Edit Keys  (P2, TODO; spec 8)
+### T-189 Keyboard/Mouse and Edit Keys  (P2, MOSTLY FIXED, awaiting owner replay; spec 8)
+- 2026-10-21 (unit tests + autopilot shots vs the owner's Windows shots):
+  Keyboard/Mouse rows as spec (EDIT KEYS/BUTTONS bold, Reverse Mouse,
+  Mouse Sensitivity, Raw Mouse Input, Mouse Acceleration, Acceleration
+  Amount, Allow Developer Console). Mouse Acceleration + Amount now bend
+  the look (counts x speed^(exponent-1), unit test). Edit Keys/Buttons is
+  a tiled 8 x 5 scrolling list: section headings (MOVEMENT, ACTIONS,
+  CO-OP, MISCELLANEOUS, MISCELLANEOUS KEYBOARD...) with KEY/BUTTON over
+  the key column and a rule, one key per action (labels from the
+  install's kb_act.lst + text; View Leaderboard / Swap Splitscreen Control
+  filled in), light grey picked/hovered row, ScrollBar; footer Back, Edit
+  Key, Clear Key, Use Defaults; Esc cancels a pending key. Audio's Push
+  To Talk Key opens it scrolled to and picking Push To Talk. Gaps: Raw
+  Mouse Input is stored only (macOS input here is always raw); a key
+  already used elsewhere is not flagged; controller buttons can't be
+  bound (no gamepad input yet).
 - Rows: Edit Keys/Buttons (always bold), Reverse Mouse, Mouse Sensitivity
   (slider), Raw Mouse Input, Mouse Acceleration, Acceleration Amount
   (slider), Allow Developer Console (gates the console). All functional.

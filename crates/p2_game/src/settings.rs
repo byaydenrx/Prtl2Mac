@@ -690,6 +690,7 @@ fn apply_settings(
     movement.mouse_sensitivity = settings.mouse_sensitivity;
     movement.invert_pitch = settings.invert_mouse;
     movement.mouse_filter = settings.mouse_filter;
+    movement.mouse_accel = if settings.mouse_accel { settings.accel_exponent } else { 1.0 };
     fx.master_volume = settings.master_volume * settings.effects_volume;
     let mut n = 0;
     for mut p in &mut cams {

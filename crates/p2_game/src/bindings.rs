@@ -26,6 +26,7 @@ impl Plugin for BindingsPlugin {
         app.insert_resource(DefaultBinds(BindTable::builtin()))
             .insert_resource(KeyActions(builtin_actions()))
             .init_resource::<InputBindings>()
+            .init_resource::<GameStrings>()
             .add_systems(Startup, load_game_bindings)
             .add_systems(Update, apply_bindings);
     }
@@ -207,6 +208,10 @@ pub fn builtin_actions() -> Vec<KeyAction> {
         c("+attack", "Fire blue portal"),
         c("+attack2", "Fire orange portal"),
         h("Miscellaneous"),
+        // Labels the install's kb_act.lst names but its text files lack
+        // (owner spec wording).
+        c("+leaderboard", "View Leaderboard"),
+        c("swap_ss_input", "Swap Splitscreen Control"),
         c("jpeg", "Take screen shot"),
         c("save_quick", "Quick save"),
         c("load_quick", "Quick load"),
@@ -250,7 +255,18 @@ pub fn decode_text(b: &[u8]) -> String {
     }
 }
 
-fn load_game_bindings(game: Res<GameFsRes>, mut defaults: ResMut<DefaultBinds>, mut actions: ResMut<KeyActions>) {
+/// The game's localized strings (resource/*_english.txt tokens, lower-case
+/// keys), for menu text read from the install.
+#[derive(Resource, Default)]
+pub struct GameStrings(pub HashMap<String, String>);
+
+impl GameStrings {
+    pub fn get(&self, token: &str) -> Option<&str> {
+        self.0.get(&token.to_ascii_lowercase()).map(String::as_str)
+    }
+}
+
+fn load_game_bindings(mut commands: Commands, game: Res<GameFsRes>, mut defaults: ResMut<DefaultBinds>, mut actions: ResMut<KeyActions>) {
     if let Some(b) = game.read("cfg/config_default.cfg") {
         let t = BindTable::from_config(&decode_text(&b));
         if !t.0.is_empty() {
@@ -284,6 +300,7 @@ fn load_game_bindings(game: Res<GameFsRes>, mut defaults: ResMut<DefaultBinds>, 
             actions.0 = list;
         }
     }
+    commands.insert_resource(GameStrings(tokens));
 }
 
 /// The player's table (or the defaults) into what the input systems read.

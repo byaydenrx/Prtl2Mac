@@ -52,6 +52,9 @@ pub struct MovementConfig {
     pub invert_pitch: bool,
     /// Average this frame's mouse movement with the last one (Source `m_filter`).
     pub mouse_filter: bool,
+    /// Mouse acceleration exponent (Options' Mouse Acceleration and
+    /// Acceleration Amount); 1 is none.
+    pub mouse_accel: f32,
     /// Steer airborne players into floor and ceiling portals (`sv_player_funnel_into_portals`).
     pub funnel_into_portals: bool,
 }
@@ -80,6 +83,7 @@ impl Default for MovementConfig {
             pitch_limit_deg: 89.0,
             invert_pitch: false,
             mouse_filter: false,
+            mouse_accel: 1.0,
             funnel_into_portals: true,
         }
     }
