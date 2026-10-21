@@ -18,7 +18,7 @@ top to bottom; all items built and pushed, autopilot-checked only.
   by a subagent, merged), 4:3 layout (T-192). Open pieces listed at the
   top of TASKS.md's priority order.
 - Earlier fixes still awaiting the owner: T-176, T-169, T-162, T-170.
-- dist/Prtl2Mac.app = see the latest docs commit (menu spec + owner notes round 3).
+- dist/Prtl2Mac.app = 0.1.0+d36e250.20261021T0856Z (menu spec + owner notes round 3).
 
 ## Next action
 1. Owner replays the menus/intro (build below) and reports. File every
