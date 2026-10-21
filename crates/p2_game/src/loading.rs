@@ -48,7 +48,7 @@ struct LoadingScreen {
 }
 
 #[derive(Component)]
-struct LoadingRoot;
+pub(crate) struct LoadingRoot;
 
 #[derive(Component)]
 struct LoadingArt;

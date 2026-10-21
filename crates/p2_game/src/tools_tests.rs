@@ -239,41 +239,29 @@ fn options_pages_work() {
     assert!(t.dev_console && t.show_fps && t.show_pos);
     // Leaving a page goes back to the Options dialog (options.res).
     assert_eq!(app.world().resource::<crate::ui::MenuState>().flyout, Some(crate::ui::Flyout::Options));
-    // Speedrun, by its old click name.
-    click(&mut app, "SpeedrunOptions");
-    click(&mut app, "Toggle(SpeedrunTimer)");
-    click(&mut app, "Adjust(SpeedrunMode,1.0)");
-    click(&mut app, "Toggle(QuickRestart)");
-    click(&mut app, "Adjust(QuickRestartKey,1.0)");
-    click(&mut app, "Toggle(Practice)");
-    click(&mut app, "Adjust(SaveCheckpointKey,-1.0)");
-    click(&mut app, "Adjust(LoadCheckpointKey,1.0)");
-    click(&mut app, "Adjust(CheckpointSlot,1.0)");
-    // APPLY saves settings.cfg with the new keys.
+    // Subtitle options sit in Audio now (owner, 2026-10-21); APPLY saves
+    // settings.cfg.
+    let size = app.world().resource::<Settings>().subtitle_size;
+    click(&mut app, "Page(Audio)");
+    click(&mut app, "Adjust(SubtitleSize,1.0)");
     click(&mut app, "Apply");
-    let t = app.world().resource::<Settings>().tools.clone();
-    assert!(t.speedrun_timer && t.quick_restart && t.practice);
-    assert_eq!(t.speedrun_mode, crate::tool_settings::SpeedrunMode::SingleMap);
-    assert_eq!((t.quick_restart_key, t.checkpoint_save_key, t.checkpoint_load_key, t.checkpoint_slot), (KeyCode::F7, KeyCode::F6, KeyCode::F9, 2));
+    assert_ne!(app.world().resource::<Settings>().subtitle_size, size);
     let cfg = std::fs::read_to_string(root.join("data/settings.cfg")).unwrap();
-    assert!(cfg.contains("speedrun_timer 1") && cfg.contains("quick_restart_key F7") && cfg.contains("con_enable 1"), "{cfg}");
+    assert!(cfg.contains("con_enable 1"), "{cfg}");
     assert_eq!(screen(&app), crate::ui::Screen::Main);
     // BACK with changes asks; Cancel stays with them, Discard drops them.
-    click(&mut app, "Page(Speedrun)");
-    click(&mut app, "Toggle(SpeedrunTimer)");
+    click(&mut app, "Page(Audio)");
+    click(&mut app, "Toggle(SoundQuality)");
     click(&mut app, "Back");
     click(&mut app, "ConfirmCancel");
     assert!(matches!(screen(&app), crate::ui::Screen::Options { .. }));
     click(&mut app, "Back");
     click(&mut app, "ConfirmOk");
     assert_eq!(screen(&app), crate::ui::Screen::Main);
-    assert!(app.world().resource::<Settings>().tools.speedrun_timer);
-    // The Mods page with no mod folder, and back.
-    click(&mut app, "ModsOptions");
-    assert!(matches!(screen(&app), crate::ui::Screen::Options { .. }));
-    assert!(!root.join("data/mods").exists());
-    click(&mut app, "Adjust(ModProfile,1.0)");
-    click(&mut app, "Done");
+    assert!(app.world().resource::<Settings>().sound_quality_high);
+    // Mods and Speedrun are greyed / off the list: no button opens them.
+    click(&mut app, "Page(Mods)");
+    click(&mut app, "Page(Speedrun)");
     assert_eq!(screen(&app), crate::ui::Screen::Main);
     // New Game with a community map: its tab, then start it.
     std::fs::create_dir_all(root.join("data/maps")).unwrap();

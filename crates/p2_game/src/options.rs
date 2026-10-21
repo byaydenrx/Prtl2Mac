@@ -125,13 +125,17 @@ impl OptionsPage {
             }
             Self::Keys => s.binds = None,
             Self::Controller => (s.joystick, s.joy_sensitivity, s.joy_invert, s.joy_vibration) = (d.joystick, d.joy_sensitivity, d.joy_invert, d.joy_vibration),
-            Self::Audio => (s.master_volume, s.music_volume, s.speakers, s.captions, s.language) = (d.master_volume, d.music_volume, d.speakers, d.captions, d.language),
+            Self::Audio => {
+                (s.master_volume, s.music_volume, s.speakers, s.captions, s.language) = (d.master_volume, d.music_volume, d.speakers, d.captions, d.language);
+                (s.sound_quality_high, s.puzzlemaker_sounds) = (d.sound_quality_high, d.puzzlemaker_sounds);
+                (s.subtitle_size, s.subtitle_color, s.subtitle_background) = (d.subtitle_size, d.subtitle_color, d.subtitle_background);
+            }
             Self::Subtitles => (s.subtitle_size, s.subtitle_color, s.subtitle_background) = (d.subtitle_size, d.subtitle_color, d.subtitle_background),
             Self::Video => s.gamma = d.gamma,
             Self::AdvancedVideo => {
                 (s.msaa, s.anisotropy, s.trilinear, s.vsync, s.multicore) = (d.msaa, d.anisotropy, d.trilinear, d.vsync, d.multicore);
                 (s.shader_detail, s.effect_detail, s.model_detail, s.paged_pool) = (d.shader_detail, d.effect_detail, d.model_detail, d.paged_pool);
-                (s.motion_blur, s.fov, s.frame_limit, s.enhanced_graphics) = (d.motion_blur, d.fov, d.frame_limit, d.enhanced_graphics);
+                (s.motion_blur, s.fov, s.frame_limit) = (d.motion_blur, d.fov, d.frame_limit);
                 (s.tools.show_fps, s.tools.show_pos) = (d.tools.show_fps, d.tools.show_pos);
             }
             Self::Speedrun => {
@@ -187,7 +191,6 @@ pub enum Setting {
     MotionBlur,
     Fov,
     FrameLimit,
-    Graphics,
     // Extras (off by default)
     DevConsole,
     ShowFps,
@@ -312,9 +315,9 @@ pub enum Row {
     /// `mark` is where the small arrow above it points (the value the page
     /// opened with).
     Slider { label: String, value: String, fraction: f32, mark: f32, setting: Setting },
-    /// A greyed row that can't be changed (Push To Talk Key without push
-    /// to talk).
-    Disabled { label: String, value: String },
+    /// A greyed row that can't be changed; `bold` for a greyed button row
+    /// (Setup Microphone).
+    Disabled { label: String, value: String, bold: bool },
     /// A bold upper-case button row that does something else: open a page,
     /// Setup Microphone, or the Push To Talk Key binding (`value` shown).
     Command { label: String, value: String, command: RowCommand },
@@ -515,9 +518,9 @@ fn list_rows() -> Vec<Row> {
         link("VIDEO", OptionsPage::Video),
         link("KEYBOARD/MOUSE", OptionsPage::KeyboardMouse),
         link("CONTROLLER", OptionsPage::Controller),
-        link("SUBTITLES", OptionsPage::Subtitles),
-        link("SPEEDRUN", OptionsPage::Speedrun),
-        link("MODS", OptionsPage::Mods),
+        // Owner, 2026-10-21: Mods stays listed but greyed for now; Speedrun
+        // is off the list; subtitle options live in Audio.
+        Row::Disabled { label: "MODS".into(), value: String::new(), bold: true },
     ]
 }
 
@@ -618,9 +621,10 @@ fn controller_rows(s: &Settings) -> Vec<Row> {
 }
 
 fn audio_rows(s: &Settings, ctx: &Ctx) -> Vec<Row> {
-    // As the owner's Windows shot lists them.
+    // As the owner's Windows shot lists them. Voice chat isn't built, so
+    // its rows are greyed (owner, 2026-10-21); our subtitle style follows.
     let ptt = ctx.binds.keys_for(PUSH_TO_TALK).first().map(|k| key_label(k)).unwrap_or_default();
-    vec![
+    let mut rows = vec![
         slider(s, ctx, "Master Volume", Setting::Master),
         slider(s, ctx, "Music Volume", Setting::Music),
         choice("Speaker Configuration", speakers_label(s.speakers), Setting::Speakers),
@@ -628,23 +632,21 @@ fn audio_rows(s: &Settings, ctx: &Ctx) -> Vec<Row> {
         choice("Puzzlemaker Sounds", on_off(s.puzzlemaker_sounds), Setting::PuzzleSounds),
         choice("Closed Captioning", caption_label(s.captions), Setting::Captions),
         choice("Closed Captioning Language", language_label(&s.language), Setting::Language),
-        choice("Enable Voice", voice_label(s.voice_mode), Setting::Voice),
-        if s.voice_mode == 1 {
-            Row::Command { label: "Push To Talk Key".into(), value: ptt, command: RowCommand::PushToTalkKey }
-        } else {
-            Row::Disabled { label: "Push To Talk Key".into(), value: ptt }
-        },
-        Row::Command { label: "Setup Microphone".into(), value: String::new(), command: RowCommand::SetupMicrophone },
-    ]
+        Row::Disabled { label: "Enable Voice".into(), value: voice_label(s.voice_mode).into(), bold: false },
+        Row::Disabled { label: "Push To Talk Key".into(), value: ptt, bold: false },
+        Row::Disabled { label: "Setup Microphone".into(), value: String::new(), bold: true },
+    ];
+    rows.extend(subtitle_rows(s, ctx));
+    rows
 }
 
 fn subtitle_rows(s: &Settings, ctx: &Ctx) -> Vec<Row> {
     let size = SUBTITLE_SIZES.iter().find(|z| z.0 == s.subtitle_size).map_or(format!("{:.0}", s.subtitle_size), |z| language_label(&z.1.to_lowercase()));
     let color = format!("{:?}", s.subtitle_color);
     vec![
-        choice("Text Size", size, Setting::SubtitleSize),
-        choice("Text Colour", color, Setting::SubtitleColor),
-        slider(s, ctx, "Background", Setting::SubtitleBackground),
+        choice("Subtitle Size", size, Setting::SubtitleSize),
+        choice("Subtitle Colour", color, Setting::SubtitleColor),
+        slider(s, ctx, "Subtitle Background", Setting::SubtitleBackground),
     ]
 }
 
@@ -697,7 +699,6 @@ fn advanced_video_rows(s: &Settings, ctx: &Ctx) -> Vec<Row> {
         choice("Motion Blur", on_off(s.motion_blur), Setting::MotionBlur),
         slider(s, ctx, "Field Of View", Setting::Fov),
         choice("Max Frame Rate", frame_limit, Setting::FrameLimit),
-        choice("Graphics", if s.enhanced_graphics { "Enhanced" } else { "Original" }, Setting::Graphics),
         choice("Show Frame Rate", on_off(s.tools.show_fps), Setting::ShowFps),
         choice("Show Movement Stats", on_off(s.tools.show_pos), Setting::ShowPos),
     ]
@@ -735,7 +736,6 @@ pub fn describe(setting: Setting) -> &'static str {
         Setting::MotionBlur => "Blurs the view when turning quickly.",
         Setting::Fov => "How wide the view is, in degrees. Portal 2's default is 75.",
         Setting::FrameLimit => "Caps the frame rate to save power and heat.",
-        Setting::Graphics => "Original matches Portal 2's look; Enhanced adds this port's lighting and shadow improvements.",
         Setting::ShowFps => "Shows the frame rate in a corner of the screen.",
         Setting::ShowPos => "Shows the player's position and speed.",
         _ => "",
@@ -781,7 +781,6 @@ pub fn adjust(s: &mut Settings, video: &mut VideoMode, native: UVec2, setting: S
         Setting::PowerSavings => flip(&mut s.power_savings),
         Setting::Splitscreen => flip(&mut s.splitscreen_vertical),
         Setting::MotionBlur => flip(&mut s.motion_blur),
-        Setting::Graphics => flip(&mut s.enhanced_graphics),
         Setting::DevConsole => flip(&mut s.tools.dev_console),
         Setting::SpeedrunTimer => flip(&mut s.tools.speedrun_timer),
         Setting::QuickRestart => flip(&mut s.tools.quick_restart),
@@ -967,7 +966,8 @@ mod tests {
         // Labels as the owner's Windows shots and spec show them.
         assert_eq!(value(OptionsPage::Audio, "Closed Captioning").as_deref(), Some("Subtitles Only"));
         assert_eq!(value(OptionsPage::Audio, "Closed Captioning Language").as_deref(), Some("Current Game Language"));
-        assert_eq!(value(OptionsPage::Audio, "Enable Voice").as_deref(), Some("Open Microphone"));
+        // Voice chat isn't built: its rows are greyed (owner, 2026-10-21).
+        assert!(rows(OptionsPage::Audio, &s, &c).iter().any(|r| matches!(r, Row::Disabled { label, value, .. } if label == "Enable Voice" && value == "Open Microphone")));
         assert_eq!(value(OptionsPage::Audio, "Master Volume").as_deref(), Some("100%"));
         assert_eq!(value(OptionsPage::Video, "Display Mode").as_deref(), Some("Run in a Window"));
         assert_eq!(value(OptionsPage::Video, "Resolution").as_deref(), Some("2560 x 1600 (Native)"));
@@ -985,7 +985,7 @@ mod tests {
         assert_eq!(names(OptionsPage::Video), ["Aspect Ratio", "Resolution", "Display Mode", "Laptop Power Savings", "Splitscreen Direction", "Advanced Video"]);
         assert_eq!(
             names(OptionsPage::Audio),
-            ["Master Volume", "Music Volume", "Speaker Configuration", "Sound Quality", "Puzzlemaker Sounds", "Closed Captioning", "Closed Captioning Language", "Enable Voice", "Push To Talk Key", "Setup Microphone"]
+            ["Master Volume", "Music Volume", "Speaker Configuration", "Sound Quality", "Puzzlemaker Sounds", "Closed Captioning", "Closed Captioning Language", "Enable Voice", "Push To Talk Key", "Setup Microphone", "Subtitle Size", "Subtitle Colour", "Subtitle Background"]
         );
         assert!(matches!(&rows(OptionsPage::Audio, &s, &c)[8], Row::Disabled { value, .. } if value == "C"), "push to talk greyed, C");
         assert_eq!(names(OptionsPage::Controller), ["Controller"]);

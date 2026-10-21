@@ -85,11 +85,23 @@ Then the Backlog (prove and sweep the campaign).
   that isn't greyed out but doesn't work or can't be tested (answered in
   chat, kept in T-194).
 
-### T-193 Scrolling and arrow glyphs  (P2, TODO; owner notes 2026-10-21 items 2-4)
+### T-193 Scrolling and arrow glyphs  (P2, FIXED, awaiting owner replay; owner notes 2026-10-21 items 2-4)
+- 2026-10-21 FIXED: the wheel position is clamped to the list's real
+  scroll range (it kept counting past the end); every arrow (row ◀ ▶,
+  slider marker, scrollbar ends) is now a smooth anti-aliased triangle
+  image (the menu fonts have no triangle glyphs -> boxes; the marker was
+  stacked rectangles). Autopilot shot: Audio row arrows, slider markers.
 - Wheel scrolling past a list's end keeps counting; arrows (scrollbar,
   slider marker) pixely; hover arrows draw as missing-glyph boxes.
 
-### T-194 Options list and dead controls  (P2, TODO; owner notes 2026-10-21 items 5, 8, 9, 12)
+### T-194 Options list and dead controls  (P2, FIXED, awaiting owner replay; owner notes 2026-10-21 items 5, 8, 9, 12)
+- 2026-10-21 FIXED: Options lists Audio, Video, Keyboard/Mouse,
+  Controller and a greyed, unclickable MODS; Speedrun is off the list (its
+  settings still read from settings.cfg); Subtitle Size/Colour/Background
+  are the last Audio rows (Audio scrolls; Use Defaults resets them too);
+  Enable Voice, Push To Talk Key and SETUP MICROPHONE greyed; Graphics
+  (Original/Enhanced) removed from Advanced Video. Dead/untestable
+  controls listed to the owner in chat 2026-10-21.
 - Options: Audio, Video, Keyboard/Mouse, Controller, Mods (greyed); no
   Speedrun; subtitle options inside Audio; voice rows greyed; Graphics
   row removed; list what still doesn't work.
@@ -100,6 +112,8 @@ Reference: Windows Portal 2 (install .res files, client.dll in depot 624,
 https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 
 ### T-177 Startup intros missing  (P2, FIXED, awaiting owner replay; spec 1, 15)
+- 2026-10-21 owner note: the pointer is hidden during the intro movie and
+  any loading screen and comes back with the menu.
 - 2026-10-21 FIXED (autopilot shots + log; new intro.rs). A normal launch
   plays startupvids.txt's media/valve.bik with its own audio (ffmpeg),
   then the Portal 2 loading screen while the menu map loads, fading into
@@ -115,6 +129,8 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   screen, then the main menu. No skip, overlap or repeat.
 
 ### T-178 Main menu layout  (P2, FIXED, awaiting owner replay; spec 1, 11, 16)
+- 2026-10-21 owner note: Robot Enrichment moved down 7 units (top 386)
+  with its label on the items' text edge (x 100) and the icon left of it.
 - 2026-10-21 FIXED (autopilot shots only). Measured a Windows 1080p main
   menu (interfaceingame.com) against ours: font size, 30-unit pitch and
   text x already matched; our column sat 30 units low (placed from
@@ -143,6 +159,18 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   by mouse and keyboard.
 
 ### T-179 Tile-flip transitions  (P2, FIXED (approximation), needs owner comparison; spec 1, 10, 11, 15)
+- 2026-10-21 REDONE from the owner's Windows recording (frame by frame,
+  30 fps; audio cross-correlated with the install's sounds): each 50-unit
+  tile turns about its upright axis (squeezes sideways), black back first,
+  then its face, which already shows its piece of the dialog (text and
+  all); tiles start at the title tab and sweep down/right with a little
+  scatter, ~0.14 s each, the Single Player dialog done ~0.43 s after the
+  click; no fade afterwards. Sounds: menu_accept on the click, then
+  ui_menu_flip_single_01/_02 alternating every ~0.07 s while tiles turn.
+  Built by drawing the new dialog off screen (a UI camera into an image)
+  and showing slices of it on the turning tiles; the real dialog takes
+  over when the last tile lands. Autopilot shot sequence matches the
+  recording's look; the logo no longer flips (own layer).
 - 2026-10-21 built (autopilot shot sequences only; no Windows video to
   match against, so direction and stagger are a best reading of Portal
   2's look). Every tiled dialog (Single Player, Options and each page,
@@ -329,6 +357,8 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   persists.
 
 ### T-189 Keyboard/Mouse and Edit Keys  (P2, MOSTLY FIXED, awaiting owner replay; spec 8)
+- 2026-10-21 owner note: Edit Keys' hover/picked bar is now the same
+  black cursor bar with light text as every other row.
 - 2026-10-21 (unit tests + autopilot shots vs the owner's Windows shots):
   Keyboard/Mouse rows as spec (EDIT KEYS/BUTTONS bold, Reverse Mouse,
   Mouse Sensitivity, Raw Mouse Input, Mouse Acceleration, Acceleration
@@ -389,6 +419,11 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   doesn't trigger the menu behind it.
 
 ### T-192 Menu scaling and display changes  (P2, PARTIAL: 16:9, 16:10, 4:3 windows checked; fullscreen switching needs owner replay; spec 14)
+- 2026-10-21 owner note "spacing still feels off; should scale to aspect
+  ratios and resolutions": not yet pinned down. Everything is laid out in
+  480-unit .res space scaled by height (as Source does), 4:3 shifts left;
+  the owner's Windows shots are CrossOver windows letterboxed to 16:9.
+  Needs an owner screenshot pair of what looks off (resolution/aspect).
 - 2026-10-21 (autopilot --size 1280x720, 1280x800, 1024x768): the menu
   scales with the window height in .res units; on non-widescreen screens
   everything now moves 25 units left as the .res files do without

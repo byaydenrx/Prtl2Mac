@@ -12,7 +12,7 @@
 use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::prelude::*;
 use bevy::ui::RelativeCursorPosition;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::Ordering;
 use bevy::window::{CursorGrabMode, CursorOptions, Monitor, PrimaryMonitor, PrimaryWindow};
 use p2_assets::GameFsRes;
 use p2_core::*;
@@ -53,12 +53,12 @@ impl Plugin for UiPlugin {
             .init_resource::<CarriedHover>()
             .add_message::<ShowChapterTitle>()
             .add_message::<MenuClick>()
-            .add_systems(Startup, (load_fonts, load_menu_art, open_main_menu).chain().after(crate::campaign::load_campaign))
+            .add_systems(Startup, (load_fonts, load_menu_art, setup_flip_view, open_main_menu).chain().after(crate::campaign::load_campaign))
             .add_systems(
                 Update,
                 (
-                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, carry_hover, footer_art, hover_rows, describe_rows, scroll_nobs, flip_tiles, keyboard_nav, menu_movie).chain(),
-                    (menu_view, menu_camera, pause_world, menu_music, title_card).chain(),
+                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, carry_hover, run_flip, footer_art, hover_rows, describe_rows, scroll_nobs, flip_tiles, keyboard_nav, menu_movie).chain(),
+                    (menu_view, menu_camera, pause_world, hide_cursor_off_menu, menu_music, title_card).chain(),
                 )
                     .chain()
                     .in_set(crate::level::GameSet::Logic),
@@ -353,8 +353,6 @@ const TITLE_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(33.0 / 1.265 *
 const DIALOG_ITEM_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(18.0 / 1.265 * 100.0 / 480.0);
 const DESC_TITLE_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(24.0 / 1.265 * 100.0 / 480.0);
 const DESC_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(17.0 / 1.265 * 100.0 / 480.0);
-/// The ◀ ▶ on a hovered tiled-dialog row (MarlettLarge in Portal 2).
-const TILE_ARROW_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(10.0 * 100.0 / 480.0);
 
 /// The main/pause menu item font: MainMenuItem is UniversLTStd-Cn "tall"
 /// 22 units. vgui's tall is the Windows cell height (OS/2 winAscent +
@@ -465,6 +463,60 @@ fn load_menu_art(mut commands: Commands, game: Res<GameFsRes>, mut images: ResMu
     let btn = if btn.iter().all(Option::is_some) { Some(btn.map(Option::unwrap)) } else { None };
     let info = vtf("materials/vgui/hud/icon_info.vtf");
     commands.insert_resource(MenuArt { logo, tiles, econ, btn, info });
+    let _ = TRIANGLES.set([Tri::Right, Tri::Left, Tri::Up, Tri::Down].map(|d| images.add(triangle_image(d))));
+}
+
+/// Smooth triangles for the menus' arrows (the menu fonts have no ◀ ▶
+/// glyphs, and boxes of rects looked jagged): right, left, up, down.
+static TRIANGLES: std::sync::OnceLock<[Handle<Image>; 4]> = std::sync::OnceLock::new();
+
+#[derive(Clone, Copy)]
+enum Tri {
+    Right,
+    Left,
+    Up,
+    Down,
+}
+
+/// A white anti-aliased triangle pointing `dir`, 64 px square, alpha from
+/// 4 x 4 supersampling.
+fn triangle_image(dir: Tri) -> Image {
+    const N: u32 = 64;
+    let mut data = Vec::with_capacity((N * N * 4) as usize);
+    for y in 0..N {
+        for x in 0..N {
+            let mut hit = 0;
+            for sy in 0..4 {
+                for sx in 0..4 {
+                    let (fx, fy) = ((x as f32 + (sx as f32 + 0.5) / 4.0) / N as f32, (y as f32 + (sy as f32 + 0.5) / 4.0) / N as f32);
+                    // In the frame of a right-pointing triangle: u along, v across.
+                    let (u, v) = match dir {
+                        Tri::Right => (fx, fy),
+                        Tri::Left => (1.0 - fx, fy),
+                        Tri::Down => (fy, fx),
+                        Tri::Up => (1.0 - fy, fx),
+                    };
+                    if (v - 0.5).abs() <= 0.5 * (1.0 - u) {
+                        hit += 1;
+                    }
+                }
+            }
+            data.extend_from_slice(&[255, 255, 255, (hit * 255 / 16) as u8]);
+        }
+    }
+    Image::new(
+        bevy::render::render_resource::Extent3d { width: N, height: N, depth_or_array_layers: 1 },
+        bevy::render::render_resource::TextureDimension::D2,
+        data,
+        bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb,
+        bevy::asset::RenderAssetUsages::RENDER_WORLD,
+    )
+}
+
+/// A triangle image node `w` x `h` units, tinted `color`.
+fn tri_node(dir: Tri, color: Color, node: Node) -> impl Bundle {
+    let image = TRIANGLES.get().map(|t| t[dir as usize].clone()).unwrap_or_default();
+    (ImageNode { image, color, ..default() }, node)
 }
 
 fn pick_logo(files: &[String]) -> Option<&String> {
@@ -590,8 +642,9 @@ fn layer(z: i32) -> impl Bundle {
 
 /// The lower-left item column, then Robot Enrichment (BtnEconUI: the
 /// store's atom icon, vgui/store/store_button, and its label in
-/// NewGameChapter). Measured on a Windows 1080p shot: icon 17 units square
-/// at 89,380, label from x 113; greyed out here (no store).
+/// NewGameChapter), greyed out (no store). Windows draws the icon at x 89
+/// and the label from 113; the owner asked for it a little lower with the
+/// label on the items' text edge (x 100) and the icon left of it.
 fn item_list(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, items: &[(&str, Option<Action>)]) {
     p.spawn(Node {
         position_type: PositionType::Absolute,
@@ -606,7 +659,7 @@ fn item_list(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt
             spawn_item(col, fonts, label, *action);
         }
     });
-    p.spawn(Node { position_type: PositionType::Absolute, left: pin(89.0), top: units(379.0), height: units(17.0), align_items: AlignItems::Center, column_gap: units(7.0), ..default() })
+    p.spawn(Node { position_type: PositionType::Absolute, left: pin(76.0), top: units(386.0), height: units(17.0), align_items: AlignItems::Center, column_gap: units(7.0), ..default() })
         .with_children(|row| {
             if let Some(icon) = art.and_then(|a| a.econ.clone()) {
                 row.spawn((ImageNode { image: icon, color: theme::ITEM_OFF, ..default() }, Node { width: units(17.0), height: units(17.0), ..default() }));
@@ -662,9 +715,8 @@ fn tiled_dialog(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&Menu
 /// Options as options.res lays it out: a tiled dialog in place of the menu
 /// column (body 5 x 3 tiles for Portal 2's four rows; taller when our own
 /// pages follow them), one DefaultButton row per page.
-fn options_dialog(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, pages: &[(&str, Action)]) {
-    let rows: Vec<(&str, Option<Action>)> = pages.iter().map(|(l, a)| (*l, Some(*a))).collect();
-    tiled_dialog(p, fonts, art, "Options", 5, dialog_tall(rows.len()), &rows);
+fn options_dialog(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, pages: &[(&str, Option<Action>)]) {
+    tiled_dialog(p, fonts, art, "Options", 5, dialog_tall(pages.len()), pages);
 }
 
 /// The pause menu as ingamemainmenu.res lays it out for single player: a
@@ -757,10 +809,11 @@ fn tile_frame_sized(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&
     let wide = (f.width / T).ceil().max(1.0) as usize;
     let tall = (f.body / T).ceil().max(1.0) as usize;
     let tab = f.tab.clamp(1, wide);
-    // The tiles flip in one after another from the top left; the title,
-    // contents and footer show once the last has turned.
-    let t0 = f32::from_bits(FLIP_T0.load(Ordering::Relaxed));
-    let shown = (wide + tall) as f32 * FLIP_STEP + FLIP_TIME;
+    // Where it is, for the flip in (see start_flip).
+    if let Ok(mut r) = FRAME_RECT.lock() {
+        let left = if NARROW.load(Ordering::Relaxed) { 75.0 } else { 100.0 };
+        *r = Some(FrameRect { left, top: f.top, width: f.width, body: f.body, tab });
+    }
     p.spawn(Node { position_type: PositionType::Absolute, left: pin(100.0), top: units(f.top), width: units(f.width), height: units(T + f.body), ..default() })
         .with_children(|d| {
             for r in 0..=tall {
@@ -769,21 +822,16 @@ fn tile_frame_sized(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&
                     let x = if c + 1 == wide { f.width - T } else { c as f32 * T };
                     let y = if r == 0 { 0.0 } else if r == tall { f.body } else { r as f32 * T };
                     let node = Node { position_type: PositionType::Absolute, left: units(x.max(0.0)), top: units(y), width: units(T), height: units(T), ..default() };
-                    let flip = Flip { t0, delay: (c + r) as f32 * FLIP_STEP, kind: FlipKind::In };
-                    let tf = flip.transform();
                     match art.and_then(|a| a.tiles.as_ref()) {
                         Some(t) => {
-                            d.spawn((ImageNode::new(t[piece].clone()), node, flip, tf));
+                            d.spawn((ImageNode::new(t[piece].clone()), node));
                         }
                         None => {
-                            d.spawn((node, BackgroundColor(theme::PANEL), flip, tf));
+                            d.spawn((node, BackgroundColor(theme::PANEL)));
                         }
                     }
                 }
             }
-            let pop = Flip { t0, delay: shown, kind: FlipKind::Pop };
-            let mut d = d.spawn((Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: Val::Px(0.0), width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() }, pop.transform(), pop));
-            let mut d = d.with_children(|d| {
             d.spawn((
                 Node { position_type: PositionType::Absolute, left: units(10.0), top: units(9.0), ..default() },
                 children![(Text::new(title), TextFont { font: (&fonts.title).into(), font_size: f.title_font, ..default() }, TextColor(Color::BLACK))],
@@ -797,22 +845,20 @@ fn tile_frame_sized(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&
                         row.spawn(footer_button(fonts, art, &label, *action));
                     }
                 });
-            });
-            let _ = &mut d;
         });
 }
 
-/// ui_transition_time (client.dll's default 0.20): one tile's turn.
-const FLIP_TIME: f32 = 0.2;
-/// The wait between neighbouring tiles starting to turn.
-const FLIP_STEP: f32 = 0.015;
-/// UI/ui_menu_flip_single_01 / _02 (client.dll): a dialog opening, a
-/// confirmation or the whole screen turning.
+/// One tile's turn, measured on a Windows recording (owner's link,
+/// 2026-10-21): about four frames at 30 fps.
+const FLIP_TIME: f32 = 0.14;
+/// The wait between neighbouring tiles starting (the Single Player dialog
+/// is complete ~0.43 s after the click on Windows).
+const FLIP_STEP: f32 = 0.035;
+/// UI/ui_menu_flip_single_01 / _02 (client.dll): they alternate about
+/// every 0.07 s while tiles turn (heard in the recording).
 const FLIP_SOUNDS: [&str; 2] = ["ui/ui_menu_flip_single_01.wav", "ui/ui_menu_flip_single_02.wav"];
+const FLIP_SOUND_GAP: f32 = 0.07;
 
-/// Real time (f32 bits) the open dialog appeared, and the time of the
-/// current rebuild: set by rebuild_menu, read while it lays tiles out.
-static FLIP_T0: AtomicU32 = AtomicU32::new(0);
 /// The screen is not widescreen (see rebuild_menu).
 static NARROW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -821,51 +867,199 @@ static NARROW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::ne
 fn pin(u: f32) -> Val {
     units(if NARROW.load(Ordering::Relaxed) { u - 25.0 } else { u })
 }
-static FLIP_NOW: AtomicU32 = AtomicU32::new(0);
 
-#[derive(Clone, Copy, PartialEq)]
-enum FlipKind {
-    /// A dialog tile turning to face the viewer.
-    In,
-    /// A whole-screen tile turning away (into the main menu).
-    Out,
-    /// Hidden until its time, then shown (a dialog's contents).
-    Pop,
+/// The last tiled frame laid out (units): where a new dialog's tiles turn.
+#[derive(Clone, Copy, Debug)]
+struct FrameRect {
+    left: f32,
+    top: f32,
+    width: f32,
+    body: f32,
+    tab: usize,
 }
 
-/// A menu tile's turn: `delay` seconds after `t0` it spends [`FLIP_TIME`]
-/// turning about its horizontal middle.
+static FRAME_RECT: std::sync::Mutex<Option<FrameRect>> = std::sync::Mutex::new(None);
+
+/// What turns: a tile's black back turning away, then its face (a slice
+/// of the dialog drawn off screen) turning to the front; or a whole-screen
+/// black tile turning away into the main menu.
+#[derive(Clone, Copy, PartialEq)]
+enum FlipKind {
+    Back,
+    Face,
+    ScreenOut,
+}
+
+/// A menu tile's turn about its upright middle: from `start` it takes
+/// [`FLIP_TIME`] (the back the first half, the face the second).
 #[derive(Component, Clone, Copy)]
 struct Flip {
-    t0: f32,
-    delay: f32,
+    start: f32,
     kind: FlipKind,
 }
 
 impl Flip {
-    /// Height scale at real time `now`: the tile's face seen edge-on (0)
-    /// to flat (1).
+    /// Width scale at real time `now` (0 is edge-on).
     fn scale(self, now: f32) -> f32 {
-        let p = ((now - self.t0 - self.delay) / FLIP_TIME).clamp(0.0, 1.0);
+        let p = ((now - self.start) / FLIP_TIME).clamp(0.0, 1.0);
+        let half = std::f32::consts::FRAC_PI_2;
         match self.kind {
-            FlipKind::In => (p * std::f32::consts::FRAC_PI_2).sin(),
-            FlipKind::Out => (p * std::f32::consts::FRAC_PI_2).cos(),
-            FlipKind::Pop => (p >= 1.0) as u8 as f32,
+            FlipKind::Back if now < self.start => 0.0,
+            FlipKind::Back => ((p * 2.0).min(1.0) * half).cos(),
+            FlipKind::Face => (((p - 0.5) * 2.0).max(0.0) * half).sin(),
+            FlipKind::ScreenOut => (p * half).cos(),
         }
-    }
-
-    fn transform(self) -> UiTransform {
-        UiTransform { scale: Vec2::new(1.0, self.scale(f32::from_bits(FLIP_NOW.load(Ordering::Relaxed)))), ..default() }
     }
 }
 
 fn flip_tiles(real: Res<Time<Real>>, mut q: Query<(&Flip, &mut UiTransform)>) {
     let now = real.elapsed_secs();
     for (f, mut t) in &mut q {
-        let y = f.scale(now);
-        if t.scale.y != y {
-            t.scale.y = y;
+        let x = f.scale(now);
+        if t.scale.x != x {
+            t.scale.x = x;
         }
+    }
+}
+
+/// The off-screen view a new dialog is drawn into while its tiles turn,
+/// and when that ends. `sounds`: the next flip sound's time and count.
+#[derive(Resource)]
+struct FlipView {
+    camera: Entity,
+    image: Handle<Image>,
+    until: f32,
+    next_sound: f32,
+    sounds: usize,
+}
+
+/// Overlay tiles of a flip (despawned when it ends).
+#[derive(Component)]
+struct FlipOverlay;
+
+fn setup_flip_view(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
+    let image = images.add(Image::new_target_texture(1280, 720, bevy::render::render_resource::TextureFormat::Bgra8UnormSrgb, None));
+    let camera = commands
+        .spawn((
+            Camera2d,
+            Camera { order: -20, is_active: false, clear_color: ClearColorConfig::Custom(Color::NONE), ..default() },
+            bevy::camera::RenderTarget::Image(image.clone().into()),
+        ))
+        .id();
+    commands.insert_resource(FlipView { camera, image, until: 0.0, next_sound: f32::MAX, sounds: 0 });
+}
+
+/// Start a dialog's flip: tiles over the frame, each its slice of the
+/// off-screen copy, turning one after another from the top left with a
+/// little scatter, as the Windows recording shows. Returns false when the
+/// view isn't ready.
+fn start_flip(commands: &mut Commands, view: &mut FlipView, frame: FrameRect, now: f32, phys_h: f32) -> bool {
+    const T: f32 = 50.0;
+    let px = phys_h / 480.0;
+    let wide = (frame.width / T).ceil() as usize;
+    let tall = (frame.body / T).ceil() as usize;
+    // The footer band under the frame, down to the buttons' bottom (432).
+    let foot_top = frame.top + T + frame.body;
+    let foot_h = (432.0 - foot_top).max(0.0);
+    let mut last = now;
+    let mut seed = (now * 1000.0) as u32;
+    let mut jitter = || {
+        seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+        (seed >> 16) as f32 / 65_536.0 * 0.03
+    };
+    commands.spawn((FlipOverlay, Node { position_type: PositionType::Absolute, width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() }, GlobalZIndex(30), bevy::ui::FocusPolicy::Pass)).with_children(|o| {
+        for r in 0..=tall + 1 {
+            for c in 0..wide {
+                if r == 0 && c >= frame.tab {
+                    continue;
+                }
+                let (y, h, back) = match r {
+                    0 => (frame.top, T, true),
+                    r if r <= tall => {
+                        let y = frame.top + T + (r - 1) as f32 * T;
+                        (y, T.min(foot_top - y), true)
+                    }
+                    _ => (foot_top, foot_h, false),
+                };
+                let x = frame.left + c as f32 * T;
+                let w = T.min(frame.left + frame.width - x);
+                if h <= 0.0 || w <= 0.0 {
+                    continue;
+                }
+                let start = now + (c + r) as f32 * FLIP_STEP + jitter();
+                last = last.max(start + FLIP_TIME);
+                let rect = Rect::new(x * px, y * px, (x + w) * px, (y + h) * px);
+                o.spawn(Node { position_type: PositionType::Absolute, left: units(x), top: units(y), width: units(w), height: units(h), ..default() }).with_children(|cell| {
+                    let fill = Node { position_type: PositionType::Absolute, width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() };
+                    if back {
+                        let f = Flip { start, kind: FlipKind::Back };
+                        cell.spawn((fill.clone(), BackgroundColor(Color::BLACK), UiTransform { scale: Vec2::new(f.scale(now), 1.0), ..default() }, f));
+                    }
+                    let f = Flip { start, kind: FlipKind::Face };
+                    cell.spawn((fill, ImageNode { image: view.image.clone(), rect: Some(rect), ..default() }, UiTransform { scale: Vec2::new(0.0, 1.0), ..default() }, f));
+                });
+            }
+        }
+    });
+    view.until = last;
+    view.next_sound = now;
+    view.sounds = 0;
+    true
+}
+
+/// While a flip runs, new dialog roots draw off screen (their tiles show
+/// slices of it); when it ends they come back to the window, the overlay
+/// goes, and the flip sounds stop.
+#[allow(clippy::type_complexity)]
+fn run_flip(
+    mut commands: Commands,
+    real: Res<Time<Real>>,
+    view: Option<ResMut<FlipView>>,
+    new_roots: Query<(Entity, &GlobalZIndex), Added<MenuRoot>>,
+    drawn_off: Query<Entity, (With<MenuRoot>, With<UiTargetCamera>)>,
+    overlay: Query<Entity, With<FlipOverlay>>,
+    mut cams: Query<&mut Camera>,
+    mut images: ResMut<Assets<Image>>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut play: MessageWriter<PlayGameSound>,
+) {
+    let Some(mut view) = view else { return };
+    let now = real.elapsed_secs();
+    // The off-screen view matches the window's pixels, so slices line up.
+    if let Ok(w) = windows.single() {
+        let size = UVec2::new(w.physical_width().max(1), w.physical_height().max(1));
+        if let Some(img) = images.get(&view.image) {
+            if img.size() != size {
+                if let Some(mut img) = images.get_mut(&view.image) {
+                    img.resize(bevy::render::render_resource::Extent3d { width: size.x, height: size.y, depth_or_array_layers: 1 });
+                }
+            }
+        }
+    }
+    let active = now < view.until;
+    if let Ok(mut cam) = cams.get_mut(view.camera) {
+        if cam.is_active != active {
+            cam.is_active = active;
+        }
+    }
+    if active {
+        for (e, z) in &new_roots {
+            if z.0 == 10 || z.0 == 20 {
+                commands.entity(e).insert(UiTargetCamera(view.camera));
+            }
+        }
+        if now >= view.next_sound && view.sounds < 8 {
+            play.write(PlayGameSound::ui(FLIP_SOUNDS[view.sounds % 2]));
+            view.sounds += 1;
+            view.next_sound = now + FLIP_SOUND_GAP;
+        }
+        return;
+    }
+    for e in &drawn_off {
+        commands.entity(e).remove::<UiTargetCamera>();
+    }
+    for e in &overlay {
+        commands.entity(e).despawn();
     }
 }
 
@@ -875,7 +1069,7 @@ fn screen_flip(commands: &mut Commands, t0: f32) {
     commands.spawn(layer(40)).with_children(|p| {
         for r in 0..10 {
             for c in 0..40 {
-                let flip = Flip { t0, delay: (c + r) as f32 * FLIP_STEP, kind: FlipKind::Out };
+                let flip = Flip { start: t0 + (c + r) as f32 * FLIP_STEP * 0.5, kind: FlipKind::ScreenOut };
                 p.spawn((
                     Node { position_type: PositionType::Absolute, left: units(c as f32 * 50.0), top: units(r as f32 * 50.0), width: units(50.0), height: units(50.0), ..default() },
                     BackgroundColor(Color::BLACK),
@@ -1037,7 +1231,7 @@ fn tile_option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row, y: 
             Visibility::Hidden,
             Node { padding: UiRect::horizontal(units(3.0)), align_items: AlignItems::Center, ..default() },
             BackgroundColor(Color::NONE),
-            children![(Text::new(if left { "\u{25C0}" } else { "\u{25B6}" }), font(TILE_ARROW_FONT), TextColor(Color::BLACK))],
+            children![(RowArrowImage, tri_node(if left { Tri::Left } else { Tri::Right }, theme::TILE_FOCUS, Node { width: units(5.0), height: units(7.0), ..default() }))],
         ));
     };
     match row {
@@ -1074,13 +1268,8 @@ fn tile_option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row, y: 
                     BackgroundColor(Color::NONE),
                 ))
                 .with_children(|t| {
-                    // The arrow: rows 1.2 units tall narrowing to a point.
-                    for (i, w) in [6.0f32, 4.5, 3.0, 1.5].into_iter().enumerate() {
-                        t.spawn((
-                            Node { position_type: PositionType::Absolute, left: units(mark * 130.0 - w / 2.0), top: units(1.5 + i as f32 * 0.9), width: units(w), height: units(0.9), ..default() },
-                            BackgroundColor(theme::TILE_TRACK),
-                        ));
-                    }
+                    // The small arrow at the opened-with value.
+                    t.spawn(tri_node(Tri::Down, theme::TILE_TRACK, Node { position_type: PositionType::Absolute, left: units(mark * 130.0 - 3.5), top: units(1.5), width: units(7.0), height: units(4.0), ..default() }));
                     t.spawn((SliderTrack, Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: units(7.0), width: Val::Percent(100.0), height: units(6.0), ..default() }, BackgroundColor(theme::TILE_TRACK)))
                         .with_child((SliderFill, Node { width: Val::Percent(fraction * 100.0), height: Val::Percent(100.0), ..default() }, BackgroundColor(Color::BLACK)));
                 });
@@ -1104,15 +1293,17 @@ fn tile_option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row, y: 
         Row::Key { label: l, keys, index, selected } => {
             // A binding: the action at 4 units, its key at 201; the picked
             // row and the hovered one on a light grey bar.
-            let look = Look { text: Color::BLACK, text_hover: Color::BLACK, bg: if *selected { theme::KEY_PICKED } else { Color::NONE }, bg_hover: theme::KEY_PICKED };
+            // The same black cursor bar as every other menu row (owner).
+            let look = if *selected { Look { text: DIALOG_LOOK.text_hover, bg: DIALOG_LOOK.bg_hover, ..DIALOG_LOOK } } else { DIALOG_LOOK };
             p.spawn((Button, Action::Bind(*index), look, Node { padding: UiRect::horizontal(units(4.0)), ..node.clone() }, BackgroundColor(look.bg))).with_children(|r| {
-                r.spawn((Node { width: units(197.0), ..default() }, children![(Text::new(l.clone()), font(DIALOG_ITEM_FONT), TextColor(Color::BLACK))]));
-                r.spawn((Text::new(keys.to_uppercase()), font(DIALOG_ITEM_FONT), TextColor(Color::BLACK)));
+                r.spawn((Node { width: units(197.0), ..default() }, children![(Text::new(l.clone()), font(DIALOG_ITEM_FONT), TextColor(look.text))]));
+                r.spawn((Text::new(keys.to_uppercase()), font(DIALOG_ITEM_FONT), TextColor(look.text)));
             });
         }
-        Row::Disabled { label: l, value } => {
+        Row::Disabled { label: l, value, bold } => {
+            let (text, face) = if *bold { (l.to_uppercase(), TextFont { font: (&fonts.title).into(), font_size: DIALOG_ITEM_FONT, ..default() }) } else { (l.clone(), font(DIALOG_ITEM_FONT)) };
             p.spawn(node.clone()).with_children(|r| {
-                r.spawn((Node { flex_grow: 1.0, ..default() }, children![(Text::new(l.clone()), font(DIALOG_ITEM_FONT), TextColor(theme::DISABLED))]));
+                r.spawn((Node { flex_grow: 1.0, ..default() }, children![(Text::new(text), face, TextColor(theme::DISABLED))]));
                 r.spawn((Text::new(value.clone()), font(DIALOG_ITEM_FONT), TextColor(theme::DISABLED)));
             });
         }
@@ -1179,10 +1370,7 @@ struct ScrollNob(Entity);
 fn scrollbar(d: &mut ChildSpawnerCommands, list: Entity, x: f32, y: f32, tall: f32) {
     let w = SCROLLBAR_WIDE;
     let tri = |d: &mut ChildSpawnerCommands, top: f32, down: bool| {
-        for (i, tw) in [7.0f32, 5.0, 3.0, 1.0].into_iter().enumerate() {
-            let row = if down { i as f32 } else { 3.0 - i as f32 };
-            d.spawn((Node { position_type: PositionType::Absolute, left: units(x + (w - tw) / 2.0), top: units(top + row * 1.0), width: units(tw), height: units(1.0), ..default() }, BackgroundColor(Color::BLACK)));
-        }
+        d.spawn(tri_node(if down { Tri::Down } else { Tri::Up }, Color::BLACK, Node { position_type: PositionType::Absolute, left: units(x + (w - 7.0) / 2.0), top: units(top), width: units(7.0), height: units(4.0), ..default() }));
     };
     tri(d, y + 3.0, false);
     tri(d, y + tall - 7.0, true);
@@ -1333,6 +1521,10 @@ struct HoverRow {
 #[derive(Component)]
 struct RowArrow;
 
+/// The triangle inside a [`RowArrow`].
+#[derive(Component)]
+struct RowArrowImage;
+
 /// A button inside a [`HoverRow`]: the row sets its colours.
 #[derive(Component)]
 struct InRow;
@@ -1356,7 +1548,7 @@ fn hover_row() -> impl Bundle {
 }
 
 /// A ◀ or ▶ on a row.
-fn arrow(fonts: &UiFonts, left: bool, action: Action) -> impl Bundle {
+fn arrow(left: bool, action: Action) -> impl Bundle {
     (
         Button,
         action,
@@ -1366,7 +1558,7 @@ fn arrow(fonts: &UiFonts, left: bool, action: Action) -> impl Bundle {
         Visibility::Hidden,
         Node { padding: UiRect::axes(Val::Px(6.0), Val::Px(4.0)), align_items: AlignItems::Center, ..default() },
         BackgroundColor(Color::NONE),
-        children![text(&fonts.bold, 13.0, if left { "\u{25C0}" } else { "\u{25B6}" }, theme::VALUE)],
+        children![(RowArrowImage, tri_node(if left { Tri::Left } else { Tri::Right }, Color::WHITE, Node { width: Val::Px(8.0), height: Val::Px(11.0), ..default() }))],
     )
 }
 
@@ -1391,9 +1583,9 @@ fn row_label(r: &mut ChildSpawnerCommands, fonts: &UiFonts, s: &str) {
 fn stepper_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, label: &str, value: &str, back: Action, on: Action, click: Action) {
     p.spawn(hover_row()).with_children(|r| {
         row_label(r, fonts, label);
-        r.spawn(arrow(fonts, true, back));
+        r.spawn(arrow(true, back));
         r.spawn(row_value(fonts, value, click));
-        r.spawn(arrow(fonts, false, on));
+        r.spawn(arrow(false, on));
     });
 }
 
@@ -1424,7 +1616,7 @@ fn option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row) {
         Row::Slider { label, value, fraction, setting, .. } => {
             p.spawn(hover_row()).with_children(|r| {
                 row_label(r, fonts, label);
-                r.spawn(arrow(fonts, true, Action::Adjust(*setting, -1.0)));
+                r.spawn(arrow(true, Action::Adjust(*setting, -1.0)));
                 r.spawn((Node { width: Val::Px(250.0), flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(10.0), ..default() },))
                     .with_children(|v| {
                         v.spawn((
@@ -1442,7 +1634,7 @@ fn option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row) {
                         });
                         v.spawn((Node { width: Val::Px(52.0), justify_content: JustifyContent::FlexEnd, ..default() }, children![text(&fonts.regular, 16.0, value.clone(), theme::VALUE)]));
                     });
-                r.spawn(arrow(fonts, false, Action::Adjust(*setting, 1.0)));
+                r.spawn(arrow(false, Action::Adjust(*setting, 1.0)));
             });
         }
         Row::Link { label: l, page } => {
@@ -1609,7 +1801,7 @@ fn rebuild_menu(
     mut chapter_pics: Local<Vec<Option<Handle<Image>>>>,
     mut backgrounds: Local<std::collections::HashMap<usize, Option<Handle<Image>>>>,
     (movie, strings, mut save_pics): (Res<MenuMovie>, Option<Res<GameStrings>>, Local<std::collections::HashMap<(String, u64), Option<Handle<Image>>>>),
-    (real, mut last_key, mut play, mut was_narrow): (Res<Time<Real>>, Local<String>, MessageWriter<PlayGameSound>, Local<bool>),
+    (real, mut last_key, mut play, mut was_narrow, mut flip): (Res<Time<Real>>, Local<String>, MessageWriter<PlayGameSound>, Local<bool>, Option<ResMut<FlipView>>),
 ) {
     let Some(fonts) = fonts else { return };
     let options_changed = (settings.is_changed() || actions.is_changed() || mods.is_changed()) && matches!(*screen, Screen::Options { .. });
@@ -1633,19 +1825,19 @@ fn rebuild_menu(
     // A new dialog flips its tiles in (a rebuild of the same one doesn't).
     let now = real.elapsed_secs();
     let key = format!("{:?} {:?} {:?} {:?} {:?}", *screen, menu.flyout, matches!(*screen, Screen::Options { .. }).then_some(menu.page), menu.confirm, menu.saves);
-    FLIP_NOW.store(now.to_bits(), Ordering::Relaxed);
-    if key != *last_key {
+    let new_dialog = key != *last_key;
+    if new_dialog {
         let first_menu = last_key.is_empty() || last_key.starts_with("None");
-        FLIP_T0.store(now.to_bits(), Ordering::Relaxed);
         if *screen == Screen::Main && first_menu {
             // Into the main menu from the startup or a level: the whole
             // screen flips over, tile by tile.
             screen_flip(&mut commands, now);
-        }
-        if *screen != Screen::None {
-            play.write(PlayGameSound::ui(if menu.confirm.is_some() || first_menu { FLIP_SOUNDS[1] } else { FLIP_SOUNDS[0] }));
+            play.write(PlayGameSound::ui(FLIP_SOUNDS[1]));
         }
         *last_key = key;
+    }
+    if let Ok(mut r) = FRAME_RECT.lock() {
+        *r = None;
     }
     // Out of the game, the menu sits on the game's own menu still for the
     // act of the saved chapter; in the game, the view shows through dimmed.
@@ -1689,10 +1881,18 @@ fn rebuild_menu(
             })
             .collect();
     }
-    let options_flyout: Vec<(&str, Action)> = options::rows(OptionsPage::List, &settings, &dummy_ctx())
-        .into_iter()
+    // The logo, on every menu out of the game, in a layer of its own: it
+    // stays put while dialogs flip.
+    if screen.shows_backdrop() {
+        commands.spawn(layer(11)).with_children(|p| menu_logo(p, &fonts, art.as_deref()));
+    }
+    // The Options dialog's rows; greyed ones (Mods) have no action.
+    let option_rows = options::rows(OptionsPage::List, &settings, &dummy_ctx());
+    let options_flyout: Vec<(&str, Option<Action>)> = option_rows
+        .iter()
         .filter_map(|r| match r {
-            Row::Link { page, .. } => Some((page.title(), Action::Page(page))),
+            Row::Link { page, .. } => Some((page.title(), Some(Action::Page(*page)))),
+            Row::Disabled { label, .. } => Some((label.as_str(), None)),
             _ => None,
         })
         .collect();
@@ -1716,9 +1916,6 @@ fn rebuild_menu(
             }
             foot.push(("Back", Action::Back));
             commands.spawn(layer(10)).with_children(|p| {
-                if *screen == Screen::Main {
-                    menu_logo(p, &fonts, art.as_deref());
-                }
                 tile_frame_case(p, &fonts, art.as_deref(), if save { "Save Game" } else { "Load Game" }, 9, 4, &foot, false, |d| {
                     d.spawn((
                         ScrollList,
@@ -1784,7 +1981,6 @@ fn rebuild_menu(
         Screen::Main => {
             let mut root = commands.spawn(layer(10));
             root.with_children(|p| {
-                menu_logo(p, &fonts, art.as_deref());
                 if menu.flyout == Some(Flyout::SinglePlayer) {
                     // singleplayer.res: a dialog in place of the menu column,
                     // body 5 x 4 tiles; Continue and Load are disabled
@@ -1831,7 +2027,6 @@ fn rebuild_menu(
                 foot.insert(1, ("Community Maps", Action::ChapterTab(true)));
             }
             commands.spawn(layer(10)).with_children(|p| {
-                menu_logo(p, &fonts, art.as_deref());
                 tile_frame(p, &fonts, art.as_deref(), "New Game", 9, 4, &foot, |d| {
                     d.spawn((
                         ScrollList,
@@ -1909,16 +2104,8 @@ fn rebuild_menu(
             });
         }
         // A confirmation (discard, defaults) takes the page's place.
-        Screen::Options { from_pause } if menu.confirm.is_some() => {
-            if !from_pause {
-                commands.spawn(layer(10)).with_children(|p| menu_logo(p, &fonts, art.as_deref()));
-            }
-        }
-        Screen::Options { from_pause } => {
-            // The logo stays up over every Options page from the main menu.
-            if !from_pause {
-                commands.spawn(layer(10)).with_children(|p| menu_logo(p, &fonts, art.as_deref()));
-            }
+        Screen::Options { .. } if menu.confirm.is_some() => {}
+        Screen::Options { .. } => {
             let page = menu.page;
             let settings = menu.pending.as_ref().unwrap_or(&settings);
             let changed = menu.changed();
@@ -1974,7 +2161,7 @@ fn rebuild_menu(
             if let Some((wide, tall, y0)) = tiled {
                 let foot: Vec<(&str, Action)> = page.footer(changed).iter().map(|&k| (k.label(), k.into())).collect();
                 let described = page == OptionsPage::AdvancedVideo;
-                let scrolls = matches!(page, OptionsPage::AdvancedVideo | OptionsPage::Keys);
+                let scrolls = matches!(page, OptionsPage::AdvancedVideo | OptionsPage::Keys | OptionsPage::Audio);
                 // A key row asked for (Push To Talk Key): scroll it into view.
                 commands.spawn(layer(10)).with_children(|p| {
                     tile_frame(p, &fonts, art.as_deref(), page.title(), wide, tall, &foot, |d| {
@@ -2051,6 +2238,12 @@ fn rebuild_menu(
         commands.spawn((layer(20), Interaction::None, bevy::ui::FocusPolicy::Block)).with_children(|p| {
             confirm_dialog(p, &fonts, art.as_deref(), title, message, &[(ok, Action::ConfirmOk), ("Cancel", Action::ConfirmCancel)]);
         });
+    }
+    // A new dialog turns in tile by tile (run_flip draws it off screen
+    // meanwhile); a rebuild of the same one just shows.
+    let frame = FRAME_RECT.lock().ok().and_then(|r| *r);
+    if let (true, Some(frame), Some(view), Ok(w)) = (new_dialog && *screen != Screen::None, frame, flip.as_deref_mut(), windows.single()) {
+        start_flip(&mut commands, view, frame, now, w.physical_height() as f32);
     }
 }
 
@@ -2373,7 +2566,7 @@ fn scripted_clicks(
 }
 
 /// Mouse wheel over the key list scrolls it.
-fn scroll_lists(wheel: Option<Res<AccumulatedMouseScroll>>, menu: Res<MenuState>, mut lists: Query<&mut ScrollPosition, With<ScrollList>>, mut saved: ResMut<MenuScroll>) {
+fn scroll_lists(wheel: Option<Res<AccumulatedMouseScroll>>, menu: Res<MenuState>, mut lists: Query<(&mut ScrollPosition, &ComputedNode), With<ScrollList>>, mut saved: ResMut<MenuScroll>) {
     let Some(wheel) = wheel else { return };
     if wheel.delta.y == 0.0 || menu.capture.is_some() {
         return;
@@ -2382,8 +2575,11 @@ fn scroll_lists(wheel: Option<Res<AccumulatedMouseScroll>>, menu: Res<MenuState>
         MouseScrollUnit::Line => wheel.delta.y * 32.0,
         MouseScrollUnit::Pixel => wheel.delta.y,
     };
-    for mut pos in &mut lists {
-        pos.0.y = (pos.0.y - dy).max(0.0);
+    for (mut pos, node) in &mut lists {
+        // Stop at the end: the position never runs past what can be shown
+        // (it used to keep counting, so scrolling back did nothing at first).
+        let max = ((node.content_size.y - node.size.y) * node.inverse_scale_factor).max(0.0);
+        pos.0.y = (pos.0.y.min(max) - dy).clamp(0.0, max);
         saved.0 = pos.0.y;
     }
 }
@@ -2687,6 +2883,29 @@ fn pause_world(
         }
     }
     let _ = in_menu_map;
+}
+
+/// No mouse pointer over the intro movies and loading screens; it comes
+/// back with the menu (owner, 2026-10-21).
+fn hide_cursor_off_menu(
+    intro: Option<Res<crate::intro::Intro>>,
+    loading: Query<(), With<crate::loading::LoadingRoot>>,
+    (screen, map): (Res<Screen>, Option<Res<CurrentMap>>),
+    mut cursor: Query<&mut CursorOptions, With<PrimaryWindow>>,
+    mut hidden: Local<bool>,
+) {
+    let Ok(mut c) = cursor.single_mut() else { return };
+    let hide = intro.is_some_and(|i| i.active()) || !loading.is_empty();
+    if hide {
+        if c.visible {
+            c.visible = false;
+        }
+        *hidden = true;
+    } else if std::mem::take(&mut *hidden) {
+        // As pause_world left it: hidden only while playing.
+        let playing = *screen == Screen::None && map.is_some_and(|m| !m.menu);
+        c.visible = !playing;
+    }
 }
 
 impl Screen {
