@@ -12,7 +12,7 @@ owner build). Reopened: T-173 hold beam ("looks terrible"), T-174 panel
 layout, T-179 flips ("semi fixed").
 
 ## Where things stand
-- dist/Prtl2Mac.app = BUILD_ID (T-140 + T-117 merged on top of b8a2d76).
+- dist/Prtl2Mac.app = 0.1.0+ef0144c.20261021T1755Z (T-140 + T-117 merged on top of b8a2d76).
 - Owner is sending screenshots for: T-174 panels, T-173 hold beam, T-179
   flips, T-145, T-147, T-149, T-116.
 - Still awaiting the owner: T-169, T-171, T-148, T-153, T-140, T-117, and the
