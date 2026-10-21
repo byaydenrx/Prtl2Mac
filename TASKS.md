@@ -26,25 +26,25 @@ P1:
 P2:
    (T-162 UI styling: every screen done 2026-10-20, awaiting owner replay.)
    (T-170 carrying at walls fixed 9f1ed5a, awaiting owner replay.)
-3. T-145 lit cubes turn black, spikes under buttons, cubes jitter on buttons.
-4. T-172 voice lines start late (stretches elevator rides; T-120's VO part).
-5. T-135 things fall through elevators (turrets, rubble).
-6. T-139 music not playing with ambience; soundscapes.
-7. T-112 GLaDOS chamber floor still murky brown (with T-151 water).
-8. T-144 clipboard should turn to face the player.
-9. T-149 intro5 screens/lights; sign big number check.
-10. T-147 intro2 black screen at the first door; T-113 hints vanish.
+   (T-145 lit cubes black BLOCKED, attempt/T-145; spikes/jitter still open.)
+3. T-172 voice lines start late (stretches elevator rides; T-120's VO part).
+4. T-135 things fall through elevators (turrets, rubble).
+5. T-139 music not playing with ambience; soundscapes.
+6. T-112 GLaDOS chamber floor still murky brown (with T-151 water).
+7. T-144 clipboard should turn to face the player.
+8. T-149 intro5 screens/lights; sign big number check.
+9. T-147 intro2 black screen at the first door; T-113 hints vanish.
 P3:
-11. T-171 FPS drops looking at portals.
-12. T-148 portals behind glass drawn on top (reopened).
-13. T-117 shadows still blocky.
-14. T-152 lighting/texture quality.
-15. T-153 GLaDOS wake-up particles; T-173 gun hold beam and fizzler spark.
-16. T-140 game-placed portal shake/sound (reopened).
-17. T-174 elevator videos; T-175 intro1 ride outside fog/sky; T-164 debris
+10. T-171 FPS drops looking at portals.
+11. T-148 portals behind glass drawn on top (reopened).
+12. T-117 shadows still blocky.
+13. T-152 lighting/texture quality.
+14. T-153 GLaDOS wake-up particles; T-173 gun hold beam and fizzler spark.
+15. T-140 game-placed portal shake/sound (reopened).
+16. T-174 elevator videos; T-175 intro1 ride outside fog/sky; T-164 debris
     (try attempt/T-164); T-116 window (owner screenshots coming).
 P4:
-18. T-151 water (try attempt/T-151), T-150 particles, T-146 half-stuck door,
+17. T-151 water (try attempt/T-151), T-150 particles, T-146 half-stuck door,
     T-154 floating moss.
 Then the Backlog (prove and sweep the campaign).
 
@@ -66,7 +66,30 @@ Then the Backlog (prove and sweep the campaign).
 
 ## Open: P2
 
-### T-145 Buttons don't animate; cubes don't change colour on a button  (P2, REOPENED: lit cubes turn black, spikes under buttons, jitter)
+### T-145 Buttons don't animate; cubes don't change colour on a button  (P2, BLOCKED (needs owner): lit cubes dark, cause not found; spikes and jitter not looked at)
+- 2026-10-20 19:50 autorun: dark lit cube REPRODUCED (autopilot sp_a1_intro2,
+  `propto box -607 288 -20` onto button_1-button, dist build 9f1ed5a): on the
+  pressed button the cube body renders dark grey (yellow ring fine); off the
+  button it is light grey. P2_HIDE_MAT=metal_box_skin002 hides the whole cube,
+  so only the lit-skin draw shows, and it is the one that is dark. Forcing lit
+  skin 4 instead of 2 is just as dark, so it is not the texture. Ruled out:
+  texture brightness (skin000/002/004 avg ~0.6, decoded with `ls --vtf`),
+  shader combo (both `vs 0 ps 36`), lighting (one ambient-cube closure, baked
+  into both skins' vertices at spawn), sRGB cache (both srgb=true), skin
+  switch (apply_model_skins only flips Visibility). Not yet checked: the
+  render side for draws under a SkinVariant entity spawned Hidden
+  (valve_render prepare/upload of draws first seen while hidden, e.g. light
+  stream or constants), and whether the dark look is the variant draw being
+  drawn without its static-light stream. Next step: spawn the cube with
+  base skin 2 (no variant) and compare; if bright, the bug is the
+  hidden-at-spawn variant path.
+- Also found: cube_lit_skin's table was wrong for non-standard cubes:
+  metal_box skin textures are 0 standard, 1 companion, 2 standard lit,
+  3 rusted, 4 companion lit, 5 rusted lit (we lit companion 1 as 3 = rusted
+  blue, rusted 3 not at all). Untested fix: local branch attempt/T-145
+  (cc8d8e0), needs owner review/replay (not seen in game: no companion or
+  rusted cube on a button was checked).
+- Spikes under the button and jitter on buttons: not looked at this run.
 - Owner playtest 9 (2026-10-20, build 014ab6e): button press works, but "cubes turn black when they're activated and yellow" and "it adds weird spikes under the button almost like there's grass under it"; "buttons are still juttery/buggy when [cubes are] put on buttons".
 - Section 0: no press-down when used or when a cube lands; cubes kept their
   off skin; cubes twitched on buttons (press/unpress flicker as they settle).
