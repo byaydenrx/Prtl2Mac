@@ -68,7 +68,7 @@ sessions, only for independent tasks with separate files.
   `duck`, `jump`, `use`, `fire blue|orange`, `goto|lookat <name> [dist]`,
   `input <target> <input> [param]`, `info <name>` (state, bounds),
   `portalable x y z r`, `ray x y z [dx dy dz]`, `propto <name> x y z`,
-  `shot <file.png>`, `log`, `click <Action>`, `hover <Action>`, `quit`.
+  `shot <file.png>`, `log`, `click <Action>`, `hover <Action>`, `key up|down|left|right|enter|tab|escape`, `quit`.
   `RUST_LOG=info,portal2::io=debug` logs every entity output that fires.
 - Debug env: P2_NO_INTRO=1 (skip the startup intro movie and loading screen
   of a no-map launch; with the intro the script clock starts at launch),

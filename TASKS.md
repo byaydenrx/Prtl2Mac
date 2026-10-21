@@ -184,6 +184,13 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   Subtitle style moved from Audio to its own Options row (SUBTITLES) so
   Audio matches Portal 2's rows. Not done: keyboard navigation/focus,
   confirmation tile flips (T-179).
+- 2026-10-21 keyboard navigation DONE (autopilot `key` runs): Up/Down/
+  Tab move through the items in screen order (greyed ones are not
+  reachable), Enter/Space chooses, Left/Right step a value or slider, Esc
+  backs out (discard prompt with changes). The pointer moves onto the
+  item, so hover look, sound and Advanced Video's description follow.
+  Not done: keys don't scroll a long list (Edit Keys) past what's shown.
+  Subtitles and Speedrun pages now use the tiled frame too.
 - 2026-10-21 footer buttons DONE (autopilot shots): every tiled dialog's
   footer is now FooterPanel's button: the install's vgui/btn_bg_alt face
   (idle), btn_bg_over (hovered, brighter), btn_bg_click (blue, while held),

@@ -57,7 +57,7 @@ impl Plugin for UiPlugin {
             .add_systems(
                 Update,
                 (
-                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, carry_hover, footer_art, hover_rows, describe_rows, scroll_nobs, flip_tiles, menu_movie).chain(),
+                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, carry_hover, footer_art, hover_rows, describe_rows, scroll_nobs, flip_tiles, keyboard_nav, menu_movie).chain(),
                     (menu_view, menu_camera, pause_world, menu_music, title_card).chain(),
                 )
                     .chain()
@@ -1076,6 +1076,11 @@ fn tile_option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row, y: 
                     t.spawn((SliderTrack, Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: units(7.0), width: Val::Percent(100.0), height: units(6.0), ..default() }, BackgroundColor(theme::TILE_TRACK)))
                         .with_child((SliderFill, Node { width: Val::Percent(fraction * 100.0), height: Val::Percent(100.0), ..default() }, BackgroundColor(Color::BLACK)));
                 });
+                // No side arrows on Portal 2's sliders; these unseen steps
+                // are what Left/Right press (keyboard_nav).
+                for d in [-1.0, 1.0] {
+                    r.spawn((Button, Action::Adjust(*setting, d), VALUE_LOOK, InRow, Node { display: Display::None, ..default() }));
+                }
             });
         }
         Row::Heading(h) => {
@@ -1939,7 +1944,8 @@ fn rebuild_menu(
             // controlleroptions.res: 7 x 5 (!$GAMECONSOLE), rows every 25
             // from 25.
             let tiled = match page {
-                OptionsPage::KeyboardMouse | OptionsPage::Controller => Some((7, 5, 25.0)),
+                // Our own pages use the same frame (Mods keeps its notes list).
+                OptionsPage::KeyboardMouse | OptionsPage::Controller | OptionsPage::Subtitles | OptionsPage::Speedrun => Some((7, 5, 25.0)),
                 OptionsPage::Audio => Some((7, 5, 0.0)),
                 OptionsPage::Video => Some((7, 4, 25.0)),
                 // advancedvideo.res (WIN32WIDE) 11 x 5, rows from 25: the
@@ -2218,6 +2224,81 @@ fn escape_key(
     }
 }
 
+/// Keyboard and arrow keys in the menus: Up/Down (and Tab) move the
+/// highlight through the items in screen order, top to bottom (rows, then
+/// the footer), Enter or Space chooses, Left/Right step an Options value.
+/// The mouse pointer moves onto the item, so it lights, sounds and
+/// describes itself exactly as under the mouse. Greyed items are not
+/// buttons, so they are never reached.
+#[allow(clippy::type_complexity)]
+fn keyboard_nav(
+    mut commands: Commands,
+    keys: Res<ButtonInput<KeyCode>>,
+    (screen, menu, eaten): (Res<Screen>, Res<MenuState>, Res<InputEaten>),
+    mut windows: Query<&mut Window, With<PrimaryWindow>>,
+    targets: Query<(Entity, &ComputedNode, &UiGlobalTransform, &InheritedVisibility, Has<Button>), (Or<(With<Button>, With<HoverRow>)>, Without<InRow>)>,
+    children: Query<&Children>,
+    actions: Query<&Action>,
+    mut interactions: Query<&mut Interaction>,
+) {
+    if *screen == Screen::None || menu.capture.is_some() || eaten.0 {
+        return;
+    }
+    let down = keys.just_pressed(KeyCode::ArrowDown) || keys.just_pressed(KeyCode::Tab);
+    let up = keys.just_pressed(KeyCode::ArrowUp);
+    let choose = keys.just_pressed(KeyCode::Enter) || keys.just_pressed(KeyCode::NumpadEnter) || keys.just_pressed(KeyCode::Space);
+    let side = if keys.just_pressed(KeyCode::ArrowLeft) { -1.0 } else if keys.just_pressed(KeyCode::ArrowRight) { 1.0 } else { 0.0 };
+    if !(down || up || choose || side != 0.0) {
+        return;
+    }
+    let Ok(mut window) = windows.single_mut() else { return };
+    let scale = window.scale_factor();
+    let (w, h) = (window.width(), window.height());
+    // Items on screen, in reading order (logical pixels).
+    let mut items: Vec<(Entity, Vec2, Vec2, bool)> = targets
+        .iter()
+        .filter(|(_, n, _, v, _)| v.get() && n.size.y > 0.0)
+        .map(|(e, n, t, _, b)| (e, t.translation / scale, n.size / scale, b))
+        .filter(|(_, c, _, _)| c.x >= 0.0 && c.y >= 0.0 && c.x <= w && c.y <= h)
+        .collect();
+    items.sort_by(|a, b| a.1.y.total_cmp(&b.1.y).then(a.1.x.total_cmp(&b.1.x)));
+    if items.is_empty() {
+        return;
+    }
+    let cursor = window.cursor_position();
+    let current = cursor.and_then(|c| items.iter().position(|(_, at, size, _)| (c - *at).abs().cmple(*size / 2.0).all()));
+    if down || up {
+        let next = match (current, down) {
+            (None, true) => 0,
+            (None, false) => items.len() - 1,
+            (Some(i), true) => (i + 1) % items.len(),
+            (Some(i), false) => (i + items.len() - 1) % items.len(),
+        };
+        window.set_cursor_position(Some(items[next].1));
+        return;
+    }
+    let Some(i) = current else { return };
+    let (e, _, _, button) = items[i];
+    // What to press: the item itself, or for an Options row its value
+    // (Enter) or its arrow (Left/Right).
+    let want = |a: &Action| match *a {
+        Action::Toggle(_) => side == 0.0,
+        Action::Adjust(_, d) => side != 0.0 && d.signum() == side,
+        _ => false,
+    };
+    let press = if button && side == 0.0 {
+        Some(e)
+    } else {
+        children.iter_descendants(e).find(|c| actions.get(*c).is_ok_and(want))
+    };
+    if let Some(p) = press {
+        if let Ok(mut i) = interactions.get_mut(p) {
+            *i = Interaction::Pressed;
+            commands.entity(p).insert(ScriptPress);
+        }
+    }
+}
+
 /// Older click names that still work: (old, now).
 const CLICK_ALIASES: [(&str, &str); 4] = [("chapters", "newgame"), ("speedrunoptions", "page(speedrun)"), ("modsoptions", "page(mods)"), ("subtitleoptions", "page(subtitles)")];
 
@@ -2226,8 +2307,36 @@ const CLICK_ALIASES: [(&str, &str); 4] = [("chapters", "newgame"), ("speedrunopt
 #[derive(Component)]
 struct ScriptPress;
 
-fn scripted_clicks(mut commands: Commands, mut clicks: MessageReader<MenuClick>, mut screen: ResMut<Screen>, mut q: Query<(Entity, &mut Interaction, &Action)>) {
+fn scripted_clicks(
+    mut commands: Commands,
+    mut clicks: MessageReader<MenuClick>,
+    mut screen: ResMut<Screen>,
+    mut q: Query<(Entity, &mut Interaction, &Action)>,
+    (mut typed, window): (MessageWriter<bevy::input::keyboard::KeyboardInput>, Query<Entity, With<PrimaryWindow>>),
+) {
     for c in clicks.read() {
+        // "key:<KeyCode>" (autopilot `key`): a key pressed and let go.
+        if let Some(name) = c.0.strip_prefix("key:") {
+            let code = match name.to_ascii_lowercase().as_str() {
+                "up" => Some(KeyCode::ArrowUp),
+                "down" => Some(KeyCode::ArrowDown),
+                "left" => Some(KeyCode::ArrowLeft),
+                "right" => Some(KeyCode::ArrowRight),
+                "enter" => Some(KeyCode::Enter),
+                "tab" => Some(KeyCode::Tab),
+                "escape" => Some(KeyCode::Escape),
+                _ => None,
+            };
+            match (code, window.single()) {
+                (Some(key_code), Ok(window)) => {
+                    for state in [bevy::input::ButtonState::Pressed, bevy::input::ButtonState::Released] {
+                        typed.write(bevy::input::keyboard::KeyboardInput { key_code, logical_key: bevy::input::keyboard::Key::Unidentified(bevy::input::keyboard::NativeKey::Unidentified), state, text: None, repeat: false, window });
+                    }
+                }
+                _ => warn!("portal2: autopilot key {name}?"),
+            }
+            continue;
+        }
         // "hover:<Action>" (autopilot `hover`) only lights the button.
         let (state, name) = c.0.strip_prefix("hover:").map_or((Interaction::Pressed, c.0.as_str()), |n| (Interaction::Hovered, n));
         let want = name.replace(' ', "").to_ascii_lowercase();

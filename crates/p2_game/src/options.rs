@@ -33,7 +33,7 @@ pub enum OptionsPage {
     Subtitles,
     Video,
     AdvancedVideo,
-    /// Speedrun timer, quick restart and practice checkpoints.
+    /// Speedrun Timer, quick restart and practice checkpoints.
     Speedrun,
     /// The installed mods and the mod profile.
     Mods,
@@ -531,14 +531,14 @@ fn sentence(s: &str) -> String {
 fn speedrun_rows(s: &Settings) -> Vec<Row> {
     let t = &s.tools;
     vec![
-        choice("Speedrun timer", on_off(t.speedrun_timer), Setting::SpeedrunTimer),
-        choice("Timer mode", sentence(t.speedrun_mode.label()), Setting::SpeedrunMode),
-        choice("Quick restart", on_off(t.quick_restart), Setting::QuickRestart),
-        choice("Quick restart key", key_name(t.quick_restart_key), Setting::QuickRestartKey),
-        choice("Practice checkpoints", on_off(t.practice), Setting::Practice),
-        choice("Save checkpoint key", key_name(t.checkpoint_save_key), Setting::SaveCheckpointKey),
-        choice("Load checkpoint key", key_name(t.checkpoint_load_key), Setting::LoadCheckpointKey),
-        choice("Checkpoint slot", t.checkpoint_slot.to_string(), Setting::CheckpointSlot),
+        choice("Speedrun Timer", on_off(t.speedrun_timer), Setting::SpeedrunTimer),
+        choice("Timer Mode", sentence(t.speedrun_mode.label()), Setting::SpeedrunMode),
+        choice("Quick Restart", on_off(t.quick_restart), Setting::QuickRestart),
+        choice("Quick Restart Key", key_name(t.quick_restart_key), Setting::QuickRestartKey),
+        choice("Practice Checkpoints", on_off(t.practice), Setting::Practice),
+        choice("Save Checkpoint Key", key_name(t.checkpoint_save_key), Setting::SaveCheckpointKey),
+        choice("Load Checkpoint Key", key_name(t.checkpoint_load_key), Setting::LoadCheckpointKey),
+        choice("Checkpoint Slot", t.checkpoint_slot.to_string(), Setting::CheckpointSlot),
         Row::Note {
             text: "Splits and personal bests are saved in the splits folder next to settings.cfg. Runs with sv_cheats or a loaded checkpoint never count as a personal best.".into(),
             error: false,
@@ -921,7 +921,7 @@ mod tests {
         let keys = crate::bindings::builtin_actions();
         let binds = BindTable::builtin();
         let c = ctx(&keys, &binds, v);
-        assert!(rows(OptionsPage::Speedrun, &s, &c).contains(&choice("Timer mode", "Single map", Setting::SpeedrunMode)));
+        assert!(rows(OptionsPage::Speedrun, &s, &c).contains(&choice("Timer Mode", "Single map", Setting::SpeedrunMode)));
         // The mode wraps when its value is clicked.
         adjust(&mut s, &mut v, NATIVE, Setting::SpeedrunMode, 1, true);
         assert_eq!(s.tools.speedrun_mode, SpeedrunMode::FullRun);
