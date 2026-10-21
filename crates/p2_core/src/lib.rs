@@ -122,6 +122,12 @@ impl Crouch {
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct InFunnel;
 
+/// Seconds left with no air control: a faith plate launched the player at a
+/// target (trigger_catapult AirCtrlSupressionTime, default a quarter second),
+/// so holding a direction can't bend the start of the arc. The move ticks it down.
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct AirControlSuppressed(pub f32);
+
 /// Ground state, owned by `p2_movement`.
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct Grounded {

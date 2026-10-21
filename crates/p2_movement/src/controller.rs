@@ -12,7 +12,7 @@ use avian3d::prelude::*;
 use bevy::ecs::entity::EntityHashSet;
 use bevy::prelude::*;
 use p2_core::{
-    CharacterVelocity, Crouch, ForceDuck, Grounded, IgnoreColliders, InterpolatedFeet, MoveInput, Player,
+    AirControlSuppressed, CharacterVelocity, Crouch, ForceDuck, Grounded, IgnoreColliders, InterpolatedFeet, MoveInput, Player,
     Portal, PortalLink, ViewAngles, HULL_DUCK, HULL_STAND, U, VIEW_DUCK, VIEW_STAND,
 };
 
@@ -288,6 +288,7 @@ pub(crate) fn move_players(
             &mut InterpolatedFeet,
             &mut Duck,
             Has<p2_core::InFunnel>,
+            Option<&mut AirControlSuppressed>,
         ),
         (With<Player>, Without<Portal>),
     >,
@@ -311,9 +312,12 @@ pub(crate) fn move_players(
         Vec::new()
     };
 
-    for (entity, mut tf, mut vel, ignore, view, mut input, mut crouch, mut grounded, mut interp, mut duck, in_funnel) in
+    for (entity, mut tf, mut vel, ignore, view, mut input, mut crouch, mut grounded, mut interp, mut duck, in_funnel, mut suppressed) in
         &mut players
     {
+        if let Some(s) = suppressed.as_mut().filter(|s| s.0 > 0.0) {
+            s.0 -= dt;
+        }
         let mover = Mover {
             mas: &mas,
             filter: SpatialQueryFilter::from_excluded_entities(ignore.0.iter().copied()),
@@ -377,6 +381,10 @@ pub(crate) fn move_players(
                 v.y -= cfg.gravity * dt * 0.5;
             }
             let mut wish = rules::wish_velocity(input.wish, view.yaw, rules::air_forward_scale(view.pitch), cfg.max_speed);
+            // Just launched by a faith plate at a target: no air control yet.
+            if suppressed.as_ref().is_some_and(|s| s.0 > 0.0) {
+                wish = Vec3::ZERO;
+            }
             let mut funnel_add = Vec3::ZERO;
             if Vec2::new(v.x, v.z).length() <= cfg.air_lock_speed {
                 if !portals.is_empty() {

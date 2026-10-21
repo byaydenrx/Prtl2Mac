@@ -105,7 +105,7 @@ fn touch_triggers(
     let mut now_touching = std::collections::HashSet::new();
     let mut teleport_to: Option<usize> = None;
     let mut dissolve: Vec<(Entity, usize)> = Vec::new();
-    let mut launch_player: Option<Vec3> = None;
+    let mut launch_player: Option<(Vec3, f32)> = None;
     let mut push_player = Vec3::ZERO;
     for i in 0..ents.list.len() {
         let e = &ents.list[i];
@@ -216,7 +216,13 @@ fn touch_triggers(
                     };
                     let speed = e.get_f32(if t == PLAYER { "playerspeed" } else { "physicsspeed" }).unwrap_or(450.0) * shared::SOURCE_UNIT;
                     let target = e.get("launchtarget").filter(|n| !n.is_empty()).and_then(|n| ents.find(n, i, Some(t)).first().copied());
-                    let launch = catapult_velocity(from, target.map(|x| ents.list[x].transform.translation), e.get("launchdirection"), speed);
+                    let aim = CatapultAim {
+                        player: t == PLAYER,
+                        exact: e.get("useexactvelocity").is_some_and(|v| v.trim() == "1"),
+                        choice: e.get("exactvelocitychoicetype").and_then(|v| v.trim().parse().ok()).unwrap_or(0),
+                        incoming: v_in,
+                    };
+                    let launch = catapult_velocity(from, target.map(|x| ents.list[x].transform.translation), e.get("launchdirection"), speed, aim);
                     // Threshold check: only correct things already flying about
                     // this fast (chained plates); others pass through.
                     let check = e.get("usethresholdcheck").is_some_and(|v| v.trim() == "1");
@@ -230,7 +236,22 @@ fn touch_triggers(
                         info!("TRACE catapult {:?} launches {t} at {:.0?} u/s", e.name, launch / shared::SOURCE_UNIT);
                     }
                     match prop {
-                        None => launch_player = Some(launch),
+                        None => {
+                            // Launch by target: no air control for a moment
+                            // (AirCtrlSupressionTime; below zero is the default
+                            // quarter second).
+                            // A directional plate only with DirectionSuppressAirControl.
+                            let set = e.get_f32("airctrlsupressiontime").unwrap_or(-1.0);
+                            let by_dir = e.get("directionsuppressaircontrol").is_some_and(|v| v.trim() == "1");
+                            let t = if target.is_none() && !by_dir {
+                                0.0
+                            } else if set > 0.0 {
+                                set
+                            } else {
+                                0.25
+                            };
+                            launch_player = Some((launch, t));
+                        }
                         Some(pe) => {
                             commands.entity(pe).insert((LinearVelocity(launch), AngularVelocity(Vec3::ZERO)));
                         }
@@ -313,8 +334,9 @@ fn touch_triggers(
         crate::props::dissolved(&mut ents, ent);
     }
     vel.0 += push_player;
-    if let Some(v) = launch_player {
+    if let Some((v, suppress)) = launch_player {
         vel.0 = v;
+        commands.entity(player).insert(p2_core::AirControlSuppressed(suppress));
     }
     if let Some(dest) = teleport_to {
         let t = ents.list[dest].transform;
@@ -332,29 +354,82 @@ fn touch_triggers(
 /// up to the slot plugs him in.
 const CORE_TRIGGER_REACH: f32 = 40.0 * shared::SOURCE_UNIT;
 
-/// Faith plate launch velocity (m/s). With a target, `speed` is the speed
-/// across the ground toward it and the upward speed is whatever makes the
-/// arc land there under Portal 2's gravity; without one, straight along
-/// `launchdirection` (Source pitch/yaw) at `speed`.
-pub fn catapult_velocity(from: Vec3, target: Option<Vec3>, direction: Option<&str>, speed: f32) -> Vec3 {
+/// How a faith plate aims at its launch target (trigger_catapult keys).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct CatapultAim {
+    /// The launchee is the player: Source aims its feet 32 units under the
+    /// target, and a straight-up launch goes at 1.5x the speed.
+    pub player: bool,
+    /// useExactVelocity: launch at exactly `speed`, solving for the angle.
+    pub exact: bool,
+    /// exactVelocityChoiceType: 0 the arc nearer the incoming velocity,
+    /// 1 the high arc, 2 the low arc.
+    pub choice: i32,
+    /// The launchee's velocity on entry (picks the arc for choice 0).
+    pub incoming: Vec3,
+}
+
+/// Faith plate launch velocity (m/s), as Portal 2's CTriggerCatapult works
+/// it out (server.dll). With a target and no exact velocity the flight time
+/// is the straight-line distance over `speed`, and the launch covers the
+/// offset in that time plus the upward speed gravity takes back
+/// (d / t + up * g t / 2). With exact velocity the speed is kept and the
+/// angle solved; with no solution it falls back to the first. Without a
+/// target, straight along `launchdirection` (Source pitch/yaw) at `speed`.
+pub fn catapult_velocity(from: Vec3, target: Option<Vec3>, direction: Option<&str>, speed: f32, aim: CatapultAim) -> Vec3 {
     let g = 600.0 * shared::SOURCE_UNIT;
-    if let Some(to) = target {
-        let d = to - from;
-        let flat = Vec2::new(d.x, d.z);
-        if flat.length() > 1.0 * shared::SOURCE_UNIT {
-            let t = flat.length() / speed.max(1e-3);
-            let up = (d.y + 0.5 * g * t * t) / t;
-            let h = flat.normalize() * speed;
-            return Vec3::new(h.x, up, h.y);
+    let speed = speed.max(1e-3);
+    if let Some(mut to) = target {
+        if aim.player {
+            to.y -= 32.0 * shared::SOURCE_UNIT;
         }
-        // Straight up to a point overhead: just enough to reach it.
-        return Vec3::Y * (2.0 * g * d.y.max(0.0)).sqrt().max(speed);
+        let d = to - from;
+        if aim.exact {
+            if let Some(v) = exact_launch(d, speed, g, aim) {
+                return v;
+            }
+        }
+        let t = d.length() / speed;
+        if t > 1e-6 {
+            return d / t + Vec3::Y * (0.5 * g * t);
+        }
+        return Vec3::Y * speed;
     }
     let a: Vec<f32> = direction.unwrap_or("").split_whitespace().filter_map(|v| v.parse().ok()).collect();
     let (pitch, yaw) = (a.first().copied().unwrap_or(0.0).to_radians(), a.get(1).copied().unwrap_or(0.0).to_radians());
     // Source forward: (cos p cos y, cos p sin y, -sin p) -> world (x, z_up, -y).
     let src = Vec3::new(pitch.cos() * yaw.cos(), pitch.cos() * yaw.sin(), -pitch.sin());
-    Vec3::new(src.x, src.z, -src.y) * speed
+    let mut v = Vec3::new(src.x, src.z, -src.y) * speed;
+    if aim.player && v.x.abs() <= 0.001 && v.z.abs() <= 0.001 {
+        v.y = speed * 1.5;
+    }
+    v
+}
+
+/// The two launch angles that reach offset `d` at exactly `speed`; None when
+/// the target is out of reach (Source: "Catapult can't hit target!").
+fn exact_launch(d: Vec3, speed: f32, g: f32, aim: CatapultAim) -> Option<Vec3> {
+    let flat = Vec2::new(d.x, d.z);
+    let x = flat.length();
+    if x <= 0.0 {
+        return None;
+    }
+    let v2 = speed * speed;
+    let disc = v2 * v2 - g * (g * x * x + 2.0 * d.y * v2);
+    if disc <= 0.0 {
+        return None;
+    }
+    let root = disc.sqrt();
+    let dir = flat / (x + 1e-7);
+    let arc = |tan: f32| {
+        let th = tan.atan();
+        let h = dir * th.cos() * speed;
+        Vec3::new(h.x, th.sin() * speed, h.y)
+    };
+    let (high, low) = (arc((v2 + root) / (g * x)), arc((v2 - root) / (g * x)));
+    let inc = aim.incoming.normalize_or_zero();
+    let use_low = aim.choice != 1 && (aim.choice == 2 || inc.dot(high) <= inc.dot(low));
+    Some(if use_low { low } else { high })
 }
 
 /// Console commands maps and scripts run; several can be joined with ';'.
@@ -640,5 +715,54 @@ mod tests {
         assert_eq!(exit_load_at(&ScreenFade::default(), 5.0), 8.5);
         assert_eq!(exit_load_at(&ScreenFade { stay: false, ..black }, 10.0), 13.5);
         assert_eq!(exit_load_at(&ScreenFade { color: Vec4::new(0.0, 0.0, 0.0, 0.5), ..black }, 10.0), 13.5);
+    }
+
+    /// Fly a launch under Portal 2 gravity; the closest the path gets to `to`.
+    fn closest(from: Vec3, v: Vec3, to: Vec3) -> f32 {
+        let g = 600.0 * shared::SOURCE_UNIT;
+        (0..4000).map(|i| i as f32 * 0.001).map(|t| (from + v * t - Vec3::Y * 0.5 * g * t * t - to).length()).fold(f32::MAX, f32::min)
+    }
+
+    #[test]
+    fn catapult_flight_time_is_straight_line_distance_over_speed() {
+        let u = shared::SOURCE_UNIT;
+        let (from, to) = (Vec3::ZERO, Vec3::new(0.0, 256.0, -900.0) * u);
+        let prop = CatapultAim::default();
+        let v = catapult_velocity(from, Some(to), None, 500.0 * u, prop);
+        let t = to.length() / (500.0 * u);
+        assert!((v.z - to.z / t).abs() < 1e-4);
+        assert!((v.y - (to.y / t + 300.0 * u * t)).abs() < 1e-4);
+        assert!(closest(from, v, to) < 1.0 * u);
+        // The player's feet go 32 units under the target.
+        let p = catapult_velocity(from, Some(to), None, 500.0 * u, CatapultAim { player: true, ..prop });
+        assert!(closest(from, p, to - Vec3::Y * 32.0 * u) < 1.0 * u);
+    }
+
+    #[test]
+    fn catapult_exact_velocity_keeps_the_speed_and_picks_the_arc() {
+        let u = shared::SOURCE_UNIT;
+        let (from, to) = (Vec3::ZERO, Vec3::new(800.0, 0.0, 0.0) * u);
+        let aim = |choice| CatapultAim { exact: true, choice, incoming: Vec3::new(1.0, -1.0, 0.0), ..default() };
+        let (high, low) = (
+            catapult_velocity(from, Some(to), None, 1000.0 * u, aim(1)),
+            catapult_velocity(from, Some(to), None, 1000.0 * u, aim(2)),
+        );
+        for v in [high, low] {
+            assert!((v.length() - 1000.0 * u).abs() < 1e-3);
+            assert!(closest(from, v, to) < 1.0 * u);
+        }
+        assert!(high.y > low.y);
+        // Choice 0: the arc more along the incoming (down and forward) velocity.
+        assert_eq!(catapult_velocity(from, Some(to), None, 1000.0 * u, aim(0)), low);
+        // Out of reach: falls back to the non-exact launch.
+        let far = Vec3::new(9000.0, 0.0, 0.0) * u;
+        assert_eq!(catapult_velocity(from, Some(far), None, 1000.0 * u, aim(1)), catapult_velocity(from, Some(far), None, 1000.0 * u, CatapultAim::default()));
+    }
+
+    #[test]
+    fn straight_up_catapult_throws_the_player_half_as_fast_again() {
+        let up = |player| catapult_velocity(Vec3::ZERO, None, Some("-90 0 0"), 450.0, CatapultAim { player, ..default() });
+        assert!((up(true).y - 675.0).abs() < 1e-3);
+        assert!((up(false).y - 450.0).abs() < 1e-3);
     }
 }
