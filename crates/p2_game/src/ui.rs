@@ -50,6 +50,7 @@ impl Plugin for UiPlugin {
             .init_resource::<ChapterTab>()
             .init_resource::<ModsPage>()
             .init_resource::<MenuMovie>()
+            .init_resource::<PauseBackdrop>()
             .init_resource::<CarriedHover>()
             .add_message::<ShowChapterTitle>()
             .add_message::<MenuClick>()
@@ -57,18 +58,40 @@ impl Plugin for UiPlugin {
             .add_systems(
                 Update,
                 (
-                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, carry_hover, run_flip, footer_art, hover_rows, describe_rows, scroll_nobs, flip_tiles, keyboard_nav, menu_movie).chain(),
+                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, pause_backdrop, rebuild_menu, carry_hover, run_flip, footer_art, hover_rows, describe_rows, scroll_nobs, flip_tiles, keyboard_nav, menu_movie).chain(),
                     (menu_view, menu_camera, pause_world, hide_cursor_off_menu, menu_music, title_card).chain(),
                 )
                     .chain()
                     .in_set(crate::level::GameSet::Logic),
-            );
+            )
+            .add_systems(PostUpdate, hide_menu_for_backdrop.before(bevy::camera::visibility::VisibilitySystems::VisibilityPropagate));
     }
 }
 
 /// The background movie's image node (see [`menu_movie`]).
 #[derive(Component)]
 struct MenuMovieNode;
+
+/// The paused game behind the in-game menus, as Windows draws it: the
+/// view the moment the pause menu opened, blurred, with a glow on its
+/// bright parts and a little less colour. `image` is filled in once the
+/// capture arrives (`slot`, from a worker thread); the menu stays hidden
+/// meanwhile (`waiting`, at most [`BACKDROP_WAIT`]) so the capture shows
+/// only the game.
+#[derive(Resource)]
+struct PauseBackdrop {
+    image: Handle<Image>,
+    ready: bool,
+    waiting: Option<f32>,
+    slot: std::sync::Arc<std::sync::Mutex<Option<image::RgbaImage>>>,
+}
+
+/// The paused-view image node (see [`PauseBackdrop`]).
+#[derive(Component)]
+struct PauseBackdropNode;
+
+/// How long the pause menu waits for its backdrop capture (real seconds).
+const BACKDROP_WAIT: f32 = 0.5;
 
 /// Which menu is up. `None` while playing.
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
@@ -668,12 +691,13 @@ fn item_list(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt
 
 /// Which [`TILES`] piece sits at column `c`, row `r` of a tiled dialog:
 /// a title tab `tab` tiles wide on row 0 over a body `wide` x `tall`
-/// (rows 1..=tall). `None`: empty (beside the tab).
+/// (rows 1..=tall). `None`: empty (beside the tab; all of row 0 when `tab`
+/// is 0, a body without a tab).
 fn tile_piece(c: usize, r: usize, tab: usize, wide: usize, tall: usize) -> Option<usize> {
-    let last_c = if r == 0 { tab - 1 } else { wide - 1 };
     if r == 0 && c >= tab {
         return None;
     }
+    let last_c = if r == 0 { tab - 1 } else { wide - 1 };
     let col = if c == 0 { 0 } else if c == last_c { 2 } else { 1 };
     let row = if r == tall {
         2
@@ -684,7 +708,7 @@ fn tile_piece(c: usize, r: usize, tab: usize, wide: usize, tall: usize) -> Optio
     };
     // Under the tab the body continues the tab's sides; its own top edge
     // starts past the tab (the left corner there is plain top edge).
-    let col = if r == 1 && c >= tab && c != last_c { 1 } else { col };
+    let col = if r == 1 && tab > 0 && c >= tab && c != last_c { 1 } else { col };
     Some(row * 3 + col)
 }
 
@@ -721,12 +745,13 @@ fn options_dialog(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&Me
 /// tiled dialog (dialogstyle 1), body 5 x 4, DefaultButton rows every 25
 /// units from 25: Return to Game, Save Game, Load Last Save, Options, Exit
 /// to Main Menu (Restart Level and the rest only show in challenge,
-/// community and puzzle maker maps). No footer: Return to Game or Esc
-/// closes it. The title tab is left blank: neither the .res nor the
-/// localization files give the frame a title.
+/// community and puzzle maker maps). As the Windows shots (owner,
+/// 2026-10-21): no title tab, one flat body whose top is where Options'
+/// tab starts, and a DONE footer that returns to the game.
 fn pause_dialog(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, have_save: bool) {
     let rows = pause_rows(have_save);
-    tile_frame(p, fonts, art, "", 5, 4, &[], |d| {
+    let frame = Frame { tab: 0, top: 480.0 - 75.0 - 5.0 * 50.0, width: 5.0 * 50.0, body: 4.0 * 50.0, title_font: TITLE_FONT, upper: true };
+    tile_frame_sized(p, fonts, art, "", frame, &[("Done", Action::Resume)], |d| {
         for (i, (label, action)) in rows.iter().enumerate() {
             let y = 25.0 * (i as f32 + 1.0);
             match action {
@@ -785,7 +810,7 @@ fn tile_frame_case(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&M
 
 /// A tiled frame's size and style, in units.
 struct Frame {
-    /// Title tab width in 50-unit tiles.
+    /// Title tab width in 50-unit tiles; 0: no tab (the row stays empty).
     tab: usize,
     /// The tab's top edge (the body starts 50 below).
     top: f32,
@@ -806,7 +831,7 @@ fn tile_frame_sized(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&
     const T: f32 = 50.0;
     let wide = (f.width / T).ceil().max(1.0) as usize;
     let tall = (f.body / T).ceil().max(1.0) as usize;
-    let tab = f.tab.clamp(1, wide);
+    let tab = f.tab.min(wide);
     // Where it is, for the flip in (see start_flip).
     if let Ok(mut r) = FRAME_RECT.lock() {
         let left = if NARROW.load(Ordering::Relaxed) { 75.0 } else { 100.0 };
@@ -1873,7 +1898,7 @@ fn rebuild_menu(
     (monitors, windows): (Query<&Monitor, With<PrimaryMonitor>>, Query<&Window, With<PrimaryWindow>>),
     mut chapter_pics: Local<Vec<Option<Handle<Image>>>>,
     mut backgrounds: Local<std::collections::HashMap<usize, Option<Handle<Image>>>>,
-    (movie, strings, mut save_pics): (Res<MenuMovie>, Option<Res<GameStrings>>, Local<std::collections::HashMap<(String, u64), Option<Handle<Image>>>>),
+    (movie, strings, mut save_pics, backdrop): (Res<MenuMovie>, Option<Res<GameStrings>>, Local<std::collections::HashMap<(String, u64), Option<Handle<Image>>>>, Res<PauseBackdrop>),
     (real, mut last_key, mut was_narrow, mut flip): (Res<Time<Real>>, Local<String>, Local<bool>, Option<ResMut<FlipView>>),
 ) {
     let Some(fonts) = fonts else { return };
@@ -1936,7 +1961,14 @@ fn rebuild_menu(
             if movie.playing() { Visibility::Inherited } else { Visibility::Hidden },
         ));
     } else if in_game {
-        commands.spawn((layer(9), BackgroundColor(theme::SHADE)));
+        // The paused view blurred (see pause_backdrop); the shade until it
+        // is ready, or if the capture fails.
+        commands.spawn((layer(9), BackgroundColor(theme::SHADE))).with_child((
+            PauseBackdropNode,
+            ImageNode { image: backdrop.image.clone(), image_mode: bevy::ui::widget::NodeImageMode::Stretch, ..default() },
+            Node { position_type: PositionType::Absolute, width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
+            if backdrop.ready { Visibility::Inherited } else { Visibility::Hidden },
+        ));
     }
     // Chapter pictures: New Game's tiles and the saved-game lists.
     if (*screen == Screen::Chapters || menu.saves.is_some()) && chapter_pics.len() != campaign.chapters.len() {
@@ -1950,9 +1982,9 @@ fn rebuild_menu(
             })
             .collect();
     }
-    // The logo, on every menu out of the game, in a layer of its own: it
-    // stays put while dialogs flip.
-    if screen.shows_backdrop() {
+    // The logo, on every menu (in the game too, as Windows), in a layer of
+    // its own: it stays put while dialogs flip.
+    if screen.shows_backdrop() || in_game {
         commands.spawn(layer(11)).with_children(|p| menu_logo(p, &fonts, art.as_deref()));
     }
     // The Options dialog's rows; greyed ones (Mods) have no action.
@@ -3014,6 +3046,119 @@ struct MenuMovie {
     shown: bool,
 }
 
+impl FromWorld for PauseBackdrop {
+    fn from_world(world: &mut World) -> Self {
+        let image = world.resource_mut::<Assets<Image>>().reserve_handle();
+        Self { image, ready: false, waiting: None, slot: default() }
+    }
+}
+
+/// Captures the game view as the pause menu opens from play and turns it
+/// into the menu's backdrop ([`PauseBackdrop`]).
+fn pause_backdrop(
+    mut commands: Commands,
+    screen: Res<Screen>,
+    real: Res<Time<Real>>,
+    mut backdrop: ResMut<PauseBackdrop>,
+    mut images: ResMut<Assets<Image>>,
+    mut nodes: Query<&mut Visibility, With<PauseBackdropNode>>,
+    mut last: Local<Option<Screen>>,
+) {
+    let was = last.replace(*screen);
+    let in_game = matches!(*screen, Screen::Pause | Screen::Options { from_pause: true });
+    if !in_game {
+        backdrop.ready = false;
+        backdrop.waiting = None;
+        return;
+    }
+    let now = real.elapsed_secs();
+    if was == Some(Screen::None) && *screen == Screen::Pause {
+        backdrop.ready = false;
+        backdrop.waiting = Some(now);
+        if let Ok(mut s) = backdrop.slot.lock() {
+            *s = None;
+        }
+        let slot = backdrop.slot.clone();
+        commands.spawn(bevy::render::view::screenshot::Screenshot::primary_window()).observe(move |shot: On<bevy::render::view::screenshot::ScreenshotCaptured>| {
+            let (img, slot) = (shot.image.clone(), slot.clone());
+            std::thread::spawn(move || match img.try_into_dynamic() {
+                Ok(d) => {
+                    if let Ok(mut s) = slot.lock() {
+                        *s = Some(pause_blur(&d.to_rgba8()));
+                    }
+                }
+                Err(e) => warn!("portal2: pause backdrop not converted: {e}"),
+            });
+        });
+    }
+    let Some(since) = backdrop.waiting else { return };
+    let done = backdrop.slot.lock().ok().and_then(|mut s| s.take());
+    if let Some(small) = done {
+        use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+        let (w, h) = small.dimensions();
+        let mut img = Image::new(
+            Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+            TextureDimension::D2,
+            small.into_raw(),
+            TextureFormat::Rgba8UnormSrgb,
+            bevy::asset::RenderAssetUsages::RENDER_WORLD | bevy::asset::RenderAssetUsages::MAIN_WORLD,
+        );
+        img.sampler = bevy::image::ImageSampler::linear();
+        let _ = images.insert(&backdrop.image, img);
+        backdrop.ready = true;
+        backdrop.waiting = None;
+        for mut v in &mut nodes {
+            *v = Visibility::Inherited;
+        }
+    } else if now - since > BACKDROP_WAIT {
+        warn!("portal2: no pause backdrop capture; the plain shade stays");
+        backdrop.waiting = None;
+    }
+}
+
+/// Keeps the menu off the screen while the pause backdrop is captured.
+fn hide_menu_for_backdrop(backdrop: Res<PauseBackdrop>, mut roots: Query<&mut Visibility, With<MenuRoot>>, mut hidden: Local<bool>) {
+    let hide = backdrop.waiting.is_some();
+    if hide == *hidden && !hide {
+        return;
+    }
+    *hidden = hide;
+    let want = if hide { Visibility::Hidden } else { Visibility::Inherited };
+    for mut v in &mut roots {
+        if *v != want {
+            *v = want;
+        }
+    }
+}
+
+/// The pause backdrop from a capture of the game view: at 384 pixels wide,
+/// blurred, its bright parts glowing over their surroundings, three
+/// quarters of the colour kept (the owner's Windows shots, 2026-10-21).
+fn pause_blur(src: &image::RgbaImage) -> image::RgbaImage {
+    let (w, h) = src.dimensions();
+    let sw = 384u32.min(w.max(1));
+    let sh = ((h as f32 * sw as f32 / w.max(1) as f32).round() as u32).max(1);
+    let small = image::imageops::resize(src, sw, sh, image::imageops::FilterType::Triangle);
+    let base = image::imageops::blur(&small, 1.6);
+    let mut bright = base.clone();
+    for p in bright.pixels_mut() {
+        for c in 0..3 {
+            p[c] = p[c].saturating_sub(140).saturating_mul(2);
+        }
+    }
+    let glow = image::imageops::blur(&bright, 8.0);
+    let mut out = base;
+    for (p, g) in out.pixels_mut().zip(glow.pixels()) {
+        let rgb = [0, 1, 2].map(|c| p[c] as f32 + 0.6 * g[c] as f32);
+        let luma = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+        for c in 0..3 {
+            p[c] = (luma + 0.75 * (rgb[c] - luma)).round().clamp(0.0, 255.0) as u8;
+        }
+        p[3] = 255;
+    }
+    out
+}
+
 impl Default for MenuMovie {
     fn default() -> Self {
         Self { image: Handle::default(), act: 0, child: None, latest: default(), size: UVec2::ZERO, shown: false }
@@ -3383,6 +3528,32 @@ mod tests {
         assert_eq!(title_tab_tiles("OPTIONS"), 3);
         assert_eq!(title_tab_tiles("SINGLE PLAYER"), 4);
         assert_eq!(title_tab_tiles("KEYBOARD/MOUSE"), 5);
+    }
+
+    #[test]
+    fn pause_backdrop_blurs_glows_and_desaturates() {
+        // A white bar on dark red: blurred out, glowing past its edge,
+        // and greyer than the red.
+        let src = image::RgbaImage::from_fn(768, 432, |x, _| if (380..388).contains(&x) { image::Rgba([255, 255, 255, 255]) } else { image::Rgba([120, 20, 20, 255]) });
+        let out = pause_blur(&src);
+        assert_eq!(out.dimensions(), (384, 216));
+        let at = |x: u32| out.get_pixel(x, 100).0;
+        assert!(at(192)[0] < 255 && at(192)[0] > at(150)[0], "the bar spreads");
+        let far = at(20);
+        assert!(at(196)[1] > 50 && at(200)[1] > far[1], "it glows beside the bar");
+        assert!(far[0] < 120 && far[1] > 20, "less colour away from it: {far:?}");
+        assert_eq!(far[3], 255);
+    }
+
+    #[test]
+    fn pause_dialog_has_no_tab() {
+        // Row 0 empty; row 1 is the body's own top edge with its corners.
+        assert!((0..5).all(|c| tile_piece(c, 0, 0, 5, 4).is_none()));
+        assert_eq!((0..5).map(|c| tile_piece(c, 1, 0, 5, 4).unwrap()).collect::<Vec<_>>(), [0, 1, 1, 1, 2]);
+        assert_eq!(tile_piece(0, 4, 0, 5, 4), Some(6));
+        // With a tab, unchanged.
+        assert_eq!(tile_piece(0, 1, 3, 5, 3), Some(3));
+        assert_eq!(tile_piece(3, 1, 3, 5, 3), Some(1));
     }
 
     #[test]
