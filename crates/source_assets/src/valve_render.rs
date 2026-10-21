@@ -37,6 +37,12 @@ impl Default for ValveExposure {
     }
 }
 
+/// The map fog every Valve surface draws with, when the game has changed it
+/// since load (`env_fog_controller` inputs): VS `cFogParams` and linear
+/// colour. `None` keeps each surface's load-time fog.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq)]
+pub struct ValveFog(pub Option<([f32; 4], [f32; 3])>);
+
 /// Picture-quality options from the game's settings.
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ValveQuality {
@@ -79,7 +85,7 @@ pub fn draws_late(blend: BlendKind, decal: bool) -> bool {
 
 impl Plugin for ValveRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ValveExposure>().init_resource::<ValveQuality>();
+        app.init_resource::<ValveExposure>().init_resource::<ValveQuality>().init_resource::<ValveFog>();
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else { return };
         render_app
             .init_resource::<ExtractedSurfaces>()
@@ -115,6 +121,7 @@ pub(crate) struct ExtractedSurfaces {
     pub(crate) draws: Vec<(Arc<SurfaceDraw>, Mat4, Option<Arc<OverrideData>>)>,
     pub(crate) exposure: f32,
     quality: ValveQuality,
+    fog: ValveFog,
 }
 
 fn extract_surfaces(
@@ -122,6 +129,7 @@ fn extract_surfaces(
     q: Extract<Query<(&ValveSurface, &GlobalTransform, &InheritedVisibility, Option<&SurfaceOverrides>)>>,
     exposure: Extract<Option<Res<ValveExposure>>>,
     quality: Extract<Option<Res<ValveQuality>>>,
+    fog: Extract<Option<Res<ValveFog>>>,
 ) {
     out.draws.clear();
     for (s, t, v, o) in &q {
@@ -131,6 +139,7 @@ fn extract_surfaces(
     }
     out.exposure = exposure.as_ref().map(|e| e.0).unwrap_or(crate::plugin::DEFAULT_LIGHT_SCALE);
     out.quality = quality.as_deref().copied().unwrap_or_default();
+    out.fog = fog.as_deref().copied().unwrap_or_default();
 }
 
 const MAX_2D: u32 = 2048;
@@ -561,7 +570,8 @@ pub(crate) fn prepare_surfaces(
             setv(2, [eye.x, eye.y, eye.z, 0.0], &mut arena);
             let fwd = w2s.transform_vector3(view.world_from_view.forward().as_vec3()).normalize_or_zero();
             setv(12, [fwd.x, fwd.y, fwd.z, 0.0], &mut arena);
-            setv(16, d.fog, &mut arena);
+            let (fog, fog_color) = extracted.fog.0.unwrap_or((d.fog, d.fog_color));
+            setv(16, fog, &mut arena);
             let pbase = b + vc;
             let setp = |r: usize, v: [f32; 4], arena: &mut Vec<[f32; 4]>| {
                 if r < pc {
@@ -577,7 +587,7 @@ pub(crate) fn prepare_surfaces(
             } else {
                 setp(10, [eye.x, eye.y, eye.z, 0.0], &mut arena);
             }
-            setp(29, [d.fog_color[0] * e, d.fog_color[1] * e, d.fog_color[2] * e, 1.0], &mut arena);
+            setp(29, [fog_color[0] * e, fog_color[1] * e, fog_color[2] * e, 1.0], &mut arena);
             setp(30, [e, 1.0, 1.0, e], &mut arena);
             // texture slot words, in the pass's sampler order
             let sbase = pbase + pc;

@@ -46,6 +46,7 @@ mod saves;
 mod scenes;
 mod settings;
 mod shakes;
+mod fog;
 mod soundscapes;
 mod shooter;
 mod speedrun;
@@ -125,7 +126,7 @@ fn main() {
             captions::CaptionsPlugin,
         ))
         .add_plugins((bindings::BindingsPlugin, intro))
-        .add_plugins((tanks::TanksPlugin, sprites::SpritesPlugin, rotators::RotatorsPlugin, shooter::ShooterPlugin, shakes::ShakesPlugin))
+        .add_plugins((tanks::TanksPlugin, sprites::SpritesPlugin, rotators::RotatorsPlugin, shooter::ShooterPlugin, shakes::ShakesPlugin, fog::FogPlugin))
         .add_plugins((
             templates::TemplatesPlugin,
             health::HealthPlugin,
