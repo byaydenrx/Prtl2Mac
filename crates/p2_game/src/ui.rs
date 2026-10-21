@@ -465,14 +465,18 @@ fn pick_logo(files: &[String]) -> Option<&String> {
 }
 
 /// The map the menu shows behind it: the chapter of the save, else chapter 2's chamber.
-fn menu_background(campaign: &Campaign) -> String {
+pub(crate) fn menu_background(campaign: &Campaign) -> String {
     let saved = read_save();
     let chapter = saved.as_deref().and_then(|m| campaign.chapter_of(m)).unwrap_or(1);
     let pick = campaign.chapters.get(chapter.max(1)).or(campaign.chapters.first()).map(|c| c.map.clone());
     pick.unwrap_or_else(|| "sp_a2_laser_intro".into())
 }
 
-fn open_main_menu(campaign: Res<Campaign>, mut load: MessageWriter<LoadLevel>, args: Res<crate::Launch>) {
+fn open_main_menu(campaign: Res<Campaign>, mut load: MessageWriter<LoadLevel>, args: Res<crate::Launch>, intro: Option<Res<crate::intro::Intro>>) {
+    // The startup intro (intro.rs) opens the menu when it is done.
+    if intro.is_some_and(|i| i.active()) {
+        return;
+    }
     match &args.map {
         Some(m) => load.write(LoadLevel { map: m.clone(), menu: false }),
         None => load.write(LoadLevel { map: menu_background(&campaign), menu: true }),

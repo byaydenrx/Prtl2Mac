@@ -194,12 +194,13 @@ fn load_level(
     level_owned: Query<Entity, With<LevelOwned>>,
     mut loaded: MessageWriter<LevelLoaded>,
     mut pending: ResMut<PendingLoad>,
+    startup: Res<crate::intro::StartupLoad>,
 ) {
     if let Some(req) = requests.read().last().cloned() {
         pending.0 = Some((req, 0));
     }
     let Some((req, waited)) = pending.0.take() else { return };
-    if !req.menu && waited < LOADING_SCREEN_FRAMES {
+    if (!req.menu || startup.0) && waited < LOADING_SCREEN_FRAMES {
         pending.0 = Some((req, waited + 1));
         return;
     }

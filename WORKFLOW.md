@@ -70,7 +70,9 @@ sessions, only for independent tasks with separate files.
   `portalable x y z r`, `ray x y z [dx dy dz]`, `propto <name> x y z`,
   `shot <file.png>`, `log`, `click <Action>`, `hover <Action>`, `quit`.
   `RUST_LOG=info,portal2::io=debug` logs every entity output that fires.
-- Debug env: P2_TRACE, P2_NOCROSSHAIR, P2_HIDE_MAT (hide materials by name
+- Debug env: P2_NO_INTRO=1 (skip the startup intro movie and loading screen
+  of a no-map launch; with the intro the script clock starts at launch),
+  P2_LOADING_HOLD=<s> (keep the loading screen up), P2_TRACE, P2_NOCROSSHAIR, P2_HIDE_MAT (hide materials by name
   substring: find which material a bad surface is), P2_LIST_MATS,
   P2_EXPOSURE=1 (fixed exposure), SOURCE_VALVE_DEBUG (shader combo per
   material).
