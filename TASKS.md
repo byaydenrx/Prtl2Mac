@@ -24,9 +24,10 @@ Owner 2026-10-21: after T-153 and T-150, stop small fixes and get chapters
 ON HOLD (owner): menus (no menu code changes at all); screenshot tasks
 T-173, T-174, T-145, T-147, T-149, T-116, T-152, T-151, T-154; T-164
 skipped; T-120 done enough. Don't work on anything already fixed.
-Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles.
-1. T-150 motion blur/speed lines + gun glow through the wall after the
-   sp_a2_intro fall (owner: fix for sure).
+Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles, T-150
+motion blur.
+1. T-150 gun glow through the wall after the sp_a2_intro fall (owner: fix
+   for sure; its motion blur part is fixed, awaiting replay).
 2. T-198 aerial faith plate physics (chapter 2).
 3. Campaign, in map order: T-002..T-008 (prove chapter 2-3 maps), T-010
    (ch4), T-011 (ch5), T-012 (ch6), T-013 (ch7), T-014 (ch8), T-015 (ch9).
@@ -721,13 +722,139 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
   during flight, landing; cubes too. scripts/check_faith_plates.py exists.
   Reverse-engineering server.dll (depot 624) for CTriggerCatapult is allowed.
 
+## Open: engine gaps (2026-10-21 audit: upstream READMEs + all-maps sweep; docs/UPSTREAM_GAPS.md)
+
+### T-199 Particle sprite sheets not decoded: sheet particles draw the whole atlas  (P2, TODO; upstream gap)
+- p2_fx render.rs `SheetGrids` is empty ("the game's sheet layouts are not
+  decoded yet"), so every SpriteCard material with a sequence sheet (smoke,
+  sparks, splashes, droplets, dust, fire) shows its whole texture atlas per
+  particle instead of one frame. Source stores the sheet in the VTF's
+  resource entry tag 0x10 0 0 ("sheet": sequences, frames, per-frame
+  rectangles and durations). Decode it in vtf.rs, feed per-sequence frame
+  rects to the particle renderer (`sequence`, `animation rate`,
+  `lifetime from sequence`), unit test against a real VTF. Likely also part
+  of T-153's glittery spray and T-150's particle looks. Every map.
+
+### T-200 Particle operators the maps' effects use but p2_fx doesn't simulate  (P3, TODO; upstream gap + audit)
+- `fxaudit` (p2_fx example) over every map's info_particle_system effects
+  (2026-10-21; maps / systems): Collision via traces 13/16 (sparks, confetti,
+  arcs fall through floors), Set Control Point to Impact Point 9/4, Remap
+  Percentage Between Two Control Points to Scalar 8/2, Remap Initial Scalar
+  6/15 (fire jets, arc glows), Lifetime Pre-Age Noise 4/3, Lifetime from Time
+  to Impact 4/2, Movement Maintain Position Along Path 4/2, Constrain
+  distance to path between two control points 3/5 (gel blob curves),
+  Position From Parent Particles 3/1, Force based on distance from plane,
+  lifetime from sequence 1/8 (env_fire_*), Cull when crossing plane, Remap
+  Velocity to Vector, Ramp Scalar Spline Simple, Position from Parent Cache.
+  Upstream also lists: Lerp Initial Scalar, `$depthblend` soft particles,
+  operator time offset/scale, Refract `$bluramount`. Take them in that order.
+- Not bugs: cleanser_edge_1, dust_ceiling_rumble_256line,
+  portal_2_badvolume, waterleak_pipe_1_traildrops_1 are referenced by maps
+  but exist in none of the game's 78 .pcf files (Source skips them too).
+
+### T-201 UnlitTwoTexture (TV/monitor screens) and other model shaders on the fallback  (P3, TODO; upstream gap + sweep)
+- models/props_motel/tv_screen and other monitors use UnlitTwoTexture
+  (two textures multiplied, often a scrolling scanline); we draw them on the
+  fallback. Also on the fallback across maps (see the 2026-10-21 load sweep
+  in docs/STATUS.md): see the sweep counts added below.
+
+### T-202 No bloom or colour correction (every map)  (P3, TODO; upstream gap)
+- Portal 2 adds bloom (engine_post) and a colour-correction LUT
+  (color_correction entities, .raw LUTs in materials/correction) on top of
+  auto-exposure; we have auto-exposure only (exposure.rs). Bloom makes
+  lights, screens, portals and the gun glow; the LUTs tint whole areas
+  (e.g. old Aperture). Related to T-152's look but not blocked on its
+  screenshots.
+
+### T-203 Switchable lights frozen: lightmap styles other than 0 ignored (50 of 63 maps)  (P2, TODO; upstream gap)
+- Lightmaps use style 0 only (geometry.rs; P2_ALLSTYLES sums every style as
+  a debug view). Named `light`/`light_spot` entities (50 of 63 maps have
+  some) switch with TurnOn/TurnOff/Toggle and their light lives in extra
+  lightmap styles: chambers lighting up as you enter, power-ups (intro1),
+  lights going out (Wheatley, chapter 3/6 old Aperture, finale). Keep each
+  face's style lightmaps and a per-style brightness (style index from the
+  light's `style` keyvalue, inputs toggle it; patterns for flickering
+  styles), blend in the lightmap shader. Unit test with a two-style face.
+
+### T-204 No env_cubemap reflections or dynamic lights on props  (P3, TODO; upstream gap)
+- Materials with `$envmap env_cubemap` (glossy floors, metal, glass, the
+  portal gun) get no reflection: the BSP's built cubemaps (pakfile
+  materials/maps/<map>/c<x>_<y>_<z>.vtf, the cubemap lump) aren't loaded or
+  assigned to the nearest surface. Props also ignore dynamic local lights
+  (light_dynamic, named lights). Also: displacement lightmap UVs are an
+  approximation. Overlaps T-152 (on hold); this part needs no screenshots.
+
+### T-205 Portal gun edge cases  (P3, TODO; upstream gaps)
+- Not done (p2_gun README): shooting with the eye behind/inside a portal
+  (out of the far side); refusing a floor portal under the standing player;
+  re-testing portal support every 0.1 s so a portal fizzles when its surface
+  disappears (only listed movers do it now); mobile portals on moving
+  panels; several linked portal pairs at once (unverified; single player
+  normally has one gun pair plus map portals).
+
+### T-206 Sounds not panned left/right  (P3, TODO; upstream gap)
+- All sounds use distance gain only (p2_fx sounds, p2_game audio): no stereo
+  position, so you can't hear where turrets, Wheatley or GLaDOS's panels
+  are. Add Source-like panning (and the soundlevel falloff check) with a
+  listener on the camera; through-portal sound is a later step.
+
+### T-207 Viewmodel gaps  (P4, TODO; upstream gaps)
+- Gun lit by a fixed neutral ambient instead of the room's light; no
+  clipping/offset when close to a portal (portal_viewmodel_offset);
+  cl_mouselook_roll_compensation not done.
+
+### T-208 Chell body gaps  (P4, TODO; upstream gaps)
+- No head look, no turn-in-place animation (legs snap past 45 deg), no foot
+  IK, body casts no shadow. Seen through portals.
+
+### T-209 Portal transit only mirrors box-shaped geometry at the exit  (P3, TODO; upstream gap)
+- p2_transit copies only cuboid colliders as remote geometry; trimesh
+  (displacements, props) near an exit portal isn't mirrored, so walking
+  through a portal next to such geometry can snag or let you clip. Check
+  with a portal on/near displacement terrain (old Aperture, chapter 3/6).
+
+### T-210 Upstream minor gaps  (P4, TODO)
+- Portal rim faint/thin and projectile stream dim next to Portal 2's; no
+  sound/burst for shots that hit nothing (sky); kinematic bodies block
+  shots; mouse sensitivity vs a real config (m_yaw 0.022 x 3); intermittent
+  shutdown crash (p2_view); 2D skybox face orientation unverified.
+
+### T-211 Gels: check each against Source  (P1, TODO; campaign chapter 6+)
+- paint.rs / paint_props.rs implement blue (bounce), orange (speed), white
+  (portal) and water (erase), gel on props, paint_sphere, prop_paint_bomb,
+  trigger_paint_cleanser, but the tuning is estimated ("not measured
+  against the game yet"). Check each against Windows Portal 2 behaviour
+  (server.dll cvars bounce_paint_*, speed_paint_*, paint_* defaults):
+  bounce height from a fall and off walls, speed-gel top speed/accel/slide,
+  speed+bounce combos, white gel portal placement and when it's washed off,
+  cubes/turrets on each gel, blob arcs and splat size, the player's view
+  getting splashed (not done), gel through portals. Prove sp_a3_jump_intro,
+  sp_a3_speed_ramp, sp_a3_portal_intro first.
+
 ## Open: P2
 
 ## Open: P3
 
 ## Open: P4
 
-### T-150 Particles missing  (P4, PARTIAL: intro3 splash/dust owner-confirmed "for now"; rest open)
+### T-150 Particles missing  (P4, PARTIAL: intro3 splash/dust owner-confirmed "for now"; motion blur fixed, awaiting owner replay; gun glow through the wall open)
+- 2026-10-21 autorun, motion blur/speed lines: FIXED (see commit "T-150:
+  Source-style motion blur"). Cause: no motion blur pass existed
+  (`mat_motion_blur_enabled` was a stored setting only). Windows Portal 2
+  has no speed-line particle (client.dll has none); the streaks are its
+  image-space `dev/motion_blur` pass. New `motion_blur.rs`: one blur vector
+  per frame from the view's turn (half-frame shutter, teleports skipped) plus
+  falling blur from `mat_motion_blur_falling_min/max` (8/20, read as m/s):
+  vertical when looking level, radial streaks from the screen centre when
+  looking down/up; max 4% of the screen; crosshair and gun stay sharp
+  (their own cameras); Options' Motion Blur turns it off. Our reading of
+  the convars/units, not disassembled. Evidence (autopilot only):
+  sp_a2_catapult_intro `setpos -400 -800 440 85 0`, shot 1.5 s into the
+  fall: dist d1fe5a4 sharp, new build radial streaks; pitch 0: vertical
+  streaks. Not checked in the real sp_a2_intro shaft (its opening freezes
+  the player, setpos is ignored there).
+- Still open: the gun's glow seen through the wall after the sp_a2_intro
+  fall (next).
 - Owner round 5 (2026-10-21): splash and dust fixed for now.
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
 - 2026-10-21 autorun, intro3 fall: FIXED b8a2d76. Cause: the two entities

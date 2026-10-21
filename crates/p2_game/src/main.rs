@@ -22,6 +22,7 @@ mod captions;
 mod community;
 mod console;
 mod exposure;
+mod motion_blur;
 mod movies;
 mod signs;
 mod health;
@@ -147,7 +148,7 @@ fn main() {
         ))
         // Developer, speedrun and modding tools (all off until turned on in Options).
         .add_plugins((console::ConsolePlugin, overlays::OverlaysPlugin, speedrun::SpeedrunPlugin))
-        .add_plugins(saves::SavesPlugin)
+        .add_plugins((saves::SavesPlugin, motion_blur::MotionBlurPlugin))
         .insert_resource(args)
         .add_plugins(p2_room::HarnessPlugin);
     // Portals join the scene before glass and water copy it (T-148).

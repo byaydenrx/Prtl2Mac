@@ -250,7 +250,7 @@ pub struct Settings {
     /// Filtering mode below anisotropic: trilinear (`mat_trilinear`) or
     /// bilinear. TODO: source_assets::valve_render samplers should read it.
     pub trilinear: bool,
-    /// `mat_motion_blur_enabled`. TODO: no motion blur pass yet.
+    /// `mat_motion_blur_enabled` (motion_blur.rs).
     pub motion_blur: bool,
     /// Multicore rendering (`mat_queue_mode`). Bevy always renders on its
     /// own thread; kept for the menu.

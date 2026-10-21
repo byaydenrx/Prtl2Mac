@@ -33,7 +33,7 @@ pub mod dmx;
 mod effects;
 pub mod pcf;
 mod render;
-mod sim;
+pub mod sim;
 mod sounds;
 mod step_sounds;
 mod transit_sound;
