@@ -27,7 +27,7 @@ NEXT UP (owner round 4, 2026-10-21): T-196 black screen after flips
 (FIXED f8c9be3, awaiting owner replay), T-195 pause menu as Windows
 (FIXED 8af5fa3, awaiting owner replay), T-197 even tile grid (FIXED 209c358,
 awaiting owner replay). T-172 not reproduced (blocked, needs owner).
-T-144 clipboard FIXED 910da9a (awaiting owner replay). T-149 not reproduced (blocked, needs owner shots). T-147 not reproduced (blocked, needs owner). T-113 hints FIXED 693f8ce (awaiting owner replay). T-171 portal hitch PARTIAL FIX d4fd841 (awaiting owner replay). Next T-148 onward (no more menu work; T-112 attempt branch awaits owner).
+T-144 clipboard FIXED 910da9a (awaiting owner replay). T-149 not reproduced (blocked, needs owner shots). T-147 not reproduced (blocked, needs owner). T-113 hints FIXED 693f8ce (awaiting owner replay). T-171 portal hitch PARTIAL FIX d4fd841 (awaiting owner replay). T-148 glass FIXED dcc0c0e (awaiting owner replay). Next T-117 onward (no more menu work; T-112 attempt branch awaits owner).
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
 before every other task. Owner notes after build fb0090a (12 items,
 listed under the spec heading) come first: T-179 flip like the video,
@@ -56,7 +56,7 @@ P2:
 9. (T-147 intro2 black screen at the first door: NOT REPRODUCED 2026-10-21, BLOCKED needs owner.) T-113 hints vanish.
 P3:
 10. (T-171 portal first-look hitch: PARTIAL FIX d4fd841, awaiting owner replay.)
-11. T-148 portals behind glass drawn on top (reopened).
+11. (T-148 portals behind glass: FIXED dcc0c0e, awaiting owner replay.)
 12. T-117 shadows still blocky.
 13. T-152 lighting/texture quality.
 14. T-153 GLaDOS wake-up particles; T-173 gun hold beam and fizzler spark.
@@ -860,26 +860,6 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 
 ## Open: P3
 
-### T-148 Portals behind glass  (P3, REOPENED: owner says not fixed)
-- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed: "portals still look like they're above glass when they're behind it".
-- Owner section 1 (intro2): portals behind glass look on top of the glass;
-  behind broken glass not drawn at all.
-- Cause: glass/water (Refract) read Bevy's transmission copy, taken once
-  before the transmissive pass, and live portal surfaces were drawn in that
-  same pass. Broken pane (glass_fracture_128x128_b, its Refract mesh sorted
-  after the portal) refracted a copy of the bare wall over the portal;
-  glass sorted before a portal was overdrawn by it.
-- Fix: live surfaces sort first (depth_bias) and p2_render's
-  portal_surface_pass draws them after the Valve scene passes, before the
-  copy; Bevy's second draw fails a strict depth test. Unit test
-  portal_prefix_len.
-- Evidence (autopilot, sp_a1_intro2, portal_blue_1/red_1 activated,
-  `setpos -450 -60 -60; lookat portal_blue_1`): before, no portal behind the
-  cracked pane; after, the portal shows through it with cracks and
-  refraction over it. A view through the intact pane (setpos -100 -40 -60)
-  looks the same before and after; the "on top of normal glass" case was not
-  isolated by autopilot, owner replay needed.
-
 ### T-117 Blocky shadows  (P3, REOPENED: better but still blocky)
 - Owner playtest 9 (2026-10-20, build 014ab6e): "shadows look better but still blocky".
 - Cause: env_projectedtexture shadows (light_room_00 in sp_a1_intro1: 110 deg
@@ -1046,6 +1026,41 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-148 Portals behind glass  (P3, FIXED dcc0c0e, awaiting owner replay)
+- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed: "portals still look like they're above glass when they're behind it".
+- Owner section 1 (intro2): portals behind glass look on top of the glass;
+  behind broken glass not drawn at all.
+- Cause: glass/water (Refract) read Bevy's transmission copy, taken once
+  before the transmissive pass, and live portal surfaces were drawn in that
+  same pass. Broken pane (glass_fracture_128x128_b, its Refract mesh sorted
+  after the portal) refracted a copy of the bare wall over the portal;
+  glass sorted before a portal was overdrawn by it.
+- Fix: live surfaces sort first (depth_bias) and p2_render's
+  portal_surface_pass draws them after the Valve scene passes, before the
+  copy; Bevy's second draw fails a strict depth test. Unit test
+  portal_prefix_len.
+- Evidence (autopilot, sp_a1_intro2, portal_blue_1/red_1 activated,
+  `setpos -450 -60 -60; lookat portal_blue_1`): before, no portal behind the
+  cracked pane; after, the portal shows through it with cracks and
+  refraction over it. A view through the intact pane (setpos -100 -40 -60)
+  looks the same before and after; the "on top of normal glass" case was not
+  isolated by autopilot, owner replay needed.
+- Round 2 (2026-10-21, dcc0c0e): the intact pane is
+  glass/glasswindow_frosted, a $translucent LightmappedGeneric drawn by the
+  Valve scene pass (valve_render.rs), which ran BEFORE portal_surface_pass,
+  so the portal was painted over the glass (no frosted bands or haze on it)
+  and looked in front of it. Fix: blended Valve surfaces other than
+  decals/overlays draw in a new ValveTranslucentPass ordered after the
+  portal surfaces (main.rs), as in Source where portals are part of the
+  opaque scene and translucents come later. Unit test
+  blended_non_decals_draw_after_portals.
+- Evidence (autopilot, sp_a1_intro2, portals activated, `setpos -100 -40
+  -60; lookat portal_blue_1`): before (dist d4fd841) crisp blue portal over
+  the frosted pane, the pane's white bands stop at the rim; after, the
+  portal is hazed and banded like the wall around it. Broken-pane view
+  (setpos -450 -60 -60) and a no-glass portal (portal_red_1) look the same
+  as before; main menu unchanged. Autopilot only, not owner-checked.
 
 ### T-171 FPS drops, especially looking at portals  (P3, PARTIAL FIX d4fd841, awaiting owner replay)
 - Owner playtest 9: "I do get frequent fps drops especially looking at
