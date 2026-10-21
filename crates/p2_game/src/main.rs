@@ -48,6 +48,7 @@ mod settings;
 mod shakes;
 mod fog;
 mod soundscapes;
+mod water_reflection;
 mod shooter;
 mod speedrun;
 mod splits;
@@ -117,7 +118,7 @@ fn main() {
             props::PropsPlugin,
             prop_ghosts::PropGhostsPlugin,
             triggers::TriggersPlugin,
-            (audio::GameAudioPlugin, soundscapes::SoundscapesPlugin),
+            (audio::GameAudioPlugin, soundscapes::SoundscapesPlugin, water_reflection::WaterReflectionPlugin),
             autopilot::AutopilotPlugin,
             scenes::ScenesPlugin,
             ai::AiPlugin,

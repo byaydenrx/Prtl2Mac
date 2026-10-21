@@ -143,6 +143,7 @@ pub struct SourceMapAssets<'w> {
     pub valve: Res<'w, crate::valve::ValveShaderLibrary>,
     pub projected: Res<'w, crate::projected::ProjectedLightAssets>,
     pub glass: ResMut<'w, Assets<crate::glass::GlassMaterial>>,
+    pub water_reflection: Res<'w, crate::glass::WaterReflection>,
 }
 
 // ---------------------------------------------------------------- components
@@ -511,6 +512,10 @@ fn glass_material(assets: &mut SourceMapAssets, map: &LoadedMap, m: &MaterialInf
     if water && lightmap.is_some() {
         flags |= FLAG_WATER_DEPTH;
     }
+    let reflection = (water && reflects_world(&m.params)).then(|| assets.water_reflection.0.clone());
+    if reflection.is_some() {
+        flags |= FLAG_WORLD_REFLECT;
+    }
     let params = glass_params(water, &crate::proxy::MaterialVars::of(&m.params), flags, assets.settings.light_scale);
     let program = crate::proxy::ProxyProgram::compile(&m.proxies);
     let proxies = (!program.is_empty()).then(|| GlassProxies {
@@ -526,6 +531,7 @@ fn glass_material(assets: &mut SourceMapAssets, map: &LoadedMap, m: &MaterialInf
         tint_texture: tint.map(|t| t.image),
         envmap,
         lightmap,
+        reflection,
         double_sided: m.no_cull || std::env::var_os("SOURCE_NOCULL").is_some(),
     };
     (assets.glass.add(mat), proxies)
@@ -926,6 +932,7 @@ pub fn spawn_loaded_map(
                 }
             };
             // water: cut into a grid carrying the depth to the floor below
+            let mut reflect_plane = None;
             let mesh = if m.shader == "water" {
                 let floor = water_floor.get_or_insert_with(|| water_floor_of(map));
                 let mut d = crate::glass::subdivide(&bm.mesh, crate::glass::WATER_GRID * shared::SOURCE_UNIT);
@@ -938,6 +945,10 @@ pub fn spawn_loaded_map(
                     let mean = ds.iter().filter(|&&x| x < crate::glass::WATER_BOTTOMLESS).sum::<f32>() / ds.len().max(1) as f32;
                     let deep = ds.iter().filter(|&&x| x >= crate::glass::WATER_BOTTOMLESS).count();
                     info!("TRACE water {} at z {y:.0}: {} verts, mean depth {mean:.1} units, {deep} bottomless", m.name, ds.len());
+                }
+                if crate::glass::reflects_world(&m.params) && !d.positions.is_empty() {
+                    let y = d.positions.iter().map(|p| p[1]).sum::<f32>() / d.positions.len() as f32;
+                    reflect_plane = Some(crate::glass::WorldReflectWater { height: y });
                 }
                 mesh_from_brush(&d)
             } else {
@@ -952,6 +963,9 @@ pub fn spawn_loaded_map(
             ));
             if let Some(p) = proxies {
                 ec.insert(p);
+            }
+            if let Some(w) = reflect_plane {
+                ec.insert(w);
             }
             continue;
         }

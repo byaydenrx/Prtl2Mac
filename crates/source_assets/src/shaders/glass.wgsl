@@ -28,6 +28,7 @@ const FLAG_LIGHTMAP: u32 = 32u;
 const FLAG_VERTEX_LIGHT: u32 = 64u;
 const FLAG_LIGHTMAP_FOG: u32 = 128u;
 const FLAG_WATER_DEPTH: u32 = 256u;
+const FLAG_WORLD_REFLECT: u32 = 512u;
 
 // Estimates, see glass.rs.
 const REFRACT_SCALE: f32 = 0.1;
@@ -44,6 +45,8 @@ const WATER_DEPTH: f32 = 64.0;
 @group(#{MATERIAL_BIND_GROUP}) @binding(8) var env_samp: sampler;
 @group(#{MATERIAL_BIND_GROUP}) @binding(9) var lm_tex: texture_2d<f32>;
 @group(#{MATERIAL_BIND_GROUP}) @binding(10) var lm_samp: sampler;
+@group(#{MATERIAL_BIND_GROUP}) @binding(11) var refl_tex: texture_2d<f32>;
+@group(#{MATERIAL_BIND_GROUP}) @binding(12) var refl_samp: sampler;
 
 fn apply_rows(u: vec4<f32>, v: vec4<f32>, uv: vec2<f32>) -> vec2<f32> {
     let p = vec3<f32>(uv, 1.0);
@@ -144,7 +147,14 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
         }
         let body = mix(refracted, fog_rgb * exposure, fog);
         var reflection = vec3<f32>(0.0);
-        if has_env {
+        if (flags & FLAG_WORLD_REFLECT) != 0u {
+            // the mirrored view above the plane (_rt_WaterReflection),
+            // rendered by a proper rotation, so mirrored in x; pushed by
+            // the normal map like the refraction
+            let off = n_ts.xy * vec2<f32>(-1.0, -1.0) * amount;
+            let suv = clamp(vec2<f32>(1.0 - screen.x, screen.y) + off, vec2<f32>(0.0), vec2<f32>(1.0));
+            reflection = textureSampleLevel(refl_tex, refl_samp, suv, 0.0).rgb * params.reflect_tint.rgb;
+        } else if has_env {
             reflection = env * params.reflect_tint.rgb;
         }
         let fresnel = 0.02 + 0.98 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
