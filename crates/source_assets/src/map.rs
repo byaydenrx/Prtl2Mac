@@ -474,11 +474,18 @@ pub fn cube_skin(cubetype: Option<&str>, newskins: Option<&str>, skin: Option<&s
 }
 
 /// The skin a cube switches to while it sits on a pressed button, if its
-/// model has one: metal_box.mdl's standard and companion skins 0/1 light up
-/// as 2/3 (its paint skins don't). Reflection and antique cubes have none.
+/// model has one. metal_box.mdl's skin textures: 0 standard, 1 companion,
+/// 2 standard lit, 3 rusted, 4 companion lit, 5 rusted lit (its paint skins
+/// have none). Reflection and antique cubes have none.
 pub fn cube_lit_skin(model: &str, skin: i32) -> Option<i32> {
     let m = model.to_ascii_lowercase().replace('\\', "/");
-    (m.ends_with("models/props/metal_box.mdl") && (0..=1).contains(&skin)).then_some(skin + 2)
+    let lit = match skin {
+        0 => 2,
+        1 => 4,
+        3 => 5,
+        _ => return None,
+    };
+    m.ends_with("models/props/metal_box.mdl").then_some(lit)
 }
 
 /// Studio models an entity class renders when it has no `model` key.
@@ -1033,7 +1040,8 @@ mod tests {
     fn cube_lit_skins() {
         use super::cube_lit_skin;
         assert_eq!(cube_lit_skin("models/props/metal_box.mdl", 0), Some(2));
-        assert_eq!(cube_lit_skin("models/props/metal_box.mdl", 1), Some(3));
+        assert_eq!(cube_lit_skin("models/props/metal_box.mdl", 1), Some(4));
+        assert_eq!(cube_lit_skin("models/props/metal_box.mdl", 3), Some(5));
         assert_eq!(cube_lit_skin("models/props/metal_box.mdl", 6), None);
         assert_eq!(cube_lit_skin("models/props/reflection_cube.mdl", 0), None);
     }
