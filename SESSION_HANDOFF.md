@@ -10,7 +10,7 @@ remain; T-164 CPU skinning REVERTED (e88ae41: ride parts shook). Screenshot
 tasks (T-173, T-174, T-145, T-147, T-149, T-116) and menus are ON HOLD.
 
 ## Where things stand
-- dist/Prtl2Mac.app = 0.1.0+250359f.20261021T1841Z (T-164 revert on top of 6e0efbf).
+- dist/Prtl2Mac.app = 0.1.0+de1d09b.20261021T1845Z (T-146 door wiggle, T-164 reverted).
 - Awaiting the owner: T-112 GLaDOS floor reflection (merged 2c08d11).
 
 ## Next action
