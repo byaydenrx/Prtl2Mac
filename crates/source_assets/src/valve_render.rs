@@ -62,6 +62,21 @@ pub struct ValveRenderPlugin;
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ValveScenePasses;
 
+/// `Core3d` label of the pass drawing translucent Valve surfaces other than
+/// decals (frosted glass, translucent models). It follows
+/// [`ValveScenePasses`]; the game orders it after the live portal surfaces
+/// too, so glass in front of a portal is drawn over it, as in Source, where
+/// portals are part of the opaque scene and translucents come after (T-148).
+#[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ValveTranslucentPass;
+
+/// Whether a surface is drawn by [`valve_translucent_pass`] rather than the
+/// main pass: blended, and not a decal or overlay (those stay with the
+/// surface they lie on).
+pub fn draws_late(blend: BlendKind, decal: bool) -> bool {
+    matches!(blend, BlendKind::Blend | BlendKind::Additive) && !decal
+}
+
 impl Plugin for ValveRenderPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ValveExposure>().init_resource::<ValveQuality>();
@@ -79,6 +94,15 @@ impl Plugin for ValveRenderPlugin {
                     .after(main_opaque_pass_3d)
                     .before(main_transparent_pass_3d)
                     // glass and water read a copy of the scene made there
+                    .before(bevy::pbr::main_transmissive_pass_3d),
+            )
+            .add_systems(
+                Core3d,
+                valve_translucent_pass
+                    .in_set(ValveTranslucentPass)
+                    .in_set(Core3dSystems::MainPass)
+                    .after(ValveScenePasses)
+                    .before(main_transparent_pass_3d)
                     .before(bevy::pbr::main_transmissive_pass_3d),
             );
     }
@@ -141,6 +165,8 @@ struct PreparedDraw {
 struct ViewDraws {
     opaque: Vec<PreparedDraw>,
     translucent: Vec<PreparedDraw>,
+    /// Back to front, drawn by [`valve_translucent_pass`].
+    late: Vec<PreparedDraw>,
 }
 
 #[derive(Resource, Default)]
@@ -492,6 +518,7 @@ pub(crate) fn prepare_surfaces(
         let eye = w2s.transform_point3(view.world_from_view.translation());
         let mut vd = ViewDraws::default();
         let mut translucent: Vec<(f32, PreparedDraw)> = Vec::new();
+        let mut late: Vec<(f32, PreparedDraw)> = Vec::new();
         for (d, model, over) in &extracted.draws {
             let pass = &d.pass.pass;
             let key = PipelineKey {
@@ -580,13 +607,19 @@ pub(crate) fn prepare_surfaces(
             if matches!(d.blend, BlendKind::Blend | BlendKind::Additive) {
                 let c = model.transform_point3(Vec3::ZERO);
                 let dist = c.distance_squared(view.world_from_view.translation());
-                translucent.push((dist, pd));
+                if draws_late(d.blend, d.decal) {
+                    late.push((dist, pd));
+                } else {
+                    translucent.push((dist, pd));
+                }
             } else {
                 vd.opaque.push(pd);
             }
         }
         translucent.sort_by(|a, b| b.0.total_cmp(&a.0));
         vd.translucent = translucent.into_iter().map(|t| t.1).collect();
+        late.sort_by(|a, b| b.0.total_cmp(&a.0));
+        vd.late = late.into_iter().map(|t| t.1).collect();
         vd.opaque.sort_by_key(|d| d.pipeline.id());
         prepared.views.insert(view_entity, vd);
     }
@@ -619,18 +652,41 @@ pub(crate) fn valve_main_pass(
     view: ViewQuery<(&ExtractedCamera, &ViewTarget, &ViewDepthTexture)>,
     prepared: Res<PreparedSurfaces>,
     pipeline_cache: Res<PipelineCache>,
-    mut ctx: RenderContext,
+    ctx: RenderContext,
 ) {
-    let view_entity = view.entity();
+    let Some(draws) = prepared.views.get(&view.entity()) else { return };
+    let list = draws.opaque.iter().chain(draws.translucent.iter());
+    draw_surfaces(view, &prepared, &pipeline_cache, ctx, "valve_surfaces", list);
+}
+
+/// Translucent surfaces other than decals, after the live portal surfaces
+/// ([`ValveTranslucentPass`]).
+pub(crate) fn valve_translucent_pass(
+    view: ViewQuery<(&ExtractedCamera, &ViewTarget, &ViewDepthTexture)>,
+    prepared: Res<PreparedSurfaces>,
+    pipeline_cache: Res<PipelineCache>,
+    ctx: RenderContext,
+) {
+    let Some(draws) = prepared.views.get(&view.entity()) else { return };
+    draw_surfaces(view, &prepared, &pipeline_cache, ctx, "valve_translucent", draws.late.iter());
+}
+
+fn draw_surfaces<'a>(
+    view: ViewQuery<(&ExtractedCamera, &ViewTarget, &ViewDepthTexture)>,
+    prepared: &PreparedSurfaces,
+    pipeline_cache: &PipelineCache,
+    mut ctx: RenderContext,
+    label: &'static str,
+    list: impl Iterator<Item = &'a PreparedDraw> + Clone,
+) {
     let (camera, target, depth) = view.into_inner();
-    let Some(draws) = prepared.views.get(&view_entity) else { return };
     let (Some(cb), Some(tb)) = (&prepared.constants_bind, &prepared.texture_bind) else { return };
-    if draws.opaque.is_empty() && draws.translucent.is_empty() {
+    if list.clone().next().is_none() {
         return;
     }
     let color_attachments = [Some(target.get_color_attachment())];
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
-        label: Some("valve_surfaces"),
+        label: Some(label),
         color_attachments: &color_attachments,
         depth_stencil_attachment: Some(depth.get_attachment(StoreOp::Store)),
         timestamp_writes: None,
@@ -642,7 +698,7 @@ pub(crate) fn valve_main_pass(
     }
     pass.set_bind_group(0, cb, &[]);
     pass.set_bind_group(1, tb, &[]);
-    for d in draws.opaque.iter().chain(draws.translucent.iter()) {
+    for d in list {
         let Some(pipeline) = pipeline_cache.get_render_pipeline(d.pipeline) else { continue };
         let mesh = &prepared.meshes[d.mesh];
         pass.set_render_pipeline(pipeline);
@@ -652,3 +708,16 @@ pub(crate) fn valve_main_pass(
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blended_non_decals_draw_after_portals() {
+        assert!(draws_late(BlendKind::Blend, false));
+        assert!(draws_late(BlendKind::Additive, false));
+        assert!(!draws_late(BlendKind::Blend, true));
+        assert!(!draws_late(BlendKind::Opaque, false));
+    }
+}

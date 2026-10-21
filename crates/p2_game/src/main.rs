@@ -154,6 +154,11 @@ fn main() {
             bevy::core_pipeline::schedule::Core3d,
             p2_render::PortalSurfacePass.after(source_assets::valve_render::ValveScenePasses),
         );
+        // ... and glass in front of a portal is drawn over it.
+        render_app.configure_sets(
+            bevy::core_pipeline::schedule::Core3d,
+            source_assets::valve_render::ValveTranslucentPass.after(p2_render::PortalSurfacePass),
+        );
     }
     // UI after the Screen resource above (its own default is the main menu).
     app.add_plugins(UiPluginKeepScreen).run();
