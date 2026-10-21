@@ -28,33 +28,34 @@ fn projected_attenuation(dist: f32, far: f32) -> f32 {
     return linear * end;
 }
 
-// Bilinear 2x2 comparison of `depth` (distance / far) at texel position `p`
-// (texel units, already shifted by -0.5 so integers are texel centres).
-fn projected_shadow_tap(shadows: texture_2d_array<f32>, layer: i32, p: vec2<f32>, depth: f32) -> f32 {
-    let hi = vec2<i32>(textureDimensions(shadows)) - 1;
-    let base = floor(p);
-    let f = p - base;
-    let b = vec2<i32>(base);
-    let s00 = select(0.0, 1.0, depth <= textureLoad(shadows, clamp(b, vec2<i32>(0), hi), layer, 0).r);
-    let s10 = select(0.0, 1.0, depth <= textureLoad(shadows, clamp(b + vec2<i32>(1, 0), vec2<i32>(0), hi), layer, 0).r);
-    let s01 = select(0.0, 1.0, depth <= textureLoad(shadows, clamp(b + vec2<i32>(0, 1), vec2<i32>(0), hi), layer, 0).r);
-    let s11 = select(0.0, 1.0, depth <= textureLoad(shadows, clamp(b + vec2<i32>(1, 1), vec2<i32>(0), hi), layer, 0).r);
-    return mix(mix(s00, s10, f.x), mix(s01, s11, f.x), f.y);
+// Weight of texel column/row `k` (0..5 = offsets -2..3 from floor(p)) in a
+// binomial (1 4 6 4 1) row of bilinear taps at fraction `f`; sums to 16.
+fn projected_shadow_weight(k: i32, f: f32) -> f32 {
+    var b = array<f32, 7>(0.0, 1.0, 4.0, 6.0, 4.0, 1.0, 0.0);
+    return b[k + 1] * (1.0 - f) + b[k] * f;
 }
 
-// Soft shadow test like Source's flashlight PCF: a 3x3 Gaussian (1 2 1)
-// of bilinear comparisons one texel apart, so edges fade over ~4 texels
-// instead of stepping per texel (T-117).
+// Soft shadow test like Source's flashlight 5x5 Gaussian PCF: a binomial
+// (1 4 6 4 1) grid of bilinear comparisons one texel apart, folded into
+// per-texel weights over the 6x6 texels it touches (36 loads, as many as
+// the old 3x3), so edges fade over ~6 texels instead of ~4 (T-117).
 fn projected_shadow(shadows: texture_2d_array<f32>, layer: i32, uv: vec2<f32>, depth: f32) -> f32 {
     let p = uv * vec2<f32>(textureDimensions(shadows)) - 0.5;
+    let base = floor(p);
+    let f = p - base;
+    let b = vec2<i32>(base) - 2;
+    let hi = vec2<i32>(textureDimensions(shadows)) - 1;
     var sum = 0.0;
-    for (var y = -1; y <= 1; y++) {
-        for (var x = -1; x <= 1; x++) {
-            let w = f32((2 - abs(x)) * (2 - abs(y)));
-            sum += w * projected_shadow_tap(shadows, layer, p + vec2<f32>(f32(x), f32(y)), depth);
+    for (var y = 0; y < 6; y++) {
+        var row = 0.0;
+        for (var x = 0; x < 6; x++) {
+            let t = clamp(b + vec2<i32>(x, y), vec2<i32>(0), hi);
+            let lit = select(0.0, 1.0, depth <= textureLoad(shadows, t, layer, 0).r);
+            row += projected_shadow_weight(x, f.x) * lit;
         }
+        sum += projected_shadow_weight(y, f.y) * row;
     }
-    return sum / 16.0;
+    return sum / 256.0;
 }
 
 // One light's colour reaching `world` (metres) with normal `n`; multiply
