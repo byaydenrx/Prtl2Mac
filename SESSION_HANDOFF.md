@@ -4,10 +4,9 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-21 15:16 autorun: T-150 motion blur FIXED (new motion_blur.rs,
-Source-style image-space blur: turning + falling, radial when looking
-down), autopilot-checked only, awaiting owner replay. T-150's gun glow
-through the wall is still open.
+2026-10-21 15:55 autorun: T-212 ATTEMPT (branch attempt/T-212, not
+pushed): the sp_a3_00 glass smash is the broken elevator prop's default
+"break" sequence firing its frame-0 sound; unclear if Source does too.
 
 ## Where things stand
 - dist/Prtl2Mac.app = 0.1.0+8d48dab.20261021T1936Z.
@@ -17,8 +16,7 @@ through the wall is still open.
   T-145, T-147, T-149, T-116, T-152, T-151, T-154), T-164, T-120.
 
 ## Next action (auto sessions; owner away 24-48 h from 2026-10-21 evening)
-Follow TASKS.md "Priority order": T-212 sp_a3_00 glass smash at load,
-T-213 PotatOS on the gun, T-198 faith plates (T-150 gun glow FIXED 8d48dab, awaiting replay), then the common
+Follow TASKS.md "Priority order": T-213 PotatOS on the gun, T-198 faith plates (T-150 gun glow FIXED 8d48dab, awaiting replay), then the common
 engine gaps (T-203 lights, T-199 sprite sheets, T-214 DecalModulate/
 SolidEnergy/broken models, T-201, T-206, T-200, T-202, T-204), T-211 gels,
 then the campaign T-002..T-015. Audit docs: docs/UPSTREAM_GAPS.md, T-214.
@@ -29,7 +27,8 @@ operators over map effects). ON HOLD: menus, screenshot tasks, T-164, T-120.
 None outside what this file's commit contains.
 
 ## Fix attempts awaiting the owner
-None: all merged into main for the owner's replay (2026-10-21).
+- attempt/T-212 (9a9373e): skip frame-0 events of a spawn default sequence
+  (sp_a3_00 glass smash at load). Not pushed.
 
 ## Checkouts (2026-10-20)
 - `Portal2-wheatley` (this one): level with origin/main; work happens here.

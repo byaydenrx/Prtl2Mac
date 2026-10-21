@@ -28,7 +28,7 @@ T-173, T-174, T-145, T-147, T-149, T-116, T-152, T-151, T-154; T-164
 skipped; T-120 done enough. Don't work on anything already fixed.
 Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles, T-150
 motion blur and gun glow.
-1. T-212 loud glass smash at sp_a3_00 load (owner report).
+1. T-212 loud glass smash at sp_a3_00 load (owner report). BLOCKED: attempt/T-212.
 2. T-213 PotatOS missing from the portal gun (owner report).
 2b. T-215 Windows reference capture tool (makes every look/feel task checkable).
 4. T-198 aerial faith plate physics (owner report, chapter 2).
@@ -744,7 +744,7 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
   Steam down after. Then use it for before/after comparisons (T-198 arcs,
   T-203 lights, T-199 particles, gels, the owner's open look issues).
 
-### T-212 sp_a3_00 (start of chapter 6): loud glass smash at load  (P2, TODO; owner 2026-10-21)
+### T-212 sp_a3_00 (start of chapter 6): loud glass smash at load  (P2, BLOCKED (needs owner); owner 2026-10-21)
 - Owner: "when you booted up chapter 6 the fall a loud glass noise played".
 - Reproduced (autopilot log, RUST_LOG=portal2::audio=debug): in the first
   frame after sp_a3_00 loads, `play ScriptedSequence.MoronSmash08
@@ -757,6 +757,20 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
   on spawn; Source only fires events the cycle actually passes. Find the
   prop (log the model when an event sound plays), fix the first-frame rule,
   check other maps for sounds at load.
+- 2026-10-21 autorun: source found. The sound is ent 479
+  `exit_elevator_frame_model` (models/elevator/elevator_escape.mdl,
+  parented to lift_rotator_2 at 0 -4096 416, right above the player start)
+  with `defaultanim break` + holdanimation: sequence "break" (0.53 s) has
+  `AE_CL_PLAYSOUND ScriptedSequence.MoronSmash08` at cycle 0 (SNDLVL_150dB,
+  mixgroup xLoud, so it is full volume anywhere). Our first step from 0
+  fires it. Not confirmed what Source does: the client-side event code
+  backs up to fire 0th-frame events when it first sees a sequence, and the
+  prop is in the player's PVS, so Windows may play it too (it continues
+  sp_a2_core's moron-smash). Needs the owner's ear or a Windows check
+  (T-215). Untested fix: local branch attempt/T-212 (9a9373e), needs owner
+  review/replay: a default (non-input) sequence's frame-0 events are
+  skipped on its first step; sp_a3_00 MoronSmash plays 1 -> 0 (autopilot
+  log only). Also adds a debug log of animation event sounds.
 
 ### T-214 All-maps load sweep findings (2026-10-21)  (P2, TODO)
 - All 63 single-player maps load (autopilot `8 shot; 9 quit` each, build
