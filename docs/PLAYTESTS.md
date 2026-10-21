@@ -123,3 +123,8 @@ T-196, T-195, T-197.
 Tracked in TASKS.md (confirmed fixes moved to Done; T-173, T-174, T-179 reopened).
 
 merge t-140, merge t-117, keep t-175 open, keep t-112 open, close t-151, just replayed that intro ride and still saw the spikes idk if it was merged on the app tho so idk for t-164. 196 fixed, 195 fixed, 197 fixed, 179 semi fixed needs work, 182 fixed, 186 and 192 fixed. 176 fixed, im not sure what the laser over goo walls is so idk for 169, 170 fixed, 163 fixed, 174 kind of fixed the quality looks a little better but the panels are like awkwardly not together and some are in the wrong places, the gun hold beam is not fixed it looks terrible, the fizzler shakes are fixed. the first portal stutter idk what that is explain it, i havent tested glados, splash and dust is fixed for now, soundscapes are fixed for now. 113 fixed, clipboard and clock fixed, turrets falling through elevators fixed. 172 is fixed, 108/107 are fixed and ill send screenshots for whats left.
+
+## Owner round 6 (2026-10-21, build ef0144c), the owner's words
+Tracked in TASKS.md (T-169, T-171, T-148, T-135, T-139, T-162 to Done; menus on hold).
+
+169 is fixed, 171 is fixed, 148 is fixed, 135 is fixed, 139 is fixed, all menu items are fixed for now buttons just dont function but i dont want those being worked on rn. merge everything else you need me to test rn into my .app build and tell me what im looking for
