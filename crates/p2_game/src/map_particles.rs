@@ -595,7 +595,7 @@ fn sparks(
                 }
             }
             if !sp.silent {
-                play.write(PlayGameSound { sound: "DoSpark".into(), at: Some(tf.translation), looped: false, owner: None, music: false, volume: 1.0, voice: None });
+                play.write(PlayGameSound { sound: "DoSpark".into(), at: Some(tf.translation), looped: false, owner: None, music: false, volume: 1.0, voice: None, ui: false });
             }
         }
         if !near {

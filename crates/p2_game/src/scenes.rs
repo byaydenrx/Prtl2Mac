@@ -356,7 +356,7 @@ fn run_scenes(
             match ev.kind {
                 SceneEventKind::Speak => {
                     let voice = ev.actor.as_ref().and_then(|a| actor_ents(&ents, r.ent, a).first().copied());
-                    play.write(PlayGameSound { sound: ev.param.clone(), at: None, looped: false, owner: None, music: false, volume: 1.0, voice });
+                    play.write(PlayGameSound { sound: ev.param.clone(), at: None, looped: false, owner: None, music: false, volume: 1.0, voice, ui: false });
                     caption.write(crate::captions::ShowCaption { sound: ev.param.clone(), seconds: ev.end - ev.start });
                 }
                 SceneEventKind::FireTrigger => {

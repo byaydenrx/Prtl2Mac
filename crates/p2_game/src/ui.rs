@@ -1290,10 +1290,22 @@ fn hover_rows(
     mut arrows: Query<&mut Visibility, With<RowArrow>>,
     mut parts: Query<(&mut BackgroundColor, Has<SliderFill>), (Or<(With<SliderTrack>, With<SliderFill>)>, Without<HoverRow>)>,
     menu: Res<MenuState>,
+    (mut play, places, mut last): (MessageWriter<PlayGameSound>, Query<&UiGlobalTransform>, Local<Option<IVec2>>),
 ) {
+    let mut any = false;
     for (e, cursor, mut row, mut bg, tiles) in &mut rows {
         // Under a confirmation, nothing is hovered.
         let hot = cursor.cursor_over() && menu.confirm.is_none();
+        if hot {
+            // One focus sound per row the mouse comes onto; rows rebuilt
+            // in place (a value changed) keep their spot, so stay quiet.
+            any = true;
+            let at = places.get(e).map(|t| t.translation.as_ivec2()).ok();
+            if at != *last {
+                *last = at;
+                play.write(PlayGameSound::ui(MENU_FOCUS));
+            }
+        }
         if hot == row.hot {
             continue;
         }
@@ -1328,7 +1340,16 @@ fn hover_rows(
             }
         }
     }
+    if !any {
+        *last = None;
+    }
 }
+
+/// Portal 2's menu sounds (client.dll's basemodui): focus when the mouse
+/// comes onto an item, accept when one is chosen, back when leaving.
+const MENU_FOCUS: &str = "ui/menu_focus.wav";
+const MENU_ACCEPT: &str = "ui/menu_accept.wav";
+const MENU_BACK: &str = "ui/menu_back.wav";
 
 /// CAMPAIGN / COMMUNITY MAPS above the New Game grid: small dark buttons,
 /// the chosen one darker.
@@ -1854,9 +1875,14 @@ fn escape_key(
     mut scroll: ResMut<MenuScroll>,
     map: Option<Res<CurrentMap>>,
     mut settings: ResMut<Settings>,
+    mut play: MessageWriter<PlayGameSound>,
 ) {
     if eaten.0 || !keys.just_pressed(KeyCode::Escape) {
         return;
+    }
+    // Backing out of a menu (not opening the pause menu) sounds like Back.
+    if *screen != Screen::None {
+        play.write(PlayGameSound::ui(MENU_BACK));
     }
     if menu.confirm.is_some() {
         menu.confirm = None;
@@ -1939,8 +1965,22 @@ fn buttons(
     mut exit: MessageWriter<AppExit>,
     (mut load_game, mut save_game): (MessageWriter<LoadGame>, MessageWriter<SaveGame>),
     (footers, scripted, mut armed): (Query<(), With<FooterButton>>, Query<(), With<ScriptPress>>, Local<Vec<Entity>>),
+    (mut play, mut hovered): (MessageWriter<PlayGameSound>, Local<Vec<Action>>),
 ) {
     for (e, interaction, action, look, in_row) in &q {
+        // One focus sound when the mouse comes onto a button. Keyed by the
+        // action, so a menu rebuilt under the mouse doesn't sound again.
+        match interaction {
+            Interaction::Hovered if !hovered.contains(action) => {
+                hovered.push(*action);
+                if !in_row {
+                    play.write(PlayGameSound::ui(MENU_FOCUS));
+                }
+            }
+            Interaction::Pressed if !hovered.contains(action) => hovered.push(*action),
+            Interaction::None => hovered.retain(|a| a != action),
+            _ => {}
+        }
         let hot = *interaction != Interaction::None;
         // A row's own buttons take its colours (see hover_rows).
         if !in_row {
@@ -1974,6 +2014,8 @@ fn buttons(
             continue;
         }
         info!("portal2: menu {:?}", action);
+        let back = matches!(action, Action::Back | Action::Cancel | Action::ConfirmCancel);
+        play.write(PlayGameSound::ui(if back { MENU_BACK } else { MENU_ACCEPT }));
         let native = native_size(&monitors, &windows);
         match *action {
             Action::SinglePlayer => menu.flyout = if menu.flyout == Some(Flyout::SinglePlayer) { None } else { Some(Flyout::SinglePlayer) },

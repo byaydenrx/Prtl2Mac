@@ -99,7 +99,15 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   between subsections (Video -> Advanced Video); dialogs (quit, discard).
   Match direction, timing and look, not a fade/slide.
 
-### T-180 Menu sounds  (P2, TODO; spec 1, 11, 15)
+### T-180 Menu sounds  (P2, FIXED except tile-flip sounds (T-179), awaiting owner replay; spec 1, 11, 15)
+- 2026-10-21 FIXED (log-checked only, not listened to). The menus had no
+  sounds. client.dll names them: ui/menu_focus.wav when the mouse comes
+  onto an item or Options row, ui/menu_accept.wav when one is chosen,
+  ui/menu_back.wav for Back/Cancel/Esc. Focus is keyed by the item (a menu
+  rebuilt under the mouse stays quiet), rows by their place. New `ui`
+  sounds play while the game is paused, at the effects volume. Autopilot
+  log: one focus per hover, one accept per click. The flip sounds
+  (ui_menu_flip_single_01/02) come with the tile flips (T-179).
 - Original hover, click/select, menu/section switch sounds, at the right
   moments, once per interaction.
 

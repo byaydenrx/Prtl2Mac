@@ -55,11 +55,18 @@ pub struct PlayGameSound {
     /// channel, so a new line from the same actor stops the one before
     /// (jumping or saying "apple" while Wheatley talks no longer overlaps).
     pub voice: Option<usize>,
+    /// A menu sound: 2D, at the effects volume, and it plays while the
+    /// game is paused.
+    pub ui: bool,
 }
 
 impl PlayGameSound {
     pub fn music(sound: impl Into<String>) -> Self {
-        Self { sound: sound.into(), at: None, looped: false, owner: None, music: true, volume: 1.0, voice: None }
+        Self { sound: sound.into(), at: None, looped: false, owner: None, music: true, volume: 1.0, voice: None, ui: false }
+    }
+
+    pub fn ui(sound: impl Into<String>) -> Self {
+        Self { music: false, ui: true, ..Self::music(sound) }
     }
 }
 
@@ -76,6 +83,7 @@ pub struct GameSound {
     pub owner: Option<usize>,
     pub music: bool,
     pub voice: Option<usize>,
+    pub ui: bool,
 }
 
 fn load_soundscripts(game: Res<GameFsRes>, mut scripts: ResMut<SoundScripts>) {
@@ -226,7 +234,7 @@ fn play_sounds(
                 volume: Volume::Linear(base * mix * g),
                 ..default()
             },
-            GameSound { at: req.at, soundlevel: level, base, script: volume, owner: req.owner, music: req.music, voice: req.voice },
+            GameSound { at: req.at, soundlevel: level, base, script: volume, owner: req.owner, music: req.music, voice: req.voice, ui: req.ui },
             LevelOwned,
         ));
     }
@@ -265,6 +273,7 @@ fn ambient_request(ents: &Ents, i: usize) -> Option<PlayGameSound> {
         music,
         volume: e.get_f32("health").map(|h| (h / 10.0).clamp(0.0, 1.0)).unwrap_or(1.0),
         voice: None,
+        ui: false,
     })
 }
 
@@ -311,7 +320,7 @@ fn train_sounds(
             moving.insert(i);
             if let Some(s) = sound("movesound") {
                 let looped = train_sound_looped(&s);
-                play.write(PlayGameSound { sound: s, at: Some(at), looped, owner: Some(i), music: false, volume, voice: None });
+                play.write(PlayGameSound { sound: s, at: Some(at), looped, owner: Some(i), music: false, volume, voice: None, ui: false });
             }
         } else if !now && was {
             moving.remove(&i);
@@ -321,7 +330,7 @@ fn train_sounds(
                 }
             }
             if let Some(s) = sound("stopsound") {
-                play.write(PlayGameSound { sound: s, at: Some(at), looped: false, owner: None, music: false, volume, voice: None });
+                play.write(PlayGameSound { sound: s, at: Some(at), looped: false, owner: None, music: false, volume, voice: None, ui: false });
             }
         } else if now {
             for (_, mut s) in &mut playing {
@@ -425,7 +434,7 @@ fn pause_audio(time: Res<Time<Virtual>>, sinks: Query<(Entity, &AudioSink, Optio
         // A sound that started while paused waits too.
         if want {
             for (e, sink, s) in &sinks {
-                if seen.insert(e) && !s.is_some_and(|s| s.music && s.at.is_none() && s.owner.is_none()) {
+                if seen.insert(e) && !s.is_some_and(|s| s.ui || (s.music && s.at.is_none() && s.owner.is_none())) {
                     sink.pause();
                 }
             }
@@ -436,7 +445,7 @@ fn pause_audio(time: Res<Time<Virtual>>, sinks: Query<(Entity, &AudioSink, Optio
     seen.clear();
     for (e, sink, s) in &sinks {
         seen.insert(e);
-        if s.is_some_and(|s| s.music && s.at.is_none() && s.owner.is_none()) {
+        if s.is_some_and(|s| s.ui || (s.music && s.at.is_none() && s.owner.is_none())) {
             continue;
         }
         if want {

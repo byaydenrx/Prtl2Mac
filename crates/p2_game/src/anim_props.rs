@@ -570,7 +570,7 @@ fn advance_anims(
             } else if EVENT_SOUNDS.contains(&ev.id) || name.ends_with("_PLAYSOUND") || name == "AE_CL_PLAYSOUND" {
                 let sound = ev.options.trim();
                 if !sound.is_empty() {
-                    sounds.write(crate::audio::PlayGameSound { sound: sound.into(), at: Some(at), looped: false, owner: None, music: false, volume: 1.0, voice: None });
+                    sounds.write(crate::audio::PlayGameSound { sound: sound.into(), at: Some(at), looped: false, owner: None, music: false, volume: 1.0, voice: None, ui: false });
                 }
             }
         }
