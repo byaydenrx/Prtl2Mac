@@ -26,11 +26,11 @@ docs/UPSTREAM_GAPS.md (upstream README gaps), T-214 (all-maps sweep), fxaudit.
 ON HOLD (owner): menus (no menu code changes at all); screenshot tasks
 T-173, T-174, T-145, T-147, T-149, T-116, T-152, T-151, T-154; T-164
 skipped; T-120 done enough. Don't work on anything already fixed.
-Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles.
+Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles, T-150
+motion blur and gun glow.
 1. T-212 loud glass smash at sp_a3_00 load (owner report).
 2. T-213 PotatOS missing from the portal gun (owner report).
 2b. T-215 Windows reference capture tool (makes every look/feel task checkable).
-3. T-150 gun glow seen through the wall after the sp_a2_intro fall (motion blur FIXED 7cc1096, awaiting owner replay).
 4. T-198 aerial faith plate physics (owner report, chapter 2).
 5. Common to many maps: T-203 switchable lights (50/63 maps), T-199
    particle sprite sheets (every map), T-214 DecalModulate (29 maps) and
@@ -905,7 +905,29 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
 
 ## Open: P4
 
-### T-150 Particles missing  (P4, PARTIAL: intro3 splash/dust owner-confirmed "for now"; motion blur fixed, awaiting owner replay; gun glow through the wall open)
+## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-150 Particles missing  (P4, FIXED, awaiting owner replay: motion blur 7cc1096, gun glow through the wall 8d48dab; intro3 splash/dust owner-confirmed "for now")
+- 2026-10-21 autorun, gun glow through the wall: FIXED 8d48dab. Cause: the
+  gun's `info_particle_system` particle_gun_charge (electrical_arc_01,
+  started by timer_gun_particles for 0.5 s every 1-3 s) has a child
+  electrical_arc_01_cp0_glow drawn with particle_glow_05_add_15ob_noz
+  (`$ignorez`, no depth test); Source hides it behind the world with the
+  renderer's `Visibility Proxy Input Control Point Number` (an occlusion
+  query at CP0), which p2_fx ignored. (The env_sprite spr_gun_glow is depth
+  tested and was not it.) Now each frame a line of sight from the main
+  camera to the proxy point (static/kinematic colliders; props, the player,
+  player clips and grates don't block; the last max(radius, 2) units
+  ignored) gives visibility 0/1, mapped through `Visibility input min/max`
+  onto `Visibility Alpha Scale min/max` as particle alpha. Line of sight,
+  not a partial pixel count; `Visibility Radius Scale` not done. Unit test
+  visibility_proxy_fades_hidden_glows. Evidence (autopilot only): landing
+  spot (-3232 568 -10792) `lookat portalgun`, 24 shots 0.2 s apart: dist
+  7cc1096 shows the blue glow over the crushing arms in 2/24, 8d48dab in
+  0/24; close up (`setpos -1125 449 -11076`, lookat portalgun) the arcs and
+  glow still flash in both. First try was blocked by the invisible
+  portalgun_playerclip brush, hence the clip/grate exclusion.
+
 - 2026-10-21 autorun, motion blur/speed lines: FIXED (see commit "T-150:
   Source-style motion blur"). Cause: no motion blur pass existed
   (`mat_motion_blur_enabled` was a stored setting only). Windows Portal 2
@@ -944,8 +966,6 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
 - Fall smoke and water splash (+ sounds) in intro3; the gun's beam when
   holding things; motion blur/speed lines; the gun's glow seen through the
   wall after the sp_a2_intro fall.
-
-## Awaiting owner replay (fixed, autopilot evidence)
 
 ### T-153 GLaDOS wake-up  (P3, FIXED, awaiting owner replay: leftover particles)
 - 2026-10-21: the leftover white spray was glados_head_drag_droplets (800/s
