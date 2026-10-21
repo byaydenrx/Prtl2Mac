@@ -4,11 +4,12 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-21 09:45, autorun (prtl2mac-auto-resume-2). T-147 NOT REPRODUCED:
-intro2's entry door opens and is walked through with no black frame on the
-current build and dist 910da9a (autopilot shots, several view angles);
-blocked on the owner (does it still happen, screenshot/video). No code
-change, no attempt branch. Next: T-113.
+2026-10-21 11:38, autorun (prtl2mac-auto-resume-2). T-150 PARTIAL FIX
+b8a2d76: intro3's fall splash (env_splash -> water_splash_03 +
+Physics.WaterSplash) and the breakable-floor dust (env_ar2explosion ->
+grey puff cloud) were not implemented at all; now they are (autopilot
+before/after shots only). Motion blur/speed lines and the gun glow through
+the wall after sp_a2_intro's fall are still open. Next: T-146.
 
 ## Where things stand
 - Upstream checked 2026-10-21: no code changes since our base v0.1.0, only a
@@ -23,10 +24,11 @@ change, no attempt branch. Next: T-113.
   by a subagent, merged), 4:3 layout (T-192). Open pieces listed at the
   top of TASKS.md's priority order.
 - Earlier fixes still awaiting the owner: T-176, T-169, T-162, T-170.
-- dist/Prtl2Mac.app = 0.1.0+b250e5f.20261021T1519Z (T-174 elevator movies at full size and 24 fps; before it T-173 gun hold beam, carry anims, fizzler shake; before it T-153 GLaDOS wake-up white disc: $mod2x particle cards + Remap CP Speed to CP; T-148 frosted glass over portals before it).
+- dist/Prtl2Mac.app = 0.1.0+b8a2d76.20261021T1537Z (T-150 intro3 splash + floor dust; before it T-174 elevator movies at full size and 24 fps; before it T-173 gun hold beam, carry anims, fizzler shake; before it T-153 GLaDOS wake-up white disc: $mod2x particle cards + Remap CP Speed to CP; T-148 frosted glass over portals before it).
 
 ## Next action
-1. P4: T-150 particles (T-164/T-151 attempt branches await the owner; T-175 intro1 ride fog NOT REPRODUCED,
+1. P4: T-146 intro1 half-stuck door (T-150 splash/dust PARTIAL FIX b8a2d76,
+   awaiting owner replay, motion blur and gun glow through wall open; T-164/T-151 attempt branches await the owner; T-175 intro1 ride fog NOT REPRODUCED,
    wrong (non-master) fog controller by data, untested fix on attempt/T-175,
    blocked on owner; T-174 elevator videos FIXED
    b250e5f, awaiting owner replay; T-140 portal shake/sound NOT REPRODUCED,

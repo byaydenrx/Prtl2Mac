@@ -64,7 +64,7 @@ P3:
 16. (T-174 elevator videos FIXED b250e5f, awaiting owner replay.) (T-175 intro1 ride fog/sky: NOT REPRODUCED 2026-10-21, BLOCKED needs owner; untested fix on attempt/T-175.) T-164 debris
     (try attempt/T-164); T-116 window (owner screenshots coming).
 P4:
-17. T-151 water (try attempt/T-151), T-150 particles, T-146 half-stuck door,
+17. T-151 water (try attempt/T-151), T-150 particles (intro3 splash/dust PARTIAL FIX b8a2d76, awaiting owner replay; motion blur, gun glow open), T-146 half-stuck door,
     T-154 floating moss.
 Then the Backlog (prove and sweep the campaign).
 
@@ -1085,8 +1085,24 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   intro3 pool (or laser_intro). Not done: `$pseudotranslucent` alpha blend
   (`$waterblendfactor`), `$reflectamount` screen-space offset.
 
-### T-150 Particles missing  (P4, TODO: owner says not fixed)
+### T-150 Particles missing  (P4, PARTIAL FIX b8a2d76, awaiting owner replay for the intro3 fall; rest open)
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
+- 2026-10-21 autorun, intro3 fall: FIXED b8a2d76. Cause: the two entities
+  behind it had no code at all: `env_splash` "fall_splash" (input Splash
+  from the trigger at the pool) and `env_ar2explosion` "breakable_floor_dust"
+  (input Explode when the floor gives way by the gun pedestal). Now
+  Splash plays `water_splash_01/02/03` by scale (16 -> 03) pointing up,
+  with `Physics.WaterSplash` (client.dll's watersplash/FX_GunshotSplash
+  names; the scale thresholds 2/4 are our choice), and Explode throws a
+  one-shot cloud of 48 grey puffs (~3.5 s) drawn like env_steam. The
+  splash's spawnflag 1 (find the water below) isn't traced; the entity sits
+  on the water. Evidence (autopilot only): `goto/lookat fall_splash; input
+  fall_splash splash` and the same for breakable_floor_dust explode, dist
+  d0822f2 shows nothing, b8a2d76 the splash spray and the dust ball. Not
+  checked through the real fall path (the floor break is scripted).
+- Still open: the gun's beam while holding (done in T-173), motion
+  blur/speed lines, the gun's glow seen through the wall after the
+  sp_a2_intro fall.
 - Fall smoke and water splash (+ sounds) in intro3; the gun's beam when
   holding things; motion blur/speed lines; the gun's glow seen through the
   wall after the sp_a2_intro fall.
