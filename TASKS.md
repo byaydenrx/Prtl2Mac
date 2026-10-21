@@ -27,7 +27,7 @@ NEXT UP (owner round 4, 2026-10-21): T-196 black screen after flips
 (FIXED f8c9be3, awaiting owner replay), T-195 pause menu as Windows
 (FIXED 8af5fa3, awaiting owner replay), T-197 even tile grid (FIXED 209c358,
 awaiting owner replay). T-172 not reproduced (blocked, needs owner).
-T-144 clipboard FIXED 910da9a (awaiting owner replay). Next T-149 onward (no more menu work; T-112 attempt branch awaits owner).
+T-144 clipboard FIXED 910da9a (awaiting owner replay). T-149 not reproduced (blocked, needs owner shots). Next T-147 onward (no more menu work; T-112 attempt branch awaits owner).
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
 before every other task. Owner notes after build fb0090a (12 items,
 listed under the spec heading) come first: T-179 flip like the video,
@@ -52,7 +52,7 @@ P2:
 5. T-139 soundscapes FIXED (efe0631, awaiting owner replay); music stopping/not playing along still open.
 6. (T-112 GLaDOS floor: BLOCKED, untested world-reflection fix on attempt/T-112, needs owner.)
 7. (T-144 clipboard carry angle FIXED 910da9a, awaiting owner replay.)
-8. T-149 intro5 screens/lights; sign big number check.
+8. (T-149 intro5 screens/lights, big number: NOT REPRODUCED 2026-10-21, BLOCKED needs owner screenshots.)
 9. T-147 intro2 black screen at the first door; T-113 hints vanish.
 P3:
 10. T-171 FPS drops looking at portals.
@@ -793,7 +793,7 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   If the owner still sees brown, the next suspects are `$refracttint
   {151 135 34}` (not gamma-converted here) and the fog colour.
 
-### T-149 Chamber signs blank; screens and lights wrong  (P2, PARTIAL: signs drawn; elevator videos and intro5 screens open)
+### T-149 Chamber signs blank; screens and lights wrong  (P2, BLOCKED (needs owner): signs drawn; intro5 screens/lights and big number not reproduced)
 - Owner playtest 9 (2026-10-20, build 014ab6e): signs fixed; "the videos that play in the elevator rooms are a bit buggy and super low quality" (now T-174). Owner screenshot 2026-10-20 2.45.36 PM (sp_a2_laser_over_goo) shows "04/22" with a big "01": check the big number against Windows.
 - The white chamber-number screens ("02") were blank in every level:
   they are `vgui_screen`s with panelname `sp_progress_sign`, which we never
@@ -817,8 +817,29 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   from the file's comment list); the startup flicker sequences
   (lightboard_startup_sequences.txt) and dirt overlay ("dirt") are not
   drawn. Owner: compare one sign with Windows Portal 2.
-- Still open: intro5's screens and lights wrong (playtest section 4), not
-  looked at this run.
+- Run 2026-10-21 09:26 (autorun, NOT REPRODUCED, no code change):
+  - Big number: autopilot sp_a2_laser_over_goo (`input
+    instanceauto69-info_sign-info_panel setactive; goto ... 320; lookat;
+    look -30 0`) shows a big "04" over "04/22", matching
+    sp_lightboard_icons.txt (level_number 4, total 22); signs.rs is
+    unchanged since d314ea7 (before the owner's build 014ab6e) and stamps
+    the same digit cells for the big number and the label, so a big "01"
+    with "04/22" could not be produced. The owner's shot 2.45.36 PM is not
+    on disk. Owner: resend it (or a Windows shot of that sign) if the
+    sign still looks wrong.
+  - intro5 screens: the elevator vgui_movie_displays get SetMovie
+    media\exercises_vert.bik from videos/video_splitter.nut (the map's
+    entry for sp_a1_intro5), split across the panels with custom UVs, as
+    Windows does. The "entry_emergency.bik / exit_emergency.bik could not
+    be decoded" warnings come from the video masters' moviefilename
+    keyvalue: those files are not in the depot and the script's
+    OVERRIDE_VIDEOS is 0, so Windows never plays them either (harmless).
+    Video quality/bugginess is T-174.
+  - intro5 lights: chamber indicator dots (env_texturetoggle overlays),
+    button glow and room lights look plausible in autopilot shots; no
+    defect could be identified without a reference. Owner: a screenshot
+    of what looks wrong in intro5/intro6 ("screens and lights") is needed.
+  - No fix attempt branch (no plausible cause to try).
 
 ### T-147 intro2: the screen goes black right as the first door opens  (P2, TODO)
 - Section 1; compare T-119. Screenshot 7 (intro2): a dark shard in a door.
