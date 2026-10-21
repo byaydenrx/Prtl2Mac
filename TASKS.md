@@ -20,11 +20,13 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 
 ## Priority order (2026-10-21, owner menu/intro spec first)
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
-before every other task. Working order: T-178 main menu, T-191 quit dialog,
-T-180 sounds, T-184 options framework, T-190 sliders, T-185 audio, T-186
-video, T-187 advanced video, T-188 controller, T-189 keyboard/mouse + edit
-keys, T-181 single player, T-182 new game, T-183 load game, T-179 tile
-flips, T-177 startup intros, T-192 scaling. Then the list below.
+before every other task. Status 2026-10-21 (build cec807a+): all of
+T-177..T-192 built, autopilot-checked only, awaiting the owner's replay.
+Open pieces: T-188 gamepad input (none at all yet), T-189 raw mouse
+input / key conflicts / keyboard scrolling of Edit Keys, T-187 detail
+levels not driving the renderer, T-179 flip look vs Windows (no video
+reference), T-192 real fullscreen switching, T-182 Windows comparison.
+Then the list below.
 P0:
 1. (none; T-168 box-button crash owner-confirmed fixed.)
 P1:
@@ -144,7 +146,12 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 - Continue loads the most recent valid save at its place and state; the
   menu background video matches that save's chapter; no saves: graceful.
 
-### T-182 New Game chapter list  (P2, TODO; spec 2, 13)
+### T-182 New Game chapter list  (P2, UNCHANGED (built under T-162), needs owner check; spec 2, 13)
+- 2026-10-21: already as specified from T-162 (list on the left, the
+  picked chapter's picture with "CHAPTER N" + bold name beneath, locked
+  chapters grey, second click / Start New Game starts that chapter); now
+  also flips in (T-179). No Windows New Game shot to compare against yet:
+  owner, send one if anything differs.
 - Played chapters hover/select properly; each entry shows its screenshot
   with the chapter title beneath (save-menu layout); titles bold; selecting
   starts that chapter.
@@ -344,7 +351,14 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   quit?", Quit / Cancel; same look and tile flip as the discard dialog;
   doesn't trigger the menu behind it.
 
-### T-192 Menu scaling and display changes  (P2, TODO; spec 14)
+### T-192 Menu scaling and display changes  (P2, PARTIAL: 16:9, 16:10, 4:3 windows checked; fullscreen switching needs owner replay; spec 14)
+- 2026-10-21 (autopilot --size 1280x720, 1280x800, 1024x768): the menu
+  scales with the window height in .res units; on non-widescreen screens
+  everything now moves 25 units left as the .res files do without
+  $WIN32WIDE (dialogs at 75, items at 63, logo at 50), so the 11-tile
+  Advanced Video fits 4:3 (it ran off the right edge). Not checked:
+  real fullscreen / borderless switches on a display, 5:4, very small
+  windows.
 - Layout correct at native/non-native resolutions, fullscreen, borderless,
   windowed and each aspect ratio; no clipping or overlap; scrolling
   sections usable at small sizes.

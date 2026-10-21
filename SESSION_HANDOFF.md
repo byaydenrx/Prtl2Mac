@@ -4,50 +4,27 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-21 00:30, owner session. Autorun `prtl2mac-auto-resume` PAUSED by
-the owner: they are playtesting the whole game several times and taking
-Windows Portal 2 (CrossOver) comparison shots for UI, textures and
-lighting; weekly usage limit until Sunday. Merged attempt/T-145 (companion/
-rusted lit skins) at the owner's request. Next session: file the owner's
-playtest 10 report and comparisons in TASKS.md first.
+2026-10-21 08:20, owner session (interactive; autorun stays off). The
+owner's menu/intro spec (docs/MENU_SPEC.md, T-177..T-192) was worked
+top to bottom; all items built and pushed, autopilot-checked only.
 
 ## Where things stand
-- T-176 FIXED (2bf3d20), autopilot-checked only: use only took a prop hit
-  exactly by a thin ray, so flying cubes / falling Wheatley were near
-  impossible to grab. Now falls back to the prop nearest the crosshair in a
-  ~26 degree cone, in reach and line of sight. Not replayed on the real
-  faith-plate throw or Wheatley's drop.
-- T-169 FIXED (a1cd026), autopilot-checked only: sp_a2_laser_over_goo's
-  entry corridor repair trigger was rotated (angles 0 90 9) and placed
-  unrotated, so the walls never moved; Kill on a func_door was ignored
-  (blocking_door_2 stayed solid). Trigger boxes now follow entity angles,
-  Kill despawns doors. Player walks from the elevator to the chamber landing.
-- T-168 FIXED (98b74ad), owner-confirmed.
-- T-162 main menu screen DONE (e6e5e91), autopilot shots only: menu font
-  is now the install's own UniversLTStd-Cn (decoded from
-  vgui/fonts/universc.vfont), MainMenuButton colours/size/inset from
-  basemodui_scheme.res, flyout owner stays lit. T-162 stays open.
-- T-162 all screens DONE (last: loading screens 0bc1dd1, new loading.rs:
-  act art, spinner, dot bar; level loads wait 2 frames so it is drawn),
-  autopilot shots only. Moved to Awaiting owner replay.
-- T-170 carrying at walls FIXED (9f1ed5a), autopilot intro2 only: the held
-  prop blocks the player from its own position (pinned by a wall, along
-  the wall's normal) instead of T-167's view ray; looking up pushes the
-  cube over the head up the wall. Moved to Awaiting owner replay.
-- T-145 BLOCKED (needs owner): the lit cube on a pressed button renders
-  dark (autopilot intro2 reproduced). Texture, shader combo, baked light
-  and sRGB cache ruled out; suspect the render path of SkinVariant draws
-  spawned Hidden. Next check written in the T-145 entry. Spikes under the
-  button and jitter not looked at yet.
-- T-145 skin table (cc8d8e0) merged 2026-10-21, untested in game.
-- dist/Prtl2Mac.app = 0.1.0+b796a33.20261021T0431Z (owner playtest build).
+- Menu/intro spec T-177..T-192 done 2026-10-21 (see each entry): main
+  menu layout + greyed items + Robot Enrichment (T-178), quit dialog
+  (T-191), menu sounds (T-180), Options pending/Apply/Back/Use Defaults/
+  discard + keyboard navigation (T-184), Audio/Video/Advanced/Controller/
+  Keyboard-Mouse/Edit Keys rows (T-185..T-189), sliders (T-190), Load Game
+  dates/pictures (T-183), tile flips (T-179), startup intro (T-177, built
+  by a subagent, merged), 4:3 layout (T-192). Open pieces listed at the
+  top of TASKS.md's priority order.
+- Earlier fixes still awaiting the owner: T-176, T-169, T-162, T-170.
+- dist/Prtl2Mac.app = see "Build" below.
 
 ## Next action
-1. OWNER PRIORITY (2026-10-21): menu/intro spec docs/MENU_SPEC.md, tasks
-   T-177..T-192 (order in TASKS.md "Priority order"), before everything
-   else. Owner working with the session interactively; autorun stays off.
-   Then T-172 late VO, T-135, T-139, T-112, T-144, T-149, T-147, T-113,
-   then P3/P4. Skip T-116, T-164, T-151 (owner).
+1. Owner replays the menus/intro (build below) and reports. File every
+   note in TASKS.md first. Then the open menu pieces (TASKS.md priority
+   header), then T-172 late VO, T-135, T-139, T-112, T-144, T-149, T-147,
+   T-113, then P3/P4. Skip T-116, T-164, T-151 (owner).
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.

@@ -595,7 +595,7 @@ fn layer(z: i32) -> impl Bundle {
 fn item_list(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, items: &[(&str, Option<Action>)]) {
     p.spawn(Node {
         position_type: PositionType::Absolute,
-        left: units(87.0),
+        left: pin(87.0),
         top: units(MAIN_ITEM_TOP),
         flex_direction: FlexDirection::Column,
         row_gap: units(30.0 - MAIN_ITEM_TALL),
@@ -606,7 +606,7 @@ fn item_list(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt
             spawn_item(col, fonts, label, *action);
         }
     });
-    p.spawn(Node { position_type: PositionType::Absolute, left: units(89.0), top: units(379.0), height: units(17.0), align_items: AlignItems::Center, column_gap: units(7.0), ..default() })
+    p.spawn(Node { position_type: PositionType::Absolute, left: pin(89.0), top: units(379.0), height: units(17.0), align_items: AlignItems::Center, column_gap: units(7.0), ..default() })
         .with_children(|row| {
             if let Some(icon) = art.and_then(|a| a.econ.clone()) {
                 row.spawn((ImageNode { image: icon, color: theme::ITEM_OFF, ..default() }, Node { width: units(17.0), height: units(17.0), ..default() }));
@@ -761,7 +761,7 @@ fn tile_frame_sized(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&
     // contents and footer show once the last has turned.
     let t0 = f32::from_bits(FLIP_T0.load(Ordering::Relaxed));
     let shown = (wide + tall) as f32 * FLIP_STEP + FLIP_TIME;
-    p.spawn(Node { position_type: PositionType::Absolute, left: units(100.0), top: units(f.top), width: units(f.width), height: units(T + f.body), ..default() })
+    p.spawn(Node { position_type: PositionType::Absolute, left: pin(100.0), top: units(f.top), width: units(f.width), height: units(T + f.body), ..default() })
         .with_children(|d| {
             for r in 0..=tall {
                 for c in 0..wide {
@@ -805,7 +805,7 @@ fn tile_frame_sized(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&
 /// ui_transition_time (client.dll's default 0.20): one tile's turn.
 const FLIP_TIME: f32 = 0.2;
 /// The wait between neighbouring tiles starting to turn.
-const FLIP_STEP: f32 = 0.03;
+const FLIP_STEP: f32 = 0.015;
 /// UI/ui_menu_flip_single_01 / _02 (client.dll): a dialog opening, a
 /// confirmation or the whole screen turning.
 const FLIP_SOUNDS: [&str; 2] = ["ui/ui_menu_flip_single_01.wav", "ui/ui_menu_flip_single_02.wav"];
@@ -813,6 +813,14 @@ const FLIP_SOUNDS: [&str; 2] = ["ui/ui_menu_flip_single_01.wav", "ui/ui_menu_fli
 /// Real time (f32 bits) the open dialog appeared, and the time of the
 /// current rebuild: set by rebuild_menu, read while it lays tiles out.
 static FLIP_T0: AtomicU32 = AtomicU32::new(0);
+/// The screen is not widescreen (see rebuild_menu).
+static NARROW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// A left-edge position from a widescreen .res, 25 units further left on
+/// a non-widescreen screen.
+fn pin(u: f32) -> Val {
+    units(if NARROW.load(Ordering::Relaxed) { u - 25.0 } else { u })
+}
 static FLIP_NOW: AtomicU32 = AtomicU32::new(0);
 
 #[derive(Clone, Copy, PartialEq)]
@@ -1230,7 +1238,7 @@ struct OnTiles;
 /// with the menu items' text at x 100 (owner, 2026-10-21; Portal 2 has it
 /// 0.8 units off).
 fn menu_logo(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>) {
-    let logo_node = Node { position_type: PositionType::Absolute, left: units(74.3), top: units(35.0), width: units(240.0), height: units(60.0), ..default() };
+    let logo_node = Node { position_type: PositionType::Absolute, left: pin(74.3), top: units(35.0), width: units(240.0), height: units(60.0), ..default() };
     match art.and_then(|a| a.logo.clone()) {
         Some(img) => {
             p.spawn((ImageNode::new(img), logo_node));
@@ -1601,12 +1609,19 @@ fn rebuild_menu(
     mut chapter_pics: Local<Vec<Option<Handle<Image>>>>,
     mut backgrounds: Local<std::collections::HashMap<usize, Option<Handle<Image>>>>,
     (movie, strings, mut save_pics): (Res<MenuMovie>, Option<Res<GameStrings>>, Local<std::collections::HashMap<(String, u64), Option<Handle<Image>>>>),
-    (real, mut last_key, mut play): (Res<Time<Real>>, Local<String>, MessageWriter<PlayGameSound>),
+    (real, mut last_key, mut play, mut was_narrow): (Res<Time<Real>>, Local<String>, MessageWriter<PlayGameSound>, Local<bool>),
 ) {
     let Some(fonts) = fonts else { return };
     let options_changed = (settings.is_changed() || actions.is_changed() || mods.is_changed()) && matches!(*screen, Screen::Options { .. });
     let chapters_changed = (tab.is_changed() || community.is_changed()) && *screen == Screen::Chapters;
-    if !screen.is_changed() && !menu.is_changed() && !options_changed && !chapters_changed && !fonts.is_added() {
+    // Non-widescreen (4:3, 5:4) moves everything 25 units left, as the
+    // .res files do without $WIN32WIDE (dialogs pinned at 75, items at 63,
+    // logo at 50), so wide dialogs still fit.
+    let narrow = windows.single().is_ok_and(|w| w.width() / w.height().max(1.0) < 1.5);
+    NARROW.store(narrow, Ordering::Relaxed);
+    let narrow_changed = narrow != *was_narrow;
+    *was_narrow = narrow;
+    if !screen.is_changed() && !menu.is_changed() && !options_changed && !chapters_changed && !fonts.is_added() && !narrow_changed {
         return;
     }
     // The rebuilt buttons only learn they are hovered a frame later; keep
