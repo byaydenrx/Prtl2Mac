@@ -30,6 +30,8 @@ const HIDE_FRAMES: u8 = 3;
 /// WorkingAnim frames per second (guess: the .res and client.dll strings
 /// don't give the rate).
 const SPINNER_FPS: f32 = 10.0;
+/// Seconds the startup loading screen takes to fade into the main menu.
+const STARTUP_FADE: f32 = 0.7;
 
 #[derive(Resource, Default)]
 struct LoadingScreen {
@@ -41,10 +43,15 @@ struct LoadingScreen {
     /// Loaded art by material path.
     art: Vec<(String, Handle<Image>)>,
     shown_at: f32,
+    /// When the startup screen began fading into the menu (see intro.rs).
+    fade_from: Option<f32>,
 }
 
 #[derive(Component)]
 struct LoadingRoot;
+
+#[derive(Component)]
+struct LoadingArt;
 
 #[derive(Component)]
 struct LoadingSpinner;
@@ -105,8 +112,10 @@ fn loading_screen(
     time: Res<Time<Real>>,
     mut spinner: Query<&mut ImageNode, (With<LoadingSpinner>, Without<LoadingDot>)>,
     mut dots: Query<&mut ImageNode, (With<LoadingDot>, Without<LoadingSpinner>)>,
+    (mut startup, mut backdrop, mut art_nodes): (ResMut<crate::intro::StartupLoad>, Query<&mut BackgroundColor, With<LoadingRoot>>, Query<&mut ImageNode, (With<LoadingArt>, Without<LoadingSpinner>, Without<LoadingDot>)>),
 ) {
-    let loading = pending.0.as_ref().filter(|(req, _)| !req.menu);
+    // The startup screen (intro.rs) covers the menu's own background load.
+    let loading = pending.0.as_ref().filter(|(req, _)| !req.menu || startup.0);
     match (loading, screen.root) {
         (Some((req, _)), None) => {
             let wide = windows.single().map(|w| w.width() / w.height().max(1.0) > 1.5).unwrap_or(true);
@@ -136,16 +145,37 @@ fn loading_screen(
             let hold = std::env::var("P2_LOADING_HOLD").ok().and_then(|s| s.parse::<f32>().ok()).unwrap_or(0.0);
             let held = time.elapsed_secs() - screen.shown_at < hold;
             let n = if held { HIDE_FRAMES } else { screen.hide_in.unwrap_or(HIDE_FRAMES) };
-            if n == 0 {
+            // After the startup load the screen fades out over the menu.
+            let fade = if n == 0 && startup.0 {
+                let t0 = *screen.fade_from.get_or_insert(time.elapsed_secs());
+                Some(1.0 - (time.elapsed_secs() - t0) / STARTUP_FADE)
+            } else {
+                None
+            };
+            if n == 0 && fade.is_none_or(|k| k <= 0.0) {
                 commands.entity(root).despawn();
                 screen.root = None;
                 screen.hide_in = None;
+                screen.fade_from = None;
+                startup.0 = false;
                 return;
             }
-            screen.hide_in = Some(n - 1);
+            screen.hide_in = Some(n.saturating_sub(1));
+            let k = fade.unwrap_or(1.0);
             for mut d in &mut dots {
                 d.rect = Some(dot_cell(true));
-                d.color = Color::WHITE;
+                d.color = Color::srgba(1.0, 1.0, 1.0, k);
+            }
+            if fade.is_some() {
+                for mut b in &mut backdrop {
+                    b.0 = Color::srgba(0.0, 0.0, 0.0, k);
+                }
+                for mut a in &mut art_nodes {
+                    a.color = Color::srgba(1.0, 1.0, 1.0, k);
+                }
+                for mut s in &mut spinner {
+                    s.color = Color::srgba(1.0, 1.0, 1.0, k);
+                }
             }
         }
         _ => {}
@@ -176,7 +206,7 @@ fn spawn_screen(commands: &mut Commands, art: Option<Handle<Image>>, spinner: Op
         .spawn((LoadingRoot, full.clone(), BackgroundColor(Color::BLACK), GlobalZIndex(30), bevy::picking::Pickable::IGNORE))
         .id();
     if let Some(art) = art {
-        commands.entity(root).with_child((full, ImageNode::new(art)));
+        commands.entity(root).with_child((LoadingArt, full, ImageNode::new(art)));
     }
     if let Some(spin) = spinner {
         commands.entity(root).with_child((

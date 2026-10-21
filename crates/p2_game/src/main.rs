@@ -25,6 +25,7 @@ mod exposure;
 mod movies;
 mod signs;
 mod health;
+mod intro;
 mod io;
 mod lasers;
 mod level;
@@ -88,6 +89,7 @@ fn main() {
     let (game, source_config, mounts, community) = mounts::mount(game);
     let args = p2_room::HarnessArgs::from_env();
     let launch = Launch { map: args.rest.iter().find(|a| !a.starts_with("--")).cloned() };
+    let intro = intro::IntroPlugin { enabled: launch.map.is_none() && !args.automated() };
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(args.window_plugin("Portal 2")))
         .insert_resource(P2Settings { set_fixed_timestep: true })
@@ -121,7 +123,7 @@ fn main() {
             anim_props::AnimPropsPlugin,
             captions::CaptionsPlugin,
         ))
-        .add_plugins(bindings::BindingsPlugin)
+        .add_plugins((bindings::BindingsPlugin, intro))
         .add_plugins((tanks::TanksPlugin, sprites::SpritesPlugin, rotators::RotatorsPlugin, shooter::ShooterPlugin, shakes::ShakesPlugin))
         .add_plugins((
             templates::TemplatesPlugin,

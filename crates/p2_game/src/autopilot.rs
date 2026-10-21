@@ -65,7 +65,7 @@ fn drive(
     mut loaded: MessageReader<LevelLoaded>,
     mut players: Query<(Entity, &mut Transform, &mut InterpolatedFeet, &mut ViewAngles, &mut MoveInput, &mut CharacterVelocity, &PortalGun), With<Player>>,
     mut fire: MessageWriter<FirePortal>,
-    (mut exit, mut click, real, mut con): (MessageWriter<AppExit>, MessageWriter<crate::ui::MenuClick>, Res<Time<Real>>, MessageWriter<crate::console::ConsoleSubmit>),
+    (mut exit, mut click, real, mut con, intro): (MessageWriter<AppExit>, MessageWriter<crate::ui::MenuClick>, Res<Time<Real>>, MessageWriter<crate::console::ConsoleSubmit>, Res<crate::intro::Intro>),
     mut ents: Option<ResMut<crate::io::Ents>>,
     spatial: avian3d::prelude::SpatialQuery,
     props: Query<(&crate::props::Prop, &Transform, Option<&avian3d::prelude::Position>, Has<crate::props::Held>), Without<Player>>,
@@ -84,6 +84,10 @@ fn drive(
     // The script clock is real time: menus pause the world's clock.
     // It starts with the first level (the menu's too, for menu tests) and
     // restarts on every playable one.
+    // With the startup intro the clock starts at launch (t=0 is the Valve movie).
+    if pilot.start.is_none() && intro.active() {
+        pilot.start = Some(real.elapsed_secs());
+    }
     for e in loaded.read() {
         if !e.menu || pilot.start.is_none() {
             pilot.start = Some(real.elapsed_secs());
