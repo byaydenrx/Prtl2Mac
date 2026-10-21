@@ -130,6 +130,9 @@ Reference: Windows Portal 2 (install .res files, client.dll in depot 624,
 https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 
 ### T-177 Startup intros missing  (P2, FIXED, awaiting owner replay; spec 1, 15)
+- 2026-10-21 round 3: no startup loading screen: the menu's map loads
+  during the fade after "powered by Source", then the main menu flips in
+  (log: "intro done; main menu" at ~17.9 s; shots).
 - 2026-10-21 owner note: the pointer is hidden during the intro movie and
   any loading screen and comes back with the menu.
 - 2026-10-21 FIXED (autopilot shots + log; new intro.rs). A normal launch
@@ -177,6 +180,13 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   by mouse and keyboard.
 
 ### T-179 Tile-flip transitions  (P2, FIXED (approximation), needs owner comparison; spec 1, 10, 11, 15)
+- 2026-10-21 round 3: the full-screen flip into the main menu (startup,
+  back from a level) is now the same turn as the dialogs, each tile a
+  slice of the whole menu (backdrop, logo, items), sweeping from the top
+  left (0.025 s apart, ~0.8 s), started once the menu's map is in. Pause
+  menus (and their Options, save/load, confirmations) open at once. Fixed
+  on the way: after a flip the menu is rebuilt on the window (taking the
+  off-screen target away left it invisible; screens went black).
 - 2026-10-21 REDONE from the owner's Windows recording (frame by frame,
   30 fps; audio cross-correlated with the install's sounds): each 50-unit
   tile turns about its upright axis (squeezes sideways), black back first,
@@ -240,6 +250,8 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   starts that chapter.
 
 ### T-183 Load Game list  (P2, FIXED, awaiting owner replay; spec 2, 13)
+- 2026-10-21 round 3: "CHAPTER 1 - THE COURTESY CALL" (dash) here and on
+  New Game.
 - 2026-10-21 FIXED (unit test + autopilot shots in a test data folder):
   rows read "Wednesday, Oct 21 3:54 AM" (local time from the save's own
   timestamp; was "OCT 21 2026 00:24"), bold, mixed case as the Windows

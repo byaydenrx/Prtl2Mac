@@ -310,8 +310,6 @@ mod theme {
     pub const DISABLED: Color = Color::srgb(140.0 / 255.0, 140.0 / 255.0, 140.0 / 255.0);
     /// Edit Keys' section headings and their rule.
     pub const KEYS_HEADER: Color = Color::srgb(150.0 / 255.0, 150.0 / 255.0, 150.0 / 255.0);
-    /// Edit Keys' picked / hovered row.
-    pub const KEY_PICKED: Color = Color::srgb(200.0 / 255.0, 200.0 / 255.0, 200.0 / 255.0);
     /// A confirmation's message (grey on the tiles, as on Windows).
     pub const CONFIRM_TEXT: Color = Color::srgb(110.0 / 255.0, 110.0 / 255.0, 110.0 / 255.0);
     /// The chosen chapter-dialog tab.
@@ -887,7 +885,6 @@ static FRAME_RECT: std::sync::Mutex<Option<FrameRect>> = std::sync::Mutex::new(N
 enum FlipKind {
     Back,
     Face,
-    ScreenOut,
 }
 
 /// A menu tile's turn about its upright middle: from `start` it takes
@@ -907,15 +904,14 @@ impl Flip {
             FlipKind::Back if now < self.start => 0.0,
             FlipKind::Back => ((p * 2.0).min(1.0) * half).cos(),
             FlipKind::Face => (((p - 0.5) * 2.0).max(0.0) * half).sin(),
-            FlipKind::ScreenOut => (p * half).cos(),
         }
     }
 }
 
-fn flip_tiles(real: Res<Time<Real>>, mut q: Query<(&Flip, &mut UiTransform)>) {
+fn flip_tiles(real: Res<Time<Real>>, mut q: Query<(&Flip, &mut UiTransform, Has<HoldUntilTurn>)>) {
     let now = real.elapsed_secs();
-    for (f, mut t) in &mut q {
-        let x = f.scale(now);
+    for (f, mut t, hold) in &mut q {
+        let x = if hold && now < f.start { 1.0 } else { f.scale(now) };
         if t.scale.x != x {
             t.scale.x = x;
         }
@@ -931,6 +927,11 @@ struct FlipView {
     until: f32,
     next_sound: f32,
     sounds: usize,
+    /// The whole screen turns (into the main menu): the backdrop and logo
+    /// are drawn off screen too.
+    all: bool,
+    /// The whole screen is to turn once the menu's map is in.
+    pending_screen: bool,
 }
 
 /// Overlay tiles of a flip (despawned when it ends).
@@ -946,7 +947,7 @@ fn setup_flip_view(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
             bevy::camera::RenderTarget::Image(image.clone().into()),
         ))
         .id();
-    commands.insert_resource(FlipView { camera, image, until: 0.0, next_sound: f32::MAX, sounds: 0 });
+    commands.insert_resource(FlipView { camera, image, until: 0.0, next_sound: f32::MAX, sounds: 0, all: false, pending_screen: false });
 }
 
 /// Start a dialog's flip: tiles over the frame, each its slice of the
@@ -1004,8 +1005,52 @@ fn start_flip(commands: &mut Commands, view: &mut FlipView, frame: FrameRect, no
     view.until = last;
     view.next_sound = now;
     view.sounds = 0;
+    view.all = false;
     true
 }
+
+/// Into the main menu (from the startup or a level): the whole screen
+/// turns over in 50-unit tiles, the same turn as a dialog's, each tile's
+/// face its piece of the menu (backdrop, logo and items).
+fn start_screen_flip(commands: &mut Commands, view: &mut FlipView, now: f32, phys: Vec2) {
+    const T: f32 = 50.0;
+    let px = phys.y / 480.0;
+    let width = phys.x / px;
+    let (cols, rows) = ((width / T).ceil() as usize, 10);
+    let mut last = now;
+    commands.spawn((FlipOverlay, Node { position_type: PositionType::Absolute, width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() }, GlobalZIndex(30))).with_children(|o| {
+        for r in 0..rows {
+            for c in 0..cols {
+                let (x, y) = (c as f32 * T, r as f32 * T);
+                let (w, h) = (T.min(width - x), T.min(480.0 - y));
+                let start = now + (c + r) as f32 * SCREEN_FLIP_STEP;
+                last = last.max(start + FLIP_TIME);
+                let rect = Rect::new(x * px, y * px, (x + w) * px, (y + h) * px);
+                o.spawn(Node { position_type: PositionType::Absolute, left: units(x), top: units(y), width: units(w), height: units(h), ..default() }).with_children(|cell| {
+                    let fill = Node { position_type: PositionType::Absolute, width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() };
+                    // Black until its turn starts (the screen before).
+                    let back = Flip { start, kind: FlipKind::Back };
+                    cell.spawn((fill.clone(), BackgroundColor(Color::BLACK), UiTransform::IDENTITY, back, HoldUntilTurn));
+                    let face = Flip { start, kind: FlipKind::Face };
+                    cell.spawn((fill, ImageNode { image: view.image.clone(), rect: Some(rect), ..default() }, UiTransform { scale: Vec2::new(0.0, 1.0), ..default() }, face));
+                });
+            }
+        }
+    });
+    view.until = last;
+    view.next_sound = now;
+    view.sounds = 0;
+    view.all = true;
+}
+
+/// The screen flip's tiles turn faster after one another than a dialog's
+/// (it has many more).
+const SCREEN_FLIP_STEP: f32 = 0.025;
+
+/// A back that stays fully black before its turn (the full-screen flip
+/// covers the screen from the start).
+#[derive(Component)]
+struct HoldUntilTurn;
 
 /// While a flip runs, new dialog roots draw off screen (their tiles show
 /// slices of it); when it ends they come back to the window, the overlay
@@ -1022,9 +1067,19 @@ fn run_flip(
     mut images: ResMut<Assets<Image>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     mut play: MessageWriter<PlayGameSound>,
+    (mut menu, map, screen): (ResMut<MenuState>, Option<Res<CurrentMap>>, Res<Screen>),
 ) {
     let Some(mut view) = view else { return };
     let now = real.elapsed_secs();
+    // The screen turn waits for the menu's map, so it turns onto the menu.
+    if view.pending_screen && *screen == Screen::Main && map.as_ref().is_some_and(|m| m.menu) {
+        if let Ok(w) = windows.single() {
+            view.pending_screen = false;
+            start_screen_flip(&mut commands, &mut view, now, Vec2::new(w.physical_width() as f32, w.physical_height() as f32));
+        }
+    } else if view.pending_screen && *screen != Screen::Main {
+        view.pending_screen = false;
+    }
     // The off-screen view matches the window's pixels, so slices line up.
     if let Ok(w) = windows.single() {
         let size = UVec2::new(w.physical_width().max(1), w.physical_height().max(1));
@@ -1036,7 +1091,7 @@ fn run_flip(
             }
         }
     }
-    let active = now < view.until;
+    let active = now < view.until || view.pending_screen;
     if let Ok(mut cam) = cams.get_mut(view.camera) {
         if cam.is_active != active {
             cam.is_active = active;
@@ -1044,42 +1099,27 @@ fn run_flip(
     }
     if active {
         for (e, z) in &new_roots {
-            if z.0 == 10 || z.0 == 20 {
+            if z.0 == 10 || z.0 == 20 || (view.all && (z.0 == 9 || z.0 == 11)) {
                 commands.entity(e).insert(UiTargetCamera(view.camera));
             }
         }
-        if now >= view.next_sound && view.sounds < 8 {
+        if !view.pending_screen && now >= view.next_sound && view.sounds < 8 {
             play.write(PlayGameSound::ui(FLIP_SOUNDS[view.sounds % 2]));
             view.sounds += 1;
             view.next_sound = now + FLIP_SOUND_GAP;
         }
         return;
     }
-    for e in &drawn_off {
-        commands.entity(e).remove::<UiTargetCamera>();
-    }
-    for e in &overlay {
-        commands.entity(e).despawn();
+    // Done: the overlay goes and the menu is built again on the window
+    // (taking UiTargetCamera off doesn't move a laid-out tree back).
+    if !drawn_off.is_empty() || !overlay.is_empty() {
+        for e in &overlay {
+            commands.entity(e).despawn();
+        }
+        menu.set_changed();
     }
 }
 
-/// The whole screen as 50-unit black tiles turning away to show the menu
-/// under them, from the top left.
-fn screen_flip(commands: &mut Commands, t0: f32) {
-    commands.spawn(layer(40)).with_children(|p| {
-        for r in 0..10 {
-            for c in 0..40 {
-                let flip = Flip { start: t0 + (c + r) as f32 * FLIP_STEP * 0.5, kind: FlipKind::ScreenOut };
-                p.spawn((
-                    Node { position_type: PositionType::Absolute, left: units(c as f32 * 50.0), top: units(r as f32 * 50.0), width: units(50.0), height: units(50.0), ..default() },
-                    BackgroundColor(Color::BLACK),
-                    UiTransform::IDENTITY,
-                    flip,
-                ));
-            }
-        }
-    });
-}
 
 /// A footer button (FooterPanel on PC): the vgui/btn_bg_* face, a 1 px
 /// border (BorderColor 130, 180 when armed), black UniversLTStd-BoldCn
@@ -1801,7 +1841,7 @@ fn rebuild_menu(
     mut chapter_pics: Local<Vec<Option<Handle<Image>>>>,
     mut backgrounds: Local<std::collections::HashMap<usize, Option<Handle<Image>>>>,
     (movie, strings, mut save_pics): (Res<MenuMovie>, Option<Res<GameStrings>>, Local<std::collections::HashMap<(String, u64), Option<Handle<Image>>>>),
-    (real, mut last_key, mut play, mut was_narrow, mut flip): (Res<Time<Real>>, Local<String>, MessageWriter<PlayGameSound>, Local<bool>, Option<ResMut<FlipView>>),
+    (real, mut last_key, mut was_narrow, mut flip): (Res<Time<Real>>, Local<String>, Local<bool>, Option<ResMut<FlipView>>),
 ) {
     let Some(fonts) = fonts else { return };
     let options_changed = (settings.is_changed() || actions.is_changed() || mods.is_changed()) && matches!(*screen, Screen::Options { .. });
@@ -1826,14 +1866,10 @@ fn rebuild_menu(
     let now = real.elapsed_secs();
     let key = format!("{:?} {:?} {:?} {:?} {:?}", *screen, menu.flyout, matches!(*screen, Screen::Options { .. }).then_some(menu.page), menu.confirm, menu.saves);
     let new_dialog = key != *last_key;
+    // Into the main menu from the startup or a level: the whole screen
+    // turns over, tile by tile.
+    let screen_turn = new_dialog && *screen == Screen::Main && (last_key.is_empty() || last_key.starts_with("None"));
     if new_dialog {
-        let first_menu = last_key.is_empty() || last_key.starts_with("None");
-        if *screen == Screen::Main && first_menu {
-            // Into the main menu from the startup or a level: the whole
-            // screen flips over, tile by tile.
-            screen_flip(&mut commands, now);
-            play.write(PlayGameSound::ui(FLIP_SOUNDS[1]));
-        }
         *last_key = key;
     }
     if let Ok(mut r) = FRAME_RECT.lock() {
@@ -1969,7 +2005,7 @@ fn rebuild_menu(
                     d.spawn((
                         Node { position_type: PositionType::Absolute, left: units(212.0), top: units(170.0), width: units(225.0), height: units(20.0), align_items: AlignItems::Center, ..default() },
                         children![(
-                            Text::new(if title.is_empty() { String::new() } else { format!("{title}  ") }),
+                            Text::new(if title.is_empty() { String::new() } else { format!("{title} - ") }),
                             TextFont { font: (&fonts.menu).into(), font_size: size, ..default() },
                             TextColor(Color::BLACK),
                             children![(TextSpan::new(subtitle), TextFont { font: (&fonts.title).into(), font_size: size, ..default() }, TextColor(Color::BLACK))],
@@ -2058,7 +2094,7 @@ fn rebuild_menu(
                         d.spawn((
                             Node { position_type: PositionType::Absolute, left: units(212.0), top: units(170.0), width: units(225.0), height: units(20.0), align_items: AlignItems::Center, ..default() },
                             children![(
-                                Text::new(format!("{}  ", c.title.to_uppercase())),
+                                Text::new(format!("{} - ", c.title.to_uppercase())),
                                 TextFont { font: (&fonts.menu).into(), font_size: size, ..default() },
                                 TextColor(Color::BLACK),
                                 children![(TextSpan::new(c.subtitle.to_uppercase()), TextFont { font: (&fonts.title).into(), font_size: size, ..default() }, TextColor(Color::BLACK))],
@@ -2241,9 +2277,17 @@ fn rebuild_menu(
     }
     // A new dialog turns in tile by tile (run_flip draws it off screen
     // meanwhile); a rebuild of the same one just shows.
+    // The pause menus open at once (owner, 2026-10-21).
     let frame = FRAME_RECT.lock().ok().and_then(|r| *r);
-    if let (true, Some(frame), Some(view), Ok(w)) = (new_dialog && *screen != Screen::None, frame, flip.as_deref_mut(), windows.single()) {
-        start_flip(&mut commands, view, frame, now, w.physical_height() as f32);
+    if let (Some(view), Ok(w)) = (flip.as_deref_mut(), windows.single()) {
+        if screen_turn {
+            // run_flip starts it once the menu's map is in; till then the
+            // menu draws off screen.
+            view.pending_screen = true;
+            view.all = true;
+        } else if let (true, Some(frame)) = (new_dialog && *screen != Screen::None && !in_game, frame) {
+            start_flip(&mut commands, view, frame, now, w.physical_height() as f32);
+        }
     }
 }
 

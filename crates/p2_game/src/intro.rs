@@ -1,6 +1,8 @@
 //! The startup sequence of a normal launch (no map argument): the intro
 //! movies listed in `media/startupvids.txt` (Portal 2's is `media/valve.bik`,
-//! the Valve logo with its own audio), a fade, the startup loading screen
+//! the Valve logo with its own audio), a fade (the menu's map loads during
+//! it), then the main menu, flipping in (no startup loading screen, owner
+//! 2026-10-21); formerly the startup loading screen
 //! while the menu's background map loads, then the main menu fading in from
 //! the loading screen (see `loading.rs`). Any key, mouse click or Esc skips
 //! the movie being played. If a movie can't be decoded the whole sequence is
@@ -14,7 +16,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::Mutex;
 
-use crate::level::{GameSet, LevelLoaded, LoadLevel};
+use crate::level::{GameSet, LoadLevel};
 use crate::ui::Screen;
 
 pub struct IntroPlugin {
@@ -53,7 +55,6 @@ const DEFAULT_PLAYLIST: &str = "media/valve.bik";
 enum Phase {
     Movie,
     Fade,
-    Loading,
     #[default]
     Done,
 }
@@ -72,7 +73,6 @@ pub struct Intro {
     camera: Option<Entity>,
     fade_start: f32,
     fade_len: f32,
-    load_frames: u32,
 }
 
 impl Intro {
@@ -249,7 +249,6 @@ fn fit(window: &Window) -> Vec2 {
 fn run_intro(
     mut commands: Commands,
     mut intro: ResMut<Intro>,
-    mut startup: ResMut<StartupLoad>,
     mut screen: ResMut<Screen>,
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Option<Res<ButtonInput<MouseButton>>>,
@@ -260,7 +259,6 @@ fn run_intro(
     mut images: ResMut<Assets<Image>>,
     mut audio: ResMut<Assets<bevy::audio::AudioSource>>,
     mut load: MessageWriter<LoadLevel>,
-    mut loaded: MessageReader<LevelLoaded>,
     windows: Query<&Window, With<PrimaryWindow>>,
     mut nodes: Query<(&mut Node, &mut ImageNode)>,
 ) {
@@ -281,16 +279,19 @@ fn run_intro(
                     img.color = Color::srgba(1.0, 1.0, 1.0, k);
                 }
                 if k <= 0.0 {
-                    // Cut to the loading screen: the menu's map loads behind it.
+                    // Straight to the main menu, which flips in over the
+                    // screen (owner, 2026-10-21: no startup loading screen);
+                    // its map loaded during the fade.
                     if let Some(r) = intro.root.take() {
                         commands.entity(r).despawn();
                     }
                     intro.picture = None;
-                    intro.phase = Phase::Loading;
-                    intro.load_frames = 0;
-                    startup.0 = true;
-                    load.write(LoadLevel { map: crate::ui::menu_background(&campaign), menu: true });
-                    info!("portal2: intro done; startup loading screen");
+                    if let Some(c) = intro.camera.take() {
+                        commands.entity(c).despawn();
+                    }
+                    intro.phase = Phase::Done;
+                    *screen = Screen::Main;
+                    info!("portal2: intro done; main menu");
                 }
                 return;
             }
@@ -389,29 +390,8 @@ fn run_intro(
                     intro.phase = Phase::Fade;
                     intro.fade_start = now;
                     intro.fade_len = if skip { FADE_SKIP } else { FADE_END };
+                    load.write(LoadLevel { map: crate::ui::menu_background(&campaign), menu: true });
                 }
-            }
-        }
-        Phase::Loading => {
-            intro.load_frames += 1;
-            let ready = loaded.read().any(|e| e.menu);
-            if ready {
-                // The menu builds under the loading screen, which fades out; the
-                // level's own camera takes over from the intro's.
-                *screen = Screen::Main;
-                if let Some(c) = intro.camera.take() {
-                    commands.entity(c).despawn();
-                }
-            }
-            if !startup.0 && intro.load_frames > 3 {
-                if !ready && *screen != Screen::Main {
-                    *screen = Screen::Main;
-                }
-                if let Some(c) = intro.camera.take() {
-                    commands.entity(c).despawn();
-                }
-                intro.phase = Phase::Done;
-                info!("portal2: startup sequence finished");
             }
         }
     }

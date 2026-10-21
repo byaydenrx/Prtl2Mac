@@ -33,7 +33,10 @@ pub enum OptionsPage {
     Subtitles,
     Video,
     AdvancedVideo,
-    /// Speedrun Timer, quick restart and practice checkpoints.
+    /// Speedrun Timer, quick restart and practice checkpoints. Off the
+    /// Options list (owner, 2026-10-21); its settings still read from
+    /// settings.cfg and the console, and the page is kept for later.
+    #[allow(dead_code)]
     Speedrun,
     /// The installed mods and the mod profile.
     Mods,
@@ -168,6 +171,8 @@ pub enum Setting {
     Language,
     SoundQuality,
     PuzzleSounds,
+    /// Enable Voice (greyed until voice chat exists).
+    #[allow(dead_code)]
     Voice,
     SubtitleSize,
     SubtitleColor,
@@ -333,8 +338,10 @@ pub enum Row {
     Note { text: String, error: bool },
 }
 
-/// What a [`Row::Command`] does.
+/// What a [`Row::Command`] does. (Setup Microphone and Push To Talk Key
+/// are greyed until voice chat exists; their actions are kept.)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum RowCommand {
     Page(OptionsPage),
     /// Steam's voice settings (Portal 2 opens them in the Steam overlay).
