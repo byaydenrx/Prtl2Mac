@@ -19,6 +19,14 @@
 //!   wave) is a refraction effect and isn't drawn. Inputs `TurnOn`, `TurnOff`,
 //!   `Toggle`, and `JetLength`/`Rate`/`Speed`/`SpreadSpeed` with a value.
 //!   Source's steam makes no sound of its own.
+//! * `env_splash`: input `Splash` plays the game's `water_splash_01/02/03`
+//!   (by `scale`: under 2, under 4, else the big one) pointing up at the
+//!   entity, with `Physics.WaterSplash` (Source's `watersplash` effect).
+//!   The entity is placed on the water by the mapper; spawnflag 1 (find the
+//!   surface below) isn't traced.
+//! * `env_ar2explosion`: input `Explode` throws out a one-shot cloud of
+//!   grey dust puffs (Source's hard-coded `AR2Explosion` noise-sphere
+//!   cloud), drawn like the steam.
 //!
 //! Sparks and steam are Source's hard-coded effects (not `.pcf`), so they are
 //! drawn here: one camera-facing mesh per emitter, rebuilt while it has
@@ -133,6 +141,20 @@ struct MapSystem {
     running: Option<Entity>,
 }
 
+/// The `water_splash_0N` system Source's `watersplash` picks for a scale.
+pub fn splash_system(scale: f32) -> &'static str {
+    if scale < 2.0 {
+        "water_splash_01"
+    } else if scale < 4.0 {
+        "water_splash_02"
+    } else {
+        "water_splash_03"
+    }
+}
+
+/// Puffs in one `env_ar2explosion` cloud.
+pub const DUST_PUFFS: usize = 48;
+
 /// Small deterministic random numbers for sparks and steam.
 #[derive(Clone, Copy, Debug)]
 pub struct Rng(u32);
@@ -238,6 +260,10 @@ fn setup_on_load(
                 };
                 commands.spawn((Name::new(format!("env_spark {}", e.name)), sp, Transform::IDENTITY, Visibility::default(), LevelOwned));
             }
+            "env_ar2explosion" => {
+                let st = SteamJet::dust_cloud(i, Rng::new(rng.next().to_bits() ^ (i as u32) << 5));
+                commands.spawn((Name::new(format!("env_ar2explosion {}", e.name)), st, Transform::IDENTITY, Visibility::default(), LevelOwned));
+            }
             "env_steam" => {
                 let st = SteamJet::from_keyvalues(i, e.spawnflags, &get, Rng::new(rng.next().to_bits() ^ (i as u32) << 3));
                 commands.spawn((Name::new(format!("env_steam {}", e.name)), st, Transform::IDENTITY, Visibility::default(), LevelOwned));
@@ -271,6 +297,8 @@ fn particle_inputs(
     mut effects: Query<&mut ParticleEffect>,
     mut sparks: Query<&mut SparkEmitter>,
     mut jets: Query<&mut SteamJet>,
+    globals: Query<&GlobalTransform>,
+    mut play: MessageWriter<PlayGameSound>,
 ) {
     let Some(ents) = ents else {
         inputs.clear();
@@ -328,6 +356,21 @@ fn particle_inputs(
                     "togglespark" => sp.on = !sp.on,
                     "sparkonce" => sp.once = true,
                     _ => {}
+                }
+            }
+            "env_splash" if msg.input == "splash" => {
+                let at = world_tf(&ents, msg.target, &globals).translation;
+                let scale = ents.list[msg.target].get("scale").and_then(|v| v.trim().parse::<f32>().ok()).unwrap_or(1.0);
+                let mut fx = ParticleEffect::new(splash_system(scale));
+                fx.despawn_when_done = true;
+                // Source's effect normal is straight up: the system's forward.
+                fx.set_cp(0, at, source_basis(Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)));
+                commands.spawn((Name::new("env_splash particles"), fx, LevelOwned));
+                play.write(PlayGameSound { sound: "Physics.WaterSplash".into(), at: Some(at), looped: false, owner: None, music: false, volume: 1.0, voice: None, ui: false });
+            }
+            "env_ar2explosion" if msg.input == "explode" => {
+                if let Some(mut st) = jets.iter_mut().find(|s| s.ent == msg.target) {
+                    st.burst(DUST_PUFFS);
                 }
             }
             "env_steam" => {
@@ -682,6 +725,37 @@ impl SteamJet {
         }
     }
 
+    /// An `env_ar2explosion`: off, grey, slow puffs that grow big; it only
+    /// emits through [`SteamJet::burst`].
+    pub fn dust_cloud(ent: usize, rng: Rng) -> Self {
+        SteamJet {
+            ent,
+            on: false,
+            speed: 60.0,
+            spread: 0.0,
+            start_size: 48.0,
+            end_size: 160.0,
+            rate: 0.0,
+            jet_length: 210.0,
+            color: [0.55, 0.53, 0.5, 0.55],
+            roll_speed: 6.0,
+            emissive: false,
+            heat_wave: false,
+            owed: 0.0,
+            puffs: Vec::new(),
+            rng,
+        }
+    }
+
+    /// `n` puffs at once, every way out from the centre at up to `speed`.
+    pub fn burst(&mut self, n: usize) {
+        for _ in 0..n.min(MAX_PUFFS.saturating_sub(self.puffs.len())) {
+            let v = self.rng.unit() * self.speed * self.rng.range(0.3, 1.0);
+            let roll = self.rng.range(0.0, std::f32::consts::TAU);
+            self.puffs.push(Puff { local: Vec3::ZERO, vel: v, age: 0.0, roll });
+        }
+    }
+
     /// Seconds a puff lives: the time to travel the jet's length.
     pub fn life(&self) -> f32 {
         self.jet_length / self.speed
@@ -848,6 +922,22 @@ mod tests {
             step_sparks(&mut s, 0.1);
         }
         assert!(s.is_empty());
+    }
+
+    #[test]
+    fn splash_and_dust() {
+        assert_eq!(splash_system(1.0), "water_splash_01");
+        assert_eq!(splash_system(3.0), "water_splash_02");
+        assert_eq!(splash_system(16.0), "water_splash_03");
+        let mut d = SteamJet::dust_cloud(0, Rng::new(7));
+        d.step(0.5);
+        assert!(d.puffs.is_empty(), "a dust cloud only emits on Explode");
+        d.burst(DUST_PUFFS);
+        assert_eq!(d.puffs.len(), DUST_PUFFS);
+        d.step(1.0);
+        assert!(d.puffs.iter().all(|p| p.local.length() <= d.speed + 0.01));
+        d.step(d.life());
+        assert!(d.puffs.is_empty(), "the cloud dies out");
     }
 
     #[test]
