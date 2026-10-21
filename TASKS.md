@@ -165,7 +165,19 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 - Shared components for buttons, sliders, highlights, dialogs. Menus don't
   jump or resize when rows change; keyboard focus visible and ordered.
 
-### T-185 Audio settings  (P2, TODO; spec 4)
+### T-185 Audio settings  (P2, ROWS DONE, awaiting owner replay; spec 4)
+- 2026-10-21 rows DONE (unit test + autopilot shot vs the owner's Windows
+  shot): Master Volume, Music Volume, Speaker Configuration, Sound Quality
+  (Low/High), Puzzlemaker Sounds, Closed Captioning (None/Subtitles
+  Only/Full Captions), Closed Captioning Language (Current Game Language
+  + each language; captions load it), Enable Voice (Open Microphone/Push
+  To Talk/Disabled), Push To Talk Key (greyed unless Push To Talk; shows
+  the +voicerecord key, default C; opens Edit Keys on that row), SETUP
+  MICROPHONE (bold; asks Steam to open its voice settings). Saved in
+  settings.cfg. Honest gaps: Sound Quality and Puzzlemaker Sounds are
+  stored only (no puzzle maker; one mixer quality); voice settings have no
+  voice chat to drive in single player; Edit Keys does not yet scroll to
+  the row (T-189).
 - Rows: Sound Quality (Low/High), Puzzle Maker Sounds (Disabled/Enabled),
   Closed Captioning (renamed from Captioning: None/Subtitles Only/Full
   Captions), Closed Captioning Language, Enable Voice (Open Microphone/Push
@@ -176,7 +188,17 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 - Settings must work (caption level, language where supported); Steam/voice
   features fail gracefully.
 
-### T-186 Video settings  (P2, TODO; spec 5, 14)
+### T-186 Video settings  (P2, ROWS DONE, display switching not replayed; spec 5, 14)
+- 2026-10-21 rows DONE (unit test + autopilot shot): Aspect Ratio
+  (Widescreen 16:9 / 16:10 / Normal 4:3 as the Windows shot spells
+  them), Resolution (the display's own modes; native marked "(Native)"),
+  Display Mode (Windowed (No Border) = borderless over the screen,
+  Fullscreen = exclusive at the chosen size or the display's mode, Run in
+  a Window), Laptop Power Savings (caps at 30 fps), Splitscreen Direction
+  (Default/Vertical; stored, no splitscreen), ADVANCED VIDEO (bold).
+  Brightness only shows in Fullscreen, as in Portal 2. Apply applies the
+  display change. Mode switching was not tried on a real display (the
+  autopilot stays windowed): owner replay needed.
 - Rows: Aspect Ratio (16:9 / 16:10 / 4:3, default from the display),
   Resolution (the display's real modes, native marked "(Native)" and
   default), Display Mode (Windowed (No Border)/Fullscreen/Run in a Window,
@@ -198,7 +220,10 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   (Discard leaves and drops, Cancel stays and keeps). Map each to the
   closest real renderer setting, nothing purely decorative.
 
-### T-188 Controller settings  (P2, TODO; spec 7)
+### T-188 Controller settings  (P2, ROW DONE, input not wired; spec 7)
+- 2026-10-21 the page has only Controller Enabled/Disabled (saved). The
+  game still reads no gamepad at all, so the setting has nothing to
+  switch yet: gamepad input is its own job.
 - Only "Controller" Enabled/Disabled; really toggles controller input;
   persists.
 
@@ -220,7 +245,15 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   real action, handles conflicts, can be cancelled, persists over restart;
   deep link scrolls to and highlights a binding.
 
-### T-190 Sliders  (P2, TODO; spec 9)
+### T-190 Sliders  (P2, FIXED, awaiting owner replay; spec 9)
+- 2026-10-21 FIXED (autopilot shots vs the owner's Keyboard/Mouse shot):
+  one shared tiled slider: 130 x 6 track (150 grey) filled black (white
+  on the hovered row), the small grey arrow above it, no side arrows,
+  label 2.5 units higher. On Windows the arrow marks the value the dialog
+  opened with (Sensitivity's sits at the saved 3; Acceleration's stays
+  put while the fill moves), so ours marks the value the page opened
+  with, which is the default until you change it. Sensitivity range now
+  keyboardmouse.res's 1..20.
 - Small arrow above the slider at its default value; no side arrows; one
   shared slider for every use; values in range, mouse and keyboard.
 

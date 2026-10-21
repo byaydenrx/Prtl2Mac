@@ -195,10 +195,29 @@ pub struct Settings {
     pub resolution: Option<UVec2>,
     /// `mat_vsync`: Fifo when on, AutoNoVsync when off.
     pub vsync: bool,
+    /// `mat_triplebuffered`: with vsync, three frames queued instead of two.
+    pub triple_buffer: bool,
+    /// Display Mode "Windowed (No Border)": a borderless window over the
+    /// whole screen (`fullscreen` is then off).
+    pub borderless: bool,
+    /// Laptop Power Savings (`mat_powersavingsmode`): 30 fps at most.
+    pub power_savings: bool,
+    /// Splitscreen Direction vertical (`ss_splitmode 2`). Single player
+    /// only, so it has nothing to split yet.
+    pub splitscreen_vertical: bool,
+    /// Sound Quality high (`snd_pitchquality`).
+    pub sound_quality_high: bool,
+    /// Puzzle Maker Sounds (`puzzlemaker_play_sounds`); no puzzle maker yet.
+    pub puzzlemaker_sounds: bool,
+    /// Enable Voice: 0 Open Microphone, 1 Push to Talk, 2 Disabled
+    /// (`voice_enable`, `voice_vox`). No voice chat in single player.
+    pub voice_mode: u8,
+    /// Acceleration Amount (`m_customaccel_exponent`, 1 to 1.4).
+    pub accel_exponent: f32,
     /// `fps_max`, 0 is unlimited.
     pub frame_limit: u32,
-    /// `mat_antialias`: MSAA 4x on the screen cameras when on (Bevy's default).
-    pub msaa: bool,
+    /// `mat_antialias`: MSAA samples on the screen cameras, 0, 2 or 4.
+    pub msaa: u8,
     /// `mat_forceaniso`, one of [`ANISOTROPY`].
     pub anisotropy: u16,
     /// The Original / Enhanced graphics preset. Only stored for now; see
@@ -268,8 +287,16 @@ impl Default for Settings {
             fullscreen: false,
             resolution: None,
             vsync: true,
+            triple_buffer: false,
+            borderless: false,
+            power_savings: false,
+            splitscreen_vertical: false,
+            sound_quality_high: true,
+            puzzlemaker_sounds: true,
+            voice_mode: 0,
+            accel_exponent: 1.05,
             frame_limit: 0,
-            msaa: true,
+            msaa: 4,
             anisotropy: 16,
             enhanced_graphics: false,
             raw_input: true,
@@ -281,7 +308,8 @@ impl Default for Settings {
             joy_vibration: true,
             speakers: Speakers::Stereo,
             captions: CaptionMode::Subtitles,
-            language: "english".into(),
+            // Empty: the game's own language ("Current Game Language").
+            language: String::new(),
             gamma: 2.2,
             trilinear: true,
             motion_blur: true,
@@ -378,7 +406,15 @@ pub fn frame_limit_rank(fps: u32) -> f32 {
 }
 
 /// Every key this version reads and writes.
-const KEYS: [&str; 38] = [
+const KEYS: [&str; 46] = [
+    "mat_triplebuffered",
+    "noborder",
+    "mat_powersavingsmode",
+    "ss_splitmode",
+    "snd_pitchquality",
+    "puzzlemaker_play_sounds",
+    "voice_mode",
+    "m_customaccel_exponent",
     "volume",
     "snd_musicvolume",
     "snd_effectsvolume",
@@ -420,6 +456,25 @@ const KEYS: [&str; 38] = [
 ];
 
 impl Settings {
+    /// The frame cap in force: Laptop Power Savings holds it to 30.
+    pub fn frame_cap(&self) -> u32 {
+        match (self.power_savings, self.frame_limit) {
+            (true, 0) => 30,
+            (true, f) => f.min(30),
+            (false, f) => f,
+        }
+    }
+
+    /// The caption language: `language`, or the game's own (English) for
+    /// "Current Game Language".
+    pub fn caption_language(&self) -> &str {
+        if self.language.is_empty() {
+            "english"
+        } else {
+            &self.language
+        }
+    }
+
     pub fn load() -> Self {
         match std::fs::read_to_string(data_dir().join("settings.cfg")) {
             Ok(text) => Self::parse(&text),
@@ -454,12 +509,20 @@ impl Settings {
                 ("resolution", _) => s.resolution = parse_resolution(v),
                 ("mat_vsync", Some(f)) => s.vsync = f != 0.0,
                 ("fps_max", Some(f)) => s.frame_limit = if f < 1.0 { 0 } else { f.clamp(10.0, 1000.0) as u32 },
-                ("mat_antialias", Some(f)) => s.msaa = f >= 2.0,
+                ("mat_antialias", Some(f)) => s.msaa = if f >= 4.0 { 4 } else if f >= 2.0 { 2 } else { 0 },
+                ("mat_triplebuffered", Some(f)) => s.triple_buffer = f != 0.0,
+                ("noborder", Some(f)) => s.borderless = f != 0.0,
+                ("mat_powersavingsmode", Some(f)) => s.power_savings = f != 0.0,
+                ("ss_splitmode", Some(f)) => s.splitscreen_vertical = f == 2.0,
+                ("snd_pitchquality", Some(f)) => s.sound_quality_high = f != 0.0,
+                ("puzzlemaker_play_sounds", Some(f)) => s.puzzlemaker_sounds = f != 0.0,
+                ("voice_mode", Some(f)) => s.voice_mode = f.clamp(0.0, 2.0) as u8,
+                ("m_customaccel_exponent", Some(f)) => s.accel_exponent = f.clamp(1.0, 1.4),
                 ("mat_forceaniso", Some(f)) => s.anisotropy = ANISOTROPY.into_iter().rfind(|a| *a as f32 <= f).unwrap_or(1),
                 ("enhanced_graphics", Some(f)) => s.enhanced_graphics = f != 0.0,
                 ("cc_subtitles", Some(f)) => cc_subtitles = Some(f != 0.0),
                 ("closecaption", Some(f)) => closecaption = Some(f != 0.0),
-                ("cc_lang", _) if LANGUAGES.contains(&v.to_ascii_lowercase().as_str()) => s.language = v.to_ascii_lowercase(),
+                ("cc_lang", _) if v.is_empty() || LANGUAGES.contains(&v.to_ascii_lowercase().as_str()) => s.language = v.to_ascii_lowercase(),
                 ("m_rawinput", Some(f)) => s.raw_input = f != 0.0,
                 ("m_customaccel", Some(f)) => s.mouse_accel = f != 0.0,
                 ("joystick", Some(f)) => s.joystick = f != 0.0,
@@ -525,7 +588,7 @@ impl Settings {
             res,
             self.vsync as u8,
             self.frame_limit,
-            if self.msaa { 4 } else { 0 },
+            self.msaa,
             self.anisotropy,
             self.enhanced_graphics as u8,
             (self.captions == CaptionMode::Subtitles) as u8,
@@ -550,6 +613,17 @@ impl Settings {
             self.model_detail,
             self.paged_pool,
         );
+        text.push_str(&format!(
+            "mat_triplebuffered {}\nnoborder {}\nmat_powersavingsmode {}\nss_splitmode {}\nsnd_pitchquality {}\npuzzlemaker_play_sounds {}\nvoice_mode {}\nm_customaccel_exponent {}\n",
+            self.triple_buffer as u8,
+            self.borderless as u8,
+            self.power_savings as u8,
+            if self.splitscreen_vertical { 2 } else { 1 },
+            self.sound_quality_high as u8,
+            self.puzzlemaker_sounds as u8,
+            self.voice_mode,
+            self.accel_exponent,
+        ));
         text.push_str(&self.tools.to_text());
         if let Some(b) = &self.binds {
             text.push_str(&b.to_lines());
@@ -626,7 +700,11 @@ fn apply_settings(
     }
     // The main view and the viewmodel share the window, so they share MSAA.
     // (Portal views render to their own textures without it.)
-    let msaa = if settings.msaa { Msaa::Sample4 } else { Msaa::Off };
+    let msaa = match settings.msaa {
+        4.. => Msaa::Sample4,
+        2..=3 => Msaa::Sample2,
+        _ => Msaa::Off,
+    };
     for mut m in &mut screen_cams {
         if *m != msaa {
             *m = msaa;
@@ -646,12 +724,20 @@ fn apply_settings(
         if w.present_mode != present {
             w.present_mode = present;
         }
+        // Triple buffering: Metal's layer queues up to three drawables;
+        // double buffered keeps two in flight.
+        let latency = std::num::NonZeroU32::new(if settings.vsync && settings.triple_buffer { 3 } else { 2 });
+        if w.desired_maximum_frame_latency != latency {
+            w.desired_maximum_frame_latency = latency;
+        }
         if launch_size.is_none() && w.mode == WindowMode::Windowed {
             *launch_size = Some(w.resolution.size());
         }
         let resolution = settings.resolution.filter(|_| !scripted);
-        let want = if !settings.fullscreen || scripted {
+        let want = if scripted || (!settings.fullscreen && !settings.borderless) {
             WindowMode::Windowed
+        } else if settings.borderless {
+            WindowMode::BorderlessFullscreen(MonitorSelection::Current)
         } else {
             // A fixed size takes the monitor's video mode of that size (its
             // fastest); without one, borderless at the monitor's own size.
@@ -663,9 +749,11 @@ fn apply_settings(
             if resolution.is_some() && mode.is_none() {
                 warn!("portal2: no {:?} fullscreen mode on this monitor; using its native size", resolution);
             }
+            // Fullscreen takes the display (exclusive); native keeps the
+            // display's own mode. Windowed (No Border) is the borderless one.
             match mode {
                 Some(m) => WindowMode::Fullscreen(MonitorSelection::Current, VideoModeSelection::Specific(m)),
-                None => WindowMode::BorderlessFullscreen(MonitorSelection::Current),
+                None => WindowMode::Fullscreen(MonitorSelection::Current, VideoModeSelection::Current),
             }
         };
         if w.mode != want {
@@ -674,7 +762,7 @@ fn apply_settings(
         // Size a window only when its size or mode setting changes, so the
         // player's own resizing stays; native goes back to the launch size.
         let res_changed = applied.as_ref().is_some_and(|a| a.resolution != settings.resolution);
-        let mode_changed = applied.as_ref().is_none_or(|a| a.fullscreen != settings.fullscreen);
+        let mode_changed = applied.as_ref().is_none_or(|a| a.fullscreen != settings.fullscreen || a.borderless != settings.borderless);
         if want == WindowMode::Windowed && !scripted {
             match (resolution, *launch_size) {
                 // The setting is in pixels (as Portal 2's is), not points.
@@ -718,11 +806,11 @@ pub fn update_spin(spin: Duration, over: Duration) -> Duration {
 /// start time with a coarse sleep and a spin over the last bit, so frames
 /// come out evenly spaced.
 fn limit_frame_rate(settings: Res<Settings>, mut deadline: Local<Option<Instant>>, mut spin: Local<Option<Duration>>) {
-    if settings.frame_limit == 0 {
+    if settings.frame_cap() == 0 {
         *deadline = None;
         return;
     }
-    let period = Duration::from_secs_f64(1.0 / settings.frame_limit as f64);
+    let period = Duration::from_secs_f64(1.0 / settings.frame_cap() as f64);
     let target = next_deadline(*deadline, Instant::now(), period);
     let mut margin = spin.unwrap_or(Duration::from_millis(1));
     loop {
@@ -763,7 +851,15 @@ mod tests {
             resolution: Some(UVec2::new(2560, 1440)),
             vsync: false,
             frame_limit: 144,
-            msaa: false,
+            msaa: 2,
+            triple_buffer: true,
+            borderless: true,
+            power_savings: true,
+            splitscreen_vertical: true,
+            sound_quality_high: false,
+            puzzlemaker_sounds: false,
+            voice_mode: 1,
+            accel_exponent: 1.3,
             anisotropy: 4,
             enhanced_graphics: true,
             captions: CaptionMode::ClosedCaptions,
@@ -826,7 +922,8 @@ mod tests {
         // Windowed and subtitled: the owner's choice over Portal 2's own.
         assert!(!s.fullscreen && s.resolution.is_none() && s.vsync);
         assert_eq!(s.captions, CaptionMode::Subtitles);
-        assert_eq!(s.language, "english");
+        // Captions in the game's own language ("Current Game Language").
+        assert_eq!((s.language.as_str(), s.caption_language()), ("", "english"));
         assert_eq!(s.gamma, 2.2);
         assert!(!s.invert_mouse && !s.mouse_filter && !s.mouse_accel);
         assert_eq!(s.speakers, Speakers::Stereo);
@@ -852,7 +949,7 @@ mod tests {
             let s = Settings { captions: m, ..Settings::default() };
             assert_eq!(Settings::parse(&s.to_text()).captions, m);
         }
-        assert_eq!(Settings::parse("cc_lang klingon\n").language, "english");
+        assert_eq!(Settings::parse("cc_lang klingon\n").language, "");
         assert_eq!(Settings::parse("cc_lang \"German\"\n").language, "german");
     }
 

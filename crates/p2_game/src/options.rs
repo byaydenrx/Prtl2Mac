@@ -151,20 +151,20 @@ pub enum Setting {
     // Keyboard / mouse
     Sensitivity,
     Invert,
-    Smoothing,
     Accel,
+    AccelAmount,
     RawInput,
     // Controller
     Joystick,
-    JoySensitivity,
-    JoyInvert,
-    JoyVibration,
     // Audio
     Master,
     Music,
     Speakers,
     Captions,
     Language,
+    SoundQuality,
+    PuzzleSounds,
+    Voice,
     SubtitleSize,
     SubtitleColor,
     SubtitleBackground,
@@ -173,6 +173,8 @@ pub enum Setting {
     Aspect,
     DisplayMode,
     Brightness,
+    PowerSavings,
+    Splitscreen,
     // Advanced video
     ModelDetail,
     EffectDetail,
@@ -209,16 +211,30 @@ pub enum Setting {
 pub struct VideoMode {
     pub resolution: Option<UVec2>,
     pub fullscreen: bool,
+    pub borderless: bool,
 }
 
 impl VideoMode {
     pub fn of(s: &Settings) -> Self {
-        Self { resolution: s.resolution, fullscreen: s.fullscreen }
+        Self { resolution: s.resolution, fullscreen: s.fullscreen, borderless: s.borderless }
     }
 
     pub fn apply(self, s: &mut Settings) {
         s.resolution = self.resolution;
         s.fullscreen = self.fullscreen;
+        s.borderless = self.borderless;
+    }
+
+    /// Display Mode, in the menu's order: Windowed (No Border),
+    /// Fullscreen, Run in a Window, as (fullscreen, borderless).
+    pub const MODES: [(bool, bool); 3] = [(false, true), (true, false), (false, false)];
+
+    pub fn label(self) -> &'static str {
+        match (self.fullscreen, self.borderless) {
+            (_, true) => "Windowed (No Border)",
+            (true, false) => "Fullscreen",
+            (false, false) => "Run in a Window",
+        }
     }
 }
 
@@ -249,9 +265,10 @@ impl Aspect {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::Normal => "Normal (4:3)",
-            Self::Wide16x9 => "Widescreen (16:9)",
-            Self::Wide16x10 => "Widescreen (16:10)",
+            // As Windows Portal 2 shows them (owner's Video shot).
+            Self::Normal => "Normal 4:3",
+            Self::Wide16x9 => "Widescreen 16:9",
+            Self::Wide16x10 => "Widescreen 16:10",
         }
     }
 }
@@ -280,6 +297,8 @@ pub struct Ctx<'a> {
     pub selected: Option<usize>,
     /// The Mods page's view of the mod store.
     pub mods: Option<&'a ModsPage>,
+    /// The page's settings as it was opened: sliders mark where they were.
+    pub base: Option<&'a Settings>,
 }
 
 /// One line of a page.
@@ -289,8 +308,16 @@ pub enum Row {
     Heading(String),
     /// `label   < value >`; clicking the value steps forward, wrapping.
     Choice { label: String, value: String, setting: Setting },
-    /// A slider at `fraction` 0..1 with its value written next to it.
-    Slider { label: String, value: String, fraction: f32, setting: Setting },
+    /// A slider at `fraction` 0..1 with its value written next to it;
+    /// `mark` is where the small arrow above it points (the value the page
+    /// opened with).
+    Slider { label: String, value: String, fraction: f32, mark: f32, setting: Setting },
+    /// A greyed row that can't be changed (Push To Talk Key without push
+    /// to talk).
+    Disabled { label: String, value: String },
+    /// A bold upper-case button row that does something else: open a page,
+    /// Setup Microphone, or the Push To Talk Key binding (`value` shown).
+    Command { label: String, value: String, command: RowCommand },
     /// Opens another page.
     Link { label: String, page: OptionsPage },
     /// A key-list row: the command's keys; `index` into the key list.
@@ -302,6 +329,19 @@ pub enum Row {
     /// A line of text; `error` shows it as a problem.
     Note { text: String, error: bool },
 }
+
+/// What a [`Row::Command`] does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RowCommand {
+    Page(OptionsPage),
+    /// Steam's voice settings (Portal 2 opens them in the Steam overlay).
+    SetupMicrophone,
+    /// Edit Keys/Buttons, scrolled to and picking Push To Talk.
+    PushToTalkKey,
+}
+
+/// The command Push To Talk binds (kb_act.lst).
+pub const PUSH_TO_TALK: &str = "+voicerecord";
 
 fn choice(label: &str, value: impl Into<String>, setting: Setting) -> Row {
     Row::Choice { label: label.into(), value: value.into(), setting }
@@ -328,8 +368,10 @@ fn level(v: u8) -> &'static str {
 pub fn slider_range(setting: Setting) -> Option<(f32, f32, f32)> {
     Some(match setting {
         Setting::Master | Setting::Music | Setting::SubtitleBackground => (0.0, 1.0, 0.1),
-        Setting::Sensitivity => (0.5, 20.0, 0.5),
-        Setting::JoySensitivity => (0.2, 3.0, 0.2),
+        // keyboardmouse.res SldMouseSensitivity 1..20, SldMouseAcceleration
+        // (m_customaccel_exponent) 1..1.4 by 0.01.
+        Setting::Sensitivity => (1.0, 20.0, 0.5),
+        Setting::AccelAmount => (1.0, 1.4, 0.01),
         Setting::Brightness => GAMMA_RANGE_BRIGHTNESS,
         Setting::Fov => (FOV_RANGE.0, FOV_RANGE.1, 5.0),
         _ => return None,
@@ -347,7 +389,7 @@ pub fn slider_value(s: &Settings, setting: Setting) -> f32 {
         Setting::Music => s.music_volume,
         Setting::SubtitleBackground => s.subtitle_background,
         Setting::Sensitivity => s.mouse_sensitivity,
-        Setting::JoySensitivity => s.joy_sensitivity,
+        Setting::AccelAmount => s.accel_exponent,
         Setting::Brightness => GAMMA_SUM - s.gamma,
         Setting::Fov => s.fov,
         _ => 0.0,
@@ -365,30 +407,42 @@ pub fn set_slider(s: &mut Settings, setting: Setting, v: f32) {
         Setting::Music => s.music_volume = v,
         Setting::SubtitleBackground => s.subtitle_background = v,
         Setting::Sensitivity => s.mouse_sensitivity = v,
-        Setting::JoySensitivity => s.joy_sensitivity = v,
+        Setting::AccelAmount => s.accel_exponent = v,
         Setting::Brightness => s.gamma = ((GAMMA_SUM - v) * 1000.0).round() / 1000.0,
         Setting::Fov => s.fov = v,
         _ => {}
     }
 }
 
-fn slider(s: &Settings, label: &str, setting: Setting) -> Row {
+fn slider(s: &Settings, ctx: &Ctx, label: &str, setting: Setting) -> Row {
     let (lo, hi, _) = slider_range(setting).unwrap_or((0.0, 1.0, 0.1));
     let v = slider_value(s, setting);
+    let at = |v: f32| ((v - lo) / (hi - lo)).clamp(0.0, 1.0);
+    let mark = at(slider_value(ctx.base.unwrap_or(s), setting));
     let value = match setting {
         Setting::Master | Setting::Music | Setting::SubtitleBackground => format!("{:.0}%", v * 100.0),
         Setting::Brightness => format!("{:.0}%", (v - lo) / (hi - lo) * 100.0),
         Setting::Fov => format!("{v:.0}"),
+        Setting::AccelAmount => format!("{v:.2}"),
         _ => format!("{v:.1}"),
     };
-    Row::Slider { label: label.into(), value, fraction: ((v - lo) / (hi - lo)).clamp(0.0, 1.0), setting }
+    Row::Slider { label: label.into(), value, fraction: at(v), mark, setting }
 }
 
+/// basemodui_english L4D360UI_AudioOptions_Caption*.
 pub fn caption_label(m: CaptionMode) -> &'static str {
     match m {
-        CaptionMode::Off => "Off",
-        CaptionMode::Subtitles => "Subtitles (dialogue only)",
-        CaptionMode::ClosedCaptions => "Closed captions",
+        CaptionMode::Off => "None",
+        CaptionMode::Subtitles => "Subtitles Only",
+        CaptionMode::ClosedCaptions => "Full Captions",
+    }
+}
+
+pub fn voice_label(v: u8) -> &'static str {
+    match v {
+        0 => "Open Microphone",
+        1 => "Push To Talk",
+        _ => "Disabled",
     }
 }
 
@@ -402,9 +456,11 @@ pub fn speakers_label(s: Speakers) -> &'static str {
     }
 }
 
-/// `english` -> `English`; Steam's odd names spelled out.
+/// `english` -> `English`; Steam's odd names spelled out; empty is the
+/// game's own language.
 pub fn language_label(l: &str) -> String {
     match l {
+        "" => "Current Game Language".into(),
         "latam" => "Spanish (Latin America)".into(),
         "brazilian" => "Portuguese (Brazil)".into(),
         "koreana" => "Korean".into(),
@@ -424,22 +480,27 @@ pub fn filtering_label(s: &Settings) -> String {
     }
 }
 
+/// `3008 x 1692 (Native)` for the display's own size, as Portal 2 lists it.
 pub fn resolution_label(r: Option<UVec2>, native: UVec2) -> String {
-    let r = r.unwrap_or(native);
-    format!("{} x {}", r.x, r.y)
+    let size = r.unwrap_or(native);
+    if size == native {
+        format!("{} x {} (Native)", size.x, size.y)
+    } else {
+        format!("{} x {}", size.x, size.y)
+    }
 }
 
 /// The rows of `page`.
 pub fn rows(page: OptionsPage, s: &Settings, ctx: &Ctx) -> Vec<Row> {
     match page {
         OptionsPage::List => list_rows(),
-        OptionsPage::KeyboardMouse => keyboard_mouse_rows(s),
+        OptionsPage::KeyboardMouse => keyboard_mouse_rows(s, ctx),
         OptionsPage::Keys => key_rows(ctx),
         OptionsPage::Controller => controller_rows(s),
-        OptionsPage::Audio => audio_rows(s),
-        OptionsPage::Subtitles => subtitle_rows(s),
+        OptionsPage::Audio => audio_rows(s, ctx),
+        OptionsPage::Subtitles => subtitle_rows(s, ctx),
         OptionsPage::Video => video_rows(s, ctx),
-        OptionsPage::AdvancedVideo => advanced_video_rows(s),
+        OptionsPage::AdvancedVideo => advanced_video_rows(s, ctx),
         OptionsPage::Speedrun => speedrun_rows(s),
         OptionsPage::Mods => mods_rows(ctx),
     }
@@ -512,19 +573,19 @@ fn mods_rows(ctx: &Ctx) -> Vec<Row> {
     rows
 }
 
-fn keyboard_mouse_rows(s: &Settings) -> Vec<Row> {
-    // keyboardmouse.res order (!$OSX), labels from basemodui/gameui
-    // _english: BtnEditBindings, DrpMouseYInvert, SldMouseSensitivity,
-    // DrpRawMouse, DrpMouseAcceleration, (SldMouseAcceleration: no
-    // exponent setting here), DrpDeveloperConsole; our mouse filter last.
+fn keyboard_mouse_rows(s: &Settings, ctx: &Ctx) -> Vec<Row> {
+    // keyboardmouse.res order (!$OSX) and the owner's Windows shot: Edit
+    // Keys/Buttons (a bold button), Reverse Mouse, Mouse Sensitivity, Raw
+    // Mouse Input, Mouse Acceleration, Acceleration Amount, Allow
+    // Developer Console. (Mouse filter has no row in Portal 2.)
     vec![
-        Row::Link { label: "Edit keys/buttons".into(), page: OptionsPage::Keys },
+        Row::Command { label: "Edit Keys/Buttons".into(), value: String::new(), command: RowCommand::Page(OptionsPage::Keys) },
         choice("Reverse Mouse", on_off(s.invert_mouse), Setting::Invert),
-        slider(s, "Mouse Sensitivity", Setting::Sensitivity),
+        slider(s, ctx, "Mouse Sensitivity", Setting::Sensitivity),
         choice("Raw Mouse Input", on_off(s.raw_input), Setting::RawInput),
         choice("Mouse Acceleration", on_off(s.mouse_accel), Setting::Accel),
+        slider(s, ctx, "Acceleration Amount", Setting::AccelAmount),
         choice("Allow Developer Console", on_off(s.tools.dev_console), Setting::DevConsole),
-        choice("Mouse Filter", on_off(s.mouse_filter), Setting::Smoothing),
     ]
 }
 
@@ -552,75 +613,93 @@ fn key_rows(ctx: &Ctx) -> Vec<Row> {
 }
 
 fn controller_rows(s: &Settings) -> Vec<Row> {
-    // controlleroptions.res order (PC), labels from basemodui/portal2
-    // _english: DrpController, (BtnEditButtons, BtnEditSticks: not built),
-    // SldVertSens + SldHorizSens (one joy_sensitivity here),
-    // DrpVerticalLookType, (DrpHorizontalLookType: no yaw invert),
-    // DrpVibration, (SldAcceleration, BtnDefaults: not built).
+    // Owner spec 2026-10-21: only Controller, Enabled/Disabled, for now.
+    vec![choice("Controller", on_off(s.joystick), Setting::Joystick)]
+}
+
+fn audio_rows(s: &Settings, ctx: &Ctx) -> Vec<Row> {
+    // As the owner's Windows shot lists them.
+    let ptt = ctx.binds.keys_for(PUSH_TO_TALK).first().map(|k| key_label(k)).unwrap_or_default();
     vec![
-        choice("Controller", on_off(s.joystick), Setting::Joystick),
-        slider(s, "Look Sensitivity", Setting::JoySensitivity),
-        choice("Vertical Look Type", if s.joy_invert { "Inverted" } else { "Normal" }, Setting::JoyInvert),
-        choice("Vibration", on_off(s.joy_vibration), Setting::JoyVibration),
+        slider(s, ctx, "Master Volume", Setting::Master),
+        slider(s, ctx, "Music Volume", Setting::Music),
+        choice("Speaker Configuration", speakers_label(s.speakers), Setting::Speakers),
+        choice("Sound Quality", if s.sound_quality_high { "High" } else { "Low" }, Setting::SoundQuality),
+        choice("Puzzlemaker Sounds", on_off(s.puzzlemaker_sounds), Setting::PuzzleSounds),
+        choice("Closed Captioning", caption_label(s.captions), Setting::Captions),
+        choice("Closed Captioning Language", language_label(&s.language), Setting::Language),
+        choice("Enable Voice", voice_label(s.voice_mode), Setting::Voice),
+        if s.voice_mode == 1 {
+            Row::Command { label: "Push To Talk Key".into(), value: ptt, command: RowCommand::PushToTalkKey }
+        } else {
+            Row::Disabled { label: "Push To Talk Key".into(), value: ptt }
+        },
+        Row::Command { label: "Setup Microphone".into(), value: String::new(), command: RowCommand::SetupMicrophone },
     ]
 }
 
-fn audio_rows(s: &Settings) -> Vec<Row> {
-    vec![
-        slider(s, "Game volume", Setting::Master),
-        slider(s, "Music volume", Setting::Music),
-        choice("Speaker configuration", speakers_label(s.speakers), Setting::Speakers),
-        choice("Captioning", caption_label(s.captions), Setting::Captions),
-        choice("Language", language_label(&s.language), Setting::Language),
-    ]
-}
-
-fn subtitle_rows(s: &Settings) -> Vec<Row> {
+fn subtitle_rows(s: &Settings, ctx: &Ctx) -> Vec<Row> {
     let size = SUBTITLE_SIZES.iter().find(|z| z.0 == s.subtitle_size).map_or(format!("{:.0}", s.subtitle_size), |z| language_label(&z.1.to_lowercase()));
     let color = format!("{:?}", s.subtitle_color);
     vec![
-        choice("Text size", size, Setting::SubtitleSize),
-        choice("Text colour", color, Setting::SubtitleColor),
-        slider(s, "Background", Setting::SubtitleBackground),
+        choice("Text Size", size, Setting::SubtitleSize),
+        choice("Text Colour", color, Setting::SubtitleColor),
+        slider(s, ctx, "Background", Setting::SubtitleBackground),
     ]
 }
 
 fn video_rows(s: &Settings, ctx: &Ctx) -> Vec<Row> {
     let v = ctx.video;
     let size = v.resolution.unwrap_or(ctx.native);
-    // video.res order: SldBrightness, DrpAspectRatio, DrpResolution,
-    // DrpDisplayMode, (power savings, split screen: not built), BtnAdvanced.
-    // Portal 2 hides Brightness when windowed (mat_monitorgamma only acts
-    // fullscreen there); ours works in a window, so it stays.
-    vec![
-        slider(s, "Brightness", Setting::Brightness),
-        choice("Aspect ratio", Aspect::of(size).label(), Setting::Aspect),
+    // video.res order and the owner's Windows shot. Portal 2 only shows
+    // Brightness in fullscreen (mat_monitorgamma acts there).
+    let mut rows = Vec::new();
+    if v.fullscreen && !v.borderless {
+        rows.push(slider(s, ctx, "Brightness", Setting::Brightness));
+    }
+    rows.extend([
+        choice("Aspect Ratio", Aspect::of(size).label(), Setting::Aspect),
         choice("Resolution", resolution_label(v.resolution, ctx.native), Setting::Resolution),
-        choice("Display mode", if v.fullscreen { "Fullscreen" } else { "Windowed" }, Setting::DisplayMode),
-        Row::Link { label: "Advanced video".into(), page: OptionsPage::AdvancedVideo },
-    ]
+        choice("Display Mode", v.label(), Setting::DisplayMode),
+        choice("Laptop Power Savings", on_off(s.power_savings), Setting::PowerSavings),
+        choice("Splitscreen Direction", if s.splitscreen_vertical { "Vertical" } else { "Default" }, Setting::Splitscreen),
+        Row::Command { label: "Advanced Video".into(), value: String::new(), command: RowCommand::Page(OptionsPage::AdvancedVideo) },
+    ]);
+    rows
 }
 
-fn advanced_video_rows(s: &Settings) -> Vec<Row> {
+fn vsync_label(s: &Settings) -> &'static str {
+    match (s.vsync, s.triple_buffer) {
+        (false, _) => "Disabled",
+        (true, false) => "Enabled (Double Buffered)",
+        (true, true) => "Enabled (Triple Buffered)",
+    }
+}
+
+fn advanced_video_rows(s: &Settings, ctx: &Ctx) -> Vec<Row> {
     let frame_limit = if s.frame_limit == 0 { "Unlimited".into() } else { format!("{} FPS", s.frame_limit) };
-    // advancedvideo.res order: DrpAntialias, DrpFiltering, DrpVSync,
-    // DrpQueuedMode (our multicore rendering), DrpShaderDetail, DrpCPUDetail
-    // (effect detail), DrpModelDetail, DrpPagedPoolMem; ours follow.
+    let aa = match s.msaa {
+        4.. => "4x MSAA",
+        2..=3 => "2x MSAA",
+        _ => "None",
+    };
+    // advancedvideo.res order (owner spec: exactly these eight first); our
+    // own settings follow.
     vec![
-        choice("Anti-aliasing mode", if s.msaa { "4x MSAA" } else { "None" }, Setting::AntiAliasing),
-        choice("Filtering mode", filtering_label(s), Setting::Filtering),
-        choice("Wait for vertical sync", on_off(s.vsync), Setting::VSync),
-        choice("Multicore rendering", on_off(s.multicore), Setting::Multicore),
-        choice("Shader detail", level(s.shader_detail), Setting::ShaderDetail),
-        choice("Effect detail", level(s.effect_detail), Setting::EffectDetail),
-        choice("Model / texture detail", level(s.model_detail), Setting::ModelDetail),
-        choice("Paged pool memory available", level(s.paged_pool), Setting::PagedPool),
-        choice("Motion blur", on_off(s.motion_blur), Setting::MotionBlur),
-        slider(s, "Field of view", Setting::Fov),
-        choice("Max frame rate", frame_limit, Setting::FrameLimit),
+        choice("Anti-Aliasing Mode", aa, Setting::AntiAliasing),
+        choice("Filtering Mode", filtering_label(s), Setting::Filtering),
+        choice("Wait For Vertical Sync", vsync_label(s), Setting::VSync),
+        choice("Multicore Rendering", on_off(s.multicore), Setting::Multicore),
+        choice("Shader Detail", level(s.shader_detail), Setting::ShaderDetail),
+        choice("Effect Detail", level(s.effect_detail), Setting::EffectDetail),
+        choice("Model / Texture Detail", level(s.model_detail), Setting::ModelDetail),
+        choice("Paged Pool Memory Available", level(s.paged_pool), Setting::PagedPool),
+        choice("Motion Blur", on_off(s.motion_blur), Setting::MotionBlur),
+        slider(s, ctx, "Field Of View", Setting::Fov),
+        choice("Max Frame Rate", frame_limit, Setting::FrameLimit),
         choice("Graphics", if s.enhanced_graphics { "Enhanced" } else { "Original" }, Setting::Graphics),
-        choice("Show frame rate", on_off(s.tools.show_fps), Setting::ShowFps),
-        choice("Show movement stats", on_off(s.tools.show_pos), Setting::ShowPos),
+        choice("Show Frame Rate", on_off(s.tools.show_fps), Setting::ShowFps),
+        choice("Show Movement Stats", on_off(s.tools.show_pos), Setting::ShowPos),
     ]
 }
 
@@ -673,15 +752,17 @@ pub fn adjust(s: &mut Settings, video: &mut VideoMode, native: UVec2, setting: S
     let flip = |b: &mut bool| *b = !*b;
     match setting {
         Setting::Invert => flip(&mut s.invert_mouse),
-        Setting::Smoothing => flip(&mut s.mouse_filter),
         Setting::Accel => flip(&mut s.mouse_accel),
         Setting::RawInput => flip(&mut s.raw_input),
         Setting::Joystick => flip(&mut s.joystick),
-        Setting::JoyInvert => flip(&mut s.joy_invert),
-        Setting::JoyVibration => flip(&mut s.joy_vibration),
         Setting::Multicore => flip(&mut s.multicore),
-        Setting::AntiAliasing => flip(&mut s.msaa),
-        Setting::VSync => flip(&mut s.vsync),
+        Setting::AntiAliasing => s.msaa = pick(&[0, 2, 4], s.msaa, dir, wrap),
+        Setting::VSync => (s.vsync, s.triple_buffer) = pick(&[(false, false), (true, false), (true, true)], (s.vsync, s.triple_buffer && s.vsync), dir, wrap),
+        Setting::SoundQuality => flip(&mut s.sound_quality_high),
+        Setting::PuzzleSounds => flip(&mut s.puzzlemaker_sounds),
+        Setting::Voice => s.voice_mode = pick(&[0, 1, 2], s.voice_mode, dir, wrap),
+        Setting::PowerSavings => flip(&mut s.power_savings),
+        Setting::Splitscreen => flip(&mut s.splitscreen_vertical),
         Setting::MotionBlur => flip(&mut s.motion_blur),
         Setting::Graphics => flip(&mut s.enhanced_graphics),
         Setting::DevConsole => flip(&mut s.tools.dev_console),
@@ -701,12 +782,13 @@ pub fn adjust(s: &mut Settings, video: &mut VideoMode, native: UVec2, setting: S
         Setting::CheckpointSlot => s.tools.checkpoint_slot = pick(&(1..=CHECKPOINT_SLOTS).collect::<Vec<_>>(), s.tools.checkpoint_slot, dir, wrap),
         Setting::ShowFps => flip(&mut s.tools.show_fps),
         Setting::ShowPos => flip(&mut s.tools.show_pos),
-        Setting::DisplayMode => flip(&mut video.fullscreen),
+        Setting::DisplayMode => (video.fullscreen, video.borderless) = pick(&VideoMode::MODES, (video.fullscreen && !video.borderless, video.borderless), dir, wrap),
         Setting::Speakers => s.speakers = pick(&Speakers::ALL, s.speakers, dir, wrap),
         Setting::Captions => s.captions = pick(&CaptionMode::ALL, s.captions, dir, wrap),
         Setting::Language => {
-            let i = LANGUAGES.iter().position(|l| *l == s.language).unwrap_or(0);
-            s.language = LANGUAGES[pick(&(0..LANGUAGES.len()).collect::<Vec<_>>(), i, dir, wrap)].to_string();
+            // "Current Game Language" first, then each caption language.
+            let list: Vec<&str> = std::iter::once("").chain(LANGUAGES).collect();
+            s.language = pick(&list, s.language.as_str(), dir, wrap).to_string();
         }
         Setting::SubtitleSize => s.subtitle_size = pick(&SUBTITLE_SIZES.map(|z| z.0), s.subtitle_size, dir, wrap),
         Setting::SubtitleColor => s.subtitle_color = pick(&SubtitleColor::ALL, s.subtitle_color, dir, wrap),
@@ -743,7 +825,7 @@ mod tests {
     const NATIVE: UVec2 = UVec2::new(2560, 1600);
 
     fn ctx<'a>(keys: &'a [KeyAction], binds: &'a BindTable, video: VideoMode) -> Ctx<'a> {
-        Ctx { native: NATIVE, video, keys, binds, capture: None, selected: None, mods: None }
+        Ctx { native: NATIVE, video, keys, binds, capture: None, selected: None, mods: None, base: None }
     }
 
     #[test]
@@ -865,20 +947,35 @@ mod tests {
                 _ => None,
             })
         };
-        assert_eq!(value(OptionsPage::Audio, "Captioning").as_deref(), Some("Subtitles (dialogue only)"));
-        assert_eq!(value(OptionsPage::Audio, "Game volume").as_deref(), Some("100%"));
-        assert_eq!(value(OptionsPage::Video, "Display mode").as_deref(), Some("Windowed"));
-        assert_eq!(value(OptionsPage::Video, "Resolution").as_deref(), Some("2560 x 1600"));
-        assert_eq!(value(OptionsPage::Video, "Aspect ratio").as_deref(), Some("Widescreen (16:10)"));
-        assert_eq!(value(OptionsPage::Video, "Brightness").as_deref(), Some("40%"));
-        let video: Vec<String> = rows(OptionsPage::Video, &s, &c)
-            .into_iter()
-            .map(|r| match r {
-                Row::Choice { label, .. } | Row::Slider { label, .. } | Row::Link { label, .. } => label,
-                _ => String::new(),
-            })
-            .collect();
-        assert_eq!(video, ["Brightness", "Aspect ratio", "Resolution", "Display mode", "Advanced video"], "video.res order");
+        // Labels as the owner's Windows shots and spec show them.
+        assert_eq!(value(OptionsPage::Audio, "Closed Captioning").as_deref(), Some("Subtitles Only"));
+        assert_eq!(value(OptionsPage::Audio, "Closed Captioning Language").as_deref(), Some("Current Game Language"));
+        assert_eq!(value(OptionsPage::Audio, "Enable Voice").as_deref(), Some("Open Microphone"));
+        assert_eq!(value(OptionsPage::Audio, "Master Volume").as_deref(), Some("100%"));
+        assert_eq!(value(OptionsPage::Video, "Display Mode").as_deref(), Some("Run in a Window"));
+        assert_eq!(value(OptionsPage::Video, "Resolution").as_deref(), Some("2560 x 1600 (Native)"));
+        assert_eq!(value(OptionsPage::Video, "Aspect Ratio").as_deref(), Some("Widescreen 16:10"));
+        let names = |page| -> Vec<String> {
+            rows(page, &s, &c)
+                .into_iter()
+                .map(|r| match r {
+                    Row::Choice { label, .. } | Row::Slider { label, .. } | Row::Command { label, .. } | Row::Disabled { label, .. } => label,
+                    _ => String::new(),
+                })
+                .collect()
+        };
+        // Brightness only shows in fullscreen, as in Portal 2.
+        assert_eq!(names(OptionsPage::Video), ["Aspect Ratio", "Resolution", "Display Mode", "Laptop Power Savings", "Splitscreen Direction", "Advanced Video"]);
+        assert_eq!(
+            names(OptionsPage::Audio),
+            ["Master Volume", "Music Volume", "Speaker Configuration", "Sound Quality", "Puzzlemaker Sounds", "Closed Captioning", "Closed Captioning Language", "Enable Voice", "Push To Talk Key", "Setup Microphone"]
+        );
+        assert!(matches!(&rows(OptionsPage::Audio, &s, &c)[8], Row::Disabled { value, .. } if value == "C"), "push to talk greyed, C");
+        assert_eq!(names(OptionsPage::Controller), ["Controller"]);
+        assert_eq!(
+            names(OptionsPage::KeyboardMouse),
+            ["Edit Keys/Buttons", "Reverse Mouse", "Mouse Sensitivity", "Raw Mouse Input", "Mouse Acceleration", "Acceleration Amount", "Allow Developer Console"]
+        );
         let labels = |page| -> Vec<String> {
             rows(page, &s, &c).into_iter().filter_map(|r| match r {
                 Row::Choice { label, .. } | Row::Slider { label, .. } => Some(label),
@@ -887,19 +984,15 @@ mod tests {
         };
         assert_eq!(
             labels(OptionsPage::AdvancedVideo)[..8],
-            ["Anti-aliasing mode", "Filtering mode", "Wait for vertical sync", "Multicore rendering", "Shader detail", "Effect detail", "Model / texture detail", "Paged pool memory available"],
+            ["Anti-Aliasing Mode", "Filtering Mode", "Wait For Vertical Sync", "Multicore Rendering", "Shader Detail", "Effect Detail", "Model / Texture Detail", "Paged Pool Memory Available"],
             "advancedvideo.res order"
         );
-        assert_eq!(value(OptionsPage::AdvancedVideo, "Field of view").as_deref(), Some("75"));
-        assert_eq!(value(OptionsPage::AdvancedVideo, "Max frame rate").as_deref(), Some("Unlimited"));
+        assert_eq!(value(OptionsPage::AdvancedVideo, "Field Of View").as_deref(), Some("75"));
+        assert_eq!(value(OptionsPage::AdvancedVideo, "Max Frame Rate").as_deref(), Some("Unlimited"));
+        assert_eq!(value(OptionsPage::AdvancedVideo, "Wait For Vertical Sync").as_deref(), Some("Enabled (Double Buffered)"));
+        assert_eq!(value(OptionsPage::AdvancedVideo, "Anti-Aliasing Mode").as_deref(), Some("4x MSAA"));
         assert_eq!(value(OptionsPage::KeyboardMouse, "Reverse Mouse").as_deref(), Some("Disabled"));
-        assert_eq!(
-            labels(OptionsPage::KeyboardMouse),
-            ["Reverse Mouse", "Mouse Sensitivity", "Raw Mouse Input", "Mouse Acceleration", "Allow Developer Console", "Mouse Filter"],
-            "keyboardmouse.res order"
-        );
-        assert_eq!(labels(OptionsPage::Controller), ["Controller", "Look Sensitivity", "Vertical Look Type", "Vibration"], "controlleroptions.res order");
-        assert_eq!(value(OptionsPage::Controller, "Vertical Look Type").as_deref(), Some("Normal"));
+        assert_eq!(value(OptionsPage::KeyboardMouse, "Acceleration Amount").as_deref(), Some("1.05"));
         let jump = rows(OptionsPage::Keys, &s, &c).into_iter().find_map(|r| match r {
             Row::Key { label, keys, .. } if label == "Jump" => Some(keys),
             _ => None,
@@ -944,14 +1037,18 @@ mod tests {
         adjust(&mut s, &mut v, NATIVE, Setting::Filtering, -1, false);
         assert_eq!(filtering_label(&s), "Bilinear");
         adjust(&mut s, &mut v, NATIVE, Setting::Language, 1, false);
-        assert_eq!(s.language, "french");
+        assert_eq!(s.language, "english");
+        adjust(&mut s, &mut v, NATIVE, Setting::Language, -1, false);
+        assert_eq!(language_label(&s.language), "Current Game Language");
     }
 
     #[test]
     fn video_changes_wait_for_apply() {
         let mut s = Settings::default();
         let mut v = VideoMode::of(&s);
-        adjust(&mut s, &mut v, NATIVE, Setting::DisplayMode, 1, false);
+        // Run in a Window -> Fullscreen (menu order: No Border, Fullscreen, Window).
+        adjust(&mut s, &mut v, NATIVE, Setting::DisplayMode, -1, false);
+        assert_eq!(v.label(), "Fullscreen");
         adjust(&mut s, &mut v, NATIVE, Setting::Resolution, 1, false);
         assert!(!s.fullscreen && s.resolution.is_none());
         assert_eq!(v.resolution, Some(UVec2::new(1280, 800)));

@@ -181,7 +181,7 @@ fn load_captions(mut commands: Commands, game: Res<GameFsRes>, settings: Res<Set
     if text.as_ref().is_some_and(|t| t.language == settings.language) {
         return;
     }
-    let mut lang = settings.language.clone();
+    let mut lang = settings.caption_language().to_string();
     let mut subtitles = load_set(&game, "subtitles", &lang);
     let mut closecaption = load_set(&game, "closecaption", &lang);
     if subtitles.len() + closecaption.len() == 0 && lang != "english" {

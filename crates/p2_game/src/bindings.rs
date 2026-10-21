@@ -114,6 +114,7 @@ impl BindTable {
             ("ctrl", "+duck"),
             ("rctrl", "+duck"),
             ("e", "+use"),
+            ("c", "+voicerecord"),
             ("mouse1", "+attack"),
             ("mouse2", "+attack2"),
             ("f5", "jpeg"),

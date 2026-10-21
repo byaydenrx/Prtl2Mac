@@ -24,7 +24,7 @@ use crate::level::{CurrentMap, LevelLoaded, LoadLevel};
 use crate::mods_page::ModsPage;
 use crate::mounts::Mounts;
 use crate::saves::{list_saves, LoadGame, Progress, SaveGame, SaveInfo, Slot};
-use crate::options::{self, Ctx, Footer, OptionsPage, Row, Setting, VideoMode};
+use crate::options::{self, Ctx, Footer, OptionsPage, Row, RowCommand, Setting, VideoMode};
 use crate::settings::{data_dir, Settings};
 
 pub struct UiPlugin;
@@ -127,6 +127,8 @@ pub(crate) struct MenuState {
     /// Key-list row waiting for a key, and the row last clicked.
     capture: Option<usize>,
     selected: Option<usize>,
+    /// A key-list row to scroll into view (opened from Push To Talk Key).
+    reveal: Option<usize>,
 }
 
 /// The New Game dialog's tab: the campaign, or the community maps (the
@@ -238,6 +240,8 @@ enum Action {
     Slide(Setting),
     /// A key-list row: wait for a key to bind.
     Bind(usize),
+    /// A bold button row on an Options page.
+    Command(RowCommand),
     /// New Game's tabs: the campaign (false) or the community maps (true).
     ChapterTab(bool),
     /// The previous (-1) or next (1) page of community maps.
@@ -934,29 +938,51 @@ fn tile_option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row, y: 
                 arrow(r, false, Action::Adjust(*setting, 1.0));
             });
         }
-        Row::Slider { label: l, fraction, setting, .. } => {
+        Row::Slider { label: l, fraction, mark, setting, .. } => {
+            // SliderControl as the Windows shots measure: a 130 x 6 track
+            // (150 grey) 7 units into the row, filled black (white on the
+            // hovered row), a small grey arrow above at the value the page
+            // opened with, no side arrows; the label sits 2.5 units higher.
             p.spawn((hover_row(), OnTiles, RowHelp { label: l.clone(), setting: *setting })).insert(node.clone()).with_children(|r| {
-                label(r, l);
-                arrow(r, true, Action::Adjust(*setting, -1.0));
+                r.spawn((Node { flex_grow: 1.0, margin: UiRect::bottom(units(5.0)), ..default() }, children![(Text::new(l.clone()), font(DIALOG_ITEM_FONT), TextColor(Color::BLACK))]));
                 r.spawn((
                     Button,
                     Action::Slide(*setting),
                     Look { text: Color::BLACK, text_hover: Color::BLACK, bg: Color::NONE, bg_hover: Color::NONE },
                     InRow,
                     RelativeCursorPosition::default(),
-                    Node { width: units(130.0), height: units(20.0), align_items: AlignItems::Center, ..default() },
+                    Node { width: units(130.0), height: units(25.0), flex_shrink: 0.0, ..default() },
                     BackgroundColor(Color::NONE),
                 ))
                 .with_children(|t| {
-                    t.spawn((SliderTrack, Node { width: Val::Percent(100.0), height: units(4.0), ..default() }, BackgroundColor(theme::TILE_TRACK)))
+                    // The arrow: rows 1.2 units tall narrowing to a point.
+                    for (i, w) in [6.0f32, 4.5, 3.0, 1.5].into_iter().enumerate() {
+                        t.spawn((
+                            Node { position_type: PositionType::Absolute, left: units(mark * 130.0 - w / 2.0), top: units(1.5 + i as f32 * 0.9), width: units(w), height: units(0.9), ..default() },
+                            BackgroundColor(theme::TILE_TRACK),
+                        ));
+                    }
+                    t.spawn((SliderTrack, Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: units(7.0), width: Val::Percent(100.0), height: units(6.0), ..default() }, BackgroundColor(theme::TILE_TRACK)))
                         .with_child((SliderFill, Node { width: Val::Percent(fraction * 100.0), height: Val::Percent(100.0), ..default() }, BackgroundColor(Color::BLACK)));
                 });
-                arrow(r, false, Action::Adjust(*setting, 1.0));
             });
         }
-        Row::Link { label: l, page } => {
+        Row::Disabled { label: l, value } => {
+            p.spawn(node.clone()).with_children(|r| {
+                r.spawn((Node { flex_grow: 1.0, ..default() }, children![(Text::new(l.clone()), font(DIALOG_ITEM_FONT), TextColor(theme::DISABLED))]));
+                r.spawn((Text::new(value.clone()), font(DIALOG_ITEM_FONT), TextColor(theme::DISABLED)));
+            });
+        }
+        Row::Command { label: l, value, command } => {
+            // A DefaultButton row: bold upper case, the black cursor bar.
             let look = DIALOG_LOOK;
-            p.spawn((Button, Action::Page(*page), look, node, BackgroundColor(look.bg), children![(Text::new(l.clone()), font(DIALOG_ITEM_FONT), TextColor(look.text))]));
+            let bold = TextFont { font: (&fonts.title).into(), font_size: DIALOG_ITEM_FONT, ..default() };
+            p.spawn((Button, Action::Command(*command), look, node, BackgroundColor(look.bg))).with_children(|r| {
+                r.spawn((Node { flex_grow: 1.0, ..default() }, children![(Text::new(l.to_uppercase()), bold.clone(), TextColor(look.text))]));
+                if !value.is_empty() {
+                    r.spawn((Text::new(value.clone()), font(DIALOG_ITEM_FONT), TextColor(look.text)));
+                }
+            });
         }
         // audio.res has no headings, notes or key rows.
         _ => {}
@@ -1195,11 +1221,13 @@ fn option_row(p: &mut ChildSpawnerCommands, fonts: &UiFonts, row: &Row) {
                 r.spawn(row_value(fonts, value, Action::ModRollback));
             });
         }
+        // Only on tiled pages (Audio, Video, Keyboard/Mouse).
+        Row::Disabled { .. } | Row::Command { .. } => {}
         Row::Note { text: t, error } => {
             let color = if *error { theme::ERROR } else { theme::HINT };
             p.spawn((Node { margin: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(6.0), Val::Px(2.0)), ..default() }, children![text(&fonts.regular, 14.0, t.clone(), color)]));
         }
-        Row::Slider { label, value, fraction, setting } => {
+        Row::Slider { label, value, fraction, setting, .. } => {
             p.spawn(hover_row()).with_children(|r| {
                 row_label(r, fonts, label);
                 r.spawn(arrow(fonts, true, Action::Adjust(*setting, -1.0)));
@@ -1681,6 +1709,7 @@ fn rebuild_menu(
                 capture: menu.capture,
                 selected: menu.selected,
                 mods: Some(&mods),
+                base: menu.base.last(),
             };
             let rows = options::rows(page, settings, &ctx);
             let hint = match (page, menu.capture) {
@@ -1802,7 +1831,7 @@ fn save_kind_label(kind: &str, name: &str) -> String {
 /// For rows that need no context (the category list).
 fn dummy_ctx() -> Ctx<'static> {
     static BINDS: std::sync::OnceLock<crate::bindings::BindTable> = std::sync::OnceLock::new();
-    Ctx { native: UVec2::new(1920, 1080), video: VideoMode { resolution: None, fullscreen: false }, keys: &[], binds: BINDS.get_or_init(Default::default), capture: None, selected: None, mods: None }
+    Ctx { native: UVec2::new(1920, 1080), video: VideoMode { resolution: None, fullscreen: false, borderless: false }, base: None, keys: &[], binds: BINDS.get_or_init(Default::default), capture: None, selected: None, mods: None }
 }
 
 /// Into an Options page from its parent (or the Options flyout).
@@ -2150,7 +2179,20 @@ fn buttons(
                     *screen = Screen::None;
                 }
             }
-            Action::Page(p) => {
+            Action::Command(RowCommand::SetupMicrophone) => {
+                // Portal 2 opens Steam's voice settings in its overlay; we
+                // ask Steam to show them (nothing happens without Steam).
+                if let Err(e) = std::process::Command::new("open").arg("steam://settings/voice").spawn() {
+                    warn!("portal2: can't open Steam's voice settings: {e}");
+                }
+            }
+            Action::Command(RowCommand::PushToTalkKey) => {
+                open_page(&mut menu, &mut scroll, &settings, OptionsPage::Keys);
+                let i = actions.0.iter().position(|a| matches!(a, KeyAction::Command { command, .. } if command == options::PUSH_TO_TALK));
+                menu.selected = i;
+                menu.reveal = i;
+            }
+            Action::Command(RowCommand::Page(p)) | Action::Page(p) => {
                 if !matches!(*screen, Screen::Options { .. }) {
                     *screen = Screen::Options { from_pause: *screen == Screen::Pause };
                     menu.flyout = None;

@@ -228,7 +228,7 @@ fn options_pages_work() {
     assert_eq!(screen(&app), crate::ui::Screen::Main);
     click(&mut app, "Options");
     click(&mut app, "Page(Video)");
-    click(&mut app, "Page(AdvancedVideo)");
+    click(&mut app, "Command(Page(AdvancedVideo))");
     click(&mut app, "Toggle(ShowFps)");
     click(&mut app, "Toggle(ShowPos)");
     click(&mut app, "Apply");
