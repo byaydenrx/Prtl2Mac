@@ -4,27 +4,19 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-21 (owner session). Owner round 6: T-169, T-171, T-148, T-135,
-T-139, T-162 confirmed (Done); menus fixed "for now" and ON HOLD (no menu
-work). T-175 finished: run-time fog (fog.rs: SetFogController blend +
-SetColor/SetStartDist/SetEndDist, ValveFog override) ac96ab1. Merged for the
-owner's replay: attempt/T-175, attempt/T-164, attempt/T-112 (plus T-140 and
-T-117 earlier).
+2026-10-21 (owner session). Owner round 7: T-175 run-time fog, T-140 shake,
+T-117 shadows confirmed (Done); T-153 gun drop/arms confirmed, some particles
+remain; T-164 CPU skinning REVERTED (e88ae41: ride parts shook). Screenshot
+tasks (T-173, T-174, T-145, T-147, T-149, T-116) and menus are ON HOLD.
 
 ## Where things stand
-- dist/Prtl2Mac.app = 0.1.0+6e0efbf.20261021T1814Z: every fix awaiting the owner is in it
-  (T-175 fog, T-164 debris, T-112 GLaDOS floor, T-140 shake, T-117 shadows,
-  T-153 GLaDOS wake-up).
-- Owner screenshots coming: T-173 hold beam, T-174 elevator panels, T-145,
-  T-147, T-149, T-116.
-- No attempt/* branches left.
+- dist/Prtl2Mac.app = BUILD_ID (T-164 revert on top of 6e0efbf).
+- Awaiting the owner: T-112 GLaDOS floor reflection (merged 2c08d11).
 
 ## Next action
-1. Wait for / record the owner's replay of the build above (every item in
-   TASKS.md). If T-164 or T-112 are worse, revert their merge commits
-   (355882a, 2c08d11) with `git revert -m 1`.
-2. Then T-146 intro1 half-stuck door, then the priority order.
-MENUS ON HOLD. Merge origin/main often.
+1. T-146 intro1 half-stuck door (P4), then T-153 remaining particles,
+   T-164 (redo without the shaking), T-120 VO timing, per the priority order.
+MENUS and SCREENSHOT TASKS ON HOLD. Merge origin/main often.
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.

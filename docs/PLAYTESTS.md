@@ -128,3 +128,8 @@ merge t-140, merge t-117, keep t-175 open, keep t-112 open, close t-151, just re
 Tracked in TASKS.md (T-169, T-171, T-148, T-135, T-139, T-162 to Done; menus on hold).
 
 169 is fixed, 171 is fixed, 148 is fixed, 135 is fixed, 139 is fixed, all menu items are fixed for now buttons just dont function but i dont want those being worked on rn. merge everything else you need me to test rn into my .app build and tell me what im looking for
+
+## Owner round 7 (2026-10-21, build 6e0efbf), the owner's words
+Tracked in TASKS.md (T-175/T-140/T-117 to Done; T-164 reverted; screenshot tasks on hold).
+
+fog looks better, torn debries whatever fix you implemented revert it it made moving things start shaking in the ride, portal shake is good, shadows are good, glados wakeup still has some particles around it but its better, portal gun visibly drops, her arms are connected, and the rest is good there. ill send screenshots another time so put those tasks on hold

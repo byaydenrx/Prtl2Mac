@@ -18,24 +18,21 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 4 intro5/intro6, 5 intro7 + sp_a1_wakeup + sp_a2_intro, 6 sp_a2_laser_intro,
 7 sp_a2_laser_stairs.
 
-## Priority order (2026-10-21, after owner round 6)
-MENUS ON HOLD (owner): no menu work at all for now.
-The current dist build (SESSION_HANDOFF) has every fix awaiting the owner:
-T-175 fog (new run-time fog), T-164 debris, T-112 GLaDOS floor, T-140
-shake, T-117 shadows, T-153 GLaDOS wake-up.
+## Priority order (2026-10-21, after owner round 7)
+MENUS ON HOLD and SCREENSHOT TASKS ON HOLD (T-173, T-174, T-145, T-147,
+T-149, T-116) until the owner says so / sends them.
+Awaiting the owner: T-112 GLaDOS floor reflection (merged 2c08d11, not
+mentioned in round 7).
 P0/P1: none open.
 P2:
-1. (T-145 lit cubes black + spikes under buttons; T-149 intro5 screens;
-   T-147 intro2 black door: BLOCKED, owner screenshots coming.)
+1. T-120 elevator VO timing (only open part).
 P3:
-2. T-173 gun hold beam "looks terrible" (needs owner screenshot).
-3. T-174 elevator video panels not together / wrong places (needs owner screenshots).
-4. T-152 lighting/texture quality (STUCK, plan in entry); T-116 window
-   (owner screenshots coming).
+2. T-153 particles still around GLaDOS at wake-up.
+3. T-164 ride debris tearing (attempt reverted: it made moving parts shake).
+4. T-152 lighting/texture quality (STUCK, plan in entry).
 P4:
-5. T-146 half-stuck door, T-150 rest (motion blur, gun glow through the
-   wall), T-151 water (attempt dropped; Source fogs the reflected sky),
-   T-154 floating moss.
+5. T-146 half-stuck door (next), T-150 rest (motion blur, gun glow through
+   the wall), T-151 water (Source fogs the reflected sky), T-154 floating moss.
 Then the Backlog (prove and sweep the campaign).
 
 ## On hold: menus (owner 2026-10-21)
@@ -382,210 +379,9 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   quit?", Quit / Cancel; same look and tile flip as the discard dialog;
   doesn't trigger the menu behind it.
 
-## Open: P0
-(none)
-
-## Open: P1
-
-## Open: P2
-
-### T-145 Buttons don't animate; cubes don't change colour on a button  (P2, BLOCKED (needs owner): lit cubes dark, cause not found; spikes and jitter not looked at)
-- 2026-10-20 19:50 autorun: dark lit cube REPRODUCED (autopilot sp_a1_intro2,
-  `propto box -607 288 -20` onto button_1-button, dist build 9f1ed5a): on the
-  pressed button the cube body renders dark grey (yellow ring fine); off the
-  button it is light grey. P2_HIDE_MAT=metal_box_skin002 hides the whole cube,
-  so only the lit-skin draw shows, and it is the one that is dark. Forcing lit
-  skin 4 instead of 2 is just as dark, so it is not the texture. Ruled out:
-  texture brightness (skin000/002/004 avg ~0.6, decoded with `ls --vtf`),
-  shader combo (both `vs 0 ps 36`), lighting (one ambient-cube closure, baked
-  into both skins' vertices at spawn), sRGB cache (both srgb=true), skin
-  switch (apply_model_skins only flips Visibility). Not yet checked: the
-  render side for draws under a SkinVariant entity spawned Hidden
-  (valve_render prepare/upload of draws first seen while hidden, e.g. light
-  stream or constants), and whether the dark look is the variant draw being
-  drawn without its static-light stream. Next step: spawn the cube with
-  base skin 2 (no variant) and compare; if bright, the bug is the
-  hidden-at-spawn variant path.
-- Also found: cube_lit_skin's table was wrong for non-standard cubes:
-  metal_box skin textures are 0 standard, 1 companion, 2 standard lit,
-  3 rusted, 4 companion lit, 5 rusted lit (we lit companion 1 as 3 = rusted
-  blue, rusted 3 not at all). Fix cc8d8e0 (was attempt/T-145) MERGED
-  2026-10-21 at the owner's request; not seen in game (no companion or
-  rusted cube on a button was checked). The dark standard lit cube is NOT
-  fixed by it.
-- Spikes under the button and jitter on buttons: not looked at this run.
-- Owner playtest 9 (2026-10-20, build 014ab6e): button press works, but "cubes turn black when they're activated and yellow" and "it adds weird spikes under the button almost like there's grass under it"; "buttons are still juttery/buggy when [cubes are] put on buttons".
-- Section 0: no press-down when used or when a cube lands; cubes kept their
-  off skin; cubes twitched on buttons (press/unpress flicker as they settle).
-- Press + twitch (feb5072): buttons were a baked pose; now animated
-  (down/idledown/up and variants), release only after 0.15 s clear.
-- Cube skins (2e8df1a): skin was baked in at spawn. Cubes whose model has a
-  lit skin (metal_box 0/1 -> 2/3; reflection/antique have none) spawn both
-  skins' draws in SkinVariant groups; floor_buttons sets ModelSkin lit while
-  the cube rests on a pressed button. Unit test cube_lit_skins.
-- Evidence (autopilot, sp_a1_intro2, `propto box` onto button_1-button): old
-  build cube ring stays blue on the pressed button, new build ring lit
-  yellow; moved off the button, ring blue again. Not owner-verified.
-- Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
-
-### T-120 Elevators  (P2, OPEN: VO timing only; jitter, car sounds, thumps owner-confirmed)
-- Owner playtest 9 (2026-10-20, build 014ab6e): jittery rides FIXED, thumps FIXED; VO timing NOT fixed (voice lines start late, also while riding, which stretches the ride: see T-172); rubble/turrets still fall through the elevator (T-135).
-- Jitter FIXED 2026-10-20 (c1079f9, see Awaiting owner replay). Still open:
-  the VO after intro5's second button started
-  halfway down and stretched the ride (T-138); thumping sounds during the
-  ride (section 4); the trash rising with the elevator is buggy; one ride
-  reached the bottom before the next map loaded.
-- 2026-10-20 autorun: VO timing / ride length NOT REPRODUCED (no code change).
-  How it works: path_tracks call ReadyForTransition() (sp_elevator_motifs.nut);
-  it only leaves once the exit VO's scene fires TransitionReady(), else the
-  car rides the whole shaft to the failsafe node (intro5: ~20 s at 200 u/s,
-  same logic as the original). Autopilot: intro2 with PuzzleCompleted() leaves
-  at the first path_track (~1 s into the ride); intro5 with the cube put into
-  the box_filter trigger (64 448 264) starts testchamber03 0.6 s later, so the
-  VO is not delayed by our scene/script chain. Differences seen: our new line
-  cuts off the still-playing start line (testchamber02) instead of waiting;
-  unchecked whether a cube resting on the real button overlaps that trigger
-  (owner said the line came only halfway down). Needs an owner replay of
-  intro5's second button + `log` timing to go further.
-- 2026-10-20 autorun: thumps NOT REPRODUCED. Every world/player sound during
-  the intro5 and intro6 arrival and departure rides was logged
-  (`RUST_LOG=portal2::audio=debug,p2_fx=debug`): no landing/slam/impact
-  sounds; the only impacts are the chamber's robot arms (World.Robot*,
-  positional, gain 0.05-0.3 by distance). Found instead that the cars were
-  silent: func_tracktrain movesound/stopsound never played. FIXED (5bfaf52,
-  see Awaiting owner replay). Open: thumps (owner: which ride, what it
-  sounded like), trash rising with the car, move-sound pitch by speed
-  (movesoundmin/maxpitch, not done).
-- 2026-10-20 autorun: trash NOT REPRODUCED (no code change). The trash is
-  intro5's departure_elevator-tube_blockage_01 (models/elevator/
-  elevator_rubble.mdl, solid 6, holdanimation 1): blocked_elevator_tube_anim
-  (trigger at -64 816 352) plays the car body's "arrive" (car comes DOWN,
-  root z 972 -> 110 in ~2 s) and 1.75 s later the rubble's "anim" (11.2 s;
-  29 root bones fall from model z 469..1464 to about -90..99, i.e. onto the
-  car roof). Autopilot (setpos -64 1150 300, look -40 90; shots at 3.5-15 s)
-  shows exactly that: car arrives, rubble drops and rests on the roof. The
-  departure ride with the rubble on the roof was not checked (needs the
-  puzzle solved). Possible owner-visible issue: the rubble is a held
-  prop_dynamic, so when the car leaves upward it passes through the pile
-  (same entities in the original; unknown whether Windows hides it).
-  BLOCKED: needs the owner to say which ride and what looked wrong, or a
-  Windows reference of intro5's departure.
-
-### T-149 Chamber signs blank; screens and lights wrong  (P2, BLOCKED (needs owner): signs drawn; intro5 screens/lights and big number not reproduced)
-- Owner playtest 9 (2026-10-20, build 014ab6e): signs fixed; "the videos that play in the elevator rooms are a bit buggy and super low quality" (now T-174). Owner screenshot 2026-10-20 2.45.36 PM (sp_a2_laser_over_goo) shows "04/22" with a big "01": check the big number against Windows.
-- The white chamber-number screens ("02") were blank in every level:
-  they are `vgui_screen`s with panelname `sp_progress_sign`, which we never
-  drew (only the dark sign frame model showed). FIXED: new
-  crates/p2_game/src/signs.rs composes the board per map from
-  scripts/vscripts/transitions/sp_lightboard_icons.txt (level_number,
-  total_levels, ten icons, "1" = used) and the art
-  vgui/screens/vgui_coop_progress_board (+_numbers digit sheet 6x2,
-  P2_lightboard_vgui icon sheet 5x5): big two-digit number between the top
-  rules, "NN/TT" and a per-chamber progress bar (played ones dark) in the
-  middle band, the ten icons in two rows of five (used ones dark, others
-  faint). Shown on the prefab's SetActive, hidden on SetInactive (spawnflag
-  1 starts it on). Unit tests: file parsing, lit vs faint icons, bar.
-- Evidence (autopilot, intro2, `input info_sign-info_panel setactive; goto
-  info_sign-info_panel 320; look -38 -12`): old build (dist 503406e) shows
-  an empty dark frame; new build shows "01", "01/19", the first bar segment
-  dark and the cube_button icon dark with the rest faint.
-- Approximations (no Windows reference shot): exact positions/sizes of the
-  number, label, bar and icons are by eye from the board's three rules;
-  the icon sheet's cell order was matched to names by picture (it differs
-  from the file's comment list); the startup flicker sequences
-  (lightboard_startup_sequences.txt) and dirt overlay ("dirt") are not
-  drawn. Owner: compare one sign with Windows Portal 2.
-- Run 2026-10-21 09:26 (autorun, NOT REPRODUCED, no code change):
-  - Big number: autopilot sp_a2_laser_over_goo (`input
-    instanceauto69-info_sign-info_panel setactive; goto ... 320; lookat;
-    look -30 0`) shows a big "04" over "04/22", matching
-    sp_lightboard_icons.txt (level_number 4, total 22); signs.rs is
-    unchanged since d314ea7 (before the owner's build 014ab6e) and stamps
-    the same digit cells for the big number and the label, so a big "01"
-    with "04/22" could not be produced. The owner's shot 2.45.36 PM is not
-    on disk. Owner: resend it (or a Windows shot of that sign) if the
-    sign still looks wrong.
-  - intro5 screens: the elevator vgui_movie_displays get SetMovie
-    media\exercises_vert.bik from videos/video_splitter.nut (the map's
-    entry for sp_a1_intro5), split across the panels with custom UVs, as
-    Windows does. The "entry_emergency.bik / exit_emergency.bik could not
-    be decoded" warnings come from the video masters' moviefilename
-    keyvalue: those files are not in the depot and the script's
-    OVERRIDE_VIDEOS is 0, so Windows never plays them either (harmless).
-    Video quality/bugginess is T-174.
-  - intro5 lights: chamber indicator dots (env_texturetoggle overlays),
-    button glow and room lights look plausible in autopilot shots; no
-    defect could be identified without a reference. Owner: a screenshot
-    of what looks wrong in intro5/intro6 ("screens and lights") is needed.
-  - No fix attempt branch (no plausible cause to try).
-
-### T-147 intro2: the screen goes black right as the first door opens  (P2, BLOCKED (needs owner): not reproduced)
-- Section 1; compare T-119. Screenshot 7 (intro2): a dark shard in a door.
-- 2026-10-21 autorun: NOT REPRODUCED. Owner saw it on build 1faf8d2
-  (playtest 8, which already had the T-119 door/area-portal fix 6d75b6f);
-  not reported again in playtest 9. Autopilot sp_a1_intro2 on the current
-  build and on dist 910da9a: the natural path (elevator opens, walk to
-  @entry_door-testchamber_door; arrival_elevator-leaving_elevator_trigger
-  fires @entry_door_open_rl after 0.5 s) with shots every 0.2-0.5 s while
-  the door opens and the player walks through, plus off-axis looks
-  (pitch +10/-20, yaw +-25, looking back) mid-opening: the door, its
-  frame and the chamber behind stay drawn in every frame, no black frame
-  (looking back shows the dark stairwell wall, lit normally). The exit
-  door was not checked by walking. No cause found, so no attempt branch.
-- Needs the owner: does it still happen on the current build; if so a
-  screenshot or a short video, and whether it is the whole screen or a
-  shape in the door (screenshot 7's dark shard).
-
-## Open: P3
-
-### T-152 Lighting and texture quality below the original  (P3, STUCK 2026-10-21: bumped-model path too large for one run; plan below)
-- Owner playtest 9 (2026-10-20, build 014ab6e): "lighting/textures being low quality is still an issue". Raised to P3.
-- Scrap pieces in the intro3 fall; turrets in tubes (wakeup); bumped
-  VertexLitGeneric (models with $bumpmap) still drawn without bump.
-- Autorun 2026-10-21 (STUCK, no code change): no owner shot pins one
-  surface, so the only concrete item is the bumped VertexLitGeneric path.
-  Texture filtering is already 16x anisotropic with mips (vtf.rs,
-  valve_render.rs), so that's not the cause. Findings for the next attempt
-  (`examples/shaders vertexlit_and_unlit_generic_bump_ps20b|vs20 --statics`):
-  ps20b has 32768 static x 80 dynamic combos (544 stored); bumped statics use
-  BumpmapSampler@s3, cAmbientCube@c5 (6 regs), cLightInfo@c13,
-  g_ShaderControls@c12, cLightScale@c30, g_DiffuseModulation@c1. vs20 is 64 x
-  24 (24 stored), reads a TANGENT input (Input6), has cLightInfo@c27,
-  g_bLightEnabled@b0, cModel@c58, and NO COLOR1 static-light input. So a
-  bumped prop needs (1) VVD tangents in ModelMesh (model_vertices writes a
-  dummy tangent today), (2) a per-prop ambient cube (6 colours, from the same
-  leaf ambient samples that bake COLOR1 now) plus the nearest local lights
-  packed into cLightInfo, (3) the static/dynamic combo digits mapped like
-  vertex_lit_generic's (NUM_LIGHTS in the dynamic index), (4) a new
-  ConstRecipe. Keep the current non-bump path as the fallback when any step
-  fails. Next run: start with (1)+(2) on an attempt branch, check the intro3
-  rubble and the wakeup tube turrets before/after.
-
-### T-116 intro1 room details  (P3, BLOCKED: owner will send comparison screenshots)
-- Owner playtest 9 (2026-10-20, build 014ab6e): "that window does look different in the main game, I'll show comparison screenshots".
-- The window is a grey block, should be blinds (screenshot 1); the TV
-  screen sits forward and up from the TV; odd outside lighting on the ride.
-- Autorun 2026-10-20, NOT REPRODUCED (autopilot only, no code change, no
-  attempt branch):
-  - Window: the start room's window (x ~ -8460, behind the plant) is world
-    brushes in glass/glasswindow_frosted_break001a (and
-    glass_underground_dirty01a): LightmappedGeneric, $translucent, a dirty
-    frosted texture with vertical streaks, no blinds in it. P2_HIDE_MAT=glass
-    shows only plain bright white behind it (no model or brush with blinds
-    there; static props in the room are furniture04, closet_curtain01,
-    lab_pod_frame_end_01, container_lightcover). So we draw what the map
-    has; the glass may just read darker than on Windows (the VMT's
-    `"srgb?$alpha" "0.5"` conditional is not applied by us; unconfirmed).
-    The ride container's slatted look (models/container_ride/windowrails,
-    finedebris_part7) is a different room. Needs a Windows screenshot of
-    the same view to say what "blinds" should look like.
-  - TV screen: `tvscreen` (tvscreen01.mdl) belongs to the ride's
-    actor_container_07 and gets SetParentAttachmentMaintainOffset
-    screenattachment from @rl_container_ride. Autopilot shots 1.5 s and
-    9 s into the ride show it on the TV; the start room's TV is part of
-    hotel_container_furniture models. Needs the owner's exact moment/view.
-  - Outside lighting on the ride: not checked this run (ride is seen
-    through point_viewproxy camera_1, see T-020).
+## On hold: waiting for owner screenshots (owner 2026-10-21 round 7)
+"ill send screenshots another time so put those tasks on hold". Not for
+autoruns until the screenshots arrive.
 
 ### T-173 Portal gun view model: hold beam, carry anims, fizzler shake  (P3, OPEN: hold beam "looks terrible"; fizzler shake owner-confirmed)
 - Owner round 5 (2026-10-21): "the gun hold beam is not fixed it looks
@@ -638,6 +434,280 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   pinned down beyond the choppy 12 fps: owner, say what looks wrong if it
   persists (entry/exit_emergency.bik don't exist in the game files; that
   warning is harmless).
+
+### T-145 Buttons don't animate; cubes don't change colour on a button  (P2, BLOCKED (needs owner): lit cubes dark, cause not found; spikes and jitter not looked at)
+- 2026-10-20 19:50 autorun: dark lit cube REPRODUCED (autopilot sp_a1_intro2,
+  `propto box -607 288 -20` onto button_1-button, dist build 9f1ed5a): on the
+  pressed button the cube body renders dark grey (yellow ring fine); off the
+  button it is light grey. P2_HIDE_MAT=metal_box_skin002 hides the whole cube,
+  so only the lit-skin draw shows, and it is the one that is dark. Forcing lit
+  skin 4 instead of 2 is just as dark, so it is not the texture. Ruled out:
+  texture brightness (skin000/002/004 avg ~0.6, decoded with `ls --vtf`),
+  shader combo (both `vs 0 ps 36`), lighting (one ambient-cube closure, baked
+  into both skins' vertices at spawn), sRGB cache (both srgb=true), skin
+  switch (apply_model_skins only flips Visibility). Not yet checked: the
+  render side for draws under a SkinVariant entity spawned Hidden
+  (valve_render prepare/upload of draws first seen while hidden, e.g. light
+  stream or constants), and whether the dark look is the variant draw being
+  drawn without its static-light stream. Next step: spawn the cube with
+  base skin 2 (no variant) and compare; if bright, the bug is the
+  hidden-at-spawn variant path.
+- Also found: cube_lit_skin's table was wrong for non-standard cubes:
+  metal_box skin textures are 0 standard, 1 companion, 2 standard lit,
+  3 rusted, 4 companion lit, 5 rusted lit (we lit companion 1 as 3 = rusted
+  blue, rusted 3 not at all). Fix cc8d8e0 (was attempt/T-145) MERGED
+  2026-10-21 at the owner's request; not seen in game (no companion or
+  rusted cube on a button was checked). The dark standard lit cube is NOT
+  fixed by it.
+- Spikes under the button and jitter on buttons: not looked at this run.
+- Owner playtest 9 (2026-10-20, build 014ab6e): button press works, but "cubes turn black when they're activated and yellow" and "it adds weird spikes under the button almost like there's grass under it"; "buttons are still juttery/buggy when [cubes are] put on buttons".
+- Section 0: no press-down when used or when a cube lands; cubes kept their
+  off skin; cubes twitched on buttons (press/unpress flicker as they settle).
+- Press + twitch (feb5072): buttons were a baked pose; now animated
+  (down/idledown/up and variants), release only after 0.15 s clear.
+- Cube skins (2e8df1a): skin was baked in at spawn. Cubes whose model has a
+  lit skin (metal_box 0/1 -> 2/3; reflection/antique have none) spawn both
+  skins' draws in SkinVariant groups; floor_buttons sets ModelSkin lit while
+  the cube rests on a pressed button. Unit test cube_lit_skins.
+- Evidence (autopilot, sp_a1_intro2, `propto box` onto button_1-button): old
+  build cube ring stays blue on the pressed button, new build ring lit
+  yellow; moved off the button, ring blue again. Not owner-verified.
+- Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
+
+### T-147 intro2: the screen goes black right as the first door opens  (P2, BLOCKED (needs owner): not reproduced)
+- Section 1; compare T-119. Screenshot 7 (intro2): a dark shard in a door.
+- 2026-10-21 autorun: NOT REPRODUCED. Owner saw it on build 1faf8d2
+  (playtest 8, which already had the T-119 door/area-portal fix 6d75b6f);
+  not reported again in playtest 9. Autopilot sp_a1_intro2 on the current
+  build and on dist 910da9a: the natural path (elevator opens, walk to
+  @entry_door-testchamber_door; arrival_elevator-leaving_elevator_trigger
+  fires @entry_door_open_rl after 0.5 s) with shots every 0.2-0.5 s while
+  the door opens and the player walks through, plus off-axis looks
+  (pitch +10/-20, yaw +-25, looking back) mid-opening: the door, its
+  frame and the chamber behind stay drawn in every frame, no black frame
+  (looking back shows the dark stairwell wall, lit normally). The exit
+  door was not checked by walking. No cause found, so no attempt branch.
+- Needs the owner: does it still happen on the current build; if so a
+  screenshot or a short video, and whether it is the whole screen or a
+  shape in the door (screenshot 7's dark shard).
+
+### T-149 Chamber signs blank; screens and lights wrong  (P2, BLOCKED (needs owner): signs drawn; intro5 screens/lights and big number not reproduced)
+- Owner playtest 9 (2026-10-20, build 014ab6e): signs fixed; "the videos that play in the elevator rooms are a bit buggy and super low quality" (now T-174). Owner screenshot 2026-10-20 2.45.36 PM (sp_a2_laser_over_goo) shows "04/22" with a big "01": check the big number against Windows.
+- The white chamber-number screens ("02") were blank in every level:
+  they are `vgui_screen`s with panelname `sp_progress_sign`, which we never
+  drew (only the dark sign frame model showed). FIXED: new
+  crates/p2_game/src/signs.rs composes the board per map from
+  scripts/vscripts/transitions/sp_lightboard_icons.txt (level_number,
+  total_levels, ten icons, "1" = used) and the art
+  vgui/screens/vgui_coop_progress_board (+_numbers digit sheet 6x2,
+  P2_lightboard_vgui icon sheet 5x5): big two-digit number between the top
+  rules, "NN/TT" and a per-chamber progress bar (played ones dark) in the
+  middle band, the ten icons in two rows of five (used ones dark, others
+  faint). Shown on the prefab's SetActive, hidden on SetInactive (spawnflag
+  1 starts it on). Unit tests: file parsing, lit vs faint icons, bar.
+- Evidence (autopilot, intro2, `input info_sign-info_panel setactive; goto
+  info_sign-info_panel 320; look -38 -12`): old build (dist 503406e) shows
+  an empty dark frame; new build shows "01", "01/19", the first bar segment
+  dark and the cube_button icon dark with the rest faint.
+- Approximations (no Windows reference shot): exact positions/sizes of the
+  number, label, bar and icons are by eye from the board's three rules;
+  the icon sheet's cell order was matched to names by picture (it differs
+  from the file's comment list); the startup flicker sequences
+  (lightboard_startup_sequences.txt) and dirt overlay ("dirt") are not
+  drawn. Owner: compare one sign with Windows Portal 2.
+- Run 2026-10-21 09:26 (autorun, NOT REPRODUCED, no code change):
+  - Big number: autopilot sp_a2_laser_over_goo (`input
+    instanceauto69-info_sign-info_panel setactive; goto ... 320; lookat;
+    look -30 0`) shows a big "04" over "04/22", matching
+    sp_lightboard_icons.txt (level_number 4, total 22); signs.rs is
+    unchanged since d314ea7 (before the owner's build 014ab6e) and stamps
+    the same digit cells for the big number and the label, so a big "01"
+    with "04/22" could not be produced. The owner's shot 2.45.36 PM is not
+    on disk. Owner: resend it (or a Windows shot of that sign) if the
+    sign still looks wrong.
+  - intro5 screens: the elevator vgui_movie_displays get SetMovie
+    media\exercises_vert.bik from videos/video_splitter.nut (the map's
+    entry for sp_a1_intro5), split across the panels with custom UVs, as
+    Windows does. The "entry_emergency.bik / exit_emergency.bik could not
+    be decoded" warnings come from the video masters' moviefilename
+    keyvalue: those files are not in the depot and the script's
+    OVERRIDE_VIDEOS is 0, so Windows never plays them either (harmless).
+    Video quality/bugginess is T-174.
+  - intro5 lights: chamber indicator dots (env_texturetoggle overlays),
+    button glow and room lights look plausible in autopilot shots; no
+    defect could be identified without a reference. Owner: a screenshot
+    of what looks wrong in intro5/intro6 ("screens and lights") is needed.
+  - No fix attempt branch (no plausible cause to try).
+
+### T-116 intro1 room details  (P3, BLOCKED: owner will send comparison screenshots)
+- Owner playtest 9 (2026-10-20, build 014ab6e): "that window does look different in the main game, I'll show comparison screenshots".
+- The window is a grey block, should be blinds (screenshot 1); the TV
+  screen sits forward and up from the TV; odd outside lighting on the ride.
+- Autorun 2026-10-20, NOT REPRODUCED (autopilot only, no code change, no
+  attempt branch):
+  - Window: the start room's window (x ~ -8460, behind the plant) is world
+    brushes in glass/glasswindow_frosted_break001a (and
+    glass_underground_dirty01a): LightmappedGeneric, $translucent, a dirty
+    frosted texture with vertical streaks, no blinds in it. P2_HIDE_MAT=glass
+    shows only plain bright white behind it (no model or brush with blinds
+    there; static props in the room are furniture04, closet_curtain01,
+    lab_pod_frame_end_01, container_lightcover). So we draw what the map
+    has; the glass may just read darker than on Windows (the VMT's
+    `"srgb?$alpha" "0.5"` conditional is not applied by us; unconfirmed).
+    The ride container's slatted look (models/container_ride/windowrails,
+    finedebris_part7) is a different room. Needs a Windows screenshot of
+    the same view to say what "blinds" should look like.
+  - TV screen: `tvscreen` (tvscreen01.mdl) belongs to the ride's
+    actor_container_07 and gets SetParentAttachmentMaintainOffset
+    screenattachment from @rl_container_ride. Autopilot shots 1.5 s and
+    9 s into the ride show it on the TV; the start room's TV is part of
+    hotel_container_furniture models. Needs the owner's exact moment/view.
+  - Outside lighting on the ride: not checked this run (ride is seen
+    through point_viewproxy camera_1, see T-020).
+
+## Open: P0
+(none)
+
+## Open: P1
+
+## Open: P2
+
+### T-120 Elevators  (P2, OPEN: VO timing only; jitter, car sounds, thumps owner-confirmed)
+- Owner playtest 9 (2026-10-20, build 014ab6e): jittery rides FIXED, thumps FIXED; VO timing NOT fixed (voice lines start late, also while riding, which stretches the ride: see T-172); rubble/turrets still fall through the elevator (T-135).
+- Jitter FIXED 2026-10-20 (c1079f9, see Awaiting owner replay). Still open:
+  the VO after intro5's second button started
+  halfway down and stretched the ride (T-138); thumping sounds during the
+  ride (section 4); the trash rising with the elevator is buggy; one ride
+  reached the bottom before the next map loaded.
+- 2026-10-20 autorun: VO timing / ride length NOT REPRODUCED (no code change).
+  How it works: path_tracks call ReadyForTransition() (sp_elevator_motifs.nut);
+  it only leaves once the exit VO's scene fires TransitionReady(), else the
+  car rides the whole shaft to the failsafe node (intro5: ~20 s at 200 u/s,
+  same logic as the original). Autopilot: intro2 with PuzzleCompleted() leaves
+  at the first path_track (~1 s into the ride); intro5 with the cube put into
+  the box_filter trigger (64 448 264) starts testchamber03 0.6 s later, so the
+  VO is not delayed by our scene/script chain. Differences seen: our new line
+  cuts off the still-playing start line (testchamber02) instead of waiting;
+  unchecked whether a cube resting on the real button overlaps that trigger
+  (owner said the line came only halfway down). Needs an owner replay of
+  intro5's second button + `log` timing to go further.
+- 2026-10-20 autorun: thumps NOT REPRODUCED. Every world/player sound during
+  the intro5 and intro6 arrival and departure rides was logged
+  (`RUST_LOG=portal2::audio=debug,p2_fx=debug`): no landing/slam/impact
+  sounds; the only impacts are the chamber's robot arms (World.Robot*,
+  positional, gain 0.05-0.3 by distance). Found instead that the cars were
+  silent: func_tracktrain movesound/stopsound never played. FIXED (5bfaf52,
+  see Awaiting owner replay). Open: thumps (owner: which ride, what it
+  sounded like), trash rising with the car, move-sound pitch by speed
+  (movesoundmin/maxpitch, not done).
+- 2026-10-20 autorun: trash NOT REPRODUCED (no code change). The trash is
+  intro5's departure_elevator-tube_blockage_01 (models/elevator/
+  elevator_rubble.mdl, solid 6, holdanimation 1): blocked_elevator_tube_anim
+  (trigger at -64 816 352) plays the car body's "arrive" (car comes DOWN,
+  root z 972 -> 110 in ~2 s) and 1.75 s later the rubble's "anim" (11.2 s;
+  29 root bones fall from model z 469..1464 to about -90..99, i.e. onto the
+  car roof). Autopilot (setpos -64 1150 300, look -40 90; shots at 3.5-15 s)
+  shows exactly that: car arrives, rubble drops and rests on the roof. The
+  departure ride with the rubble on the roof was not checked (needs the
+  puzzle solved). Possible owner-visible issue: the rubble is a held
+  prop_dynamic, so when the car leaves upward it passes through the pile
+  (same entities in the original; unknown whether Windows hides it).
+  BLOCKED: needs the owner to say which ride and what looked wrong, or a
+  Windows reference of intro5's departure.
+
+## Open: P3
+
+### T-152 Lighting and texture quality below the original  (P3, STUCK 2026-10-21: bumped-model path too large for one run; plan below)
+- Owner playtest 9 (2026-10-20, build 014ab6e): "lighting/textures being low quality is still an issue". Raised to P3.
+- Scrap pieces in the intro3 fall; turrets in tubes (wakeup); bumped
+  VertexLitGeneric (models with $bumpmap) still drawn without bump.
+- Autorun 2026-10-21 (STUCK, no code change): no owner shot pins one
+  surface, so the only concrete item is the bumped VertexLitGeneric path.
+  Texture filtering is already 16x anisotropic with mips (vtf.rs,
+  valve_render.rs), so that's not the cause. Findings for the next attempt
+  (`examples/shaders vertexlit_and_unlit_generic_bump_ps20b|vs20 --statics`):
+  ps20b has 32768 static x 80 dynamic combos (544 stored); bumped statics use
+  BumpmapSampler@s3, cAmbientCube@c5 (6 regs), cLightInfo@c13,
+  g_ShaderControls@c12, cLightScale@c30, g_DiffuseModulation@c1. vs20 is 64 x
+  24 (24 stored), reads a TANGENT input (Input6), has cLightInfo@c27,
+  g_bLightEnabled@b0, cModel@c58, and NO COLOR1 static-light input. So a
+  bumped prop needs (1) VVD tangents in ModelMesh (model_vertices writes a
+  dummy tangent today), (2) a per-prop ambient cube (6 colours, from the same
+  leaf ambient samples that bake COLOR1 now) plus the nearest local lights
+  packed into cLightInfo, (3) the static/dynamic combo digits mapped like
+  vertex_lit_generic's (NUM_LIGHTS in the dynamic index), (4) a new
+  ConstRecipe. Keep the current non-bump path as the fallback when any step
+  fails. Next run: start with (1)+(2) on an attempt branch, check the intro3
+  rubble and the wakeup tube turrets before/after.
+
+### T-164 Spiky, torn animated debris  (P3, OPEN: CPU-skinning attempt REVERTED e88ae41)
+- Owner round 7 (2026-10-21, build 6e0efbf): the CPU skinning made moving
+  things on the intro1 ride shake; reverted at the owner's request (code in
+  c34006e). Next try: check the skinned positions per frame (bone transforms
+  from BonePart vs the rigid parts' interpolation) before redoing it.
+- 2026-10-21: merged untested at the owner's request so the replay has it.
+- Owner round 5 (2026-10-21): still saw spikes on the intro1 ride, but in
+  build b8a2d76, which does not contain attempt/T-164. Autopilot couldn't
+  show the ride animating from outside (`@rl_container_ride Trigger` +
+  setpos: the container stays put in both builds), so no before/after.
+- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed; the fix on attempt/T-164 was not in the build played. Also possibly the "spikes under the button" (T-145).
+- intro1 ride (screenshot 5), sp_a2_intro shaft arms (playtest 7). Animated
+  props draw as rigid per-bone triangles (models.rs split_by_bone); soft
+  weighted meshes tear. Check the weights, then skin them.
+- 2026-10-20 autorun: weights checked (mdlinfo now prints "soft verts" and
+  "mixed tris" per mesh). intro1 ride: the container_ride finedebris_part1/3/
+  5/9/11/12/13 rebars, rust, crumplebeam/crumplecorner, bed02 and frame2
+  meshes blend 2-3 bones (e.g. part12 crumplebeamcol 1257/3265 soft verts,
+  1846 of 3080 tris mixed), so the rigid split tears them: confirmed cause
+  by data. sp_a2_intro: every model is rigid (arm64x64_interior_rusty,
+  crusher, armrubble_* all 0 soft verts), so the shaft-arm spikes are a
+  different problem, still open (check bone poses/interpolation there).
+- Not visually reproduced: in sp_a1_intro1 autopilot (`input
+  actor_container_05 SetAnimation anim2`, `input camera_intro Disable`,
+  `goto`/`lookat`) the view stays on the bed-room intro camera, so no
+  before/after shot of the debris.
+- Untested fix: local branch attempt/T-164 (c34006e), needs owner
+  review/replay. Soft meshes (vertexlit/unlitgeneric) stay whole under the
+  model and are linear-blend skinned on the CPU from their BonePart
+  transforms when those move (plugin.rs skin_soft_meshes, models.rs
+  skin_vertices with a unit test); valve_render re-uploads the vertex
+  buffer when the SkinnedVertices generation changes. Replay the intro1
+  ride's wall breaking and the room transform after `git merge
+  attempt/T-164`.
+
+### T-153 GLaDOS wake-up  (P3, OPEN: some particles still around her; gun drop, arms, view owner-confirmed)
+- Owner round 7 (2026-10-21, build 6e0efbf): "still has some particles
+  around it but its better, portal gun visibly drops, her arms are
+  connected, and the rest is good there".
+- Owner playtest 9 (2026-10-20, build 014ab6e): "glados awakening animation is still covered by lots of white particles".
+- White particles hide her; her arms float unattached when grabbing Chell
+  and Wheatley; the portal gun didn't visibly drop; the player is made to
+  look the wrong way (playtests 6-8).
+- Gun drop FIXED (c64a60b): glados_camera.nut fires `gun_shooter Shoot` at
+  6 s, and env_shooter wasn't implemented. The loader now spawns its
+  shootmodel hidden; Shoot throws m_igibs dynamic copies along its facing
+  (m_flvelocity 60, gib life 4 s). Autopilot `input gun_shooter Shoot`:
+  before (dist d1df637) nothing appears; after, w_portalgun
+  falls, lands ~3.5 s later and is removed at 4 s. Not seen inside the
+  full wake-up sequence (autopilot only, not owner-checked).
+- White particles FIXED (69426f1, 2026-10-21, autopilot only, build
+  0.1.0+69426f1.20261021T1447Z): gladox_fx_start starts glados_head/chest/
+  neck_drag (scene_fx.pcf) on her attachments. Their wake-ring children use
+  particle/wake/ring_wake_mod.vmt, a `$mod2x` SpriteCard ($overbrightfactor
+  3, $addself 2.5) that we drew as a plain sprite: a huge white disc (radius
+  up to 192 u). SpriteCard `$mod2x` now blends as 2*src*dst (grey = no
+  change). Also implemented `Remap CP Speed to CP` and emit_continuously's
+  `emission count scale control point` (only once that CP is set), so the
+  drag dust/wakes emit only while she moves (unit test
+  drag_effect_emits_only_while_its_control_point_moves). Autopilot
+  sp_a1_wakeup `3 setpos 8950 1070 380; 4 input glados_start Trigger;
+  16 lookat fx_chest_drag_01`: before (dist dcc0c0e) a white disc covers
+  her body; after, her body is visible, no white cloud through t=35. Killing
+  the three drag effects in the old build also removed the cloud
+  (confirms the source). `Position Modify Place On Ground` is still
+  unsupported (wakes sit at the attachment instead of on the water).
+- Still open: arms floating unattached, the player looking the wrong way.
+
 
 ## Open: P4
 
@@ -706,71 +776,6 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 
 ## Awaiting owner replay (fixed, autopilot evidence)
 
-### T-175 sp_a1_intro1 ride: the big room outside the container has no fog in parts, black sky  (P3, FIXED ac96ab1 + attempt merged, awaiting owner replay)
-- 2026-10-21: run-time fog (p2_game fog.rs): maps start on the master
-  controller, `!player SetFogController` (61/63 maps) blends to the new one
-  over its foglerptime, SetColor/SetStartDist/SetEndDist change the active
-  one; feeds DistanceFog, ClearColor and source_assets ValveFog. Autopilot
-  intro1: ride light grey fog_intro_ride; touching the vault trigger logs
-  "fog setcolor 50 70 80 / setenddist 2500 / setstartdist 128" and the view
-  goes back to the dense teal vault fog. intro4/laser_intro/wakeup arrivals
-  unchanged (mean pixel within 3/255). Unit tests in fog.rs.
-- 2026-10-21 check: ride shots go from dark teal (fog_destroyed_chambers) to
-  lighter grey with more depth (fog_intro_ride), as Source picks the master.
-  Owner: keep open. To finish: env_fog_controller SetColor/SetStartDist/
-  SetEndDist (the vault trigger), then merge.
-- Owner playtest 9: "the big room outside of the moving box has some issues
-  in the wakeup sequence, like parts not being foggy and the sky being just
-  black above" (compare T-116's "odd outside lighting on the ride").
-- Autorun 2026-10-21: NOT REPRODUCED as described. Autopilot (camera_intro
-  disabled, setpos along the ride -7500 1800 300 .. -3000 3800 2400, looking
-  up and level, dist f150672): fog everywhere, no black sky; the clear colour
-  is the fog colour. But by data the ride fog is wrong: we take the first
-  enabled env_fog_controller, fog_destroyed_chambers (0..2500, 50 70 80,
-  density 0.9, dark blue), while Source starts the player on the master
-  (spawnflags 1) fog_intro_ride (500..8000, 100 110 120, density 0.8, light
-  grey); the vault trigger_once (-1232 4400 2856) later SetColor 50 70 80 /
-  SetStartDist 128 / SetEndDist 2500 on it. We ignore fog inputs and the
-  map's 3D skybox (sky_camera scale 16, its own fog 500..16000, sky_white),
-  which may be the owner's "black sky".
-- Untested fix: local branch attempt/T-175 (1f4de9a), needs owner
-  review/replay. source_assets map_fog_controller picks the master
-  controller (Bevy fog, clear colour and Valve shader fog); ride shots go
-  lighter grey and further. Not done (needed before merging): the fog
-  inputs, else the wrecked vault keeps the light ride fog; 3D skybox.
-  Owner: a screenshot of the black sky / unfogged parts (where in the ride).
-
-### T-164 Spiky, torn animated debris  (P3, attempt MERGED 355882a for owner testing)
-- 2026-10-21: merged untested at the owner's request so the replay has it.
-- Owner round 5 (2026-10-21): still saw spikes on the intro1 ride, but in
-  build b8a2d76, which does not contain attempt/T-164. Autopilot couldn't
-  show the ride animating from outside (`@rl_container_ride Trigger` +
-  setpos: the container stays put in both builds), so no before/after.
-- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed; the fix on attempt/T-164 was not in the build played. Also possibly the "spikes under the button" (T-145).
-- intro1 ride (screenshot 5), sp_a2_intro shaft arms (playtest 7). Animated
-  props draw as rigid per-bone triangles (models.rs split_by_bone); soft
-  weighted meshes tear. Check the weights, then skin them.
-- 2026-10-20 autorun: weights checked (mdlinfo now prints "soft verts" and
-  "mixed tris" per mesh). intro1 ride: the container_ride finedebris_part1/3/
-  5/9/11/12/13 rebars, rust, crumplebeam/crumplecorner, bed02 and frame2
-  meshes blend 2-3 bones (e.g. part12 crumplebeamcol 1257/3265 soft verts,
-  1846 of 3080 tris mixed), so the rigid split tears them: confirmed cause
-  by data. sp_a2_intro: every model is rigid (arm64x64_interior_rusty,
-  crusher, armrubble_* all 0 soft verts), so the shaft-arm spikes are a
-  different problem, still open (check bone poses/interpolation there).
-- Not visually reproduced: in sp_a1_intro1 autopilot (`input
-  actor_container_05 SetAnimation anim2`, `input camera_intro Disable`,
-  `goto`/`lookat`) the view stays on the bed-room intro camera, so no
-  before/after shot of the debris.
-- Untested fix: local branch attempt/T-164 (c34006e), needs owner
-  review/replay. Soft meshes (vertexlit/unlitgeneric) stay whole under the
-  model and are linear-blend skinned on the CPU from their BonePart
-  transforms when those move (plugin.rs skin_soft_meshes, models.rs
-  skin_vertices with a unit test); valve_render re-uploads the vertex
-  buffer when the SkinnedVertices generation changes. Replay the intro1
-  ride's wall breaking and the room transform after `git merge
-  attempt/T-164`.
-
 ### T-112 Missing or flat textures  (P2, attempt MERGED 2c08d11 for owner testing)
 - 2026-10-21: merged at the owner's request (autopilot: floor changes 1-2/255).
 - 2026-10-21 check (attempt merged onto wheatley, sp_a1_wakeup `setpos 9060
@@ -824,109 +829,6 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   If the owner still sees brown, the next suspects are `$refracttint
   {151 135 34}` (not gamma-converted here) and the fog colour.
 
-### T-140 Game-placed portals: no screen shake or sound  (P3, attempt MERGED cda9f10, awaiting owner replay)
-- 2026-10-21: intro1 vault portal (trace of view offsets, dist b8a2d76 vs
-  attempt): mean offset 0.25 -> 0.55 u, x sign flips 10 -> 49 over the
-  shake, fading out over ~1 s (Source CalcShake). Owner OK to merge.
-- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed (no shake/sound felt on game-placed portals).
-- The first orange portal should shake the screen a little and play its sound.
-- Cause: env_shake was not implemented at all. intro1's
-  portal_red_0_activate_rl fires `shake_portal_spawn_room1 StartShake`
-  (amplitude 4, frequency 2.5, 1 s, radius 500) 0.8 s after Trigger, with
-  the portal's SetActivatedState. The sound already played: map portals send
-  PortalPlaced, so Portal.open_red plays (log, before and after build).
-- Fix: new p2_game shakes.rs (StartShake/StopShake/Amplitude/Frequency,
-  linear radius falloff, spawnflag 1 global, 32 no view shake) feeding
-  p2_core ScreenShakes; p2_view offsets and rolls the main camera (random
-  direction re-picked `frequency` times a second, fading squared). Not done:
-  physics/rope pushes (flags 8/16), the on-ground check. Unit tests:
-  amplitude_fades_with_distance, shake_fades_out.
-- Evidence (autopilot only): `goto portal_red_0 200; input
-  portal_red_0_activate_rl Trigger`: "env_shake start, amplitude 2.34 at
-  207 u", then RUST_LOG=p2_view=trace shows camera offsets peaking ~1.9 u
-  and decaying to 0 over the second; before build: no shake. Owner replay:
-  does it feel like Windows Portal 2 (strength, speed)?
-- 2026-10-21 autorun: NOT REPRODUCED. Real path: intro1's vault intro
-  (relay_start_map -> gladosplayvcd(0) -> PreHub10 "three, two, one" ->
-  GladosRelaxationVaultPowerUp -> open_portal_relay) with the player in the
-  vault (`input camera_intro Disable; setpos -1232 4400 2706`): "env_shake
-  shake_portal_spawn_room1 start, amplitude 2.95 at 131 u" and "play
-  Portal.open_red volume 0.480 soundlevel 105" at the opening; frames while
-  standing still are identical before/after but differ during the shake
-  (mean pixel diff 4-5/255), view offsets up to ~1.6 u, roll ~0.2 deg.
-  intro2-4 portal relays use the same env_shake path (amplitude 4, radius
-  500-768). Note: plain `goto` in intro1 gets undone by camera_intro's
-  TeleportToView at 12 s (amplitude 0 at 8461 u), use the setpos above.
-  Suspected: our shake differs in feel from Source's view shake (not
-  confirmed; magnitude matches Source's ComputeShakeAmplitude falloff), or
-  the music/announcer masks the open sound. Owner: which map/portal, and is
-  it weaker than Windows or missing entirely?
-- Untested fix: local branch attempt/T-140 (e5e751c), needs owner
-  review/replay. shake_offset follows Source's CalcShake: swing
-  sin(t * frequency / fraction) * fraction^2 and the per-frame amplitude
-  decay dt/(duration*frequency) (slightly weaker, faster jitter at the end).
-
-### T-117 Blocky shadows  (P3, attempt MERGED be91da3, awaiting owner replay)
-- 2026-10-21: before/after on intro1's planter: edge smoother, no stair
-  steps, chains a bit fainter; elevator arrival (intro2) unchanged. Owner OK
-  to merge; replay the planter shadow.
-- Owner playtest 9 (2026-10-20, build 014ab6e): "shadows look better but still blocky".
-- Cause: env_projectedtexture shadows (light_room_00 in sp_a1_intro1: 110 deg
-  FOV) used a 1024 map and one 2x2 bilinear compare, so the hanging
-  planter's shadow stepped per texel and its chains broke into dashes
-  (owner screenshot 2).
-- Fix: 2048 shadow maps (projected.rs SHADOW_SIZE) and a 3x3 (1 2 1)
-  Gaussian of bilinear compares (projected_common.wgsl), like Source's
-  flashlight PCF.
-- Evidence (autopilot, sp_a1_intro1, `2 input camera_intro disable; 4 setpos
-  -8640 1720 10 -18 180; 5 shot`): before (dist 0.1.0+b39fff3) stair-stepped
-  pot outline and dashed chains; after smooth outline, solid chains, no
-  acne on the walls. Replay: look at the planter shadow above the closet.
-- Autorun 2026-10-21: could not confirm which shadow still looks blocky (no
-  owner screenshot). Autopilot intro1 planter view (dist dcc0c0e) shows a
-  smooth outline and solid chains at 2048 + 3x3 PCF; Windows client.dll has
-  r_flashlightdepthres 1024 (so our maps are not lower-res). Suspected
-  cause: our penumbra is narrower than Source's flashlight 5x5 Gaussian PCF
-  (taps out to 2 texels), so edges read sharper/steppier, worst on wide
-  lights (elevator light_elevator_dynamic 120 deg / 2000 u, intro2+).
-  Tried: binomial (1 4 6 4 1) grid of bilinear compares folded into 6x6
-  per-texel weights (same 36 loads as before). Autopilot before/after on
-  the planter: edge softer, chains still visible but lighter; tests pass.
-  Untested fix: local branch attempt/T-117 (31262e5), needs owner
-  review/replay (which shadow was blocky? compare intro1 planter and an
-  elevator arrival with Windows).
-
-### T-153 GLaDOS wake-up  (P3, PARTIAL: gun drop and white particles FIXED, awaiting owner replay; arms/view open)
-- Owner playtest 9 (2026-10-20, build 014ab6e): "glados awakening animation is still covered by lots of white particles".
-- White particles hide her; her arms float unattached when grabbing Chell
-  and Wheatley; the portal gun didn't visibly drop; the player is made to
-  look the wrong way (playtests 6-8).
-- Gun drop FIXED (c64a60b): glados_camera.nut fires `gun_shooter Shoot` at
-  6 s, and env_shooter wasn't implemented. The loader now spawns its
-  shootmodel hidden; Shoot throws m_igibs dynamic copies along its facing
-  (m_flvelocity 60, gib life 4 s). Autopilot `input gun_shooter Shoot`:
-  before (dist d1df637) nothing appears; after, w_portalgun
-  falls, lands ~3.5 s later and is removed at 4 s. Not seen inside the
-  full wake-up sequence (autopilot only, not owner-checked).
-- White particles FIXED (69426f1, 2026-10-21, autopilot only, build
-  0.1.0+69426f1.20261021T1447Z): gladox_fx_start starts glados_head/chest/
-  neck_drag (scene_fx.pcf) on her attachments. Their wake-ring children use
-  particle/wake/ring_wake_mod.vmt, a `$mod2x` SpriteCard ($overbrightfactor
-  3, $addself 2.5) that we drew as a plain sprite: a huge white disc (radius
-  up to 192 u). SpriteCard `$mod2x` now blends as 2*src*dst (grey = no
-  change). Also implemented `Remap CP Speed to CP` and emit_continuously's
-  `emission count scale control point` (only once that CP is set), so the
-  drag dust/wakes emit only while she moves (unit test
-  drag_effect_emits_only_while_its_control_point_moves). Autopilot
-  sp_a1_wakeup `3 setpos 8950 1070 380; 4 input glados_start Trigger;
-  16 lookat fx_chest_drag_01`: before (dist dcc0c0e) a white disc covers
-  her body; after, her body is visible, no white cloud through t=35. Killing
-  the three drag effects in the old build also removed the cloud
-  (confirms the source). `Position Modify Place On Ground` is still
-  unsupported (wakes sit at the attachment instead of on the water).
-- Still open: arms floating unattached, the player looking the wrong way.
-
-
 ## Backlog
 
 ### T-002 Prove sp_a2_dual_lasers  (P1, TODO)
@@ -953,6 +855,7 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 - Checklists in docs/STATUS.md.
 
 ## Done (newest first; details in git log and docs/STATUS.md)
+- 2026-10-21 Owner-confirmed (round 7, build 6e0efbf): T-175 sp_a1_intro1 ride: the big room outside the container has no fog in parts, black sky; T-140 Game-placed portals: no screen shake or sound; T-117 Blocky shadows (run-time fog "looks better", portal shake good, shadows good). T-153: gun drop and arms confirmed.
 - 2026-10-21 Owner-confirmed (round 6, build ef0144c): T-169 sp_a2_laser_over_goo: GLaDOS never moves the walls, the way on is blocked; T-171 FPS drops, especially looking at portals; T-148 Portals behind glass; T-135 Turrets fall through the exit elevator; T-139 Audio; T-162 Menu animations, logo alignment, styling. Menus: "all menu items are fixed for now, buttons just don't function" (on hold, see "On hold: menus").
 - 2026-10-21 Owner-confirmed after replaying build b8a2d76 (owner notes 2026-10-21 round 5, docs/PLAYTESTS.md): T-196 Screen goes black after every tile flip; T-195 In-game pause menu as Windows; T-197 Tile grid not even; T-182 New Game chapter list; T-186 Video settings; T-192 Menu scaling and display changes; T-176 Can't catch or grab objects in the air; T-170 Carrying regressed: pushed back at walls, can't push a cube up a wall, not smooth; T-163 sp_a1_wakeup pod: the player can jump out of the hatch; a stone-brick block appears there; T-113 Instructor hints vanish after a few seconds if not done; T-144 Missing props: intro1 portal room clipboard and movable clock; T-172 Voice lines start late; T-108 A chamber door had an invisible barrier, needed noclip; T-107 Cubes and floor buttons invisible. Also confirmed there: T-135's vac-tube turrets, T-173's fizzler shake, T-150's intro3 splash/dust, T-139's soundscapes (those entries stay open for their other parts). Details in git log.
 - 2026-10-21 Upstream check (Stink-O/Portal2-rust-engine): only change since
