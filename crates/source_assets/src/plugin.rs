@@ -265,7 +265,7 @@ pub struct LightEnvironment {
     pub ambient_brightness: f32,
 }
 
-/// `env_fog_controller` settings (the first enabled one), world units.
+/// `env_fog_controller` settings (the master, else first enabled one), world units.
 #[derive(Clone, Debug)]
 pub struct MapFog {
     /// Linear colour.
@@ -818,10 +818,7 @@ pub fn spawn_loaded_map(
     }
 
     // Map fog for the Valve shaders (range fog in Source units, linear colour).
-    let (valve_fog, valve_fog_color) = map
-        .entities
-        .iter()
-        .find(|e| e.classname == "env_fog_controller" && e.get("fogenable") == Some("1"))
+    let (valve_fog, valve_fog_color) = crate::entities::map_fog_controller(&map.entities)
         .map(|e| {
             let c = (e.get_vec3("fogcolor").unwrap_or(Vec3::splat(128.0)) / 255.0).powf(2.2);
             (
@@ -1224,10 +1221,7 @@ pub fn spawn_loaded_map(
             Transform::from_translation(source_to_world(e.origin) + offset)
                 .with_rotation(source_view_to_world(e.angles))
         });
-    let fog = map
-        .entities
-        .iter()
-        .find(|e| e.classname == "env_fog_controller" && e.get("fogenable") == Some("1"))
+    let fog = crate::entities::map_fog_controller(&map.entities)
         .map(|e| {
             let c = e.get_vec3("fogcolor").unwrap_or(Vec3::splat(128.0)) / 255.0;
             let c = c.powf(2.2);

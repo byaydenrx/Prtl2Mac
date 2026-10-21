@@ -136,12 +136,36 @@ pub fn parse_entities(lump: &vbsp::Entities) -> Vec<SourceEntity> {
 /// Metres per Source unit, re-exported for callers scaling models.
 pub const UNIT: f32 = SOURCE_UNIT;
 
+/// The `env_fog_controller` a map starts with: the enabled one marked
+/// Master (spawnflags 1), else the first enabled one. Source hands players
+/// the master controller; sp_a1_intro1 lists the dense vault fog
+/// (`fog_destroyed_chambers`) before its master ride fog (`fog_intro_ride`).
+pub fn map_fog_controller(entities: &[SourceEntity]) -> Option<&SourceEntity> {
+    let enabled = || entities.iter().filter(|e| e.classname == "env_fog_controller" && e.get("fogenable") == Some("1"));
+    let master = |e: &&SourceEntity| e.get("spawnflags").and_then(|v| v.trim().parse::<u32>().ok()).unwrap_or(0) & 1 != 0;
+    enabled().find(master).or_else(|| enabled().next())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn close(a: Vec3, b: Vec3) -> bool {
         (a - b).length() < 1e-4
+    }
+
+    #[test]
+    fn master_fog_controller_wins() {
+        let fog = |name: &str, flags: &str, enable: &str| SourceEntity {
+            classname: "env_fog_controller".into(),
+            targetname: Some(name.into()),
+            keyvalues: vec![("spawnflags".into(), flags.into()), ("fogenable".into(), enable.into())],
+            ..Default::default()
+        };
+        let ents = vec![fog("off_master", "1", "0"), fog("vault", "0", "1"), fog("ride", "1", "1")];
+        assert_eq!(map_fog_controller(&ents).and_then(|e| e.targetname.as_deref()), Some("ride"));
+        assert_eq!(map_fog_controller(&ents[..2]).and_then(|e| e.targetname.as_deref()), Some("vault"));
+        assert!(map_fog_controller(&ents[..1]).is_none());
     }
 
     #[test]
