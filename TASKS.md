@@ -59,7 +59,7 @@ P3:
 11. (T-148 portals behind glass: FIXED dcc0c0e, awaiting owner replay.)
 12. (T-117 shadows still blocky: NOT CONFIRMED 2026-10-21, BLOCKED needs owner; untested fix on attempt/T-117.)
 13. (T-152 lighting/texture quality: STUCK 2026-10-21, bumped-model shader path needs a multi-run job; plan in the entry.)
-14. T-153 GLaDOS wake-up particles; T-173 gun hold beam and fizzler spark.
+14. (T-153 GLaDOS white particles FIXED 69426f1, awaiting owner replay; arms/view still open.) T-173 gun hold beam and fizzler spark.
 15. T-140 game-placed portal shake/sound (reopened).
 16. T-174 elevator videos; T-175 intro1 ride outside fog/sky; T-164 debris
     (try attempt/T-164); T-116 window (owner screenshots coming).
@@ -910,7 +910,7 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   fails. Next run: start with (1)+(2) on an attempt branch, check the intro3
   rubble and the wakeup tube turrets before/after.
 
-### T-153 GLaDOS wake-up  (P3, PARTIAL: gun drop fixed; white particles still hide her)
+### T-153 GLaDOS wake-up  (P3, PARTIAL: gun drop and white particles FIXED, awaiting owner replay; arms/view open)
 - Owner playtest 9 (2026-10-20, build 014ab6e): "glados awakening animation is still covered by lots of white particles".
 - White particles hide her; her arms float unattached when grabbing Chell
   and Wheatley; the portal gun didn't visibly drop; the player is made to
@@ -922,8 +922,23 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   before (dist d1df637) nothing appears; after, w_portalgun
   falls, lands ~3.5 s later and is removed at 4 s. Not seen inside the
   full wake-up sequence (autopilot only, not owner-checked).
-- Still open: white particles hiding her, arms floating unattached, the
-  player looking the wrong way.
+- White particles FIXED (69426f1, 2026-10-21, autopilot only, build
+  0.1.0+69426f1.20261021T1447Z): gladox_fx_start starts glados_head/chest/
+  neck_drag (scene_fx.pcf) on her attachments. Their wake-ring children use
+  particle/wake/ring_wake_mod.vmt, a `$mod2x` SpriteCard ($overbrightfactor
+  3, $addself 2.5) that we drew as a plain sprite: a huge white disc (radius
+  up to 192 u). SpriteCard `$mod2x` now blends as 2*src*dst (grey = no
+  change). Also implemented `Remap CP Speed to CP` and emit_continuously's
+  `emission count scale control point` (only once that CP is set), so the
+  drag dust/wakes emit only while she moves (unit test
+  drag_effect_emits_only_while_its_control_point_moves). Autopilot
+  sp_a1_wakeup `3 setpos 8950 1070 380; 4 input glados_start Trigger;
+  16 lookat fx_chest_drag_01`: before (dist dcc0c0e) a white disc covers
+  her body; after, her body is visible, no white cloud through t=35. Killing
+  the three drag effects in the old build also removed the cloud
+  (confirms the source). `Position Modify Place On Ground` is still
+  unsupported (wakes sit at the attachment instead of on the water).
+- Still open: arms floating unattached, the player looking the wrong way.
 
 ### T-173 Portal gun view model: no hold beam, no fizzler spark/shake  (P3, TODO)
 - Owner playtest 9: "portal gun still doesn't have that electricity when
