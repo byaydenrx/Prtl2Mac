@@ -102,6 +102,17 @@ Then the Backlog (prove and sweep the campaign).
   Enable Voice, Push To Talk Key and SETUP MICROPHONE greyed; Graphics
   (Original/Enhanced) removed from Advanced Video. Dead/untestable
   controls listed to the owner in chat 2026-10-21.
+- Not greyed but not working yet (2026-10-21): Speaker Configuration
+  (mix is always stereo), Sound Quality, Puzzlemaker Sounds, Splitscreen
+  Direction, Multicore Rendering, Shader/Effect/Model detail, Paged Pool,
+  Filtering Bilinear vs Trilinear (anisotropic levels work), Motion Blur,
+  Brightness (stored, renderer ignores gamma), Raw Mouse Input,
+  Controller; Edit Keys rows with no game action: Toggle Zoom, Zoom
+  In/Out, the co-op five, View Leaderboard, Take Screenshot, Quit Game,
+  Swap Splitscreen, Turn Left/Right, Look Up/Down, Strafe and Keyboard
+  Look modifiers; Toggle Developer Console and Pause stay on ` and Esc
+  whatever is bound. Untested here: exclusive Fullscreen / Windowed (No
+  Border) switching and non-native resolutions on a real display.
 - Options: Audio, Video, Keyboard/Mouse, Controller, Mods (greyed); no
   Speedrun; subtitle options inside Audio; voice rows greyed; Graphics
   row removed; list what still doesn't work.
