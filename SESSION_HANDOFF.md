@@ -12,7 +12,7 @@ owner's replay: attempt/T-175, attempt/T-164, attempt/T-112 (plus T-140 and
 T-117 earlier).
 
 ## Where things stand
-- dist/Prtl2Mac.app = BUILD_ID: every fix awaiting the owner is in it
+- dist/Prtl2Mac.app = 0.1.0+6e0efbf.20261021T1814Z: every fix awaiting the owner is in it
   (T-175 fog, T-164 debris, T-112 GLaDOS floor, T-140 shake, T-117 shadows,
   T-153 GLaDOS wake-up).
 - Owner screenshots coming: T-173 hold beam, T-174 elevator panels, T-145,
