@@ -65,6 +65,10 @@ pub const FLAG_VERTEX_LIGHT: u32 = 64;
 pub const FLAG_LIGHTMAP_FOG: u32 = 128;
 /// Water whose vertex colour alpha is its depth (units) to the floor below.
 pub const FLAG_WATER_DEPTH: u32 = 256;
+/// Water reflecting the world (`$reflecttexture _rt_WaterReflection` without
+/// `$reflectskyboxonly`): samples [`WaterReflection`], a mirrored view of the
+/// scene above the water plane, x-flipped (see `p2_game::water_reflection`).
+pub const FLAG_WORLD_REFLECT: u32 = 512;
 /// Grid step (Source units) [`subdivide`] cuts map water into.
 pub const WATER_GRID: f32 = 32.0;
 /// Depth (units) given to water with nothing found below it.
@@ -124,7 +128,35 @@ pub struct GlassMaterial {
     #[texture(9)]
     #[sampler(10)]
     pub lightmap: Option<Handle<Image>>,
+    #[texture(11)]
+    #[sampler(12)]
+    pub reflection: Option<Handle<Image>>,
     pub double_sided: bool,
+}
+
+/// Render target of the water reflection camera (Source's
+/// `_rt_WaterReflection`), shared by every world-reflecting water material.
+#[derive(Resource, Clone)]
+pub struct WaterReflection(pub Handle<Image>);
+
+impl FromWorld for WaterReflection {
+    fn from_world(world: &mut World) -> Self {
+        let mut image = Image::new_target_texture(16, 16, bevy::render::render_resource::TextureFormat::Rgba16Float, None);
+        image.asset_usage = bevy::asset::RenderAssetUsages::RENDER_WORLD;
+        Self(world.resource_mut::<Assets<Image>>().add(image))
+    }
+}
+
+/// A world-reflecting water surface: its plane height (Bevy y, metres).
+#[derive(Component, Clone, Copy, Debug)]
+pub struct WorldReflectWater {
+    pub height: f32,
+}
+
+/// Does this water material reflect the world, not just the sky?
+pub fn reflects_world(p: &Kv) -> bool {
+    p.get("$reflecttexture").is_some_and(|t| t.eq_ignore_ascii_case("_rt_WaterReflection"))
+        && p.get_f32("$reflectskyboxonly").unwrap_or(0.0) == 0.0
 }
 
 impl Material for GlassMaterial {
@@ -315,6 +347,7 @@ impl Plugin for GlassPlugin {
     fn build(&self, app: &mut App) {
         embedded_asset!(app, "shaders/glass.wgsl");
         app.add_plugins(MaterialPlugin::<GlassMaterial>::default())
+            .init_resource::<WaterReflection>()
             .add_systems(PostUpdate, (update_glass_proxies, follow_exposure).chain());
     }
 }
