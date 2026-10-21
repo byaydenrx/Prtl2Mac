@@ -23,10 +23,12 @@ change, no attempt branch. Next: T-113.
   by a subagent, merged), 4:3 layout (T-192). Open pieces listed at the
   top of TASKS.md's priority order.
 - Earlier fixes still awaiting the owner: T-176, T-169, T-162, T-170.
-- dist/Prtl2Mac.app = 0.1.0+69426f1.20261021T1447Z (T-153 GLaDOS wake-up white disc: $mod2x particle cards + Remap CP Speed to CP; T-148 frosted glass over portals before it).
+- dist/Prtl2Mac.app = 0.1.0+fd1310c.20261021T1458Z (T-173 gun hold beam, carry anims, fizzler shake; before it T-153 GLaDOS wake-up white disc: $mod2x particle cards + Remap CP Speed to CP; T-148 frosted glass over portals before it).
 
 ## Next action
-1. P3: T-173 gun hold beam and fizzler spark/shake (T-153 white
+1. P3: T-140 game-placed portal shake/sound, reopened (T-173 gun hold
+   beam, carry anims and fizzler shake FIXED fd1310c, awaiting owner replay,
+   gun spark particle still open; T-153 white
    particles FIXED 69426f1, awaiting owner replay, her floating arms and
    the wrong-way view still open in its entry; T-152 STUCK: bumped
    VertexLitGeneric path is a multi-run job, plan in its entry; T-117 shadows NOT CONFIRMED, untested
@@ -38,7 +40,7 @@ change, no attempt branch. Next: T-113.
    T-144 clipboard FIXED 910da9a, awaiting owner replay; T-112 untested fix
    on attempt/T-112, blocked on owner; T-139 music pieces, T-135 rubble
    open; T-172 blocked; T-195..T-197 awaiting owner replay).
-2. Then T-140, T-174, T-175, ... /P4. Skip T-116, T-164, T-151 (owner).
+2. Then T-174, T-175, ... /P4. Skip T-116, T-164, T-151 (owner).
 MENUS FROZEN: only T-196/T-195/T-197 may touch menu code; no other menu
 changes (owner, 2026-10-21). A separate session may port upstream engine
 changes (Stink-O/Portal2-rust-engine) into main; merge origin/main often.

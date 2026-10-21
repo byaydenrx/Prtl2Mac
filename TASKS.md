@@ -59,7 +59,7 @@ P3:
 11. (T-148 portals behind glass: FIXED dcc0c0e, awaiting owner replay.)
 12. (T-117 shadows still blocky: NOT CONFIRMED 2026-10-21, BLOCKED needs owner; untested fix on attempt/T-117.)
 13. (T-152 lighting/texture quality: STUCK 2026-10-21, bumped-model shader path needs a multi-run job; plan in the entry.)
-14. (T-153 GLaDOS white particles FIXED 69426f1, awaiting owner replay; arms/view still open.) T-173 gun hold beam and fizzler spark.
+14. (T-153 GLaDOS white particles FIXED 69426f1, awaiting owner replay; arms/view still open.) (T-173 gun hold beam/fizzler shake FIXED fd1310c, awaiting owner replay; gun spark not done.)
 15. T-140 game-placed portal shake/sound (reopened).
 16. T-174 elevator videos; T-175 intro1 ride outside fog/sky; T-164 debris
     (try attempt/T-164); T-116 window (owner screenshots coming).
@@ -940,11 +940,6 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   unsupported (wakes sit at the attachment instead of on the water).
 - Still open: arms floating unattached, the player looking the wrong way.
 
-### T-173 Portal gun view model: no hold beam, no fizzler spark/shake  (P3, TODO)
-- Owner playtest 9: "portal gun still doesn't have that electricity when
-  picking things up and doesn't spark/shake when going through the
-  emancipation grids" (also T-150's gun beam).
-
 ### T-140 Game-placed portals: no screen shake or sound  (P3, REOPENED: owner says not fixed)
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed (no shake/sound felt on game-placed portals).
 - The first orange portal should shake the screen a little and play its sound.
@@ -1072,6 +1067,36 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-173 Portal gun view model: hold beam, carry anims, fizzler shake  (P3, FIXED fd1310c, awaiting owner replay)
+- Owner playtest 9: "portal gun still doesn't have that electricity when
+  picking things up and doesn't spark/shake when going through the
+  emancipation grids" (also T-150's gun beam).
+- Cause: nothing drove the gun while carrying or at a grid. p2_fx only had
+  the top light / muzzle flash; the viewmodel never played its carry
+  sequences (ACT_VM_PICKUP idle_to_carrying, idle_carrying, carrying_to_idle)
+  and played `fizzle` only on a failed shot.
+- Fix: p2_core `GunHolding` (held object's world centre, kept by p2_game
+  props::gun_holding; through a portal the hold point on this side) and
+  `GunCleansed` (written on trigger_portal_cleanser touch when the gun can
+  fire). p2_fx spawns `portalgun_beam_holding_FP` (portalgun.pcf: CP0 muzzle,
+  CP1 object; the end point is rescaled for the 50-degree viewmodel FOV so it
+  lands on the object; unit test hold_beam_end_matches_world_projection)
+  on the viewmodel layer with the `Weapon_Portalgun.HoldSound` loop, only
+  while the gun is shown. p2_view plays the carry sequences and `fizzle` on
+  GunCleansed; p2_fx plays `Portal.FizzlerShimmy`.
+- Evidence (autopilot only, sp_a1_intro4): `goto section_2_box_2 70; use`:
+  after build shows the electric beam from the muzzle to the cube centre and
+  the raised carrying pose, log "play Weapon_Portalgun.HoldSound"; before
+  build (dist 69426f1) the cube floats with no beam and the idle pose.
+  Walking through fizzler_brush: log "play Portal.FizzlerShimmy" and the gun
+  mid-`fizzle` in the shot; before: nothing.
+- Not done: a spark particle on the gun at the grid (no Valve effect name
+  confirmed for it; the fizzle sequence shows no particle events in
+  animinfo); the beam particles don't follow the gun between restarts
+  ("Movement Lock to Saved Position Along Path" not implemented; the effect
+  restarts often enough that it looked right in the shot). Owner replay:
+  does the beam/fizzle feel like Windows Portal 2?
 
 ### T-148 Portals behind glass  (P3, FIXED dcc0c0e, awaiting owner replay)
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed: "portals still look like they're above glass when they're behind it".
