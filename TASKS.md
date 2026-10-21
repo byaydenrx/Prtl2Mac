@@ -18,21 +18,28 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 4 intro5/intro6, 5 intro7 + sp_a1_wakeup + sp_a2_intro, 6 sp_a2_laser_intro,
 7 sp_a2_laser_stairs.
 
-## Priority order (2026-10-21, owner: campaign next)
-Owner 2026-10-21: after T-153 and T-150, stop small fixes and get chapters
-2-9 fully playable (a full campaign), done by the auto sessions.
+## Priority order (2026-10-21, owner: whole game first, then the campaign)
+Owner 2026-10-21: every map should load, with textures and animations
+right, then fix the biggest problems common to many levels, each gel, then
+the full campaign (chapters 2-9), done by the auto sessions. Audit sources:
+docs/UPSTREAM_GAPS.md (upstream README gaps), T-214 (all-maps sweep), fxaudit.
 ON HOLD (owner): menus (no menu code changes at all); screenshot tasks
 T-173, T-174, T-145, T-147, T-149, T-116, T-152, T-151, T-154; T-164
 skipped; T-120 done enough. Don't work on anything already fixed.
-Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles, T-150
-motion blur.
-1. T-150 gun glow through the wall after the sp_a2_intro fall (owner: fix
-   for sure; its motion blur part is fixed, awaiting replay).
-2. T-198 aerial faith plate physics (chapter 2).
-3. Campaign, in map order: T-002..T-008 (prove chapter 2-3 maps), T-010
-   (ch4), T-011 (ch5), T-012 (ch6), T-013 (ch7), T-014 (ch8), T-015 (ch9).
-   Every engine bug found on the way becomes its own task, taken next if it
-   blocks progress (softlocks/crashes first).
+Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles.
+1. T-212 loud glass smash at sp_a3_00 load (owner report).
+2. T-213 PotatOS missing from the portal gun (owner report).
+3. T-150 motion blur/speed lines + gun glow through the wall (owner: fix for sure).
+4. T-198 aerial faith plate physics (owner report, chapter 2).
+5. Common to many maps: T-203 switchable lights (50/63 maps), T-199
+   particle sprite sheets (every map), T-214 DecalModulate (29 maps) and
+   SolidEnergy (51 maps) shaders + the 4 models that fail to load, T-201
+   monitors, T-206 sound panning, T-200 particle operators, T-202 bloom/colour
+   correction, T-204 cubemaps.
+6. T-211 each gel against Source (+ render_blobs).
+7. Campaign in map order: T-002..T-008, T-010..T-015 (prove each map; every
+   blocking engine bug becomes its own task first).
+8. Lower: T-205 gun edge cases, T-209 transit geometry, T-207, T-208, T-210.
 Then the Backlog (prove and sweep the campaign).
 
 ## On hold: menus (owner 2026-10-21)
@@ -724,6 +731,55 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
 
 ## Open: engine gaps (2026-10-21 audit: upstream READMEs + all-maps sweep; docs/UPSTREAM_GAPS.md)
 
+### T-212 sp_a3_00 (start of chapter 6): loud glass smash at load  (P2, TODO; owner 2026-10-21)
+- Owner: "when you booted up chapter 6 the fall a loud glass noise played".
+- Reproduced (autopilot log, RUST_LOG=portal2::audio=debug): in the first
+  frame after sp_a3_00 loads, `play ScriptedSequence.MoronSmash08
+  (moron_glass_hit_08.wav) gain 1.000`, right after the woosh and music. Not
+  from the map's 4 ambient_generics (falling_whoosh, music, and the two
+  debris sounds with flags 48 = start silent) nor its func_breakables
+  (material 1 wood, break later on crash_landing_path_2). Suspected: a
+  prop_dynamic's animation sound event (anim_props.rs EVENT_SOUNDS
+  1004/1005/5004, AE_CL_PLAYSOUND) at cycle 0 of its default sequence fired
+  on spawn; Source only fires events the cycle actually passes. Find the
+  prop (log the model when an event sound plays), fix the first-frame rule,
+  check other maps for sounds at load.
+
+### T-214 All-maps load sweep findings (2026-10-21)  (P2, TODO)
+- All 63 single-player maps load (autopilot `8 shot; 9 quit` each, build
+  bd169f8): no panics, no load errors. Shots at arrival look right on most.
+- Fallback shaders across maps (materials / maps): DecalModulate 129/29
+  (grime/dirt decals, sign numbers: missing or wrong), SolidEnergy 78/51
+  (fizzler and energy fields drawn on the fallback), UnlitTwoTexture 22/~20
+  (T-201), "missing" model shader 11/10 and brush 3/3 (materials whose VMT
+  isn't found: check which), Black 5, WindowImposter 2/1, PortalRefract
+  (model) 2/1. Do DecalModulate and SolidEnergy first: they are in most maps.
+- Models that fail to load: props_destruction/toxintank_intact, _a*,
+  _implode ("vtx: Trying to read past the end"), effects/urban_puddle_model*
+  ("unreadable vtx"): fix the VTX reader for these.
+- Gel blobs: renderer `render_blobs` unsupported (T-211), constraint
+  "Constrain distance to path between two control points" (blob_curve*).
+- Looks wrong at arrival: sp_a3_jump_intro all white-grey at 8 s (looking
+  ahead; fine after turning: check fog/what's in front), sp_a5_credits plain
+  white with the gun out (the credits map needs its own handling: no gun,
+  credits text/song, the turret opera). Arrival-elevator movie panels flat
+  teal/blue on many maps belong to T-174 (on hold).
+
+### T-213 PotatOS never shows on the portal gun  (P2, TODO; owner 2026-10-21)
+- Owner: "glados as a potato on the portal gun doesn't show in chapters
+  after you have her". Cause by code: `upgrade_potatogun` /
+  UpgradePlayerPotatogun (sp_a3_transition01's script) only enables both
+  colours (triggers.rs console_command); nothing keeps "PotatOS on the
+  gun" or draws her. v_portalgun.mdl has no PotatOS bodygroup (2 meshes,
+  3 skins); the potato is models/npcs/potatos/world_model/potatos_wmodel.mdl
+  attached to the gun (check client.dll's portal gun for the attachment
+  name/offset, skins, her eye light and talking animation). Needs: a
+  PortalGun `potatos` flag set by the upgrade, kept across level changes and
+  saves, set from the campaign position for maps after
+  sp_a3_transition01 up to sp_a4_finale4's socket scene
+  (campaign.rs gun_for), drawn on the viewmodel and the world gun (Chell
+  through portals). sp_a4_finale4 removes her (potatos_socket_insertion).
+
 ### T-199 Particle sprite sheets not decoded: sheet particles draw the whole atlas  (P2, TODO; upstream gap)
 - p2_fx render.rs `SheetGrids` is empty ("the game's sheet layouts are not
   decoded yet"), so every SpriteCard material with a sequence sheet (smoke,
@@ -755,8 +811,7 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
 ### T-201 UnlitTwoTexture (TV/monitor screens) and other model shaders on the fallback  (P3, TODO; upstream gap + sweep)
 - models/props_motel/tv_screen and other monitors use UnlitTwoTexture
   (two textures multiplied, often a scrolling scanline); we draw them on the
-  fallback. Also on the fallback across maps (see the 2026-10-21 load sweep
-  in docs/STATUS.md): see the sweep counts added below.
+  fallback (22 materials over ~20 maps in the 2026-10-21 sweep, T-214).
 
 ### T-202 No bloom or colour correction (every map)  (P3, TODO; upstream gap)
 - Portal 2 adds bloom (engine_post) and a colour-correction LUT

@@ -139,3 +139,8 @@ dont work on anything thats already been fixed though ... 164 is the torn spiky 
 
 ## Owner note 2026-10-21 (campaign), the owner's words
 i just saw the door fixed, and continue to get the rest of the game runnning rather than small fixes after these 2, get chapters 2-9 fully playable. chapter 2 is mostly there but the fling things ariel plates i think their called have something wrong with the physics idk what it is, aiming for a full campaign, have the auto sessions do it so your no longer working in this one
+
+## Owner notes 2026-10-21 (before leaving 24-48 h), the owner's words
+look at this repo https://github.com/Stink-O/Portal2-rust-engine in the crates theres different sections ... theres a readme with known gaps in some of them, this is the engine we built off of so check these known gaps and triple check if we have a fix for it if not add it to the tasks list ... also all maps should load maybe not fully correctly but they should be able to be loaded, get textures and all animations going correctly and then focus on the biggest most common things between each level, what bugs appear most, each gel, and so on.
+when you booted up chapter 6 the fall a loud glass noise played btw (T-212)
+also from what im noticing the glados as a potato on the portal gun doesnt show in chapters after you have her (T-213)
