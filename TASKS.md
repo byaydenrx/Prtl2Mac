@@ -27,7 +27,7 @@ NEXT UP (owner round 4, 2026-10-21): T-196 black screen after flips
 (FIXED f8c9be3, awaiting owner replay), T-195 pause menu as Windows
 (FIXED 8af5fa3, awaiting owner replay), T-197 even tile grid (FIXED 209c358,
 awaiting owner replay). T-172 not reproduced (blocked, needs owner).
-Next T-139 onward (no more menu work).
+Next T-112 onward (no more menu work).
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
 before every other task. Owner notes after build fb0090a (12 items,
 listed under the spec heading) come first: T-179 flip like the video,
@@ -49,7 +49,7 @@ P2:
    (T-145 lit cubes black still open, cause not found; companion/rusted lit skins merged cc8d8e0; spikes/jitter still open.)
 3. (T-172 late VO: NOT REPRODUCED 2026-10-21, BLOCKED needs owner; timings match Valve's scripts.)
 4. (T-135 vac-tube turrets FIXED 41e3839, awaiting owner replay; rubble open, needs owner.)
-5. T-139 music not playing with ambience; soundscapes.
+5. T-139 soundscapes FIXED (efe0631, awaiting owner replay); music stopping/not playing along still open.
 6. T-112 GLaDOS chamber floor still murky brown (with T-151 water).
 7. T-144 clipboard should turn to face the player.
 8. T-149 intro5 screens/lights; sign big number check.
@@ -709,11 +709,27 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   BLOCKED: needs the owner to say which ride and what looked wrong, or a
   Windows reference of intro5's departure.
 
-### T-139 Audio  (P2, PARTIAL: glass fixed; music/ambience and soundscapes open)
+### T-139 Audio  (P2, PARTIAL: glass and soundscapes fixed, awaiting owner replay; music pieces open)
 - Owner playtest 9 (2026-10-20, build 014ab6e): glass fixed; "some music doesn't play along with ambient sounds"; voice lines late (T-172).
 - No soundscapes/ambience (water drips), no button clicks (sections 1, 5).
-  Still open: the engine has no env_soundscape / soundscape script support
-  at all (grep finds nothing), so this is a feature to build.
+  Soundscapes FIXED 2026-10-21 (efe0631, autopilot only, awaiting owner
+  replay): cause was no soundscape support at all. New soundscapes.rs loads
+  the 413 soundscapes of scripts/soundscapes_manifest.txt; the closest
+  enabled env_soundscape(_proxy) holding the listener in its radius and in
+  line of sight (static world) becomes active until another takes over,
+  crossfading over `fadetime`; playlooping (pitch, attenuation, origin,
+  positionN), playrandom (time/volume/pitch ranges, rndwave) and nested
+  playsoundscape volumes. Not run on the menu background map (menus frozen).
+  Evidence (RUST_LOG=portal2::soundscapes=debug): intro2 starts on
+  entryexitelevator.interior (industrial hum loop, pitch 85), switches to
+  testchamber_intro_02.introroom_02 at soundscape_get_the_box (insects
+  loops 02/03 + water drips one-shots every 1.5-4.5 s), then introroom after
+  Disable/Enable of the speakers; laser_intro and wakeup pick theirs too;
+  the dist before-build logs none. Unit tests in soundscapes.rs and
+  `soundlevel_with_or_without_underscore`. Not done: env_soundscape_
+  triggerable/trigger_soundscape, DSP (reverb) presets; random sounds play
+  2D at a random-distance gain; button clicks not looked at.
+  Owner: replay intro2/intro3 and listen for room ambience/drips.
 - Music stops abruptly sometimes; stopped at the wakeup stairs (old T-111).
   Still open, not looked at this run.
 - Glass break far too loud entering intro4 while still in the elevator

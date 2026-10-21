@@ -23,12 +23,13 @@ Rubble open (needs owner). Next: T-139.
   by a subagent, merged), 4:3 layout (T-192). Open pieces listed at the
   top of TASKS.md's priority order.
 - Earlier fixes still awaiting the owner: T-176, T-169, T-162, T-170.
-- dist/Prtl2Mac.app = 0.1.0+41e3839.20261021T1250Z (T-135 vac-tube turrets killed; T-197/T-195/T-196 before it).
+- dist/Prtl2Mac.app = 0.1.0+efe0631.20261021T1257Z (T-139 soundscapes; T-135 vac-tube turrets before it).
 
 ## Next action
-1. T-139 music/ambience and soundscapes (T-135 vac-tube turrets fixed
-   41e3839, rubble open; T-172 blocked; T-195..T-197 awaiting owner replay).
-2. Then T-112, T-144, T-149, T-147, T-113,
+1. T-112 GLaDOS chamber floor murky brown (T-139 soundscapes fixed
+   efe0631, music pieces still open; T-135 rubble open; T-172 blocked;
+   T-195..T-197 awaiting owner replay).
+2. Then T-144, T-149, T-147, T-113,
    then P3/P4. Skip T-116, T-164, T-151 (owner).
 MENUS FROZEN: only T-196/T-195/T-197 may touch menu code; no other menu
 changes (owner, 2026-10-21). A separate session may port upstream engine
