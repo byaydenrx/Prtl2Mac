@@ -27,9 +27,9 @@ ON HOLD (owner): menus (no menu code changes at all); screenshot tasks
 T-173, T-174, T-145, T-147, T-149, T-116, T-152, T-151, T-154; T-164
 skipped; T-120 done enough. Don't work on anything already fixed.
 Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles, T-150
-motion blur and gun glow.
+motion blur and gun glow, T-213 PotatOS on the gun.
 1. T-212 loud glass smash at sp_a3_00 load (owner report). BLOCKED: attempt/T-212.
-2. T-213 PotatOS missing from the portal gun (owner report).
+2. T-213 PotatOS missing from the portal gun. FIXED a598811, awaiting replay.
 2b. T-215 Windows reference capture tool (makes every look/feel task checkable).
 4. T-198 aerial faith plate physics (owner report, chapter 2).
 5. Common to many maps: T-203 switchable lights (50/63 maps), T-199
@@ -792,21 +792,6 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
   credits text/song, the turret opera). Arrival-elevator movie panels flat
   teal/blue on many maps belong to T-174 (on hold).
 
-### T-213 PotatOS never shows on the portal gun  (P2, TODO; owner 2026-10-21)
-- Owner: "glados as a potato on the portal gun doesn't show in chapters
-  after you have her". Cause by code: `upgrade_potatogun` /
-  UpgradePlayerPotatogun (sp_a3_transition01's script) only enables both
-  colours (triggers.rs console_command); nothing keeps "PotatOS on the
-  gun" or draws her. v_portalgun.mdl has no PotatOS bodygroup (2 meshes,
-  3 skins); the potato is models/npcs/potatos/world_model/potatos_wmodel.mdl
-  attached to the gun (check client.dll's portal gun for the attachment
-  name/offset, skins, her eye light and talking animation). Needs: a
-  PortalGun `potatos` flag set by the upgrade, kept across level changes and
-  saves, set from the campaign position for maps after
-  sp_a3_transition01 up to sp_a4_finale4's socket scene
-  (campaign.rs gun_for), drawn on the viewmodel and the world gun (Chell
-  through portals). sp_a4_finale4 removes her (potatos_socket_insertion).
-
 ### T-199 Particle sprite sheets not decoded: sheet particles draw the whole atlas  (P2, TODO; upstream gap)
 - p2_fx render.rs `SheetGrids` is empty ("the game's sheet layouts are not
   decoded yet"), so every SpriteCard material with a sequence sheet (smoke,
@@ -920,6 +905,28 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
 ## Open: P4
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-213 PotatOS never shows on the portal gun  (P2, FIXED a598811, awaiting owner replay)
+- Owner: "glados as a potato on the portal gun doesn't show in chapters
+  after you have her". Cause: v_portalgun.mdl and w_portalgun.mdl do carry
+  her as bodygroup 1 ("potatos_vmodel", model 1), but vmdl reads Portal 2
+  (v49) mstudiomodel_t with the wrong stride, so every model after a body
+  part's first was dropped; and nothing tracked "PotatOS on the gun". Fix:
+  models.rs reads body parts from the raw MDL (148/116-byte structs, as the
+  eyeball reader does); body 0 stays in `meshes`, other choices go to
+  `ModelData::body_alternates`. `PortalGun::potatos`: set by
+  logic_playerproxy AddPotatosToPortalgun (sp_a3_transition01 pickup),
+  cleared by RemovePotatosFromPortalgun (sp_a4_finale4 socket), set at map
+  load from FIRST_MAP_WITH_POTATO_GUN (sp_a3_speed_ramp) through
+  sp_a4_finale4, kept in saves. Both gun models show the bodygroup.
+- Evidence (autopilot only): sp_a3_speed_ramp start, before build bare gun,
+  after build PotatOS clamped on the prongs; sp_a3_transition01 bare until
+  `input potatos_playerproxy addpotatostoportalgun`, then shown;
+  sp_a2_laser_intro bare. Unit test potatos_rides_from_speed_ramp_through_finale4.
+- Not done: her talking animation/eye light on the gun (v_portalgun has no
+  separate sequences for it; check client.dll if the owner wants it).
+  Side effect to watch: other props' non-default bodygroups were garbage
+  before and are now hidden (Source draws body 0).
 
 ### T-150 Particles missing  (P4, FIXED, awaiting owner replay: motion blur 7cc1096, gun glow through the wall 8d48dab; intro3 splash/dust owner-confirmed "for now")
 - 2026-10-21 autorun, gun glow through the wall: FIXED 8d48dab. Cause: the

@@ -4,24 +4,23 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-21 15:55 autorun: T-212 ATTEMPT (branch attempt/T-212, not
-pushed): the sp_a3_00 glass smash is the broken elevator prop's default
-"break" sequence firing its frame-0 sound; unclear if Source does too.
+2026-10-21 16:00 autorun: T-213 FIXED (a598811): PotatOS on the portal gun
+(viewmodel + world gun bodygroup; loader now reads all bodygroup models).
 
 ## Where things stand
-- dist/Prtl2Mac.app = 0.1.0+8d48dab.20261021T1936Z.
+- dist/Prtl2Mac.app = 0.1.0+a598811.20261021T1958Z.
 - Awaiting the owner: T-112 GLaDOS floor reflection, T-153 particles,
-  T-150 motion blur.
+  T-150 motion blur + gun glow, T-213 PotatOS on the gun.
 - ON HOLD: menus (no menu code changes), screenshot tasks (T-173, T-174,
   T-145, T-147, T-149, T-116, T-152, T-151, T-154), T-164, T-120.
 
 ## Next action (auto sessions; owner away 24-48 h from 2026-10-21 evening)
-Follow TASKS.md "Priority order": T-213 PotatOS on the gun, T-198 faith plates (T-150 gun glow FIXED 8d48dab, awaiting replay), then the common
-engine gaps (T-203 lights, T-199 sprite sheets, T-214 DecalModulate/
-SolidEnergy/broken models, T-201, T-206, T-200, T-202, T-204), T-211 gels,
-then the campaign T-002..T-015. Audit docs: docs/UPSTREAM_GAPS.md, T-214.
-Tools added: p2_fx examples `pcfdump` (one system) and `fxaudit` (unsupported
-operators over map effects). ON HOLD: menus, screenshot tasks, T-164, T-120.
+Follow TASKS.md "Priority order": T-215 Windows reference capture tool,
+T-198 faith plates, then the common engine gaps (T-203 lights, T-199 sprite
+sheets, T-214 DecalModulate/SolidEnergy/broken models, T-201, T-206, T-200,
+T-202, T-204), T-211 gels, then the campaign T-002..T-015. Audit docs:
+docs/UPSTREAM_GAPS.md, T-214. Tools: p2_fx `pcfdump`, `fxaudit`; mdlinfo now
+lists bodygroup alternates. ON HOLD: menus, screenshot tasks, T-164, T-120.
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.
