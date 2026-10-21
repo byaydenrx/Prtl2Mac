@@ -26,10 +26,11 @@ Rubble open (needs owner). Next: T-139.
 - dist/Prtl2Mac.app = 0.1.0+efe0631.20261021T1257Z (T-139 soundscapes; T-135 vac-tube turrets before it).
 
 ## Next action
-1. T-112 GLaDOS chamber floor murky brown (T-139 soundscapes fixed
-   efe0631, music pieces still open; T-135 rubble open; T-172 blocked;
+1. T-144 clipboard should turn to face the player (T-112 GLaDOS floor:
+   untested world-reflection fix on attempt/T-112, blocked on owner;
+   T-139 music pieces, T-135 rubble open; T-172 blocked;
    T-195..T-197 awaiting owner replay).
-2. Then T-144, T-149, T-147, T-113,
+2. Then T-149, T-147, T-113,
    then P3/P4. Skip T-116, T-164, T-151 (owner).
 MENUS FROZEN: only T-196/T-195/T-197 may touch menu code; no other menu
 changes (owner, 2026-10-21). A separate session may port upstream engine
@@ -39,6 +40,10 @@ changes (Stink-O/Portal2-rust-engine) into main; merge origin/main often.
 None outside what this file's commit contains.
 
 ## Fix attempts awaiting the owner
+- attempt/T-112 (cc81fdb): world-reflecting water (GLaDOS chamber,
+  water_glados_01) samples a mirrored half-res camera view with an oblique
+  clip plane at the water. Small change at shallow angles; replay
+  sp_a1_wakeup's chamber (and check FPS there), then merge or delete.
 - attempt/T-151 (2df932d): water reflects the (LDR-clamped) sky on fogged
   maps and glass/water get the map's distance fog. intro3 water goes from
   flat brown to grey with flowing ripples; compare with Windows Portal 2's

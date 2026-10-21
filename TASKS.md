@@ -27,7 +27,7 @@ NEXT UP (owner round 4, 2026-10-21): T-196 black screen after flips
 (FIXED f8c9be3, awaiting owner replay), T-195 pause menu as Windows
 (FIXED 8af5fa3, awaiting owner replay), T-197 even tile grid (FIXED 209c358,
 awaiting owner replay). T-172 not reproduced (blocked, needs owner).
-Next T-112 onward (no more menu work).
+Next T-144 onward (no more menu work; T-112 attempt branch awaits owner).
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
 before every other task. Owner notes after build fb0090a (12 items,
 listed under the spec heading) come first: T-179 flip like the video,
@@ -50,7 +50,7 @@ P2:
 3. (T-172 late VO: NOT REPRODUCED 2026-10-21, BLOCKED needs owner; timings match Valve's scripts.)
 4. (T-135 vac-tube turrets FIXED 41e3839, awaiting owner replay; rubble open, needs owner.)
 5. T-139 soundscapes FIXED (efe0631, awaiting owner replay); music stopping/not playing along still open.
-6. T-112 GLaDOS chamber floor still murky brown (with T-151 water).
+6. (T-112 GLaDOS floor: BLOCKED, untested world-reflection fix on attempt/T-112, needs owner.)
 7. T-144 clipboard should turn to face the player.
 8. T-149 intro5 screens/lights; sign big number check.
 9. T-147 intro2 black screen at the first door; T-113 hints vanish.
@@ -745,7 +745,7 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   when autopilot walks into the ramp trigger (`goto glass_shard`), with the
   pane door opening. Unit test `only_looping_audible_ambients_autostart`.
 
-### T-112 Missing or flat textures  (P2, PARTIAL: GLaDOS floor better but still murky brown)
+### T-112 Missing or flat textures  (P2, BLOCKED (needs owner): GLaDOS floor world reflection attempt on attempt/T-112)
 - Owner playtest 9 (2026-10-20, build 014ab6e): "glados chamber floor is still just a weird murky brown ... it does look better than before". Likely needs the water reflection (see T-151, attempt/T-151).
 - GLaDOS chamber floor brown and flat like the old intro3 water (section 5);
   hallway to GLaDOS; after the jumps a black wall you can walk through; a
@@ -773,6 +773,25 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   owner replay should glance at both.
 - Still open: the hallway to GLaDOS's chamber, the black walk-through wall
   after the jumps (where?), the blue flat wall behind the intro4 elevator.
+- Autorun 2026-10-21: reproduced the look (sp_a1_wakeup `setpos 9060 1120
+  440 15 20`: flat yellow-olive sheet), cause not confirmable without a
+  Windows shot. Suspected: water_glados_01 has `$reflecttexture
+  _rt_WaterReflection` WITHOUT `$reflectskyboxonly`, so Source reflects the
+  whole chamber (a mirrored scene render); we reflect nothing there (fogged
+  map: no sky either, and baked env_cubemaps aren't loaded).
+  Untested fix: local branch attempt/T-112 (cc81fdb), needs owner
+  review/replay. A half-size camera mirrored in the nearest such water plane
+  below the eye, oblique near plane at the water (p2_render's
+  PortalProjection), sampled x-flipped by glass.wgsl and Fresnel-mixed
+  (FLAG_WORLD_REFLECT); unit test for the mirror/clip plane. Autopilot: a
+  reflection-only debug shot shows the mirrored chamber; with the normal
+  blend the change is small at shallow pitches (Fresnel ~0.1), so the
+  floor still reads yellow-brown. Costs: one extra half-res scene render on
+  maps with such water; that water is drawn in the main view only, so it
+  is missing when seen through portals. intro3/laser_intro water
+  (`$reflectskyboxonly 1`) is untouched (that is attempt/T-151).
+  If the owner still sees brown, the next suspects are `$refracttint
+  {151 135 34}` (not gamma-converted here) and the fog colour.
 
 ### T-144 Missing props: intro1 portal room clipboard and movable clock  (P2, PARTIAL: props fixed; clipboard should turn to face the player)
 - Owner playtest 9 (2026-10-20, build 014ab6e): fixed, "but the clipboard prop doesn't auto face you so you can read it" (Portal 2 turns some props to a preferred carry angle when picked up; check the model's physgun/carry keyvalues).
