@@ -842,9 +842,14 @@ fn tile_frame_sized(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&
             for r in 0..=tall {
                 for c in 0..wide {
                     let Some(piece) = tile_piece(c, r, tab, wide, tall) else { continue };
-                    let x = if c + 1 == wide { f.width - T } else { c as f32 * T };
-                    let y = if r == 0 { 0.0 } else if r == tall { f.body } else { r as f32 * T };
-                    let node = Node { position_type: PositionType::Absolute, left: units(x.max(0.0)), top: units(y), width: units(T), height: units(T), ..default() };
+                    let node = match tile_spot(c, r, wide, tall, f.width, f.body) {
+                        Some((x, y, t)) => Node { position_type: PositionType::Absolute, left: Val::Px(x), top: Val::Px(y), width: Val::Px(t), height: Val::Px(t), ..default() },
+                        None => {
+                            let x = if c + 1 == wide { f.width - T } else { c as f32 * T };
+                            let y = if r == 0 { 0.0 } else if r == tall { f.body } else { r as f32 * T };
+                            Node { position_type: PositionType::Absolute, left: units(x.max(0.0)), top: units(y), width: units(T), height: units(T), ..default() }
+                        }
+                    };
                     match art.and_then(|a| a.tiles.as_ref()) {
                         Some(t) => {
                             d.spawn((ImageNode::new(t[piece].clone()), node));
@@ -881,6 +886,43 @@ const FLIP_STEP: f32 = 0.035;
 /// every 0.07 s while tiles turn (heard in the recording).
 const FLIP_SOUNDS: [&str; 2] = ["ui/ui_menu_flip_single_01.wav", "ui/ui_menu_flip_single_02.wav"];
 const FLIP_SOUND_GAP: f32 = 0.07;
+
+/// One 50-unit dialog tile in whole physical pixels (0 before the window
+/// is known) and the window's scale factor (f32 bits): set by rebuild_menu.
+static TILE_PX: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+static TILE_SCALE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// [`TILE_PX`] for a window `phys_h` physical pixels high.
+fn tile_px_for(phys_h: f32) -> u32 {
+    if phys_h <= 0.0 {
+        return 0;
+    }
+    (50.0 * phys_h / 480.0).round().max(1.0) as u32
+}
+
+/// Where tile `c`, `r` of a tiled frame `width` x (tab + `body`) units
+/// goes, in logical pixels from the frame's top left, and the tile size:
+/// every tile on one grid of whole physical pixels (a 50-unit tile is
+/// 102.3 px on a 982-high window; placed by units each rounded on its own,
+/// tiles came out 102 or 103 apart). The last column and row are pulled
+/// in so the right and bottom edges land on the size. `None` before the
+/// window size is known.
+fn tile_spot(c: usize, r: usize, wide: usize, tall: usize, width: f32, body: f32) -> Option<(f32, f32, f32)> {
+    let t = TILE_PX.load(Ordering::Relaxed);
+    let scale = f32::from_bits(TILE_SCALE.load(Ordering::Relaxed));
+    (t > 0 && scale > 0.0).then(|| {
+        let (x, y) = tile_spot_px(t, c, r, wide, tall, width, body);
+        (x as f32 / scale, y as f32 / scale, t as f32 / scale)
+    })
+}
+
+/// [`tile_spot`]'s position in physical pixels for tiles `t` pixels wide.
+fn tile_spot_px(t: u32, c: usize, r: usize, wide: usize, tall: usize, width: f32, body: f32) -> (u32, u32) {
+    let edge = |u: f32| (u / 50.0 * t as f32).round() as u32;
+    let x = if c + 1 == wide { edge(width).saturating_sub(t) } else { c as u32 * t };
+    let y = if r > 0 && r == tall { edge(50.0 + body).saturating_sub(t) } else { r as u32 * t };
+    (x, y)
+}
 
 /// The screen is not widescreen (see rebuild_menu).
 static NARROW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -1910,8 +1952,12 @@ fn rebuild_menu(
     let narrow = windows.single().is_ok_and(|w| w.width() / w.height().max(1.0) < 1.5);
     NARROW.store(narrow, Ordering::Relaxed);
     let narrow_changed = narrow != *was_narrow;
+    // Dialog tiles on one whole-pixel grid (see tile_spot).
+    let (tile, scale) = windows.single().map_or((0, 0.0), |w| (tile_px_for(w.physical_height() as f32), w.scale_factor()));
+    let tile_changed = TILE_PX.swap(tile, Ordering::Relaxed) != tile;
+    let tile_changed = TILE_SCALE.swap(scale.to_bits(), Ordering::Relaxed) != scale.to_bits() || tile_changed;
     *was_narrow = narrow;
-    if !screen.is_changed() && !menu.is_changed() && !options_changed && !chapters_changed && !fonts.is_added() && !narrow_changed {
+    if !screen.is_changed() && !menu.is_changed() && !options_changed && !chapters_changed && !fonts.is_added() && !narrow_changed && !tile_changed {
         return;
     }
     // The rebuilt buttons only learn they are hovered a frame later; keep
@@ -3543,6 +3589,25 @@ mod tests {
         assert!(at(196)[1] > 50 && at(200)[1] > far[1], "it glows beside the bar");
         assert!(far[0] < 120 && far[1] > 20, "less colour away from it: {far:?}");
         assert_eq!(far[3], 255);
+    }
+
+    #[test]
+    fn tiles_sit_on_one_whole_pixel_grid() {
+        // 982 physical rows: a tile is 102.3 px, snapped to 102 for all.
+        let t = tile_px_for(982.0);
+        assert_eq!(t, 102);
+        assert_eq!(tile_px_for(1440.0), 150);
+        assert_eq!(tile_px_for(0.0), 0);
+        // Options (5 x 3 under the tab): every step exactly one tile.
+        for c in 0..5 {
+            for r in 0..=3 {
+                assert_eq!(tile_spot_px(t, c, r, 5, 3, 250.0, 150.0), (c as u32 * t, r as u32 * t));
+            }
+        }
+        // A confirmation sized to its text: the last column and row pulled
+        // in to the edge, still whole pixels.
+        assert_eq!(tile_spot_px(t, 3, 2, 4, 2, 180.0, 70.0), (367 - 102, 245 - 102));
+        assert_eq!(tile_spot_px(t, 0, 0, 1, 1, 50.0, 50.0), (0, 0));
     }
 
     #[test]
