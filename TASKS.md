@@ -26,7 +26,8 @@ and the dead-control list) is on hold, not for autoruns.
 NEXT UP (owner round 4, 2026-10-21): T-196 black screen after flips
 (FIXED f8c9be3, awaiting owner replay), T-195 pause menu as Windows
 (FIXED 8af5fa3, awaiting owner replay), T-197 even tile grid (FIXED 209c358,
-awaiting owner replay). Next T-172 onward (no more menu work).
+awaiting owner replay). T-172 not reproduced (blocked, needs owner).
+Next T-135 onward (no more menu work).
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
 before every other task. Owner notes after build fb0090a (12 items,
 listed under the spec heading) come first: T-179 flip like the video,
@@ -46,7 +47,7 @@ P2:
    (T-162 UI styling: every screen done 2026-10-20, awaiting owner replay.)
    (T-170 carrying at walls fixed 9f1ed5a, awaiting owner replay.)
    (T-145 lit cubes black still open, cause not found; companion/rusted lit skins merged cc8d8e0; spikes/jitter still open.)
-3. T-172 voice lines start late (stretches elevator rides; T-120's VO part).
+3. (T-172 late VO: NOT REPRODUCED 2026-10-21, BLOCKED needs owner; timings match Valve's scripts.)
 4. T-135 things fall through elevators (turrets, rubble).
 5. T-139 music not playing with ambience; soundscapes.
 6. T-112 GLaDOS chamber floor still murky brown (with T-151 water).
@@ -628,12 +629,42 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   yellow; moved off the button, ring blue again. Not owner-verified.
 - Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
 
-### T-172 Voice lines start late  (P2, TODO)
+### T-172 Voice lines start late  (P2, BLOCKED: not reproduced, needs owner)
 - Owner playtest 9: "sometimes voicelines activate late and when I'm going
   through the elevator, making the elevator ride go on longer" (global).
   Elevator rides wait for the exit VO's TransitionReady (T-120), so late VO
   stretches them. Measure scene start vs its trigger (logic_choreographed_scene
   Start, glados.nut queue, sound decode/load latency) on several maps.
+- 2026-10-21 autorun: NOT REPRODUCED, no code change, no attempt branch (no
+  engine-side cause found). Measured on sp_a1_intro2 with
+  `RUST_LOG=portal2::scenes=debug,portal2::audio=debug,portal2::io=debug`,
+  real solve path (`input room_01-glados_congrats_trigger enable`, walk into
+  it, then the departure elevator):
+  - Every VCD speak event equals its wave length (afinfo: PreHub19 5.43,
+    PreHub20 11.86, PreHub27 6.55, PreHub28 7.50, GOOD02 0.44,
+    testchamber03 13.01 s); a scene's `play` is logged within 1 ms of its
+    Start, the wave is read and handed to the mixer the same frame.
+  - Chain gaps match glados.nut exactly: postdelay + up to one 0.1 s
+    GladosThink tick + 0.18 s after ding_on (good02 -> prehub19 +0.71 s,
+    prehub19 -> prehub20 +5.67 s, prehub27 -> prehub28 +6.84 s); Entry01
+    has predelay 1.3 s (started 1.25 s after load). Game clock and wall clock
+    agree (no drift/hitches in these runs).
+  - The ride: path_tracks call ReadyForTransition(); the car only leaves
+    once the scene table's `fires` runs TransitionReady() at the END of the
+    exit chain (intro2: Good02 + PreHub19 + PreHub20, ~18.5 s after the
+    congrats trigger; transition fired 0.14 s after PreHub20 ended). So a
+    player who solves quickly rides until the success chain is over; same
+    scripts as Windows. If the congrats trigger is skipped the car rides the
+    whole shaft to the failsafe node (~22 s).
+  - Suspects not confirmed: (a) the chamber's Entry chain is still talking
+    when the player is already in the exit elevator because the player was
+    fast (by design); (b) owner-machine frame hitches longer than Bevy's
+    0.25 s max delta would slow the scene clock (none seen here); (c) audio
+    output latency on the owner's device (not measurable by autopilot).
+  - Needs from the owner: which map(s) and which line felt late (or a
+    Windows recording of the same moment), ideally a run with
+    `RUST_LOG=portal2::scenes=debug,portal2::audio=debug` so the log shows
+    trigger -> scene -> play times.
 
 ### T-120 Elevators  (P2, OPEN: VO timing only; jitter, car sounds, thumps owner-confirmed)
 - Owner playtest 9 (2026-10-20, build 014ab6e): jittery rides FIXED, thumps FIXED; VO timing NOT fixed (voice lines start late, also while riding, which stretches the ride: see T-172); rubble/turrets still fall through the elevator (T-135).

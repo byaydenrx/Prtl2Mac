@@ -4,10 +4,11 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-21 08:13, autorun (prtl2mac-auto-resume-2). T-196 FIXED (f8c9be3):
-the end of every menu tile flip left one frame with neither the flip
-overlay nor the menu on the window (black flash; at startup the whole
-screen). Autopilot-checked only, awaiting owner replay. Next: T-195.
+2026-10-21 08:45, autorun (prtl2mac-auto-resume-2). T-172 (late VO) NOT
+REPRODUCED: intro2 scene/VO/transition timings match Valve's glados.nut and
+VCD/wave lengths to within one think tick; rides wait for the exit chain's
+TransitionReady by design. No code change; BLOCKED (needs owner: which map
+and line, or a debug log). Next: T-135.
 
 ## Where things stand
 - Upstream checked 2026-10-21: no code changes since our base v0.1.0, only a
@@ -25,9 +26,9 @@ screen). Autopilot-checked only, awaiting owner replay. Next: T-195.
 - dist/Prtl2Mac.app = 0.1.0+209c358.20261021T1229Z (T-197 even tile grid; T-195 pause menu and T-196 flip fix before it).
 
 ## Next action
-1. T-172 late VO (T-197 FIXED 209c358, T-195 8af5fa3, T-196 f8c9be3: all
-   awaiting owner replay; menu work done).
-2. Then T-135, T-139, T-112, T-144, T-149, T-147, T-113,
+1. T-135 things fall through elevators (T-172 not reproduced, blocked;
+   T-197/T-195/T-196 fixed, awaiting owner replay; menu work done).
+2. Then T-139, T-112, T-144, T-149, T-147, T-113,
    then P3/P4. Skip T-116, T-164, T-151 (owner).
 MENUS FROZEN: only T-196/T-195/T-197 may touch menu code; no other menu
 changes (owner, 2026-10-21). A separate session may port upstream engine
