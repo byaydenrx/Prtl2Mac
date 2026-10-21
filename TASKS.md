@@ -27,7 +27,7 @@ NEXT UP (owner round 4, 2026-10-21): T-196 black screen after flips
 (FIXED f8c9be3, awaiting owner replay), T-195 pause menu as Windows
 (FIXED 8af5fa3, awaiting owner replay), T-197 even tile grid (FIXED 209c358,
 awaiting owner replay). T-172 not reproduced (blocked, needs owner).
-T-144 clipboard FIXED 910da9a (awaiting owner replay). T-149 not reproduced (blocked, needs owner shots). T-147 not reproduced (blocked, needs owner). T-113 hints FIXED 693f8ce (awaiting owner replay). Next T-171 onward (no more menu work; T-112 attempt branch awaits owner).
+T-144 clipboard FIXED 910da9a (awaiting owner replay). T-149 not reproduced (blocked, needs owner shots). T-147 not reproduced (blocked, needs owner). T-113 hints FIXED 693f8ce (awaiting owner replay). T-171 portal hitch PARTIAL FIX d4fd841 (awaiting owner replay). Next T-148 onward (no more menu work; T-112 attempt branch awaits owner).
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
 before every other task. Owner notes after build fb0090a (12 items,
 listed under the spec heading) come first: T-179 flip like the video,
@@ -55,7 +55,7 @@ P2:
 8. (T-149 intro5 screens/lights, big number: NOT REPRODUCED 2026-10-21, BLOCKED needs owner screenshots.)
 9. (T-147 intro2 black screen at the first door: NOT REPRODUCED 2026-10-21, BLOCKED needs owner.) T-113 hints vanish.
 P3:
-10. T-171 FPS drops looking at portals.
+10. (T-171 portal first-look hitch: PARTIAL FIX d4fd841, awaiting owner replay.)
 11. T-148 portals behind glass drawn on top (reopened).
 12. T-117 shadows still blocky.
 13. T-152 lighting/texture quality.
@@ -860,11 +860,6 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 
 ## Open: P3
 
-### T-171 FPS drops, especially looking at portals  (P3, TODO)
-- Owner playtest 9: "I do get frequent fps drops especially looking at
-  portals". Measure frame time with and without a portal in view (portal
-  view renders, recursion depth, shadow maps per portal view).
-
 ### T-148 Portals behind glass  (P3, REOPENED: owner says not fixed)
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed: "portals still look like they're above glass when they're behind it".
 - Owner section 1 (intro2): portals behind glass look on top of the glass;
@@ -1051,6 +1046,32 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-171 FPS drops, especially looking at portals  (P3, PARTIAL FIX d4fd841, awaiting owner replay)
+- Owner playtest 9: "I do get frequent fps drops especially looking at
+  portals". Measure frame time with and without a portal in view (portal
+  view renders, recursion depth, shadow maps per portal view).
+- Measured (autopilot, sp_a1_intro2, portal_blue_1/red_1 activated,
+  `setpos -450 -60 -60; lookat portal_blue_1`, cl_showfps, 2560x1440):
+  steady state is the same with and without a portal in view (120 fps,
+  v-sync capped, 8.3 ms avg). The drop is a one-off hitch the first time
+  portal views come into view: max frame 53-56 ms (also with MSAA off);
+  looking again later max 10.9 ms.
+- Cause (`sample` profile + bevy_shader debug log): portal views use an
+  oblique (VIEW_PROJECTION_NONSTANDARD) projection, so Bevy composes
+  separate mesh/material shader variants for them; the first portal frame
+  composed 12 variants (9 portal-view) in 38 ms in PipelineCache::process_queue.
+- Fix (p2_render views.rs ViewWarmup): when a map starts and when a portal
+  is created, the parked level-1 node camera draws the main view into the
+  1x1 parking target for 8 frames with every surface/player layer, so the
+  variants are compiled before a portal is looked at (pipelines stay
+  cached for the session). Unit test warmup_draws_map_every_surface_node_and_player.
+- Evidence (autopilot, same script): shader variants composed at the first
+  look 12 -> 0; first-look max frame 53-56 ms -> 22.8 ms; view unchanged.
+- Remaining: ~23 ms on that first look (likely the new full-size node
+  render targets being allocated); not chased. Owner replay: whether
+  drops still happen and where (first portal, every portal, steady).
+
 
 ### T-113 Instructor hints vanish after a few seconds if not done  (P2, FIXED 693f8ce, awaiting owner replay)
 - Key labels fixed (owner confirmed).
