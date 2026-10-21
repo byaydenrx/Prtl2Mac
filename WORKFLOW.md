@@ -105,10 +105,16 @@ sessions, only for independent tasks with separate files.
   `~/Library/Application Support/CrossOver/Bottles/Steam/drive_c/Program Files (x86)/Steam/steamapps/common/Portal 2`
   (portal2/bin/server.dll, client.dll; same as depot 624). Proven 2026-10-21:
   `/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/wine --bottle Steam "C:\Program Files (x86)\Steam\steam.exe" -silent -applaunch 620 -windowed -w 1280 -h 720 -novid +map <map> +exec <cfg>`
-  runs a cfg from portal2/cfg (sv_cheats 1, setpos, setang, wait, jpeg,
-  quit); `jpeg` writes portal2/screenshots/snapshotNNNN.jpg. Not solved yet:
-  under CrossOver the map load outlasts `wait 2000`, so shots catch the
-  loading screen (T-215). Always shut Steam down afterwards:
+  starts the game. Reference shots: `sh scripts/winref.sh <map> <out.jpg>
+  [--pos X Y Z] [--ang P Y R] [--cmd "..."] [--settle SEC] [--hud]` (T-215).
+  It runs the game with -netconport and drives the console over TCP:
+  waits for "Redownloading all lightmaps" (load done, ~30 s), hides the
+  HUD/crosshair/captions/notify text, setpos/setang, waits --settle (default
+  6 s; maps with an arrival elevator need ~25 s), `jpeg`, quit, Steam
+  -shutdown, removes its own screenshots. ~1.5 min per shot, 1280x720.
+  Our matching shot: `P2_SCRIPT="6 setpos X Y Z P Y; 9 shot f.png; 10 quit"`.
+  Note: cfg `wait` is "Unknown command" until a server runs, so cfg-only
+  scripts can't wait out the load. Always shut Steam down afterwards:
   `wine --bottle Steam "C:\Program Files (x86)\Steam\steam.exe" -shutdown`.
   Don't change the owner's Steam account or settings.
 - Ghidra 12.1.4: `/opt/homebrew/Cellar/ghidra/12.1.4/libexec/support/analyzeHeadless`

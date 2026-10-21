@@ -27,10 +27,10 @@ ON HOLD (owner): menus (no menu code changes at all); screenshot tasks
 T-173, T-174, T-145, T-147, T-149, T-116, T-152, T-151, T-154; T-164
 skipped; T-120 done enough. Don't work on anything already fixed.
 Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles, T-150
-motion blur and gun glow, T-213 PotatOS on the gun, T-198 faith plates.
+motion blur and gun glow, T-213 PotatOS on the gun, T-198 faith plates, T-215 winref.sh.
 1. T-212 loud glass smash at sp_a3_00 load (owner report). BLOCKED: attempt/T-212.
 2. T-213 PotatOS missing from the portal gun. FIXED a598811, awaiting replay.
-2b. T-215 Windows reference capture tool (makes every look/feel task checkable).
+2b. T-215 Windows reference capture tool. DONE (scripts/winref.sh), awaiting replay.
 4. T-198 aerial faith plate physics. FIXED b55fc08, awaiting replay (threshold-check part open in its entry).
 5. Common to many maps: T-203 switchable lights (50/63 maps), T-199
    particle sprite sheets (every map), T-214 DecalModulate (29 maps) and
@@ -722,18 +722,6 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
 
 ## Open: engine gaps (2026-10-21 audit: upstream READMEs + all-maps sweep; docs/UPSTREAM_GAPS.md)
 
-### T-215 Windows reference capture tool (CrossOver)  (P1, TODO; tooling)
-- Make `scripts/winref.sh <map> <shot.jpg> [setpos x y z] [setang p y r]
-  [extra console commands]` that takes a reliable screenshot from Windows
-  Portal 2 in the CrossOver bottle (recipe and paths in WORKFLOW.md "Windows
-  Portal 2 reference"). The launch, cfg exec and `jpeg` work; the problem:
-  `wait` frames run out during the (slow, CrossOver) map load, so the shot
-  shows the loading screen. Options: poll `-condebug` console.log for the
-  map's spawn line then send commands, or a much longer wait, or several
-  timed jpegs; disable the HUD/crosshair/subtitles to match our shots; shut
-  Steam down after. Then use it for before/after comparisons (T-198 arcs,
-  T-203 lights, T-199 particles, gels, the owner's open look issues).
-
 ### T-212 sp_a3_00 (start of chapter 6): loud glass smash at load  (P2, BLOCKED (needs owner); owner 2026-10-21)
 - Owner: "when you booted up chapter 6 the fall a loud glass noise played".
 - Reproduced (autopilot log, RUST_LOG=portal2::audio=debug): in the first
@@ -896,6 +884,19 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
 
 ## Awaiting owner replay (fixed, autopilot evidence)
 
+### T-215 Windows reference capture tool (CrossOver)  (P1, DONE, awaiting owner replay; tooling)
+- Done 2026-10-21: `scripts/winref.sh` (usage in WORKFLOW.md). Cause of the
+  old loading-screen shots: Portal 2 rejects `wait` ("Unknown command")
+  until a server runs, so the cfg ran straight through during the load.
+  The script uses -netconport (random -netconpassword) instead and sends
+  commands once the console prints "Redownloading all lightmaps".
+  Autopilot-checked on sp_a2_laser_intro: load in 25-33 s, post-load shots
+  with --pos/--ang applied, HUD/notify hidden, Steam shut down, no stray
+  screenshots. Elevator maps need --settle ~25 (the player rides in first).
+- First finding (not yet a task fix): at the laser_intro start our view is
+  much darker than Windows' (walls, floor; T-202/T-203 territory).
+
+
 ### T-198 Aerial faith plates: physics wrong (chapter 2)  (P1, FIXED b55fc08, awaiting owner replay)
 - Owner 2026-10-21: "the fling things aerial plates ... have something wrong
   with the physics". Cause (server.dll CTriggerCatapult, Ghidra 2026-10-21):
@@ -917,7 +918,7 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
   trust_fling) closest approach before -> after: 6->11 (feet now 32 u under
   the target, as Source), 51->40, 15->12, 60->38, 24->12, 58->52, 26->17,
   21->30; catapult_intro launch 602 -> 586 u/s up, mid-flight shot normal.
-  Not compared against Windows Portal 2 (T-215 capture still unreliable).
+  Not compared against Windows Portal 2 yet (scripts/winref.sh now works, T-215).
 - Not done: Source's threshold check (usethresholdcheck) compares the
   incoming speed along the launch direction with playerSpeed/physicsSpeed
   (lower/upper fraction) and has entryAngleTolerance / onlyVelocityCheck; ours
