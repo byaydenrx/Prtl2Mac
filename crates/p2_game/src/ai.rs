@@ -5,7 +5,7 @@
 //!   for `RequiredTime` seconds, then fires `OnConditionsSatisfied`. The
 //!   intro's "look at the ceiling / the floor / the art" steps run on these.
 //! * `env_instructor_hint`: `ShowHint` puts its caption and key on screen
-//!   until `EndHint` or its timeout, drawn as Portal 2's game instructor
+//!   until `EndHint` or its timeout (0: none), drawn as Portal 2's game instructor
 //!   does: the icon (key cap) and a white InstructorTitle caption, no box,
 //!   over its `hint_target` or, when static, under the crosshair.
 use avian3d::prelude::*;
@@ -220,7 +220,7 @@ fn hint_inputs(
             "showhint" => {
                 let caption = campaign.text(e.get("hint_caption").unwrap_or(""));
                 let key = binding_key(e.get("hint_binding").unwrap_or("")).to_string();
-                let timeout = e.get_f32("hint_timeout").filter(|t| *t > 0.0).unwrap_or(8.0);
+                let until = hint_until(ents.now, e.get_f32("hint_timeout"));
                 hints.0.retain(|h| h.ent != msg.target);
                 let icon = e.get("hint_icon_onscreen").unwrap_or("icon_tip").to_string();
                 let target = if e.get("hint_static").is_some_and(|v| v.trim() == "0") {
@@ -229,7 +229,7 @@ fn hint_inputs(
                     None
                 };
                 let offset = e.get_f32("hint_icon_offset").unwrap_or(0.0);
-                hints.0.push(Hint { ent: msg.target, caption, key, until: ents.now + timeout, icon, target, offset });
+                hints.0.push(Hint { ent: msg.target, caption, key, until, icon, target, offset });
             }
             "endhint" | "kill" => hints.0.retain(|h| h.ent != msg.target),
             _ => {}
@@ -240,6 +240,16 @@ fn hint_inputs(
     let now = ents.now;
     if hints.0.iter().any(|h| h.until <= now) {
         hints.0.retain(|h| h.until > now);
+    }
+}
+
+/// When a hint shown at `now` goes: `hint_timeout` seconds later, or never
+/// for 0 or no timeout (the FGD default: "0 will persist until stopped with
+/// EndHint").
+fn hint_until(now: f32, timeout: Option<f32>) -> f32 {
+    match timeout {
+        Some(t) if t > 0.0 => now + t,
+        _ => f32::INFINITY,
     }
 }
 
@@ -394,7 +404,7 @@ fn place_hints(
 
 #[cfg(test)]
 mod hint_tests {
-    use super::hint_anchor;
+    use super::{hint_anchor, hint_until};
     use bevy::prelude::Vec2;
 
     #[test]
@@ -406,6 +416,13 @@ mod hint_tests {
         // static: centred, two thirds down, stacked
         assert_eq!(hint_anchor(None, screen, size, 0), Vec2::new(640.0, 480.0));
         assert_eq!(hint_anchor(None, screen, size, 1).y, 480.0 + 37.5);
+    }
+
+    #[test]
+    fn zero_or_no_timeout_waits_for_endhint() {
+        assert_eq!(hint_until(10.0, Some(5.0)), 15.0);
+        assert_eq!(hint_until(10.0, Some(0.0)), f32::INFINITY);
+        assert_eq!(hint_until(10.0, None), f32::INFINITY);
     }
 }
 
