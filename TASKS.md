@@ -60,7 +60,7 @@ P3:
 12. (T-117 shadows still blocky: NOT CONFIRMED 2026-10-21, BLOCKED needs owner; untested fix on attempt/T-117.)
 13. (T-152 lighting/texture quality: STUCK 2026-10-21, bumped-model shader path needs a multi-run job; plan in the entry.)
 14. (T-153 GLaDOS white particles FIXED 69426f1, awaiting owner replay; arms/view still open.) (T-173 gun hold beam/fizzler shake FIXED fd1310c, awaiting owner replay; gun spark not done.)
-15. T-140 game-placed portal shake/sound (reopened).
+15. (T-140 game-placed portal shake/sound: NOT REPRODUCED 2026-10-21, BLOCKED needs owner; untested fix on attempt/T-140.)
 16. T-174 elevator videos; T-175 intro1 ride outside fog/sky; T-164 debris
     (try attempt/T-164); T-116 window (owner screenshots coming).
 P4:
@@ -940,7 +940,7 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   unsupported (wakes sit at the attachment instead of on the water).
 - Still open: arms floating unattached, the player looking the wrong way.
 
-### T-140 Game-placed portals: no screen shake or sound  (P3, REOPENED: owner says not fixed)
+### T-140 Game-placed portals: no screen shake or sound  (P3, BLOCKED (needs owner): not reproduced 2026-10-21)
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed (no shake/sound felt on game-placed portals).
 - The first orange portal should shake the screen a little and play its sound.
 - Cause: env_shake was not implemented at all. intro1's
@@ -959,6 +959,25 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   207 u", then RUST_LOG=p2_view=trace shows camera offsets peaking ~1.9 u
   and decaying to 0 over the second; before build: no shake. Owner replay:
   does it feel like Windows Portal 2 (strength, speed)?
+- 2026-10-21 autorun: NOT REPRODUCED. Real path: intro1's vault intro
+  (relay_start_map -> gladosplayvcd(0) -> PreHub10 "three, two, one" ->
+  GladosRelaxationVaultPowerUp -> open_portal_relay) with the player in the
+  vault (`input camera_intro Disable; setpos -1232 4400 2706`): "env_shake
+  shake_portal_spawn_room1 start, amplitude 2.95 at 131 u" and "play
+  Portal.open_red volume 0.480 soundlevel 105" at the opening; frames while
+  standing still are identical before/after but differ during the shake
+  (mean pixel diff 4-5/255), view offsets up to ~1.6 u, roll ~0.2 deg.
+  intro2-4 portal relays use the same env_shake path (amplitude 4, radius
+  500-768). Note: plain `goto` in intro1 gets undone by camera_intro's
+  TeleportToView at 12 s (amplitude 0 at 8461 u), use the setpos above.
+  Suspected: our shake differs in feel from Source's view shake (not
+  confirmed; magnitude matches Source's ComputeShakeAmplitude falloff), or
+  the music/announcer masks the open sound. Owner: which map/portal, and is
+  it weaker than Windows or missing entirely?
+- Untested fix: local branch attempt/T-140 (e5e751c), needs owner
+  review/replay. shake_offset follows Source's CalcShake: swing
+  sin(t * frequency / fraction) * fraction^2 and the per-frame amplitude
+  decay dt/(duration*frequency) (slightly weaker, faster jitter at the end).
 
 ### T-174 Elevator-room videos buggy and very low quality  (P3, TODO)
 - Owner playtest 9: "the videos that play in the elevator rooms are a bit

@@ -26,7 +26,9 @@ change, no attempt branch. Next: T-113.
 - dist/Prtl2Mac.app = 0.1.0+fd1310c.20261021T1458Z (T-173 gun hold beam, carry anims, fizzler shake; before it T-153 GLaDOS wake-up white disc: $mod2x particle cards + Remap CP Speed to CP; T-148 frosted glass over portals before it).
 
 ## Next action
-1. P3: T-140 game-placed portal shake/sound, reopened (T-173 gun hold
+1. P3: T-174 elevator videos (T-140 portal shake/sound NOT REPRODUCED,
+   shake+sound fire in the real intro1 vault path, untested fix on
+   attempt/T-140, blocked on owner; T-173 gun hold
    beam, carry anims and fizzler shake FIXED fd1310c, awaiting owner replay,
    gun spark particle still open; T-153 white
    particles FIXED 69426f1, awaiting owner replay, her floating arms and
@@ -40,7 +42,7 @@ change, no attempt branch. Next: T-113.
    T-144 clipboard FIXED 910da9a, awaiting owner replay; T-112 untested fix
    on attempt/T-112, blocked on owner; T-139 music pieces, T-135 rubble
    open; T-172 blocked; T-195..T-197 awaiting owner replay).
-2. Then T-174, T-175, ... /P4. Skip T-116, T-164, T-151 (owner).
+2. Then T-175, ... /P4. Skip T-116, T-164, T-151 (owner).
 MENUS FROZEN: only T-196/T-195/T-197 may touch menu code; no other menu
 changes (owner, 2026-10-21). A separate session may port upstream engine
 changes (Stink-O/Portal2-rust-engine) into main; merge origin/main often.
@@ -49,6 +51,9 @@ changes (Stink-O/Portal2-rust-engine) into main; merge origin/main often.
 None outside what this file's commit contains.
 
 ## Fix attempts awaiting the owner
+- attempt/T-140 (e5e751c): view shake follows Source's CalcShake
+  (sin(t*freq/fraction), amplitude decay). Replay intro1's vault portal
+  opening vs Windows, then merge or delete.
 - attempt/T-117 (31262e5): projected-texture shadows use a Source-style
   5x5 binomial PCF (softer penumbra, same cost). Replay intro1's planter
   shadow and an elevator arrival vs Windows, then merge or delete.
