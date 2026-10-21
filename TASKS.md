@@ -24,8 +24,8 @@ T-196, T-195 and T-197 may change menu code, touching just what each needs;
 every other menu task (T-162, T-177..T-194, including their "open pieces"
 and the dead-control list) is on hold, not for autoruns.
 NEXT UP (owner round 4, 2026-10-21): T-196 black screen after flips
-(FIXED f8c9be3, awaiting owner replay), then T-195 pause menu as Windows (logo, no title tab, DONE,
-blurred/desaturated game behind), then T-197 even tile grid. Then T-172
+(FIXED f8c9be3, awaiting owner replay), T-195 pause menu as Windows
+(FIXED 8af5fa3, awaiting owner replay), then T-197 even tile grid. Then T-172
 onward (no more menu work).
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
 before every other task. Owner notes after build fb0090a (12 items,
@@ -109,7 +109,7 @@ Then the Backlog (prove and sweep the campaign).
   Fix so menus are always on the window once a flip ends; unit/autopilot
   check several flips in a row, Esc mid-flip, flip into a page then Back.
 
-### T-195 In-game pause menu as Windows  (P2, TODO; owner round 4 items 2, 4)
+### T-195 In-game pause menu as Windows  (P2, FIXED 8af5fa3, awaiting owner replay; owner round 4 items 2, 4)
 - Reference: ~/Documents/Screenshots/pausemenu (2 shots: the pause menu
   and Options from it). In game Portal 2 shows the PORTAL 2 logo top left
   (ours shows none in game); the pause dialog has no title tab, a flat
@@ -120,6 +120,23 @@ Then the Backlog (prove and sweep the campaign).
   shade). Measure positions against the shots (note their size differs
   from the earlier ones: scale by the 16:9 game area inside the window).
   Keep: no tile flips in pause menus (round 3).
+- FIXED 2026-10-21 (8af5fa3, build 0.1.0+8af5fa3.20261021T1221Z), awaiting
+  owner replay. Cause: pause_dialog used the tabbed frame with a blank
+  title and no footer; the logo layer only spawned with the out-of-game
+  backdrop; in game the view was a flat 50% black shade. Now: the pause
+  frame has no tab (tile_piece/tile_frame_sized accept tab 0), a flat 5x4
+  body whose top is Options' tab top (as the Windows shots), a DONE footer
+  (returns to the game); the logo shows on every in-game menu; the backdrop
+  is the game view captured as the pause menu opens from play (the menu is
+  hidden for those 1-3 frames, at most 0.5 s, so only the game is in it),
+  downscaled to 384 wide, blurred, bright parts glowing, 75% saturation
+  (pause_blur), stretched full screen; Options and back keep it, each new
+  pause recaptures. Unit tests pause_dialog_has_no_tab and
+  pause_backdrop_blurs_glows_and_desaturates. Autopilot-checked only
+  (sp_a1_intro2): pause, Options from pause, Back, Resume, a second pause
+  at a bright view, Esc paths; main menu and Options out of game are
+  pixel-identical to the previous build. Not owner-verified; blur/glow
+  strength tuned by eye against the shots.
 
 ### T-197 Tile grid not even  (P2, TODO; owner round 4 item 3)
 - The dialog tiles' spacing is off and some tiles sit a few pixels to the

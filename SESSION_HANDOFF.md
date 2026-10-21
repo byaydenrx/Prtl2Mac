@@ -22,13 +22,11 @@ screen). Autopilot-checked only, awaiting owner replay. Next: T-195.
   by a subagent, merged), 4:3 layout (T-192). Open pieces listed at the
   top of TASKS.md's priority order.
 - Earlier fixes still awaiting the owner: T-176, T-169, T-162, T-170.
-- dist/Prtl2Mac.app = 0.1.0+f8c9be3.20261021T1212Z (T-196 flip-end black frame fix).
+- dist/Prtl2Mac.app = 0.1.0+8af5fa3.20261021T1221Z (T-195 pause menu as Windows; T-196 flip fix before it).
 
 ## Next action
-1. T-195 in-game pause menu as the owner's Windows shots (logo, no title
-   tab, DONE, blurred/bloomed/desaturated game behind).
-2. T-197 even tile grid.
-3. Then T-172 late VO, T-135, T-139, T-112, T-144, T-149, T-147, T-113,
+1. T-197 even tile grid (T-195 FIXED 8af5fa3, awaiting owner replay).
+2. Then T-172 late VO, T-135, T-139, T-112, T-144, T-149, T-147, T-113,
    then P3/P4. Skip T-116, T-164, T-151 (owner).
 MENUS FROZEN: only T-196/T-195/T-197 may touch menu code; no other menu
 changes (owner, 2026-10-21). A separate session may port upstream engine
