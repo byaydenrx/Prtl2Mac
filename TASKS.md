@@ -61,7 +61,7 @@ P3:
 13. (T-152 lighting/texture quality: STUCK 2026-10-21, bumped-model shader path needs a multi-run job; plan in the entry.)
 14. (T-153 GLaDOS white particles FIXED 69426f1, awaiting owner replay; arms/view still open.) (T-173 gun hold beam/fizzler shake FIXED fd1310c, awaiting owner replay; gun spark not done.)
 15. (T-140 game-placed portal shake/sound: NOT REPRODUCED 2026-10-21, BLOCKED needs owner; untested fix on attempt/T-140.)
-16. (T-174 elevator videos FIXED b250e5f, awaiting owner replay.) T-175 intro1 ride outside fog/sky; T-164 debris
+16. (T-174 elevator videos FIXED b250e5f, awaiting owner replay.) (T-175 intro1 ride fog/sky: NOT REPRODUCED 2026-10-21, BLOCKED needs owner; untested fix on attempt/T-175.) T-164 debris
     (try attempt/T-164); T-116 window (owner screenshots coming).
 P4:
 17. T-151 water (try attempt/T-151), T-150 particles, T-146 half-stuck door,
@@ -979,10 +979,27 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   sin(t * frequency / fraction) * fraction^2 and the per-frame amplitude
   decay dt/(duration*frequency) (slightly weaker, faster jitter at the end).
 
-### T-175 sp_a1_intro1 ride: the big room outside the container has no fog in parts, black sky  (P3, TODO)
+### T-175 sp_a1_intro1 ride: the big room outside the container has no fog in parts, black sky  (P3, BLOCKED: needs owner)
 - Owner playtest 9: "the big room outside of the moving box has some issues
   in the wakeup sequence, like parts not being foggy and the sky being just
   black above" (compare T-116's "odd outside lighting on the ride").
+- Autorun 2026-10-21: NOT REPRODUCED as described. Autopilot (camera_intro
+  disabled, setpos along the ride -7500 1800 300 .. -3000 3800 2400, looking
+  up and level, dist f150672): fog everywhere, no black sky; the clear colour
+  is the fog colour. But by data the ride fog is wrong: we take the first
+  enabled env_fog_controller, fog_destroyed_chambers (0..2500, 50 70 80,
+  density 0.9, dark blue), while Source starts the player on the master
+  (spawnflags 1) fog_intro_ride (500..8000, 100 110 120, density 0.8, light
+  grey); the vault trigger_once (-1232 4400 2856) later SetColor 50 70 80 /
+  SetStartDist 128 / SetEndDist 2500 on it. We ignore fog inputs and the
+  map's 3D skybox (sky_camera scale 16, its own fog 500..16000, sky_white),
+  which may be the owner's "black sky".
+- Untested fix: local branch attempt/T-175 (1f4de9a), needs owner
+  review/replay. source_assets map_fog_controller picks the master
+  controller (Bevy fog, clear colour and Valve shader fog); ride shots go
+  lighter grey and further. Not done (needed before merging): the fog
+  inputs, else the wrecked vault keeps the light ride fog; 3D skybox.
+  Owner: a screenshot of the black sky / unfogged parts (where in the ride).
 
 ### T-164 Spiky, torn animated debris  (P3, OPEN: owner says not fixed (attempt/T-164 never merged))
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed; the fix on attempt/T-164 was not in the build played. Also possibly the "spikes under the button" (T-145).

@@ -26,7 +26,9 @@ change, no attempt branch. Next: T-113.
 - dist/Prtl2Mac.app = 0.1.0+b250e5f.20261021T1519Z (T-174 elevator movies at full size and 24 fps; before it T-173 gun hold beam, carry anims, fizzler shake; before it T-153 GLaDOS wake-up white disc: $mod2x particle cards + Remap CP Speed to CP; T-148 frosted glass over portals before it).
 
 ## Next action
-1. P3: T-175 intro1 ride outside fog/black sky (T-174 elevator videos FIXED
+1. P4: T-150 particles (T-164/T-151 attempt branches await the owner; T-175 intro1 ride fog NOT REPRODUCED,
+   wrong (non-master) fog controller by data, untested fix on attempt/T-175,
+   blocked on owner; T-174 elevator videos FIXED
    b250e5f, awaiting owner replay; T-140 portal shake/sound NOT REPRODUCED,
    shake+sound fire in the real intro1 vault path, untested fix on
    attempt/T-140, blocked on owner; T-173 gun hold
@@ -52,6 +54,10 @@ changes (Stink-O/Portal2-rust-engine) into main; merge origin/main often.
 None outside what this file's commit contains.
 
 ## Fix attempts awaiting the owner
+- attempt/T-175 (1f4de9a): maps start on the master env_fog_controller
+  (intro1 ride: light fog_intro_ride instead of the dense vault fog). Needs
+  the fog inputs (SetColor/SetStartDist/SetEndDist) before merging, else the
+  wrecked vault loses its dense fog. Replay the intro1 ride vs Windows.
 - attempt/T-140 (e5e751c): view shake follows Source's CalcShake
   (sin(t*freq/fraction), amplitude decay). Replay intro1's vault portal
   opening vs Windows, then merge or delete.
