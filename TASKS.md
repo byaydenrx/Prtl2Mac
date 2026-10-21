@@ -60,7 +60,17 @@ its sections). The owner can send Windows screenshots for any screen.
 Reference: Windows Portal 2 (install .res files, client.dll in depot 624,
 https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 
-### T-177 Startup intros missing  (P2, TODO; spec 1, 15)
+### T-177 Startup intros missing  (P2, FIXED, awaiting owner replay; spec 1, 15)
+- 2026-10-21 FIXED (autopilot shots + log; new intro.rs). A normal launch
+  plays startupvids.txt's media/valve.bik with its own audio (ffmpeg),
+  then the Portal 2 loading screen while the menu map loads, fading into
+  the main menu. The install's portal2_dlc2/media/valve.bik (17.5 s,
+  what Portal 2 itself plays: Valve guy, then "powered by Source" and the
+  legal text) wins over the base one by the game's newest-first lookup.
+  Any key/click/Esc skips; no movie or no ffmpeg opens the menu at once.
+  P2_NO_INTRO=1 (and map/--shot runs) skip it. Shots at 4 s (Valve), 13 s
+  (Source), 18 s (loading screen over the menu), 24 s (menu). Not checked:
+  skipping by key (autopilot can't press keys), timing vs Windows.
 - Play in order, with their music/audio, timing and transitions: Valve logo
   (the head turn), "Powered by Source" screen, the initial Portal 2 loading
   screen, then the main menu. No skip, overlap or repeat.
