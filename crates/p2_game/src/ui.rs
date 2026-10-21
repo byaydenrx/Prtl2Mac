@@ -932,6 +932,9 @@ struct FlipView {
     all: bool,
     /// The whole screen is to turn once the menu's map is in.
     pending_screen: bool,
+    /// The flip is over and the menu is being built again on the window;
+    /// the overlay stays up till then.
+    rebuilding: bool,
 }
 
 /// Overlay tiles of a flip (despawned when it ends).
@@ -947,7 +950,7 @@ fn setup_flip_view(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
             bevy::camera::RenderTarget::Image(image.clone().into()),
         ))
         .id();
-    commands.insert_resource(FlipView { camera, image, until: 0.0, next_sound: f32::MAX, sounds: 0, all: false, pending_screen: false });
+    commands.insert_resource(FlipView { camera, image, until: 0.0, next_sound: f32::MAX, sounds: 0, all: false, pending_screen: false, rebuilding: false });
 }
 
 /// Start a dialog's flip: tiles over the frame, each its slice of the
@@ -1005,6 +1008,7 @@ fn start_flip(commands: &mut Commands, view: &mut FlipView, frame: FrameRect, no
     view.until = last;
     view.next_sound = now;
     view.sounds = 0;
+    view.rebuilding = false;
     view.all = false;
     true
 }
@@ -1040,6 +1044,7 @@ fn start_screen_flip(commands: &mut Commands, view: &mut FlipView, now: f32, phy
     view.until = last;
     view.next_sound = now;
     view.sounds = 0;
+    view.rebuilding = false;
     view.all = true;
 }
 
@@ -1110,13 +1115,41 @@ fn run_flip(
         }
         return;
     }
-    // Done: the overlay goes and the menu is built again on the window
-    // (taking UiTargetCamera off doesn't move a laid-out tree back).
-    if !drawn_off.is_empty() || !overlay.is_empty() {
-        for e in &overlay {
-            commands.entity(e).despawn();
+    // Done: the menu is built again on the window (taking UiTargetCamera
+    // off doesn't move a laid-out tree back), and the overlay goes the
+    // frame after, with the rebuilt menu in, so no frame shows neither.
+    match flip_end(!drawn_off.is_empty(), !overlay.is_empty(), view.rebuilding) {
+        FlipEnd::Rebuild => {
+            view.rebuilding = true;
+            menu.set_changed();
         }
-        menu.set_changed();
+        FlipEnd::Clear => {
+            for e in &overlay {
+                commands.entity(e).despawn();
+            }
+            view.rebuilding = false;
+        }
+        FlipEnd::Idle => {}
+    }
+}
+
+/// What run_flip does once a flip's time is up.
+#[derive(Debug, PartialEq)]
+enum FlipEnd {
+    /// The menu still draws off screen: build it again on the window.
+    Rebuild,
+    /// The rebuilt menu is in (or nothing is off screen): the overlay goes.
+    Clear,
+    Idle,
+}
+
+fn flip_end(drawn_off: bool, overlay: bool, rebuilding: bool) -> FlipEnd {
+    if drawn_off && !rebuilding {
+        FlipEnd::Rebuild
+    } else if overlay || rebuilding {
+        FlipEnd::Clear
+    } else {
+        FlipEnd::Idle
     }
 }
 
@@ -3422,6 +3455,18 @@ mod tests {
         let acts: Vec<usize> = (0..9).map(act_of_chapter).collect();
         assert_eq!(acts, [1, 2, 2, 2, 3, 4, 4, 5, 5]);
         assert_eq!(act_of_chapter(42), 1);
+    }
+
+    #[test]
+    fn flip_end_keeps_the_overlay_till_the_menu_is_back() {
+        // The flip's time is up with the menu still off screen: rebuild it,
+        // overlay kept (T-196: dropping it then left a black frame).
+        assert_eq!(flip_end(true, true, false), FlipEnd::Rebuild);
+        // The next frame the rebuilt menu is on the window: overlay goes,
+        // even if the old roots' despawn hasn't landed yet.
+        assert_eq!(flip_end(false, true, true), FlipEnd::Clear);
+        assert_eq!(flip_end(true, true, true), FlipEnd::Clear);
+        assert_eq!(flip_end(false, false, false), FlipEnd::Idle);
     }
 
     #[test]
