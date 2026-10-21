@@ -60,6 +60,13 @@ P4:
 Then the Backlog (prove and sweep the campaign).
 
 ## Owner menu/intro spec (2026-10-21): T-177..T-192, before everything else
+- Owner notes 2026-10-21 round 3 (build ac6a02d, "looking great"): (1) drop
+  the startup loading screen: straight from the "powered by Source" screen
+  to the main menu (T-177); (2) the full-screen tile flip into the main
+  menu is still the old animation: use the same turn as the menus, full
+  screen (T-179); (3) no tile animation in the in-game (pause) menus
+  (T-179); (4) "Chapter 1 - The Courtesy Call": a dash between chapter and
+  name on Load/Save Game and New Game (T-182/T-183).
 - Owner notes 2026-10-21 (after build fb0090a), the owner's words, filed:
   (1) tile animation should match https://www.youtube.com/watch?v=qtm2U-M-lHA
   (first 2-3 s), with its sound, and be basically instant, not waiting
