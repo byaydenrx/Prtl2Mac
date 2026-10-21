@@ -76,6 +76,10 @@ pub struct ModelData {
     pub contents: u32,
     /// Eyeballs of every body-part model, in file order.
     pub eyeballs: Vec<Eyeball>,
+    /// `physgun_interactions` `preferred_carryangles` from the model's
+    /// `$keyvalues` (Source pitch yaw roll, player space): how the player
+    /// holds it (the clipboard turns its face to you).
+    pub preferred_carry_angles: Option<Vec3>,
 }
 
 impl ModelData {
@@ -530,6 +534,7 @@ fn load_model_inner(
             if mdl_data.len() >= 104 { Vec3::new(f(92), f(96), f(100)) } else { Vec3::ZERO }
         },
         contents: mdl_contents(&mdl_data),
+        preferred_carry_angles: preferred_carry_angles(&mdl_keyvalues(&mdl_data)),
     })
 }
 
@@ -682,6 +687,16 @@ fn read_eyeballs(d: &[u8]) -> Vec<Vec<(Vec<Eyeball>, Vec<Option<usize>>)>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn carry_angles_from_model_keyvalues() {
+        let kv = "prop_data {\n\"base\" \"Cardboard.Small\"  }\nphysgun_interactions {\n\"preferred_carryangles\" \"90 180 0\" \"carry_distance_offset\" \"-15\"  }\n";
+        assert_eq!(preferred_carry_angles(kv), Some(Vec3::new(90.0, 180.0, 0.0)));
+        let compiled = format!("mdlkeyvalue\n{{{kv}}}\n");
+        assert_eq!(preferred_carry_angles(&compiled), Some(Vec3::new(90.0, 180.0, 0.0)));
+        assert_eq!(preferred_carry_angles("prop_data { \"base\" \"Wood.Small\" }"), None);
+        assert_eq!(preferred_carry_angles(""), None);
+    }
 
     #[test]
     fn loads_portal2_cube() {
@@ -942,6 +957,23 @@ mod part_tests {
             }
         }
     }
+}
+
+/// The model's `$keyvalues` text (`studiohdr_t::keyvalueindex` and
+/// `keyvaluesize`, bytes 312 and 316), empty when it has none.
+pub fn mdl_keyvalues(mdl: &[u8]) -> String {
+    let (Some(at), Some(len)) = (rd_i32(mdl, 312), rd_i32(mdl, 316)) else { return String::new() };
+    let (at, len) = (at.max(0) as usize, len.max(0) as usize);
+    mdl.get(at..at.saturating_add(len)).map_or(String::new(), |b| String::from_utf8_lossy(b).trim_end_matches('\0').to_string())
+}
+
+/// `physgun_interactions { "preferred_carryangles" "p y r" }` of model keyvalues.
+pub fn preferred_carry_angles(keyvalues: &str) -> Option<Vec3> {
+    // Compiled models wrap the blocks in `mdlkeyvalue { }`.
+    let kv = crate::kv::parse(keyvalues);
+    let v = kv.block("mdlkeyvalue").unwrap_or(&kv).block("physgun_interactions")?.get("preferred_carryangles")?;
+    let n: Vec<f32> = v.split_whitespace().filter_map(|s| s.parse().ok()).collect();
+    (n.len() == 3).then(|| Vec3::new(n[0], n[1], n[2]))
 }
 
 /// `studiohdr_t::contents` (after `mass`, byte 332): what `$contents`

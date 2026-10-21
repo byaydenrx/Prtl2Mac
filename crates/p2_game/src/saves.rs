@@ -1230,7 +1230,7 @@ fn restore_late(
     }
     if let Some(h) = &state.held {
         if let Some((body, _)) = props.iter().find(|(_, p)| p.ent == h.ent) {
-            let held = Held { yaw_offset: h.yaw_offset, distance: h.distance, stuck_for: 0.0 };
+            let held = Held { yaw_offset: h.yaw_offset, distance: h.distance, stuck_for: 0.0, tilt: Quat::IDENTITY };
             crate::props::start_holding(&mut commands, body, held, &children, &colliders, &mut ignore);
         }
     }

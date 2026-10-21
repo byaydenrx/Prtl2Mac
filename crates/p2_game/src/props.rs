@@ -56,6 +56,9 @@ pub struct Held {
     pub yaw_offset: f32,
     /// Distance in front of the eye.
     pub distance: f32,
+    /// Turn after the yaw: the model's preferred carry angles (the
+    /// clipboard stands up facing you), else none (held level).
+    pub tilt: Quat,
     /// How long it has been too far from its hold point (stuck on something).
     pub stuck_for: f32,
 }
@@ -113,6 +116,13 @@ pub fn make_props_dynamic(
         let tf = transforms.get(entity).copied().unwrap_or(e.transform);
         insert_prop_body(&mut commands, i, entity, tf, core, &children, &aabbs, &colliders);
     }
+}
+
+/// `(yaw_offset, tilt)` of [`Held`] for Source preferred carry angles: the
+/// player's Source frame is our view yaw plus 90 degrees (Source yaw 0 looks
+/// along +X, our yaw 0 along -Z).
+fn carry_pose(angles: Vec3) -> (f32, Quat) {
+    (std::f32::consts::FRAC_PI_2, source_assets::entities::source_angles_to_world(angles))
 }
 
 /// Turns map entity `i`'s model (spawned under the map's static body) into a
@@ -189,6 +199,7 @@ fn use_key(
     mut ents: Option<ResMut<Ents>>,
     mut fire: MessageWriter<FireOutput>,
     cores: Res<CoreState>,
+    game: Option<Res<p2_assets::GameFsRes>>,
 ) {
     let Ok((player, mut input, feet, crouch, view, mut ignore)) = players.single_mut() else { return };
     if !input.use_key {
@@ -302,14 +313,22 @@ fn use_key(
         // A held reflection cube turns its lens the way the player looks
         // (its +X out along the view), so its beam goes where you aim.
         let reflective = ents.as_deref().is_some_and(|e| crate::lasers::reflective(e, prop.ent));
-        let yaw_offset = if reflective {
-            std::f32::consts::FRAC_PI_2
+        // Models with preferred carry angles (physgun_interactions) are held
+        // at those angles in player space, as Source's grab controller does.
+        let carry = ents.as_deref().zip(game.as_deref()).and_then(|(e, g)| {
+            let model = e.list[prop.ent].keyvalues.iter().find(|(k, _)| k == "model")?.1.as_str();
+            source_assets::models::preferred_carry_angles(&source_assets::models::mdl_keyvalues(&g.read(model)?))
+        });
+        let (yaw_offset, tilt) = if reflective {
+            (std::f32::consts::FRAC_PI_2, Quat::IDENTITY)
         } else if is_core {
-            CORE_CARRY_YAW
+            (CORE_CARRY_YAW, Quat::IDENTITY)
+        } else if let Some(angles) = carry {
+            carry_pose(angles)
         } else {
-            prop_yaw - view.yaw
+            (prop_yaw - view.yaw, Quat::IDENTITY)
         };
-        let held = Held { stuck_for: 0.0, yaw_offset, distance: hold_distance(radius) };
+        let held = Held { stuck_for: 0.0, yaw_offset, distance: hold_distance(radius), tilt };
         start_holding(&mut commands, body, held, &children, &colliders, &mut ignore);
         if let Some(mut ents) = ents {
             ents.fire(prop.ent, "onplayerpickup", Some(PLAYER));
@@ -423,7 +442,7 @@ fn carry(
         let eye = feet.curr + Vec3::Y * crouch.eye_height;
         let mut target = hold_point(eye, view, h.distance);
         let above = target.y > eye.y;
-        let mut want = Quat::from_rotation_y(view.yaw + h.yaw_offset);
+        let mut want = Quat::from_rotation_y(view.yaw + h.yaw_offset) * h.tilt;
         // The hold line passes through a portal: the hold point has a copy on
         // the far side. Like Source's grab controller, pull the prop toward
         // the copy on its own side: still on the player's side it heads into
@@ -952,7 +971,7 @@ fn core_inputs(
                     Rotation(rot),
                     LinearVelocity::ZERO,
                     AngularVelocity::ZERO,
-                    Held { stuck_for: 0.0, yaw_offset, distance },
+                    Held { stuck_for: 0.0, yaw_offset, distance, tilt: Quat::IDENTITY },
                     HeldColliders(cols),
                     GravityScale(0.0),
                 ));
@@ -1147,6 +1166,23 @@ fn player_proxy_outputs(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn clipboard_carry_angles_turn_its_face_to_the_player() {
+        use bevy::prelude::*;
+        // bts_clipboard: "preferred_carryangles" "90 180 0"; its face is
+        // model +Z (Source), world-local +Y.
+        let (yaw_offset, tilt) = super::carry_pose(Vec3::new(90.0, 180.0, 0.0));
+        for view_yaw in [0.0f32, 1.0, -2.5] {
+            let want = Quat::from_rotation_y(view_yaw + yaw_offset) * tilt;
+            let forward = Quat::from_rotation_y(view_yaw) * Vec3::NEG_Z;
+            assert!((want * Vec3::Y).dot(-forward) > 0.999, "yaw {view_yaw}: face {:?}", want * Vec3::Y);
+        }
+        // "0 0 0": level, the model's +X (Source forward) along the view.
+        let (yaw_offset, tilt) = super::carry_pose(Vec3::ZERO);
+        let want = Quat::from_rotation_y(yaw_offset) * tilt;
+        assert!((want * Vec3::X).dot(Vec3::NEG_Z) > 0.999);
+    }
+
     #[test]
     fn use_cone_picks_the_prop_nearest_the_crosshair_in_reach() {
         use bevy::prelude::{Entity, Vec3};
