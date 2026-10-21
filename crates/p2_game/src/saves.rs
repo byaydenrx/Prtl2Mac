@@ -175,6 +175,8 @@ pub struct PlayerSave {
     pub velocity: Vec3,
     pub ducked: bool,
     pub can_fire: [bool; 2],
+    /// PotatOS on the gun.
+    pub potatos: bool,
     /// 0 blue, 1 orange.
     pub last_placed: Option<u8>,
 }
@@ -868,6 +870,7 @@ fn snapshot(ents: &Ents, map: &CurrentMap, w: &Snap, m: &Modules) -> GameState {
             velocity: vel.0,
             ducked: crouch.ducked,
             can_fire: gun.can_fire,
+            potatos: gun.potatos,
             last_placed: gun.last_placed.map(|k| k.index() as u8),
         };
         for p in gun.portals.iter().flatten() {
@@ -1179,6 +1182,7 @@ fn restore_state(
     if let Ok((player, mut tf, mut feet, mut view, mut vel, mut gun)) = b.players.single_mut() {
         put_player(&state.player, &mut tf, &mut feet, &mut view, &mut vel);
         gun.can_fire = state.player.can_fire;
+        gun.potatos = state.player.potatos;
         gun.last_placed = state.player.last_placed.map(|k| if k == 1 { PortalKind::Orange } else { PortalKind::Blue });
         if state.player.ducked {
             duck.write(ForceDuck { entity: player });
@@ -1277,7 +1281,7 @@ mod tests {
     fn sample_state() -> GameState {
         GameState {
             base_len: 3,
-            player: PlayerSave { feet: Vec3::new(1.0, 2.0, 3.0), view: [0.5, -0.1, 0.0], velocity: Vec3::X, ducked: true, can_fire: [true, false], last_placed: Some(0) },
+            player: PlayerSave { feet: Vec3::new(1.0, 2.0, 3.0), view: [0.5, -0.1, 0.0], velocity: Vec3::X, ducked: true, can_fire: [true, false], potatos: true, last_placed: Some(0) },
             health: 75.0,
             portals: vec![PortalSave { kind: 1, pos: Vec3::Y, rot: Quat::from_rotation_y(1.0), half: Vec2::new(0.6, 1.0), map_ent: Some(2) }],
             ents: vec![EntSave {

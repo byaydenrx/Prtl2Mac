@@ -80,6 +80,11 @@ pub struct ModelData {
     /// `$keyvalues` (Source pitch yaw roll, player space): how the player
     /// holds it (the clipboard turns its face to you).
     pub preferred_carry_angles: Option<Vec3>,
+    /// Meshes of the other bodygroup choices: `(body part, model, mesh)` for
+    /// every model past the first of a body part. Source draws model 0 of
+    /// each part by default (body 0), which is what `meshes` holds; these
+    /// show only when an entity picks them (the PotatOS on `v_portalgun`).
+    pub body_alternates: Vec<(usize, usize, ModelMesh)>,
 }
 
 impl ModelData {
@@ -375,10 +380,13 @@ fn load_model_inner(
     let raw_eyes = read_eyeballs(&mdl_data);
     let mut lod0_vertex_order = Vec::new();
     // (material index, eyeball, triangle list of global VVD indices) per mesh
-    let mut raw_meshes: Vec<(i32, Option<usize>, Vec<u32>)> = Vec::new();
+    let mut raw_meshes: Vec<(i32, Option<usize>, Vec<u32>, (usize, usize))> = Vec::new();
     let mut eyeballs = Vec::new();
-    for (bpi, (bp_mdl, bp_vtx)) in mdl.body_parts.iter().zip(&vtx_lod0).enumerate() {
-        for (mi, (m_mdl, m_vtx)) in bp_mdl.models.iter().zip(bp_vtx).enumerate() {
+    // Body parts from the raw MDL: vmdl's model stride is wrong for v49, so
+    // it misreads every model after a body part's first.
+    let body_parts = read_body_models(&mdl_data).ok_or_else(|| anyhow::anyhow!("{path}: unreadable body parts"))?;
+    for (bpi, (bp_mdl, bp_vtx)) in body_parts.iter().zip(&vtx_lod0).enumerate() {
+        for (mi, (m_mdl, m_vtx)) in bp_mdl.iter().zip(bp_vtx).enumerate() {
             let (eye_base, mesh_eyes) = match raw_eyes.get(bpi).and_then(|b| b.get(mi)) {
                 Some((eyes, mesh_eyes)) => {
                     let base = eyeballs.len();
@@ -387,12 +395,12 @@ fn load_model_inner(
                 }
                 None => (0, &[][..]),
             };
-            for (k, (mesh_mdl, mesh_vtx)) in m_mdl.meshes.iter().zip(m_vtx).enumerate() {
-                let base = (m_mdl.vertex_offset + mesh_mdl.vertex_offset) as u32;
+            for (k, (&(material, mesh_offset), mesh_vtx)) in m_mdl.meshes.iter().zip(m_vtx).enumerate() {
+                let base = (m_mdl.vertex_offset + mesh_offset) as u32;
                 lod0_vertex_order.push(mesh_vtx.order.iter().map(|&v| base + v as u32).collect());
                 let tris = mesh_vtx.tris.iter().map(|&v| base + v as u32).collect();
                 let eye = mesh_eyes.get(k).copied().flatten().map(|e| eye_base + e);
-                raw_meshes.push((mesh_mdl.material, eye, tris));
+                raw_meshes.push((material, eye, tris, (bpi, mi)));
             }
         }
     }
@@ -439,7 +447,8 @@ fn load_model_inner(
 
     let verts = model.vertices();
     let mut meshes: Vec<ModelMesh> = Vec::new();
-    for (material_index, eyeball, tris) in raw_meshes {
+    let mut body_alternates = Vec::new();
+    for (material_index, eyeball, tris, (part, body_model)) in raw_meshes {
         let mut out = ModelMesh {
             material_index,
             eyeball,
@@ -493,8 +502,13 @@ fn load_model_inner(
                 out.indices.extend_from_slice(&[tri[0], tri[2], tri[1]]);
             }
         }
-        if !out.indices.is_empty() {
+        if out.indices.is_empty() {
+            continue;
+        }
+        if body_model == 0 {
             meshes.push(out);
+        } else {
+            body_alternates.push((part, body_model, out));
         }
     }
     let (mins, maxs) = model.bounding_box();
@@ -535,7 +549,40 @@ fn load_model_inner(
         },
         contents: mdl_contents(&mdl_data),
         preferred_carry_angles: preferred_carry_angles(&mdl_keyvalues(&mdl_data)),
+        body_alternates,
     })
+}
+
+/// One studio model of a body part: its first VVD vertex and, per mesh,
+/// (material index, model-relative first vertex).
+struct RawBodyModel {
+    vertex_offset: i32,
+    meshes: Vec<(i32, i32)>,
+}
+
+/// `[body part][model]` from the MDL: mstudiobodyparts_t 16 bytes (nummodels
+/// 4, modelindex 12), mstudiomodel_t 148 (nummeshes 72, vertexindex 84, a
+/// byte offset into 48-byte VVD vertices), mstudiomesh_t 116 (material 0,
+/// vertexoffset 12).
+fn read_body_models(d: &[u8]) -> Option<Vec<Vec<RawBodyModel>>> {
+    let (n_bp, bp_off) = rd_array(d, 0, 232)?;
+    (0..n_bp)
+        .map(|b| {
+            let bp = bp_off + b * 16;
+            let n_models = rd_i32(d, bp + 4)?.max(0) as usize;
+            let m_off = usize::try_from(bp as i64 + rd_i32(d, bp + 12)? as i64).ok()?;
+            (0..n_models)
+                .map(|m| {
+                    let mp = m_off + m * 148;
+                    let (n_meshes, mesh_off) = rd_array(d, mp, 72)?;
+                    let meshes = (0..n_meshes)
+                        .map(|k| Some((rd_i32(d, mesh_off + k * 116)?, rd_i32(d, mesh_off + k * 116 + 12)?)))
+                        .collect::<Option<Vec<_>>>()?;
+                    Some(RawBodyModel { vertex_offset: rd_i32(d, mp + 84)? / 48, meshes })
+                })
+                .collect()
+        })
+        .collect()
 }
 
 /// One LOD-0 mesh of a VTX file.

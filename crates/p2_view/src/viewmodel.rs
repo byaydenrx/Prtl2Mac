@@ -23,8 +23,8 @@ use p2_assets::anim::Animator;
 use p2_assets::source_assets;
 use p2_assets::GameFsRes;
 use p2_core::{
-    Crouch, GunCleansed, GunFired, GunHolding, InterpolatedFeet, PortalShotFailed, Player, ViewAngles, ViewmodelAttachments,
-    LAYER_VIEWMODEL, U,
+    Crouch, GunCleansed, GunFired, GunHolding, InterpolatedFeet, PortalShotFailed, Player, PotatosMesh, ViewAngles,
+    ViewmodelAttachments, LAYER_VIEWMODEL, POTATOS_BODYGROUP, U,
 };
 
 use crate::{eye_transform, source_fov_to_vertical, ViewConfig};
@@ -212,7 +212,9 @@ pub(crate) fn spawn_viewmodel_camera_and_gun(
     let inverse = bindposes.add(SkinnedMeshInverseBindposes::from(inverse));
 
     let mut mat_cache: HashMap<String, Handle<ViewModelMaterial>> = HashMap::new();
-    for m in &model.meshes {
+    // Body 0, plus PotatOS (shown while she rides on the gun).
+    let potatos = model.body_alternates.iter().filter(|(p, b, _)| (*p, *b) == POTATOS_BODYGROUP).map(|(_, _, m)| (m, true));
+    for (m, is_potatos) in model.meshes.iter().map(|m| (m, false)).chain(potatos) {
         let name = model.material_for(0, m.material_index).unwrap_or("").to_string();
         let material = mat_cache
             .entry(name.clone())
@@ -249,7 +251,7 @@ pub(crate) fn spawn_viewmodel_camera_and_gun(
             .with_inserted_attribute(Mesh::ATTRIBUTE_JOINT_INDEX, VertexAttributeValues::Uint16x4(joints_idx))
             .with_inserted_attribute(Mesh::ATTRIBUTE_JOINT_WEIGHT, weights)
             .with_inserted_indices(Indices::U32(m.indices.clone()));
-        commands.spawn((
+        let mut spawned = commands.spawn((
             Name::new(format!("Viewmodel mesh {name}")),
             Mesh3d(meshes.add(mesh)),
             MeshMaterial3d(material),
@@ -260,6 +262,9 @@ pub(crate) fn spawn_viewmodel_camera_and_gun(
             SkinnedMesh { inverse_bindposes: inverse.clone(), joints: joints.clone() },
             ChildOf(root),
         ));
+        if is_potatos {
+            spawned.insert((PotatosMesh, Visibility::Hidden));
+        }
     }
 
     let draw = animator.find("draw").unwrap_or(0);

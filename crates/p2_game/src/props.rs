@@ -922,6 +922,7 @@ fn core_inputs(
     props: Query<(Entity, &Prop)>,
     mut loaded: MessageReader<LevelLoaded>,
     mut players: Query<(&mut IgnoreColliders, &InterpolatedFeet, &Crouch, &ViewAngles), With<Player>>,
+    mut guns: Query<&mut PortalGun, With<Player>>,
     held: Query<&HeldColliders>,
     children: Query<&Children>,
     colliders: Query<(), With<Collider>>,
@@ -1007,6 +1008,11 @@ fn core_inputs(
                 fire.write(FireOutput { ent: i, event: "OnPhysGunPickup".into(), activator: Some(PLAYER) });
             }
             ("logic_playerproxy", "setdropenabled") => cores.drop_disabled = msg.param.trim() == "0",
+            ("logic_playerproxy", input @ ("addpotatostoportalgun" | "removepotatosfromportalgun")) => {
+                for mut gun in &mut guns {
+                    gun.potatos = input.starts_with("add");
+                }
+            }
             _ => {}
         }
     }

@@ -363,6 +363,10 @@ pub struct PortalGun {
     pub last_placed: Option<PortalKind>,
     /// Which shots this gun can fire (Portal 2 starts with blue only in Ch1).
     pub can_fire: [bool; 2],
+    /// PotatOS rides on the gun (`logic_playerproxy` AddPotatosToPortalgun in
+    /// sp_a3_transition01 until RemovePotatosFromPortalgun in sp_a4_finale4):
+    /// the gun models show their `potatos` bodygroup.
+    pub potatos: bool,
 }
 
 impl PortalGun {
@@ -373,6 +377,14 @@ impl PortalGun {
         self.portals[kind.index()]
     }
 }
+
+/// The `potatos` bodygroup of `v_portalgun.mdl` and `w_portalgun.mdl`:
+/// (body part, model) of PotatOS clamped to the gun.
+pub const POTATOS_BODYGROUP: (usize, usize) = (1, 1);
+
+/// A gun mesh drawn only while [`PortalGun::potatos`] is set.
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct PotatosMesh;
 
 /// Ask a gun to fire (mouse input or a script).
 #[derive(Message, Clone, Copy, Debug)]
@@ -628,7 +640,14 @@ impl Plugin for CorePlugin {
                     .chain()
                     .before(TransformSystems::Propagate),
             )
-            .add_systems(PostUpdate, animate_portals.before(P2Systems::Render));
+            .add_systems(PostUpdate, (animate_portals, show_potatos).before(P2Systems::Render));
+    }
+}
+
+fn show_potatos(guns: Query<&PortalGun, With<Player>>, mut meshes: Query<&mut Visibility, With<PotatosMesh>>) {
+    let on = guns.iter().any(|g| g.potatos);
+    for mut v in &mut meshes {
+        v.set_if_neq(if on { Visibility::Inherited } else { Visibility::Hidden });
     }
 }
 

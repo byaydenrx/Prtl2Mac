@@ -91,6 +91,18 @@ fn gun_for(campaign: &Campaign, map: &str, info: &MapInfo) -> [bool; 2] {
     }
 }
 
+/// PotatOS on the gun at a map's start: from `FIRST_MAP_WITH_POTATO_GUN`
+/// (sp_a3_speed_ramp, after sp_a3_transition01 attaches her) through
+/// sp_a4_finale4, whose socket scene takes her off.
+fn potatos_for(campaign: &Campaign, map: &str, can_fire: [bool; 2]) -> bool {
+    let order = |m: &str| campaign.maps.iter().position(|x| x.eq_ignore_ascii_case(m));
+    let first = campaign_const(campaign, "FIRST_MAP_WITH_POTATO_GUN").unwrap_or_else(|| "sp_a3_speed_ramp".into());
+    match (order(map), order(&first), order("sp_a4_finale4")) {
+        (Some(h), Some(f), Some(last)) => can_fire.contains(&true) && (f..=last).contains(&h),
+        _ => false,
+    }
+}
+
 fn campaign_const(c: &Campaign, name: &str) -> Option<String> {
     c.consts.get(name).cloned()
 }
@@ -228,17 +240,18 @@ fn load_level(
     let (yaw, _, _) = info.arrival.rotation.to_euler(EulerRot::YXZ);
     let feet = info.arrival.translation;
     let can_fire = if req.menu { [false, false] } else { gun_for(&campaign, &req.map, &info) };
+    let potatos = potatos_for(&campaign, &req.map, can_fire);
     match players.single_mut() {
         Ok((_, mut tf, mut ifeet, mut view, mut vel, mut gun)) => {
             tf.translation = feet;
             *ifeet = InterpolatedFeet { prev: feet, curr: feet };
             *view = ViewAngles { yaw, pitch: 0.0, roll: 0.0 };
             vel.0 = Vec3::ZERO;
-            *gun = PortalGun { can_fire, ..default() };
+            *gun = PortalGun { can_fire, potatos, ..default() };
         }
         Err(_) => {
             let p = spawn_player(&mut commands, feet, yaw);
-            commands.entity(p).insert(PortalGun { can_fire, ..default() });
+            commands.entity(p).insert(PortalGun { can_fire, potatos, ..default() });
         }
     }
     commands.insert_resource(ClearColor(info.fog.as_ref().map(|f| f.color).unwrap_or(Color::BLACK)));
@@ -384,5 +397,20 @@ mod brush_shape_tests {
         assert_eq!(s.box_touches(1, Vec3::new(14.0, 2.0, 2.0), Vec3::new(18.0, 4.0, 4.0)), Some(false));
         assert_eq!(s.box_touches(1, Vec3::new(8.0, 2.0, 2.0), Vec3::new(18.0, 4.0, 4.0)), Some(true));
         assert_eq!(s.box_touches(2, Vec3::ZERO, Vec3::ONE), None);
+    }
+}
+
+#[cfg(test)]
+mod potatos_tests {
+    use super::*;
+
+    #[test]
+    fn potatos_rides_from_speed_ramp_through_finale4() {
+        let maps = ["sp_a2_laser_intro", "sp_a3_transition01", "sp_a3_speed_ramp", "sp_a4_intro", "sp_a4_finale4", "sp_a5_credits"];
+        let c = Campaign { maps: maps.iter().map(|m| m.to_string()).collect(), ..default() };
+        let on: Vec<bool> = maps.iter().map(|m| potatos_for(&c, m, [true, true])).collect();
+        assert_eq!(on, [false, false, true, true, true, false]);
+        // No gun, no PotatOS.
+        assert!(!potatos_for(&c, "sp_a4_intro", [false, false]));
     }
 }

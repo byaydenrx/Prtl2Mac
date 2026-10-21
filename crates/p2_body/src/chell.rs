@@ -23,7 +23,7 @@ use bevy::pbr::StandardMaterial;
 use bevy::prelude::*;
 use p2_assets::anim::Animator;
 use p2_assets::GameFsRes;
-use p2_core::{CharacterVelocity, Crouch, Grounded, Player, ViewAngles, LAYER_PLAYER_BODY, U};
+use p2_core::{CharacterVelocity, Crouch, Grounded, Player, PotatosMesh, ViewAngles, LAYER_PLAYER_BODY, POTATOS_BODYGROUP, U};
 use source_assets::GameFs;
 
 use crate::ghost::{ghost_material, GhostMaterial};
@@ -66,6 +66,8 @@ fn model_to_body() -> Quat {
 pub(crate) struct RigMesh {
     mesh: Handle<Mesh>,
     material: StandardMaterial,
+    /// PotatOS on the world gun: drawn only while she rides on it.
+    potatos: bool,
 }
 
 /// A skinned model, loaded once and spawned per body.
@@ -186,7 +188,7 @@ fn load_body(
     images: &mut Assets<Image>,
     bindposes: &mut Assets<SkinnedMeshInverseBindposes>,
 ) -> Option<ChellData> {
-    let body = load_rig(fs, &cfg.chell_model, meshes, images, bindposes)?;
+    let body = load_rig(fs, &cfg.chell_model, false, meshes, images, bindposes)?;
     let mut anims = Animator::parse(Arc::new(fs.read(&cfg.chell_animations)?))?;
     // Almost all of the player's animations live in the external `.ani` file;
     // without it every sequence samples as the reference pose.
@@ -233,14 +235,16 @@ fn load_body(
         fire: None,
         fire_crouch: None,
     };
-    let gun = load_rig(fs, &cfg.gun_model, meshes, images, bindposes);
+    let gun = load_rig(fs, &cfg.gun_model, true, meshes, images, bindposes);
     let gun_bone = body.skeleton.skeleton.bones.iter().position(|b| b.name == names::GUN_BONE);
     Some(ChellData { body, anims, bone_map, gun, seqs, seqs_nogun, gun_bone })
 }
 
+/// `with_potatos` adds the gun's PotatOS bodygroup (hidden until she rides on it).
 fn load_rig(
     fs: &GameFs,
     path: &str,
+    with_potatos: bool,
     meshes: &mut Assets<Mesh>,
     images: &mut Assets<Image>,
     bindposes: &mut Assets<SkinnedMeshInverseBindposes>,
@@ -257,10 +261,17 @@ fn load_rig(
     let skeleton = Animator::parse(Arc::new(fs.read(path)?))?;
     let inverse: Vec<Mat4> = skeleton.skeleton.bones.iter().map(|b| Mat4::from(b.pose_to_bone)).collect();
     let bindposes = bindposes.add(SkinnedMeshInverseBindposes::from(inverse));
+    let potatos = model
+        .body_alternates
+        .iter()
+        .filter(|(p, b, _)| with_potatos && (*p, *b) == POTATOS_BODYGROUP)
+        .map(|(_, _, m)| (m, true));
     let rig_meshes = model
         .meshes
         .iter()
-        .map(|m| {
+        .map(|m| (m, false))
+        .chain(potatos)
+        .map(|(m, potatos)| {
             let name = model.material_for(0, m.material_index).unwrap_or("").to_string();
             let eye = m.eyeball.and_then(|i| model.eyeballs.get(i));
             let uvs = match eye {
@@ -273,7 +284,7 @@ fn load_rig(
                 material.perceptual_roughness = 0.12;
                 material.reflectance = 0.5;
             }
-            RigMesh { mesh: meshes.add(rig_mesh(m, uvs)), material }
+            RigMesh { mesh: meshes.add(rig_mesh(m, uvs)), material, potatos }
         })
         .collect();
     Some(RigAsset { skeleton: Arc::new(skeleton), meshes: rig_meshes, bindposes })
@@ -419,7 +430,7 @@ fn spawn_rig(commands: &mut Commands, parent: Entity, rig: &RigAsset, ghosts: &m
         joints.push(j);
     }
     for m in &rig.meshes {
-        commands.spawn((
+        let mut spawned = commands.spawn((
             Mesh3d(m.mesh.clone()),
             MeshMaterial3d(ghosts.add(ghost_material(m.material.clone()))),
             SkinnedMesh { inverse_bindposes: rig.bindposes.clone(), joints: joints.clone() },
@@ -428,6 +439,9 @@ fn spawn_rig(commands: &mut Commands, parent: Entity, rig: &RigAsset, ghosts: &m
             RenderLayers::layer(LAYER_PLAYER_BODY),
             ChildOf(parent),
         ));
+        if m.potatos {
+            spawned.insert((PotatosMesh, Visibility::Hidden));
+        }
     }
     joints
 }

@@ -36,6 +36,9 @@ fn main() -> anyhow::Result<()> {
             names
         );
     }
+    for (part, model, mesh) in &m.body_alternates {
+        println!("bodygroup {part} model {model}: mat {:?} tris {}", m.material_for(skin, mesh.material_index), mesh.indices.len() / 3);
+    }
     for (i, piece) in m.physics.iter().enumerate() {
         // Pieces are in world axes and metres: back to Source axes and units.
         let src: Vec<_> = piece.iter().map(|p| shared::world_to_source(*p)).collect();
