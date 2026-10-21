@@ -46,6 +46,7 @@ mod saves;
 mod scenes;
 mod settings;
 mod shakes;
+mod soundscapes;
 mod shooter;
 mod speedrun;
 mod splits;
@@ -115,7 +116,7 @@ fn main() {
             props::PropsPlugin,
             prop_ghosts::PropGhostsPlugin,
             triggers::TriggersPlugin,
-            audio::GameAudioPlugin,
+            (audio::GameAudioPlugin, soundscapes::SoundscapesPlugin),
             autopilot::AutopilotPlugin,
             scenes::ScenesPlugin,
             ai::AiPlugin,

@@ -120,7 +120,19 @@ fn load_soundscripts(game: Res<GameFsRes>, mut scripts: ResMut<SoundScripts>) {
     info!("portal2: {} soundscript entries from {} files", scripts.entries.len(), files.len());
 }
 
-fn parse_volume(s: &str) -> f32 {
+impl SoundScripts {
+    /// The decoded clip for a wave path (`sound/...`), cached.
+    pub(crate) fn clip(&mut self, game: &GameFsRes, sources: &mut Assets<AudioSource>, wave: &str) -> Option<Handle<AudioSource>> {
+        if let Some(h) = self.clips.get(wave) {
+            return Some(h.clone());
+        }
+        let h = sources.add(AudioSource { bytes: game.read(wave)?.into() });
+        self.clips.insert(wave.to_string(), h.clone());
+        Some(h)
+    }
+}
+
+pub(crate) fn parse_volume(s: &str) -> f32 {
     match s.trim().to_ascii_uppercase().as_str() {
         "VOL_NORM" => 1.0,
         v => {
@@ -134,9 +146,10 @@ fn parse_volume(s: &str) -> f32 {
     }
 }
 
-fn parse_soundlevel(s: &str) -> f32 {
+pub(crate) fn parse_soundlevel(s: &str) -> f32 {
     let s = s.trim().to_ascii_uppercase();
-    if let Some(db) = s.strip_prefix("SNDLVL_") {
+    // `SNDLVL_75dB`, and the soundscapes' `SNDLVL65dB`.
+    if let Some(db) = s.strip_prefix("SNDLVL").map(|d| d.trim_start_matches('_')) {
         if db == "NONE" {
             return 0.0;
         }
@@ -149,7 +162,7 @@ fn parse_soundlevel(s: &str) -> f32 {
 }
 
 /// Strip soundscript prefix characters (`)` spatial, `*` stream, `#` music...).
-fn wave_path(w: &str) -> String {
+pub(crate) fn wave_path(w: &str) -> String {
     let w = w.trim_start_matches(|c: char| "*#@<>^)}$!?&~`+%".contains(c)).replace('\\', "/");
     if w.starts_with("sound/") {
         w
@@ -159,7 +172,7 @@ fn wave_path(w: &str) -> String {
 }
 
 /// Source soundlevel falloff (same curve as the portal sounds use).
-fn gain(distance_m: f32, soundlevel: f32) -> f32 {
+pub(crate) fn gain(distance_m: f32, soundlevel: f32) -> f32 {
     if soundlevel <= 0.0 {
         return 1.0;
     }
@@ -464,6 +477,13 @@ mod volume_tests {
     fn elevator_depart_sound_loops_arrive_plays_once() {
         assert!(super::train_sound_looped("world.elevatordepartlp"));
         assert!(!super::train_sound_looped("world.elevatorarrive"));
+    }
+
+    #[test]
+    fn soundlevel_with_or_without_underscore() {
+        assert_eq!(super::parse_soundlevel("SNDLVL_75dB"), 75.0);
+        assert_eq!(super::parse_soundlevel("SNDLVL65dB"), 65.0);
+        assert_eq!(super::parse_soundlevel("SNDLVL_NONE"), 0.0);
     }
 
     #[test]
