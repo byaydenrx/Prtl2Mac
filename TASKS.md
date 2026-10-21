@@ -18,21 +18,15 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 4 intro5/intro6, 5 intro7 + sp_a1_wakeup + sp_a2_intro, 6 sp_a2_laser_intro,
 7 sp_a2_laser_stairs.
 
-## Priority order (2026-10-21, after owner round 7)
-MENUS ON HOLD and SCREENSHOT TASKS ON HOLD (T-173, T-174, T-145, T-147,
-T-149, T-116) until the owner says so / sends them.
-Awaiting the owner: T-112 GLaDOS floor reflection (merged 2c08d11, not
-mentioned in round 7).
-P0/P1: none open.
-P2:
-1. T-120 elevator VO timing (only open part).
-P3:
-2. T-153 particles still around GLaDOS at wake-up.
-3. T-164 ride debris tearing (attempt reverted: it made moving parts shake).
-4. T-152 lighting/texture quality (STUCK, plan in entry).
-P4:
-5. T-146 half-stuck door (next), T-150 rest (motion blur, gun glow through
-   the wall), T-151 water (Source fogs the reflected sky), T-154 floating moss.
+## Priority order (2026-10-21, owner round 7)
+ON HOLD (owner): menus; screenshot tasks T-173, T-174, T-145, T-147, T-149,
+T-116, T-152, T-151, T-154; T-164 skipped; T-120 done enough. Don't work on
+anything already fixed.
+Awaiting the owner: T-112 GLaDOS floor, T-146 door wiggle.
+Owner says fix for sure:
+1. T-153 particles still around GLaDOS at wake-up (P3).
+2. T-150 motion blur/speed lines and the gun glow through the wall after
+   the sp_a2_intro fall (P4).
 Then the Backlog (prove and sweep the campaign).
 
 ## On hold: menus (owner 2026-10-21)
@@ -565,12 +559,104 @@ autoruns until the screenshots arrive.
   - Outside lighting on the ride: not checked this run (ride is seen
     through point_viewproxy camera_1, see T-020).
 
-## Open: P0
-(none)
+## On hold (owner 2026-10-21 round 7): skip for now / wait for screenshots
+T-164 skip for now; T-152, T-151, T-154 wait for screenshots; T-120's ride
+jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
 
-## Open: P1
+### T-164 Spiky, torn animated debris  (P3, OPEN: CPU-skinning attempt REVERTED e88ae41)
+- Owner round 7 (2026-10-21, build 6e0efbf): the CPU skinning made moving
+  things on the intro1 ride shake; reverted at the owner's request (code in
+  c34006e). Next try: check the skinned positions per frame (bone transforms
+  from BonePart vs the rigid parts' interpolation) before redoing it.
+- 2026-10-21: merged untested at the owner's request so the replay has it.
+- Owner round 5 (2026-10-21): still saw spikes on the intro1 ride, but in
+  build b8a2d76, which does not contain attempt/T-164. Autopilot couldn't
+  show the ride animating from outside (`@rl_container_ride Trigger` +
+  setpos: the container stays put in both builds), so no before/after.
+- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed; the fix on attempt/T-164 was not in the build played. Also possibly the "spikes under the button" (T-145).
+- intro1 ride (screenshot 5), sp_a2_intro shaft arms (playtest 7). Animated
+  props draw as rigid per-bone triangles (models.rs split_by_bone); soft
+  weighted meshes tear. Check the weights, then skin them.
+- 2026-10-20 autorun: weights checked (mdlinfo now prints "soft verts" and
+  "mixed tris" per mesh). intro1 ride: the container_ride finedebris_part1/3/
+  5/9/11/12/13 rebars, rust, crumplebeam/crumplecorner, bed02 and frame2
+  meshes blend 2-3 bones (e.g. part12 crumplebeamcol 1257/3265 soft verts,
+  1846 of 3080 tris mixed), so the rigid split tears them: confirmed cause
+  by data. sp_a2_intro: every model is rigid (arm64x64_interior_rusty,
+  crusher, armrubble_* all 0 soft verts), so the shaft-arm spikes are a
+  different problem, still open (check bone poses/interpolation there).
+- Not visually reproduced: in sp_a1_intro1 autopilot (`input
+  actor_container_05 SetAnimation anim2`, `input camera_intro Disable`,
+  `goto`/`lookat`) the view stays on the bed-room intro camera, so no
+  before/after shot of the debris.
+- Untested fix: local branch attempt/T-164 (c34006e), needs owner
+  review/replay. Soft meshes (vertexlit/unlitgeneric) stay whole under the
+  model and are linear-blend skinned on the CPU from their BonePart
+  transforms when those move (plugin.rs skin_soft_meshes, models.rs
+  skin_vertices with a unit test); valve_render re-uploads the vertex
+  buffer when the SkinnedVertices generation changes. Replay the intro1
+  ride's wall breaking and the room transform after `git merge
+  attempt/T-164`.
 
-## Open: P2
+### T-152 Lighting and texture quality below the original  (P3, STUCK 2026-10-21: bumped-model path too large for one run; plan below)
+- Owner playtest 9 (2026-10-20, build 014ab6e): "lighting/textures being low quality is still an issue". Raised to P3.
+- Scrap pieces in the intro3 fall; turrets in tubes (wakeup); bumped
+  VertexLitGeneric (models with $bumpmap) still drawn without bump.
+- Autorun 2026-10-21 (STUCK, no code change): no owner shot pins one
+  surface, so the only concrete item is the bumped VertexLitGeneric path.
+  Texture filtering is already 16x anisotropic with mips (vtf.rs,
+  valve_render.rs), so that's not the cause. Findings for the next attempt
+  (`examples/shaders vertexlit_and_unlit_generic_bump_ps20b|vs20 --statics`):
+  ps20b has 32768 static x 80 dynamic combos (544 stored); bumped statics use
+  BumpmapSampler@s3, cAmbientCube@c5 (6 regs), cLightInfo@c13,
+  g_ShaderControls@c12, cLightScale@c30, g_DiffuseModulation@c1. vs20 is 64 x
+  24 (24 stored), reads a TANGENT input (Input6), has cLightInfo@c27,
+  g_bLightEnabled@b0, cModel@c58, and NO COLOR1 static-light input. So a
+  bumped prop needs (1) VVD tangents in ModelMesh (model_vertices writes a
+  dummy tangent today), (2) a per-prop ambient cube (6 colours, from the same
+  leaf ambient samples that bake COLOR1 now) plus the nearest local lights
+  packed into cLightInfo, (3) the static/dynamic combo digits mapped like
+  vertex_lit_generic's (NUM_LIGHTS in the dynamic index), (4) a new
+  ConstRecipe. Keep the current non-bump path as the fallback when any step
+  fails. Next run: start with (1)+(2) on an attempt branch, check the intro3
+  rubble and the wakeup tube turrets before/after.
+
+### T-151 Water like Portal 2's (reflections, murk), intro3 and sp_a2_laser_intro  (P4, OPEN: attempt dropped 2026-10-21)
+- 2026-10-21 check: attempt/T-151 (2df932d) turned the intro3 water bright
+  glossy white in a dark room (reflects the raw white sky; Source fogs the
+  sky to the fog colour on fogged maps). Owner: close it; branch deleted
+  (recreate with `git branch attempt/T-151 2df932d`).
+- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed; the fix on attempt/T-151 was not in the build played.
+- Owner (playtests 8 and 6): "should look like water with reflections";
+  "water ugly, not murky with reflections".
+- Seen 2026-10-20 (autorun, dist eb58eac, `goto fall_splash 250`): intro3
+  water is a flat, ripple-less brown sheet; no reflection at all, because
+  plugin.rs drops the sky reflection on fogged maps (earlier fix: the white
+  sky turned the water white).
+- Material (both maps share it): `nature/water_a1_intro3` /
+  `water_a2_laser_intro`, `$reflecttexture _rt_WaterReflection`,
+  `$reflectskyboxonly 1`, `$reflectonlymarkedentities 1`, `$reflecttint 190`,
+  `$reflectamount 0.4`, flowmap normals, `$lightmapwaterfog`, fog 90 70 20
+  over 0-60, `$pseudotranslucent 1`, `$waterblendfactor 0.75`. Both maps'
+  sky is sky_white (pure white UnlitGeneric), no sky_camera. water_ps20b's
+  combos without RefractSampler (pseudotranslucent) still sample
+  ReflectSampler plus lightmap, and every combo has g_PixelFogParams (the
+  map's fog over the surface).
+- Suspected cause: no reflection, and no map distance fog on glass/water
+  (glass.wgsl returned its colour without Bevy's fog). The previous "white
+  water" came from multiplying the reflected sky by the HDR exposure; Source
+  samples an LDR reflection target, so the sky saturates at 1 before the tint.
+- Untested fix: local branch attempt/T-151 (2df932d; cbfa31d + test stub),
+  needs owner review/replay. Sky reflection back on fogged maps, clamped to
+  1 then times `$reflecttint`, Fresnel-mixed with the lit fog; map distance
+  fog applied to glass/water. Autopilot shots: intro3 water now grey with
+  visible flowing ripples at grazing angles (before: flat brown). Whether
+  Portal 2's looks that pale is unknown without a Windows screenshot of the
+  intro3 pool (or laser_intro). Not done: `$pseudotranslucent` alpha blend
+  (`$waterblendfactor`), `$reflectamount` screen-space offset.
+
+### T-154 Floating vine/moss/grass texture by the centre wall (intro5)  (P4, TODO: owner says not fixed)
+- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
 
 ### T-120 Elevators  (P2, OPEN: VO timing only; jitter, car sounds, thumps owner-confirmed)
 - Owner playtest 9 (2026-10-20, build 014ab6e): jittery rides FIXED, thumps FIXED; VO timing NOT fixed (voice lines start late, also while riding, which stretches the ride: see T-172); rubble/turrets still fall through the elevator (T-135).
@@ -615,65 +701,14 @@ autoruns until the screenshots arrive.
   BLOCKED: needs the owner to say which ride and what looked wrong, or a
   Windows reference of intro5's departure.
 
+## Open: P0
+(none)
+
+## Open: P1
+
+## Open: P2
+
 ## Open: P3
-
-### T-152 Lighting and texture quality below the original  (P3, STUCK 2026-10-21: bumped-model path too large for one run; plan below)
-- Owner playtest 9 (2026-10-20, build 014ab6e): "lighting/textures being low quality is still an issue". Raised to P3.
-- Scrap pieces in the intro3 fall; turrets in tubes (wakeup); bumped
-  VertexLitGeneric (models with $bumpmap) still drawn without bump.
-- Autorun 2026-10-21 (STUCK, no code change): no owner shot pins one
-  surface, so the only concrete item is the bumped VertexLitGeneric path.
-  Texture filtering is already 16x anisotropic with mips (vtf.rs,
-  valve_render.rs), so that's not the cause. Findings for the next attempt
-  (`examples/shaders vertexlit_and_unlit_generic_bump_ps20b|vs20 --statics`):
-  ps20b has 32768 static x 80 dynamic combos (544 stored); bumped statics use
-  BumpmapSampler@s3, cAmbientCube@c5 (6 regs), cLightInfo@c13,
-  g_ShaderControls@c12, cLightScale@c30, g_DiffuseModulation@c1. vs20 is 64 x
-  24 (24 stored), reads a TANGENT input (Input6), has cLightInfo@c27,
-  g_bLightEnabled@b0, cModel@c58, and NO COLOR1 static-light input. So a
-  bumped prop needs (1) VVD tangents in ModelMesh (model_vertices writes a
-  dummy tangent today), (2) a per-prop ambient cube (6 colours, from the same
-  leaf ambient samples that bake COLOR1 now) plus the nearest local lights
-  packed into cLightInfo, (3) the static/dynamic combo digits mapped like
-  vertex_lit_generic's (NUM_LIGHTS in the dynamic index), (4) a new
-  ConstRecipe. Keep the current non-bump path as the fallback when any step
-  fails. Next run: start with (1)+(2) on an attempt branch, check the intro3
-  rubble and the wakeup tube turrets before/after.
-
-### T-164 Spiky, torn animated debris  (P3, OPEN: CPU-skinning attempt REVERTED e88ae41)
-- Owner round 7 (2026-10-21, build 6e0efbf): the CPU skinning made moving
-  things on the intro1 ride shake; reverted at the owner's request (code in
-  c34006e). Next try: check the skinned positions per frame (bone transforms
-  from BonePart vs the rigid parts' interpolation) before redoing it.
-- 2026-10-21: merged untested at the owner's request so the replay has it.
-- Owner round 5 (2026-10-21): still saw spikes on the intro1 ride, but in
-  build b8a2d76, which does not contain attempt/T-164. Autopilot couldn't
-  show the ride animating from outside (`@rl_container_ride Trigger` +
-  setpos: the container stays put in both builds), so no before/after.
-- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed; the fix on attempt/T-164 was not in the build played. Also possibly the "spikes under the button" (T-145).
-- intro1 ride (screenshot 5), sp_a2_intro shaft arms (playtest 7). Animated
-  props draw as rigid per-bone triangles (models.rs split_by_bone); soft
-  weighted meshes tear. Check the weights, then skin them.
-- 2026-10-20 autorun: weights checked (mdlinfo now prints "soft verts" and
-  "mixed tris" per mesh). intro1 ride: the container_ride finedebris_part1/3/
-  5/9/11/12/13 rebars, rust, crumplebeam/crumplecorner, bed02 and frame2
-  meshes blend 2-3 bones (e.g. part12 crumplebeamcol 1257/3265 soft verts,
-  1846 of 3080 tris mixed), so the rigid split tears them: confirmed cause
-  by data. sp_a2_intro: every model is rigid (arm64x64_interior_rusty,
-  crusher, armrubble_* all 0 soft verts), so the shaft-arm spikes are a
-  different problem, still open (check bone poses/interpolation there).
-- Not visually reproduced: in sp_a1_intro1 autopilot (`input
-  actor_container_05 SetAnimation anim2`, `input camera_intro Disable`,
-  `goto`/`lookat`) the view stays on the bed-room intro camera, so no
-  before/after shot of the debris.
-- Untested fix: local branch attempt/T-164 (c34006e), needs owner
-  review/replay. Soft meshes (vertexlit/unlitgeneric) stay whole under the
-  model and are linear-blend skinned on the CPU from their BonePart
-  transforms when those move (plugin.rs skin_soft_meshes, models.rs
-  skin_vertices with a unit test); valve_render re-uploads the vertex
-  buffer when the SkinnedVertices generation changes. Replay the intro1
-  ride's wall breaking and the room transform after `git merge
-  attempt/T-164`.
 
 ### T-153 GLaDOS wake-up  (P3, OPEN: some particles still around her; gun drop, arms, view owner-confirmed)
 - Owner round 7 (2026-10-21, build 6e0efbf): "still has some particles
@@ -711,40 +746,6 @@ autoruns until the screenshots arrive.
 
 ## Open: P4
 
-### T-151 Water like Portal 2's (reflections, murk), intro3 and sp_a2_laser_intro  (P4, OPEN: attempt dropped 2026-10-21)
-- 2026-10-21 check: attempt/T-151 (2df932d) turned the intro3 water bright
-  glossy white in a dark room (reflects the raw white sky; Source fogs the
-  sky to the fog colour on fogged maps). Owner: close it; branch deleted
-  (recreate with `git branch attempt/T-151 2df932d`).
-- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed; the fix on attempt/T-151 was not in the build played.
-- Owner (playtests 8 and 6): "should look like water with reflections";
-  "water ugly, not murky with reflections".
-- Seen 2026-10-20 (autorun, dist eb58eac, `goto fall_splash 250`): intro3
-  water is a flat, ripple-less brown sheet; no reflection at all, because
-  plugin.rs drops the sky reflection on fogged maps (earlier fix: the white
-  sky turned the water white).
-- Material (both maps share it): `nature/water_a1_intro3` /
-  `water_a2_laser_intro`, `$reflecttexture _rt_WaterReflection`,
-  `$reflectskyboxonly 1`, `$reflectonlymarkedentities 1`, `$reflecttint 190`,
-  `$reflectamount 0.4`, flowmap normals, `$lightmapwaterfog`, fog 90 70 20
-  over 0-60, `$pseudotranslucent 1`, `$waterblendfactor 0.75`. Both maps'
-  sky is sky_white (pure white UnlitGeneric), no sky_camera. water_ps20b's
-  combos without RefractSampler (pseudotranslucent) still sample
-  ReflectSampler plus lightmap, and every combo has g_PixelFogParams (the
-  map's fog over the surface).
-- Suspected cause: no reflection, and no map distance fog on glass/water
-  (glass.wgsl returned its colour without Bevy's fog). The previous "white
-  water" came from multiplying the reflected sky by the HDR exposure; Source
-  samples an LDR reflection target, so the sky saturates at 1 before the tint.
-- Untested fix: local branch attempt/T-151 (2df932d; cbfa31d + test stub),
-  needs owner review/replay. Sky reflection back on fogged maps, clamped to
-  1 then times `$reflecttint`, Fresnel-mixed with the lit fog; map distance
-  fog applied to glass/water. Autopilot shots: intro3 water now grey with
-  visible flowing ripples at grazing angles (before: flat brown). Whether
-  Portal 2's looks that pale is unknown without a Windows screenshot of the
-  intro3 pool (or laser_intro). Not done: `$pseudotranslucent` alpha blend
-  (`$waterblendfactor`), `$reflectamount` screen-space offset.
-
 ### T-150 Particles missing  (P4, PARTIAL: intro3 splash/dust owner-confirmed "for now"; rest open)
 - Owner round 5 (2026-10-21): splash and dust fixed for now.
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
@@ -768,13 +769,23 @@ autoruns until the screenshots arrive.
   holding things; motion blur/speed lines; the gun's glow seen through the
   wall after the sp_a2_intro fall.
 
-### T-146 intro1: the first cube-button door should get half stuck  (P4, TODO: owner says not fixed)
-- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
-
-### T-154 Floating vine/moss/grass texture by the centre wall (intro5)  (P4, TODO: owner says not fixed)
-- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
-
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-146 intro1: the first cube-button door should get half stuck  (P4, FIXED, awaiting owner replay)
+- Cause: the exit door's right half (func_door exit_door_right_a00) is
+  wiggled by logic_timer exit_door_right_a00_wiggle (spawnflags 1 =
+  Oscillator, random 0.1-1.5 s: OnTimerHigh -> Open, OnTimerLow -> Close;
+  door_open_rl_2 enables it with the spark). io.rs only ever fired OnTimer,
+  and random timers always waited the midpoint. Fix: Ents::fire_timer
+  alternates High/Low for oscillators; timer_period picks a fresh random
+  time per firing. Unit tests oscillator_timer_alternates_high_and_low,
+  random_timer_periods_vary_within_bounds.
+- Evidence (autopilot, `propto box -624 4432 2700` onto button_1, `info
+  exit_door_right_a00` every 0.5 s): before, the right half opens to x -760
+  and stays; after, it jerks between -716 and -760, often reversing midway
+  (-721, -729, -738...), wiggle fires high/low.
+- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
+
 
 ### T-112 Missing or flat textures  (P2, attempt MERGED 2c08d11 for owner testing)
 - 2026-10-21: merged at the owner's request (autopilot: floor changes 1-2/255).

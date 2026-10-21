@@ -133,3 +133,6 @@ Tracked in TASKS.md (T-169, T-171, T-148, T-135, T-139, T-162 to Done; menus on 
 Tracked in TASKS.md (T-175/T-140/T-117 to Done; T-164 reverted; screenshot tasks on hold).
 
 fog looks better, torn debries whatever fix you implemented revert it it made moving things start shaking in the ride, portal shake is good, shadows are good, glados wakeup still has some particles around it but its better, portal gun visibly drops, her arms are connected, and the rest is good there. ill send screenshots another time so put those tasks on hold
+
+## Owner note 2026-10-21 (round 7 follow-up), the owner's words
+dont work on anything thats already been fixed though ... 164 is the torn spiky shit skip that for now i said, fix 153 for sure, ride jitter in 120s been fixed, 152 has to wait for screenshots, 150 for sure fix, 151 has to wait for screenshots, 154 has to wait for screenshots.

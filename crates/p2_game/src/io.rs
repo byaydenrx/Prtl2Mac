@@ -343,6 +343,19 @@ impl Ents {
     }
 
     /// Fire every `event` output of `ent`.
+    /// A logic_timer going off: OnTimer, or with spawnflag 1 (Oscillator)
+    /// OnTimerHigh and OnTimerLow in turn (`value` holds which is next).
+    /// sp_a1_intro1's exit door wiggles half open this way.
+    pub fn fire_timer(&mut self, t: usize, activator: Option<usize>) {
+        if self.list[t].spawnflags & 1 == 0 {
+            self.fire(t, "ontimer", activator);
+            return;
+        }
+        let high = self.list[t].value == 0.0;
+        self.list[t].value = if high { 1.0 } else { 0.0 };
+        self.fire(t, if high { "ontimerhigh" } else { "ontimerlow" }, activator);
+    }
+
     pub fn fire(&mut self, ent: usize, event: &str, activator: Option<usize>) {
         self.fire_value(ent, event, "", activator);
     }
@@ -612,7 +625,7 @@ impl Ents {
                         self.list[i].keyvalues.retain(|(k, _)| k != "refiretime");
                         self.list[i].keyvalues.push(("refiretime".into(), param.into()));
                     }
-                    "firetimer" => self.fire(i, "ontimer", activator),
+                    "firetimer" => self.fire_timer(i, activator),
                     // Counting starts when the timer is (re)started.
                     "resettimer" | "enable" | "toggle" => self.list[i].aux = self.now,
                     _ => {}
@@ -805,18 +818,10 @@ pub fn run_io(
         .map(|(i, _)| i)
         .collect();
     for t in timers {
-        let e = &ents.list[t];
-        let random = e.get("userandomtime").is_some_and(|v| v.trim() == "1");
-        let period = if random {
-            let lo = e.get_f32("lowerrandombound").unwrap_or(1.0);
-            let hi = e.get_f32("upperrandombound").unwrap_or(lo);
-            lo + (hi - lo) * 0.5
-        } else {
-            e.get_f32("refiretime").unwrap_or(0.0)
-        };
-        if period > 0.0 && now - e.aux >= period {
+        let period = timer_period(&ents.list[t], t);
+        if period > 0.0 && now - ents.list[t].aux >= period {
             ents.list[t].aux = now;
-            ents.fire(t, "ontimer", None);
+            ents.fire_timer(t, None);
         }
     }
     // Deliver.
@@ -862,6 +867,24 @@ pub fn run_io(
     }
 }
 
+/// Seconds between a logic_timer's firings: `refiretime`, or with
+/// `userandomtime` a fresh time between the bounds after each firing (picked
+/// from the timer and its last start, `aux`, so saves need nothing more).
+fn timer_period(e: &GameEnt, index: usize) -> f32 {
+    if !e.get("userandomtime").is_some_and(|v| v.trim() == "1") {
+        return e.get_f32("refiretime").unwrap_or(0.0);
+    }
+    let lo = e.get_f32("lowerrandombound").unwrap_or(1.0);
+    let hi = e.get_f32("upperrandombound").unwrap_or(lo);
+    let mut x = (index as u32).wrapping_mul(0x9e37_79b9) ^ e.aux.to_bits();
+    x ^= x >> 16;
+    x = x.wrapping_mul(0x85eb_ca6b);
+    x ^= x >> 13;
+    x = x.wrapping_mul(0xc2b2_ae35);
+    x ^= x >> 16;
+    lo + (hi - lo) * ((x >> 8) as f32 / (1u32 << 24) as f32)
+}
+
 #[cfg(test)]
 mod value_tests {
     use super::*;
@@ -893,6 +916,40 @@ mod value_tests {
         ents.list[1].killed = true;
         assert!(ents.takes_input(1, "kill"));
         assert!(!ents.takes_input(1, "enable"));
+    }
+
+    #[test]
+    fn oscillator_timer_alternates_high_and_low() {
+        let out = |event: &str, target: &str| Output { event: event.into(), target: target.into(), input: "open".into(), param: String::new(), delay: 0.0, times: -1 };
+        let mut ents = Ents::default();
+        let mut wiggle = GameEnt::logic("logic_timer", "wiggle", Vec::new());
+        wiggle.spawnflags = 1;
+        wiggle.outputs = vec![out("OnTimerHigh", "high"), out("OnTimerLow", "low"), out("OnTimer", "plain")];
+        ents.list.push(wiggle);
+        for _ in 0..3 {
+            ents.fire_timer(0, None);
+        }
+        let got: Vec<&str> = ents.queue.iter().map(|p| p.target.as_str()).collect();
+        assert_eq!(got, ["high", "low", "high"]);
+        ents.queue.clear();
+        ents.list[0].spawnflags = 0;
+        ents.fire_timer(0, None);
+        assert_eq!(ents.queue[0].target, "plain");
+    }
+
+    #[test]
+    fn random_timer_periods_vary_within_bounds() {
+        let kv = |k: &str, v: &str| (k.to_string(), v.to_string());
+        let mut e = GameEnt::logic("logic_timer", "t", vec![kv("userandomtime", "1"), kv("lowerrandombound", "0.1"), kv("upperrandombound", "1.5")]);
+        let periods: Vec<f32> = (0..20)
+            .map(|i| {
+                e.aux = i as f32 * 0.37;
+                timer_period(&e, 7)
+            })
+            .collect();
+        assert!(periods.iter().all(|p| (0.1..=1.5).contains(p)), "{periods:?}");
+        let (lo, hi) = periods.iter().fold((f32::MAX, f32::MIN), |(a, b), p| (a.min(*p), b.max(*p)));
+        assert!(hi - lo > 0.5, "{periods:?}");
     }
 
     #[test]

@@ -14,9 +14,11 @@ tasks (T-173, T-174, T-145, T-147, T-149, T-116) and menus are ON HOLD.
 - Awaiting the owner: T-112 GLaDOS floor reflection (merged 2c08d11).
 
 ## Next action
-1. T-146 intro1 half-stuck door (P4), then T-153 remaining particles,
-   T-164 (redo without the shaking), T-120 VO timing, per the priority order.
-MENUS and SCREENSHOT TASKS ON HOLD. Merge origin/main often.
+1. T-153 remaining particles around GLaDOS at wake-up (owner: fix for sure).
+2. T-150 motion blur/speed lines + gun glow through the wall after the
+   sp_a2_intro fall (owner: fix for sure).
+ON HOLD: menus, screenshot tasks, T-164, T-120. Don't redo fixed tasks.
+T-146 door wiggle FIXED (oscillator logic_timer), awaiting owner replay.
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.
