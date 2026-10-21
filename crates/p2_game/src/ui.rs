@@ -12,6 +12,7 @@
 use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::prelude::*;
 use bevy::ui::RelativeCursorPosition;
+use std::sync::atomic::{AtomicU32, Ordering};
 use bevy::window::{CursorGrabMode, CursorOptions, Monitor, PrimaryMonitor, PrimaryWindow};
 use p2_assets::GameFsRes;
 use p2_core::*;
@@ -56,7 +57,7 @@ impl Plugin for UiPlugin {
             .add_systems(
                 Update,
                 (
-                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, carry_hover, footer_art, hover_rows, describe_rows, scroll_nobs, menu_movie).chain(),
+                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, carry_hover, footer_art, hover_rows, describe_rows, scroll_nobs, flip_tiles, menu_movie).chain(),
                     (menu_view, menu_camera, pause_world, menu_music, title_card).chain(),
                 )
                     .chain()
@@ -756,6 +757,10 @@ fn tile_frame_sized(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&
     let wide = (f.width / T).ceil().max(1.0) as usize;
     let tall = (f.body / T).ceil().max(1.0) as usize;
     let tab = f.tab.clamp(1, wide);
+    // The tiles flip in one after another from the top left; the title,
+    // contents and footer show once the last has turned.
+    let t0 = f32::from_bits(FLIP_T0.load(Ordering::Relaxed));
+    let shown = (wide + tall) as f32 * FLIP_STEP + FLIP_TIME;
     p.spawn(Node { position_type: PositionType::Absolute, left: units(100.0), top: units(f.top), width: units(f.width), height: units(T + f.body), ..default() })
         .with_children(|d| {
             for r in 0..=tall {
@@ -764,16 +769,21 @@ fn tile_frame_sized(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&
                     let x = if c + 1 == wide { f.width - T } else { c as f32 * T };
                     let y = if r == 0 { 0.0 } else if r == tall { f.body } else { r as f32 * T };
                     let node = Node { position_type: PositionType::Absolute, left: units(x.max(0.0)), top: units(y), width: units(T), height: units(T), ..default() };
+                    let flip = Flip { t0, delay: (c + r) as f32 * FLIP_STEP, kind: FlipKind::In };
+                    let tf = flip.transform();
                     match art.and_then(|a| a.tiles.as_ref()) {
                         Some(t) => {
-                            d.spawn((ImageNode::new(t[piece].clone()), node));
+                            d.spawn((ImageNode::new(t[piece].clone()), node, flip, tf));
                         }
                         None => {
-                            d.spawn((node, BackgroundColor(theme::PANEL)));
+                            d.spawn((node, BackgroundColor(theme::PANEL), flip, tf));
                         }
                     }
                 }
             }
+            let pop = Flip { t0, delay: shown, kind: FlipKind::Pop };
+            let mut d = d.spawn((Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: Val::Px(0.0), width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() }, pop.transform(), pop));
+            let mut d = d.with_children(|d| {
             d.spawn((
                 Node { position_type: PositionType::Absolute, left: units(10.0), top: units(9.0), ..default() },
                 children![(Text::new(title), TextFont { font: (&fonts.title).into(), font_size: f.title_font, ..default() }, TextColor(Color::BLACK))],
@@ -787,7 +797,86 @@ fn tile_frame_sized(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&
                         row.spawn(footer_button(fonts, art, &label, *action));
                     }
                 });
+            });
+            let _ = &mut d;
         });
+}
+
+/// ui_transition_time (client.dll's default 0.20): one tile's turn.
+const FLIP_TIME: f32 = 0.2;
+/// The wait between neighbouring tiles starting to turn.
+const FLIP_STEP: f32 = 0.03;
+/// UI/ui_menu_flip_single_01 / _02 (client.dll): a dialog opening, a
+/// confirmation or the whole screen turning.
+const FLIP_SOUNDS: [&str; 2] = ["ui/ui_menu_flip_single_01.wav", "ui/ui_menu_flip_single_02.wav"];
+
+/// Real time (f32 bits) the open dialog appeared, and the time of the
+/// current rebuild: set by rebuild_menu, read while it lays tiles out.
+static FLIP_T0: AtomicU32 = AtomicU32::new(0);
+static FLIP_NOW: AtomicU32 = AtomicU32::new(0);
+
+#[derive(Clone, Copy, PartialEq)]
+enum FlipKind {
+    /// A dialog tile turning to face the viewer.
+    In,
+    /// A whole-screen tile turning away (into the main menu).
+    Out,
+    /// Hidden until its time, then shown (a dialog's contents).
+    Pop,
+}
+
+/// A menu tile's turn: `delay` seconds after `t0` it spends [`FLIP_TIME`]
+/// turning about its horizontal middle.
+#[derive(Component, Clone, Copy)]
+struct Flip {
+    t0: f32,
+    delay: f32,
+    kind: FlipKind,
+}
+
+impl Flip {
+    /// Height scale at real time `now`: the tile's face seen edge-on (0)
+    /// to flat (1).
+    fn scale(self, now: f32) -> f32 {
+        let p = ((now - self.t0 - self.delay) / FLIP_TIME).clamp(0.0, 1.0);
+        match self.kind {
+            FlipKind::In => (p * std::f32::consts::FRAC_PI_2).sin(),
+            FlipKind::Out => (p * std::f32::consts::FRAC_PI_2).cos(),
+            FlipKind::Pop => (p >= 1.0) as u8 as f32,
+        }
+    }
+
+    fn transform(self) -> UiTransform {
+        UiTransform { scale: Vec2::new(1.0, self.scale(f32::from_bits(FLIP_NOW.load(Ordering::Relaxed)))), ..default() }
+    }
+}
+
+fn flip_tiles(real: Res<Time<Real>>, mut q: Query<(&Flip, &mut UiTransform)>) {
+    let now = real.elapsed_secs();
+    for (f, mut t) in &mut q {
+        let y = f.scale(now);
+        if t.scale.y != y {
+            t.scale.y = y;
+        }
+    }
+}
+
+/// The whole screen as 50-unit black tiles turning away to show the menu
+/// under them, from the top left.
+fn screen_flip(commands: &mut Commands, t0: f32) {
+    commands.spawn(layer(40)).with_children(|p| {
+        for r in 0..10 {
+            for c in 0..40 {
+                let flip = Flip { t0, delay: (c + r) as f32 * FLIP_STEP, kind: FlipKind::Out };
+                p.spawn((
+                    Node { position_type: PositionType::Absolute, left: units(c as f32 * 50.0), top: units(r as f32 * 50.0), width: units(50.0), height: units(50.0), ..default() },
+                    BackgroundColor(Color::BLACK),
+                    UiTransform::IDENTITY,
+                    flip,
+                ));
+            }
+        }
+    });
 }
 
 /// A footer button (FooterPanel on PC): the vgui/btn_bg_* face, a 1 px
@@ -1507,6 +1596,7 @@ fn rebuild_menu(
     mut chapter_pics: Local<Vec<Option<Handle<Image>>>>,
     mut backgrounds: Local<std::collections::HashMap<usize, Option<Handle<Image>>>>,
     (movie, strings, mut save_pics): (Res<MenuMovie>, Option<Res<GameStrings>>, Local<std::collections::HashMap<(String, u64), Option<Handle<Image>>>>),
+    (real, mut last_key, mut play): (Res<Time<Real>>, Local<String>, MessageWriter<PlayGameSound>),
 ) {
     let Some(fonts) = fonts else { return };
     let options_changed = (settings.is_changed() || actions.is_changed() || mods.is_changed()) && matches!(*screen, Screen::Options { .. });
@@ -1519,6 +1609,23 @@ fn rebuild_menu(
     carried.0 = old.iter().filter(|(i, _)| **i != Interaction::None).map(|(_, a)| *a).collect();
     for r in &roots {
         commands.entity(r).despawn();
+    }
+    // A new dialog flips its tiles in (a rebuild of the same one doesn't).
+    let now = real.elapsed_secs();
+    let key = format!("{:?} {:?} {:?} {:?} {:?}", *screen, menu.flyout, matches!(*screen, Screen::Options { .. }).then_some(menu.page), menu.confirm, menu.saves);
+    FLIP_NOW.store(now.to_bits(), Ordering::Relaxed);
+    if key != *last_key {
+        let first_menu = last_key.is_empty() || last_key.starts_with("None");
+        FLIP_T0.store(now.to_bits(), Ordering::Relaxed);
+        if *screen == Screen::Main && first_menu {
+            // Into the main menu from the startup or a level: the whole
+            // screen flips over, tile by tile.
+            screen_flip(&mut commands, now);
+        }
+        if *screen != Screen::None {
+            play.write(PlayGameSound::ui(if menu.confirm.is_some() || first_menu { FLIP_SOUNDS[1] } else { FLIP_SOUNDS[0] }));
+        }
+        *last_key = key;
     }
     // Out of the game, the menu sits on the game's own menu still for the
     // act of the saved chapter; in the game, the view shows through dimmed.

@@ -103,7 +103,19 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   Chambers: original positions, greyed, not hoverable or clickable, skipped
   by mouse and keyboard.
 
-### T-179 Tile-flip transitions  (P2, TODO; spec 1, 10, 11, 15)
+### T-179 Tile-flip transitions  (P2, FIXED (approximation), needs owner comparison; spec 1, 10, 11, 15)
+- 2026-10-21 built (autopilot shot sequences only; no Windows video to
+  match against, so direction and stagger are a best reading of Portal
+  2's look). Every tiled dialog (Single Player, Options and each page,
+  Video -> Advanced Video, New/Load Game, quit/discard confirmations)
+  turns its 50-unit tiles in about their horizontal middle, one after
+  another from the top left (0.20 s each = client.dll's
+  ui_transition_time default, 0.03 s apart), then shows its title, rows
+  and footer; rebuilding the same dialog doesn't replay it. Entering the
+  main menu (startup, or back from a level) turns the whole screen over
+  as black tiles from the top left. Sounds: ui_menu_flip_single_01 on a
+  dialog, _02 on a confirmation or the whole screen. Owner: compare with
+  Windows (direction, speed, closing flips: dialogs don't flip out yet).
 - Fullscreen tile flip from the intro screen to the main menu; tile flip
   opening Options, Extras, Community, Play Single Player, Play Co-op; flips
   between subsections (Video -> Advanced Video); dialogs (quit, discard).
