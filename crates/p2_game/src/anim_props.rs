@@ -508,6 +508,14 @@ pub fn crossed_events(events: &[SeqEvent], from: f32, to: f32, wrapped: bool) ->
 /// Source's script event that sends its options (`FireUser3`, `Skin 1`) to
 /// the animating entity as an input.
 const EVENT_FIRE_INPUT: i32 = 1100;
+
+/// Event 1100: the options are an input (and parameter) the prop sends
+/// itself. Source fires it with the prop as caller and activator, so
+/// `!activator` outputs (the vac-tube turrets' kill relay) reach the prop.
+fn fire_input_event(ents: &mut Ents, i: usize, options: &str) {
+    let (input, param) = options.trim().split_once(char::is_whitespace).unwrap_or((options.trim(), ""));
+    ents.send_from("!self", input, param.trim(), 0.0, i, Some(i));
+}
 /// Old numeric sound events (`SCRIPT_EVENT_SOUND`, `CL_EVENT_SOUND`).
 const EVENT_SOUNDS: [i32; 3] = [1004, 1005, 5004];
 
@@ -565,8 +573,7 @@ fn advance_anims(
         for ev in crossed_events(events, from, to, wrapped) {
             let name = ev.name.to_ascii_uppercase();
             if ev.id == EVENT_FIRE_INPUT {
-                let (input, param) = ev.options.trim().split_once(char::is_whitespace).unwrap_or((ev.options.trim(), ""));
-                ents.send_from("!self", input, param.trim(), 0.0, i, None);
+                fire_input_event(&mut ents, i, &ev.options);
             } else if EVENT_SOUNDS.contains(&ev.id) || name.ends_with("_PLAYSOUND") || name == "AE_CL_PLAYSOUND" {
                 let sound = ev.options.trim();
                 if !sound.is_empty() {
@@ -723,6 +730,15 @@ fn pose_parts(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fire_input_event_makes_the_prop_its_activator() {
+        let mut ents = Ents::default();
+        ents.list.push(GameEnt::logic("prop_dynamic", "vacturret_01", Vec::new()));
+        fire_input_event(&mut ents, 0, "fireuser1");
+        let p = ents.io_state().queue.pop().expect("queued");
+        assert_eq!((p.target.as_str(), p.input.as_str(), p.caller, p.activator), ("!self", "fireuser1", 0, Some(0)));
+    }
 
     fn ev(cycle: f32, opt: &str) -> SeqEvent {
         SeqEvent { cycle, id: EVENT_FIRE_INPUT, name: String::new(), options: opt.into() }
