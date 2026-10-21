@@ -27,11 +27,11 @@ ON HOLD (owner): menus (no menu code changes at all); screenshot tasks
 T-173, T-174, T-145, T-147, T-149, T-116, T-152, T-151, T-154; T-164
 skipped; T-120 done enough. Don't work on anything already fixed.
 Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles, T-150
-motion blur and gun glow, T-213 PotatOS on the gun.
+motion blur and gun glow, T-213 PotatOS on the gun, T-198 faith plates.
 1. T-212 loud glass smash at sp_a3_00 load (owner report). BLOCKED: attempt/T-212.
 2. T-213 PotatOS missing from the portal gun. FIXED a598811, awaiting replay.
 2b. T-215 Windows reference capture tool (makes every look/feel task checkable).
-4. T-198 aerial faith plate physics (owner report, chapter 2).
+4. T-198 aerial faith plate physics. FIXED b55fc08, awaiting replay (threshold-check part open in its entry).
 5. Common to many maps: T-203 switchable lights (50/63 maps), T-199
    particle sprite sheets (every map), T-214 DecalModulate (29 maps) and
    SolidEnergy (51 maps) shaders + the 4 models that fail to load, T-201
@@ -720,16 +720,6 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
 
 ## Open: P1
 
-### T-198 Aerial faith plates: physics wrong (chapter 2)  (P1, TODO)
-- Owner 2026-10-21: "chapter 2 is mostly there but the fling things aerial
-  plates i think they're called have something wrong with the physics idk
-  what it is". trigger_catapult in sp_a2_catapult_intro, sp_a2_trust_fling,
-  sp_a2_pit_flings, sp_a2_fizzler_intro... Compare launch arcs with Source's
-  trigger_catapult (playerSpeed/physicsSpeed, launchTarget, useExactVelocity,
-  usethresholdcheck, lowerThreshold/upperThreshold, apex height), air control
-  during flight, landing; cubes too. scripts/check_faith_plates.py exists.
-  Reverse-engineering server.dll (depot 624) for CTriggerCatapult is allowed.
-
 ## Open: engine gaps (2026-10-21 audit: upstream READMEs + all-maps sweep; docs/UPSTREAM_GAPS.md)
 
 ### T-215 Windows reference capture tool (CrossOver)  (P1, TODO; tooling)
@@ -905,6 +895,37 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
 ## Open: P4
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-198 Aerial faith plates: physics wrong (chapter 2)  (P1, FIXED b55fc08, awaiting owner replay)
+- Owner 2026-10-21: "the fling things aerial plates ... have something wrong
+  with the physics". Cause (server.dll CTriggerCatapult, Ghidra 2026-10-21):
+  our launch-by-target used the horizontal distance for the flight time and
+  aimed the player's feet at the target; Source uses the straight-line 3D
+  distance / speed (v = d/t + up g t/2, sv_gravity 600) and aims the player's
+  feet 32 u below the target. useExactVelocity (6 plates: trust_fling 4,
+  bridge_the_gap 2) was ignored: Source keeps the exact speed and solves the
+  angle (exactVelocityChoiceType 1 high, 2 low, 0 the arc nearer the incoming
+  velocity; no solution -> the non-exact launch). A straight-up directional
+  plate throws the player at 1.5x playerSpeed. Air control is suppressed after
+  a launch by target for AirCtrlSupressionTime (<= 0 -> 0.25 s), and after a
+  directional launch only with DirectionSuppressAirControl; we had none.
+- Fix b55fc08: catapult_velocity + CatapultAim (triggers.rs), new
+  p2_core::AirControlSuppressed ticked down by the move (no air wish while > 0).
+  Unit tests: flight time, -32 u player aim, exact arcs/choice/fallback,
+  straight-up 1.5x.
+- Evidence (autopilot only): check_faith_plates sweep (catapult_intro,
+  trust_fling) closest approach before -> after: 6->11 (feet now 32 u under
+  the target, as Source), 51->40, 15->12, 60->38, 24->12, 58->52, 26->17,
+  21->30; catapult_intro launch 602 -> 586 u/s up, mid-flight shot normal.
+  Not compared against Windows Portal 2 (T-215 capture still unreliable).
+- Not done: Source's threshold check (usethresholdcheck) compares the
+  incoming speed along the launch direction with playerSpeed/physicsSpeed
+  (lower/upper fraction) and has entryAngleTolerance / onlyVelocityCheck; ours
+  compares |v_in| / |launch|. trust_fling wallpad_2_catapult still misses its
+  target by ~1650 u in the sweep (threshold plate, setpos entry, maybe fine).
+  Props: Source adds a random angular impulse (applyAngularImpulse); skipped.
+  scripts/check_faith_plates.py: REPO points at Portal2-rust-engine and the
+  info regex misses the new "fwd/up" fields (fixed copy used in scratch).
 
 ### T-213 PotatOS never shows on the portal gun  (P2, FIXED a598811, awaiting owner replay)
 - Owner: "glados as a potato on the portal gun doesn't show in chapters

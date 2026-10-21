@@ -4,19 +4,24 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-21 16:00 autorun: T-213 FIXED (a598811): PotatOS on the portal gun
-(viewmodel + world gun bodygroup; loader now reads all bodygroup models).
+2026-10-21 16:20 autorun: T-198 FIXED (b55fc08): faith plates launch like
+server.dll's CTriggerCatapult (3D flight time, player aim -32 u, exact
+velocity arcs, straight-up 1.5x, 0.25 s air-control suppression).
+Ghidra project of server.dll was built in that run's scratch dir only (not
+kept); re-import takes ~10 min (JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home).
 
 ## Where things stand
-- dist/Prtl2Mac.app = 0.1.0+a598811.20261021T1958Z.
+- dist/Prtl2Mac.app = 0.1.0+b55fc08.20261021T2016Z.
 - Awaiting the owner: T-112 GLaDOS floor reflection, T-153 particles,
-  T-150 motion blur + gun glow, T-213 PotatOS on the gun.
+  T-150 motion blur + gun glow, T-213 PotatOS on the gun, T-198 faith plates.
 - ON HOLD: menus (no menu code changes), screenshot tasks (T-173, T-174,
   T-145, T-147, T-149, T-116, T-152, T-151, T-154), T-164, T-120.
+- Regression-check note: sp_a3_jump_intro's 8 s shot is sometimes washed
+  out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (auto sessions; owner away 24-48 h from 2026-10-21 evening)
 Follow TASKS.md "Priority order": T-215 Windows reference capture tool,
-T-198 faith plates, then the common engine gaps (T-203 lights, T-199 sprite
+then the common engine gaps (T-203 lights, T-199 sprite
 sheets, T-214 DecalModulate/SolidEnergy/broken models, T-201, T-206, T-200,
 T-202, T-204), T-211 gels, then the campaign T-002..T-015. Audit docs:
 docs/UPSTREAM_GAPS.md, T-214. Tools: p2_fx `pcfdump`, `fxaudit`; mdlinfo now
