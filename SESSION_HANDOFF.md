@@ -7,7 +7,7 @@ reads it first (via `sh scripts/resume.sh`).
 2026-10-21 05:10, owner session. Menu spec rounds 1-3 done (build d36e250).
 Owner's round-4 notes filed, NOT worked: T-196 (P1 black screen after
 flips, regression from d36e250's run_flip change), T-195 pause menu,
-T-197 tile grid. Autorun `prtl2mac-auto-resume` re-enabled by the owner
+T-197 tile grid. Autorun re-enabled by the owner as scheduled task `prtl2mac-auto-resume-2` (every 10 min, Auto mode)
 to take these first.
 
 ## Where things stand

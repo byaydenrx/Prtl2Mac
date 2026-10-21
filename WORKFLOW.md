@@ -91,7 +91,7 @@ sessions, only for independent tasks with separate files.
   shrink with `sips -Z 1000` before reading.
 - Package: `sh scripts/make_app.sh` -> `dist/Prtl2Mac.app`.
 
-## Unattended runs (scheduled task `prtl2mac-auto-resume`)
+## Unattended runs (scheduled task `prtl2mac-auto-resume-2`; the old `prtl2mac-auto-resume` folder is unused)
 - One task per fresh session; lock in ~/Library/Application Support/
   Portal2Rust/autopilot-session.lock; one row per run in docs/AUTORUN_LOG.md.
 - Only reproduced, verified fixes reach main. A bug a run could not
