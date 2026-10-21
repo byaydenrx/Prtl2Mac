@@ -1,5 +1,8 @@
 Portal 2 Rust Engine
 Copyright (c) 2026 Stink-O, MIT License (see LICENSE).
+Prtl2Mac is built from release 0.1.0 (commit 76c4767), published under the
+MIT License. Upstream moved to GPL-3.0-only after that release (18230b3);
+no code from after the licence change is included here.
 
 An independent fan project. It is not affiliated with or endorsed by Valve.
 Portal 2 is not included: nothing from the game is in this repository, and the

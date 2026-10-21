@@ -191,6 +191,22 @@ Per map:
   (lit by one `light`) before `startup_lighting_teleport` moves the player
   into the room's copy of the lift; the shaft walls render near black.
 
+## Upstream port (2026-10-21)
+Checked github.com/Stink-O/Portal2-rust-engine for changes since our base.
+Our first commit 76c4767 is upstream's tag v0.1.0 (shared history, not a
+squash). Upstream main is 18230b3; one commit since the base:
+
+- 18230b3 "Relicense to GPL-3.0-only" (2026-10-20): SKIPPED. Licence text
+  only (LICENSE, NOTICE, READMEs, `license =` fields in Cargo.toml); no
+  code, shader, asset-loading, physics or portal change, so nothing to port.
+  Our copy stays on the MIT terms of release 0.1.0, which upstream says
+  remain valid; NOTICE now says so. Note for later: any code taken from
+  upstream after this commit comes under GPL-3.0-only, which would require
+  Prtl2Mac to be GPL-3.0-compatible and publish its source. The commit also
+  flags the Valve-derived shader starting points as unsettled; ours is
+  crates/p2_render/src/portal_surface.wgsl (from the public SDK 2013
+  portal_refract shaders; we have no spritecard.wgsl).
+
 ## Next (priority order)
 
 1. **sp_a1_wakeup socket** (above): find why held Wheatley can't reach the

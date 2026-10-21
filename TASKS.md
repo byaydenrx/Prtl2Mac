@@ -1400,6 +1400,10 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 - Checklists in docs/STATUS.md.
 
 ## Done (newest first; details in git log and docs/STATUS.md)
+- 2026-10-21 Upstream check (Stink-O/Portal2-rust-engine): only change since
+  our base v0.1.0 is 18230b3, a relicense to GPL-3.0-only with no code.
+  Nothing ported; NOTICE records that we stay on 0.1.0's MIT terms. See
+  docs/STATUS.md "Upstream port (2026-10-21)".
 - 2026-10-20 T-168 sp_a2_laser_over_goo box-button crash (98b74ad): owner
   confirmed. A Kill by name reached a hidden template prototype; prototypes
   now take no inputs.

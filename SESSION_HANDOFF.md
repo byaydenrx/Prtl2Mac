@@ -11,6 +11,9 @@ T-197 tile grid. Autorun re-enabled by the owner as scheduled task `prtl2mac-aut
 to take these first.
 
 ## Where things stand
+- Upstream checked 2026-10-21: no code changes since our base v0.1.0, only a
+  GPL-3.0 relicense (18230b3), not ported. Code taken from upstream from now
+  on would be GPL-3.0-only (docs/STATUS.md "Upstream port").
 - Menu/intro spec T-177..T-192 done 2026-10-21 (see each entry): main
   menu layout + greyed items + Robot Enrichment (T-178), quit dialog
   (T-191), menu sounds (T-180), Options pending/Apply/Back/Use Defaults/
