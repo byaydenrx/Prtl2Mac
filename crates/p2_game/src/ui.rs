@@ -719,9 +719,16 @@ fn title_tab_tiles(title: &str) -> usize {
 /// in units from the body's top left (under the title tab); the footer
 /// buttons sit below the frame (FooterPanel.OffsetY 12).
 fn tile_frame(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, title: &str, wide: usize, tall: usize, footer: &[(&str, Action)], content: impl FnOnce(&mut ChildSpawnerCommands)) {
+    tile_frame_case(p, fonts, art, title, wide, tall, footer, true, content);
+}
+
+/// [`tile_frame`] with the footer labels as given (`upper` false): the
+/// save and load lists write "Save", "Back" (Windows shot).
+#[allow(clippy::too_many_arguments)]
+fn tile_frame_case(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, title: &str, wide: usize, tall: usize, footer: &[(&str, Action)], upper: bool, content: impl FnOnce(&mut ChildSpawnerCommands)) {
     const T: f32 = 50.0;
     let tab = title_tab_tiles(title).min(wide);
-    let frame = Frame { tab, top: 480.0 - 75.0 - (tall as f32 + 1.0) * T, width: wide as f32 * T, body: tall as f32 * T, title_font: TITLE_FONT, upper: true };
+    let frame = Frame { tab, top: 480.0 - 75.0 - (tall as f32 + 1.0) * T, width: wide as f32 * T, body: tall as f32 * T, title_font: TITLE_FONT, upper };
     tile_frame_sized(p, fonts, art, &title.to_uppercase(), frame, footer, content);
 }
 
@@ -869,9 +876,15 @@ const CONFIRM_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(20.0 / 1.265
 /// the body's top: upper case, black, white on the black cursor bar
 /// (`lit`: the picked row, kept on the bar).
 fn dialog_row(fonts: &UiFonts, label: &str, action: Action, lit: bool, y: f32) -> impl Bundle + use<> {
+    dialog_row_as(fonts, &label.to_uppercase(), action, lit, y)
+}
+
+/// [`dialog_row`] with the label as given (save list rows are written
+/// "Wednesday, May 1 2:47 PM" on Windows).
+fn dialog_row_as(fonts: &UiFonts, label: &str, action: Action, lit: bool, y: f32) -> impl Bundle + use<> {
     let look = if lit { Look { text: DIALOG_LOOK.text_hover, bg: DIALOG_LOOK.bg_hover, ..DIALOG_LOOK } } else { DIALOG_LOOK };
     let font = TextFont { font: (&fonts.title).into(), font_size: DIALOG_ITEM_FONT, ..default() };
-    (Button, action, look, row_node(y), BackgroundColor(look.bg), children![(Text::new(label.to_uppercase()), font, TextColor(look.text))])
+    (Button, action, look, row_node(y), BackgroundColor(look.bg), children![(Text::new(label.to_string()), font, TextColor(look.text))])
 }
 
 /// A greyed row (HybridButton.DisabledColor 140) of a tiled dialog.
@@ -1493,7 +1506,7 @@ fn rebuild_menu(
     (monitors, windows): (Query<&Monitor, With<PrimaryMonitor>>, Query<&Window, With<PrimaryWindow>>),
     mut chapter_pics: Local<Vec<Option<Handle<Image>>>>,
     mut backgrounds: Local<std::collections::HashMap<usize, Option<Handle<Image>>>>,
-    (movie, strings): (Res<MenuMovie>, Option<Res<GameStrings>>),
+    (movie, strings, mut save_pics): (Res<MenuMovie>, Option<Res<GameStrings>>, Local<std::collections::HashMap<(String, u64), Option<Handle<Image>>>>),
 ) {
     let Some(fonts) = fonts else { return };
     let options_changed = (settings.is_changed() || actions.is_changed() || mods.is_changed()) && matches!(*screen, Screen::Options { .. });
@@ -1570,16 +1583,16 @@ fn rebuild_menu(
             let pick = menu.save_pick.filter(|i| shown.contains(i)).or(if save { None } else { shown.first().copied() });
             let mut foot = Vec::new();
             if save {
-                foot.push(("Save Game", Action::SaveSlot(pick)));
+                foot.push(("Save", Action::SaveSlot(pick)));
             } else if let Some(i) = pick {
-                foot.push(("Load Game", Action::LoadSave(i)));
+                foot.push(("Load", Action::LoadSave(i)));
             }
             foot.push(("Back", Action::Back));
             commands.spawn(layer(10)).with_children(|p| {
                 if *screen == Screen::Main {
                     menu_logo(p, &fonts, art.as_deref());
                 }
-                tile_frame(p, &fonts, art.as_deref(), if save { "Save Game" } else { "Load Game" }, 9, 4, &foot, |d| {
+                tile_frame_case(p, &fonts, art.as_deref(), if save { "Save Game" } else { "Load Game" }, 9, 4, &foot, false, |d| {
                     d.spawn((
                         ScrollList,
                         ScrollPosition(Vec2::new(0.0, scroll.0)),
@@ -1588,11 +1601,11 @@ fn rebuild_menu(
                     .with_children(|list| {
                         let mut y = 2.5;
                         if save {
-                            list.spawn(dialog_row(&fonts, "New Save", Action::PickSave(None), pick.is_none(), y));
+                            list.spawn(dialog_row_as(&fonts, "New Saved Game Slot", Action::PickSave(None), pick.is_none(), y));
                             y += 25.0;
                         }
                         for &i in &shown {
-                            list.spawn(dialog_row(&fonts, &save_row_label(&menu.save_list[i]), Action::PickSave(Some(i)), pick == Some(i), y));
+                            list.spawn(dialog_row_as(&fonts, &save_row_label(&menu.save_list[i]), Action::PickSave(Some(i)), pick == Some(i), y));
                             y += 25.0;
                         }
                     });
@@ -1606,7 +1619,10 @@ fn rebuild_menu(
                     let picked = pick.and_then(|i| menu.save_list.get(i));
                     let chapter = picked.and_then(|s| campaign.chapter_of(&s.header.map));
                     let pic = Node { position_type: PositionType::Absolute, left: units(212.0), top: units(15.0), width: units(225.0), height: units(152.0), ..default() };
-                    match chapter.and_then(|c| chapter_pics.get(c).cloned().flatten()) {
+                    // The save's own picture; saves from before pictures
+                    // were kept show their chapter's.
+                    let own = picked.and_then(|s| save_pics.entry((s.name.clone(), s.header.saved_at)).or_insert_with(|| load_save_picture(&s.name).map(|i| images.add(i))).clone());
+                    match own.or_else(|| chapter.and_then(|c| chapter_pics.get(c).cloned().flatten())) {
                         Some(img) if picked.is_some() => {
                             d.spawn((ImageNode { image: img, image_mode: bevy::ui::widget::NodeImageMode::Stretch, ..default() }, pic));
                         }
@@ -1618,7 +1634,7 @@ fn rebuild_menu(
                     if let Some(s) = picked.filter(|s| s.header.kind != "save") {
                         d.spawn((
                             Node { position_type: PositionType::Absolute, left: units(210.0), top: units(9.0), width: units(223.0), height: units(30.0), justify_content: JustifyContent::FlexEnd, align_items: AlignItems::Center, ..default() },
-                            children![(Text::new(save_kind_label(&s.header.kind, &s.name).to_uppercase()), TextFont { font: (&fonts.title).into(), font_size: size, ..default() }, TextColor(Color::srgba(1.0, 1.0, 1.0, 200.0 / 255.0)))],
+                            children![(Text::new(save_kind_label(&s.header.kind, &s.name)), TextFont { font: (&fonts.title).into(), font_size: size, ..default() }, TextColor(Color::srgba(1.0, 1.0, 1.0, 200.0 / 255.0)))],
                         ));
                     }
                     let (title, subtitle) = match (picked, chapter.and_then(|c| campaign.chapters.get(c))) {
@@ -1922,11 +1938,25 @@ fn save_row_label(s: &SaveInfo) -> String {
     crate::saves::time_text(s.header.saved_at)
 }
 
-/// "Autosave", "Quick save" or the save's name.
+/// A save's picture (saves.rs writes `<save>.jpg`), if it has one.
+fn load_save_picture(name: &str) -> Option<Image> {
+    let data = std::fs::read(crate::saves::save_picture_path(name)).ok()?;
+    let rgba = image::load_from_memory(&data).ok()?.to_rgba8();
+    let (w, h) = rgba.dimensions();
+    Some(Image::new(
+        bevy::render::render_resource::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+        bevy::render::render_resource::TextureDimension::D2,
+        rgba.into_raw(),
+        bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb,
+        bevy::asset::RenderAssetUsages::RENDER_WORLD,
+    ))
+}
+
+/// "Auto Save", "Quick Save" or the save's name.
 fn save_kind_label(kind: &str, name: &str) -> String {
     match kind {
-        "autosave" => "Autosave".into(),
-        "quick" => "Quick save".into(),
+        "autosave" => "Auto Save".into(),
+        "quick" => "Quick Save".into(),
         _ => name.to_string(),
     }
 }

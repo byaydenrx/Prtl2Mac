@@ -121,7 +121,12 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 - Original hover, click/select, menu/section switch sounds, at the right
   moments, once per interaction.
 
-### T-181 Play Single Player dialog  (P2, TODO; spec 2, 13, 16)
+### T-181 Play Single Player dialog  (P2, FIXED, awaiting owner replay; spec 2, 13, 16)
+- 2026-10-21: rows Continue Game, New Game, Load Game, Challenge Mode
+  (now greyed, was clickable doing nothing), Developer Commentary (greyed).
+  Continue loads the newest save (saves list, else the old save.txt) and
+  is greyed without one; the menu movie/background follow that save's
+  chapter (menu_act). Not replayed by the owner.
 - Rows: Continue Game, New Game, Load Game, Challenge Mode, Developer
   Commentary (last two greyed, not hoverable/clickable).
 - Continue loads the most recent valid save at its place and state; the
@@ -132,7 +137,18 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   with the chapter title beneath (save-menu layout); titles bold; selecting
   starts that chapter.
 
-### T-183 Load Game list  (P2, TODO; spec 2, 13)
+### T-183 Load Game list  (P2, FIXED, awaiting owner replay; spec 2, 13)
+- 2026-10-21 FIXED (unit test + autopilot shots in a test data folder):
+  rows read "Wednesday, Oct 21 3:54 AM" (local time from the save's own
+  timestamp; was "OCT 21 2026 00:24"), bold, mixed case as the Windows
+  Save Game shot; newest first; "Auto Save" over the picture only for
+  autosaves ("Quick Save" for quick saves, nothing on named saves);
+  footer Load/Save and Back as Windows writes them; Save Game's new row
+  "New Saved Game Slot". Every save now gets its own picture (400 x 225
+  JPEG of the game view, saves/<name>.jpg; an autosave's 1.5 s into the
+  level, a pause-menu save's as play resumes); saves from before show
+  their chapter picture instead. Empty list says so; unreadable saves are
+  left out. Chapter line: chapter in Cn + name in BoldCn as before.
 - Saves newest first; each with screenshot, save title, chapter name (title
   and chapter bold); date like "Saturday, Jun 27 7:32 PM" from the save's
   real timestamp; "Auto Save" in the screenshot's top-right only for

@@ -60,6 +60,7 @@ impl Plugin for SavesPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Restoring>()
             .init_resource::<SaveToast>()
+            .init_resource::<PendingSaveShots>()
             .insert_resource(Progress::load())
             .add_message::<SaveGame>()
             .add_message::<LoadGame>()
@@ -69,6 +70,7 @@ impl Plugin for SavesPlugin {
                     (quick_keys, start_loads, hold_level, restore_state).chain().after(crate::vscripts::start_scripts).before(crate::io::run_io),
                     (restore_late, write_saves, note_progress).chain().after(crate::io::run_io),
                     draw_toast,
+                    take_save_shots,
                 )
                     .in_set(GameSet::Logic),
             );
@@ -416,6 +418,43 @@ fn now_unix() -> u64 {
 static WRITING: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Write `file` as `name` (the old autosave moves to `autosave01` first).
+/// Saves waiting for their picture: (save name, real time to take it).
+#[derive(Resource, Default)]
+pub struct PendingSaveShots(Vec<(String, f32)>);
+
+/// A save's picture for the Load/Save Game lists (Portal 2 keeps one per
+/// save): `<save>.jpg` beside it.
+pub fn save_picture_path(name: &str) -> PathBuf {
+    saves_dir().join(format!("{name}.jpg"))
+}
+
+/// Take each waiting save's picture from the game view: once its time has
+/// come and no menu is over the view (a save made from the pause menu is
+/// pictured as play resumes). 400 x 225, JPEG, written off the main thread.
+fn take_save_shots(mut commands: Commands, mut shots: ResMut<PendingSaveShots>, real: Res<Time<Real>>, screen: Res<crate::ui::Screen>, map: Option<Res<CurrentMap>>) {
+    if shots.0.is_empty() || *screen != crate::ui::Screen::None || map.is_none_or(|m| m.menu) {
+        return;
+    }
+    let now = real.elapsed_secs();
+    let (due, wait): (Vec<_>, Vec<_>) = std::mem::take(&mut shots.0).into_iter().partition(|(_, at)| *at <= now);
+    shots.0 = wait;
+    for (name, _) in due {
+        let path = save_picture_path(&name);
+        commands.spawn(bevy::render::view::screenshot::Screenshot::primary_window()).observe(move |shot: On<bevy::render::view::screenshot::ScreenshotCaptured>| {
+            let (img, path) = (shot.image.clone(), path.clone());
+            std::thread::spawn(move || match img.try_into_dynamic() {
+                Ok(d) => {
+                    let small = d.resize_exact(400, 225, image::imageops::FilterType::Triangle).to_rgb8();
+                    if let Err(e) = small.save_with_format(&path, image::ImageFormat::Jpeg) {
+                        warn!("portal2: can't write save picture {}: {e}", path.display());
+                    }
+                }
+                Err(e) => warn!("portal2: save picture not converted: {e}"),
+            });
+        });
+    }
+}
+
 fn write_in_background(name: String, file: SaveFile) {
     std::thread::spawn(move || {
         let _one = WRITING.lock();
@@ -438,16 +477,38 @@ fn write_in_background(name: String, file: SaveFile) {
     });
 }
 
-/// "Oct 18 2026  14:03" in local time.
+/// "Saturday, Jun 27 7:32 PM" in local time, as Portal 2's save lists
+/// write a save's time.
 pub fn time_text(unix: u64) -> String {
     let (y, mo, d, h, mi) = local_time(unix as i64);
-    format_time(y, mo, d, h, mi)
+    format_time(weekday(y, mo, d), mo, d, h, mi)
 }
 
-pub fn format_time(year: i32, month: u32, day: u32, hour: u32, minute: u32) -> String {
+/// 0 Sunday .. 6 Saturday.
+pub fn weekday(year: i32, month: u32, day: u32) -> u32 {
+    // Days since 1970-01-01 (a Thursday), by Howard Hinnant's days_from_civil.
+    let y = if month <= 2 { year - 1 } else { year } as i64;
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let mp = (month as i64 + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + day as i64 - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+    (days + 4).rem_euclid(7) as u32
+}
+
+pub fn format_time(weekday: u32, month: u32, day: u32, hour: u32, minute: u32) -> String {
+    const DAYS: [&str; 7] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     const MONTHS: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     let m = MONTHS.get(month.saturating_sub(1) as usize).copied().unwrap_or("?");
-    format!("{m} {day} {year}  {hour:02}:{minute:02}")
+    let w = DAYS.get(weekday as usize).copied().unwrap_or("?");
+    let (h12, ampm) = match hour {
+        0 => (12, "AM"),
+        1..=11 => (hour, "AM"),
+        12 => (12, "PM"),
+        _ => (hour - 12, "PM"),
+    };
+    format!("{w}, {m} {day} {h12}:{minute:02} {ampm}")
 }
 
 #[cfg(unix)]
@@ -737,6 +798,7 @@ fn write_saves(
     mut print: MessageWriter<ConsolePrint>,
     mut toast: ResMut<SaveToast>,
     real: Res<Time<Real>>,
+    mut shots: ResMut<PendingSaveShots>,
 ) {
     let mut want: Vec<Slot> = requests.read().map(|r| r.0.clone()).collect();
     // `logic_autosave`: Save, and SaveDangerous (kept when the player is
@@ -761,6 +823,8 @@ fn write_saves(
         if let Some(map) = started.last() {
             let header = SaveHeader { version: SAVE_VERSION, map: map.clone(), saved_at: now_unix(), kind: "autosave".into(), level_time: 0.0 };
             write_in_background("autosave".into(), SaveFile { header, state: None });
+            // Its picture once the level is drawn.
+            shots.0.push(("autosave".into(), real.elapsed_secs() + 1.5));
             // Older builds read this for Continue.
             let _ = std::fs::write(data_dir().join("save.txt"), crate::ui::legacy_save_text(map));
         }
@@ -785,6 +849,7 @@ fn write_saves(
         };
         let header = SaveHeader { version: SAVE_VERSION, map: map.info.name.clone(), saved_at: now_unix(), kind: kind.into(), level_time: ents.now };
         write_in_background(name.clone(), SaveFile { header, state: Some(state.clone()) });
+        shots.0.push((name.clone(), real.elapsed_secs()));
         print.write(ConsolePrint(format!("Saved {name} ({})", map.info.name)));
         if kind != "autosave" {
             toast.0 = Some(real.elapsed_secs() + 1.5);
@@ -1301,7 +1366,11 @@ mod tests {
         // 2026-10-18 14:03 UTC.
         assert_eq!(utc_time(1_792_332_180), (2026, 10, 18, 14, 3));
         assert_eq!(utc_time(951_782_400), (2000, 2, 29, 0, 0));
-        assert_eq!(format_time(2026, 10, 18, 9, 5), "Oct 18 2026  09:05");
+        // Portal 2's style (owner spec 2026-10-21).
+        assert_eq!(format_time(weekday(2020, 6, 27), 6, 27, 19, 32), "Saturday, Jun 27 7:32 PM");
+        assert_eq!(format_time(weekday(2026, 10, 21), 10, 21, 0, 24), "Wednesday, Oct 21 12:24 AM");
+        assert_eq!(weekday(1970, 1, 1), 4);
+        assert_eq!(weekday(2000, 2, 29), 2);
     }
 
     fn ent(class: &str, name: &str) -> GameEnt {
