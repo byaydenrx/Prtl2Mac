@@ -27,7 +27,7 @@ NEXT UP (owner round 4, 2026-10-21): T-196 black screen after flips
 (FIXED f8c9be3, awaiting owner replay), T-195 pause menu as Windows
 (FIXED 8af5fa3, awaiting owner replay), T-197 even tile grid (FIXED 209c358,
 awaiting owner replay). T-172 not reproduced (blocked, needs owner).
-Next T-135 onward (no more menu work).
+Next T-139 onward (no more menu work).
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
 before every other task. Owner notes after build fb0090a (12 items,
 listed under the spec heading) come first: T-179 flip like the video,
@@ -48,7 +48,7 @@ P2:
    (T-170 carrying at walls fixed 9f1ed5a, awaiting owner replay.)
    (T-145 lit cubes black still open, cause not found; companion/rusted lit skins merged cc8d8e0; spikes/jitter still open.)
 3. (T-172 late VO: NOT REPRODUCED 2026-10-21, BLOCKED needs owner; timings match Valve's scripts.)
-4. T-135 things fall through elevators (turrets, rubble).
+4. (T-135 vac-tube turrets FIXED 41e3839, awaiting owner replay; rubble open, needs owner.)
 5. T-139 music not playing with ambience; soundscapes.
 6. T-112 GLaDOS chamber floor still murky brown (with T-151 water).
 7. T-144 clipboard should turn to face the player.
@@ -709,30 +709,6 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   BLOCKED: needs the owner to say which ride and what looked wrong, or a
   Windows reference of intro5's departure.
 
-### T-135 Turrets fall through the exit elevator  (P2, OPEN: owner confirms, still happens)
-- Owner playtest 9 (2026-10-20, build 014ab6e): "things still falling through elevators"; rubble and turrets both fall through (T-120's trash is the same bug).
-- Sections 5 (sp_a2_intro) and 6 (sp_a2_laser_intro).
-- 2026-10-20 autorun (HEAD abc5618), cause not confirmed. The turrets are
-  `departure_elevator-vacturret_01..04` (prop_dynamic,
-  models/props_vac_anim/turret_lowres.mdl, origin = the elevator axis
-  -736,1600,-10672 in sp_a2_intro). `@start_elevator_animation_rl` (trigger_once
-  at -368,832) sends SetAnimation + SetDefaultAnimation `elevator_0N` (delays
-  0.3/0.8/2.7/3). Decoded root-bone track of elevator_01: z +355 -> -87 (0.82 s)
-  -> -510 (1.63 s), x/y within +-22, so the model's own data drops the turret
-  straight down the shaft from -10317 to -11182, through the waiting car
-  (bounds z -10958..-10731; the car sits at path_0 until startmoving()).
-  AE 1100 `fireuser1` at cycle 0.459 (1.5 s, already below the car) ->
-  OnUser1 -> `tube_object_kill` (kills !activator, only enabled by the
-  trigger_once at -736,1104 via `blocked_elevator_tube_anim`). Engine already
-  handles SetDefaultAnimation (re-loops the fall) and event 1100.
-  Autopilot shots from the corridor/shaft were inconclusive (player placement
-  fell into the shaft). Open question for the reference: does Windows Portal 2
-  show these turrets dropping past/through the car (then only the looping
-  after the kill relay matters), or is the root-bone position meant to be in
-  another frame (e.g. a horizontal vac tube above the car)? Needs an owner
-  screenshot/clip of this moment in Windows Portal 2 (or depot 624 RE of
-  prop_dynamic root-motion handling). No fix attempt branch.
-
 ### T-139 Audio  (P2, PARTIAL: glass fixed; music/ambience and soundscapes open)
 - Owner playtest 9 (2026-10-20, build 014ab6e): glass fixed; "some music doesn't play along with ambient sounds"; voice lines late (T-172).
 - No soundscapes/ambience (water drips), no button clicks (sections 1, 5).
@@ -1026,6 +1002,53 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-135 Turrets fall through the exit elevator  (P2, FIXED 41e3839 for the vac-tube turrets, awaiting owner replay; rubble open)
+- Owner playtest 9 (2026-10-20, build 014ab6e): "things still falling through elevators"; rubble and turrets both fall through (T-120's trash is the same bug).
+- Sections 5 (sp_a2_intro) and 6 (sp_a2_laser_intro).
+- 2026-10-20 autorun (HEAD abc5618), cause not confirmed. The turrets are
+  `departure_elevator-vacturret_01..04` (prop_dynamic,
+  models/props_vac_anim/turret_lowres.mdl, origin = the elevator axis
+  -736,1600,-10672 in sp_a2_intro). `@start_elevator_animation_rl` (trigger_once
+  at -368,832) sends SetAnimation + SetDefaultAnimation `elevator_0N` (delays
+  0.3/0.8/2.7/3). Decoded root-bone track of elevator_01: z +355 -> -87 (0.82 s)
+  -> -510 (1.63 s), x/y within +-22, so the model's own data drops the turret
+  straight down the shaft from -10317 to -11182, through the waiting car
+  (bounds z -10958..-10731; the car sits at path_0 until startmoving()).
+  AE 1100 `fireuser1` at cycle 0.459 (1.5 s, already below the car) ->
+  OnUser1 -> `tube_object_kill` (kills !activator, only enabled by the
+  trigger_once at -736,1104 via `blocked_elevator_tube_anim`). Engine already
+  handles SetDefaultAnimation (re-loops the fall) and event 1100.
+  Autopilot shots from the corridor/shaft were inconclusive (player placement
+  fell into the shaft). Open question for the reference: does Windows Portal 2
+  show these turrets dropping past/through the car (then only the looping
+  after the kill relay matters), or is the root-bone position meant to be in
+  another frame (e.g. a horizontal vac tube above the car)? Needs an owner
+  screenshot/clip of this moment in Windows Portal 2 (or depot 624 RE of
+  prop_dynamic root-motion handling). No fix attempt branch.
+- FIXED 2026-10-21 (41e3839, autopilot only). Cause: animation event 1100
+  (the turrets' `fireuser1` at cycle 0.459) was sent with no activator.
+  Source fires it with the prop as caller and activator, so OnUser1 ->
+  `tube_object_kill` (`!activator | kill`, enabled by
+  blocked_elevator_tube_anim when the player nears the exit) kills each
+  turret on its next pass. Ours killed nothing, so the turrets (and
+  vacturbox_04) kept looping their fall (SetDefaultAnimation) down the
+  shaft, through the car once it had arrived. The fall itself is the
+  model's data (shaft empty in Windows until the car body's arrive anim).
+  Fix: anim_props fire_input_event passes Some(prop); unit test
+  `fire_input_event_makes_the_prop_its_activator`.
+- Evidence (sp_a2_intro, `3 input @start_elevator_animation_rl trigger;
+  6 input departure_elevator-blocked_elevator_tube_anim trigger; 14 info
+  departure_elevator-vacturret_0N`, RUST_LOG portal2::io=debug): dist
+  209c358: all 4 turrets + vacturbox_04 `killed false` at 14 s, 17 OnUser1
+  fires (looping on); 41e3839: all 5 `killed true`, 6 OnUser1 fires then
+  none. Shots from the corridor did not show the shaft (inconclusive).
+  Replay: sp_a2_intro and sp_a2_laser_intro exits, watch the shaft as the
+  car arrives and during the ride.
+- Still open: the rubble (owner: "rubble ... falls through"). intro5's
+  tube_blockage rubble is a held prop_dynamic resting on the car roof
+  (see T-120 notes); not changed by this fix. Needs the owner to say which
+  map/ride shows the rubble falling through.
 
 ### T-170 Carrying regressed: pushed back at walls, can't push a cube up a wall, not smooth  (P2, FIXED 9f1ed5a, awaiting owner replay)
 - Owner playtest 9: "trying to move a cube up on a wall or something stops

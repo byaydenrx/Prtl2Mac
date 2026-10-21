@@ -4,11 +4,11 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-21 08:45, autorun (prtl2mac-auto-resume-2). T-172 (late VO) NOT
-REPRODUCED: intro2 scene/VO/transition timings match Valve's glados.nut and
-VCD/wave lengths to within one think tick; rides wait for the exit chain's
-TransitionReady by design. No code change; BLOCKED (needs owner: which map
-and line, or a debug log). Next: T-135.
+2026-10-21 08:52, autorun (prtl2mac-auto-resume-2). T-135 PARTIAL: the
+departure elevators' vac-tube turrets were never killed (anim event 1100
+fired with no activator, so tube_object_kill's `!activator | kill` missed)
+and kept falling through the car; fixed 41e3839 (autopilot log only).
+Rubble open (needs owner). Next: T-139.
 
 ## Where things stand
 - Upstream checked 2026-10-21: no code changes since our base v0.1.0, only a
@@ -23,12 +23,12 @@ and line, or a debug log). Next: T-135.
   by a subagent, merged), 4:3 layout (T-192). Open pieces listed at the
   top of TASKS.md's priority order.
 - Earlier fixes still awaiting the owner: T-176, T-169, T-162, T-170.
-- dist/Prtl2Mac.app = 0.1.0+209c358.20261021T1229Z (T-197 even tile grid; T-195 pause menu and T-196 flip fix before it).
+- dist/Prtl2Mac.app = 0.1.0+41e3839.20261021T1250Z (T-135 vac-tube turrets killed; T-197/T-195/T-196 before it).
 
 ## Next action
-1. T-135 things fall through elevators (T-172 not reproduced, blocked;
-   T-197/T-195/T-196 fixed, awaiting owner replay; menu work done).
-2. Then T-139, T-112, T-144, T-149, T-147, T-113,
+1. T-139 music/ambience and soundscapes (T-135 vac-tube turrets fixed
+   41e3839, rubble open; T-172 blocked; T-195..T-197 awaiting owner replay).
+2. Then T-112, T-144, T-149, T-147, T-113,
    then P3/P4. Skip T-116, T-164, T-151 (owner).
 MENUS FROZEN: only T-196/T-195/T-197 may touch menu code; no other menu
 changes (owner, 2026-10-21). A separate session may port upstream engine
