@@ -14,7 +14,8 @@ use bevy::mesh::{Indices, MeshVertexAttribute, MeshVertexBufferLayoutRef, Primit
 use bevy::pbr::{MaterialPipeline, MaterialPipelineKey};
 use bevy::prelude::*;
 use bevy::render::render_resource::{
-    AsBindGroup, CompareFunction, RenderPipelineDescriptor, ShaderType, SpecializedMeshPipelineError, VertexFormat,
+    AsBindGroup, BlendComponent, BlendFactor, BlendOperation, BlendState, CompareFunction, RenderPipelineDescriptor, ShaderType,
+    SpecializedMeshPipelineError, VertexFormat,
 };
 use bevy::shader::ShaderRef;
 use p2_core::{source_dir_to_world, source_to_world, LAYER_VIEWMODEL, SOURCE_UNIT};
@@ -193,6 +194,9 @@ pub struct SpriteCardMaterial {
     /// A `Refract` card: `texture` is its normal map and the card bends the
     /// scene behind it (read from the view's opaque-pass copy).
     pub refract: bool,
+    /// `$mod2x`: the card multiplies what is behind it by twice its colour
+    /// (mid grey leaves it unchanged), e.g. GLaDOS's water wake rings.
+    pub mod2x: bool,
 }
 
 /// Uniform block of [`SpriteCardMaterial`].
@@ -203,7 +207,7 @@ pub struct SpriteCardParams {
     /// `$addself`: adds the texture again, scaled.
     pub add_self: f32,
     /// bit 0: additive blend. bit 1: `$distancealpha` (alpha is a distance field).
-    /// bit 2: refraction (`Refract` shader).
+    /// bit 2: refraction (`Refract` shader). bit 3: `$mod2x`.
     pub flags: u32,
     /// `$refractamount` of a refraction card.
     pub refract: f32,
@@ -214,11 +218,12 @@ pub struct SpriteCardParams {
 pub struct SpriteCardKey {
     ignore_z: bool,
     refract: bool,
+    mod2x: bool,
 }
 
 impl From<&SpriteCardMaterial> for SpriteCardKey {
     fn from(m: &SpriteCardMaterial) -> Self {
-        Self { ignore_z: m.ignore_z, refract: m.refract }
+        Self { ignore_z: m.ignore_z, refract: m.refract, mod2x: m.mod2x }
     }
 }
 
@@ -267,6 +272,18 @@ impl Material for SpriteCardMaterial {
             }
             if key.bind_group_data.refract {
                 ds.depth_write_enabled = Some(false);
+            }
+        }
+        if key.bind_group_data.mod2x {
+            // dst * src + src * dst = 2 * src * dst; the alpha channel is kept.
+            let modulate = BlendState {
+                color: BlendComponent { src_factor: BlendFactor::Dst, dst_factor: BlendFactor::Src, operation: BlendOperation::Add },
+                alpha: BlendComponent { src_factor: BlendFactor::Zero, dst_factor: BlendFactor::One, operation: BlendOperation::Add },
+            };
+            if let Some(fragment) = descriptor.fragment.as_mut() {
+                for target in fragment.targets.iter_mut().flatten() {
+                    target.blend = Some(modulate);
+                }
             }
         }
         Ok(())
@@ -323,7 +340,8 @@ fn load_card(
     }
     let additive = f("$additive", 0.0) != 0.0;
     let distance_alpha = f("$distancealpha", 0.0) != 0.0;
-    let flags = (additive as u32) | ((distance_alpha as u32) << 1) | ((refract as u32) << 2);
+    let mod2x = !refract && f("$mod2x", 0.0) != 0.0;
+    let flags = (additive as u32) | ((distance_alpha as u32) << 1) | ((refract as u32) << 2) | ((mod2x as u32) << 3);
     let material = materials.add(SpriteCardMaterial {
         params: SpriteCardParams {
             overbright: f("$overbrightfactor", 1.0),
@@ -334,6 +352,7 @@ fn load_card(
         texture,
         ignore_z: f("$ignorez", 0.0) != 0.0,
         refract,
+        mod2x,
     });
     Some(CardInfo { material, orientation: f("$orientation", 0.0) as i32, grid })
 }

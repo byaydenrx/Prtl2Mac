@@ -166,7 +166,9 @@ to Control Point to Scalar`, `Remap Speed to Scalar`, `Remap Scalar`,
 `Oscillate Scalar Simple`, `Movement Rotate Particle Around Axis`, `Cull
 Random`, `Rotation Orient to 2D Direction`, `Set child control points from
 particle positions`, `Set Control Point To Player`, `Restart Effect after
-Duration`; the constraint `Prevent passing through a plane`; the renderer
+Duration`, `Remap CP Speed to CP` (with `emit_continuously`'s `emission count
+scale control point`, applied once that point is set; SpriteCard `$mod2x`
+cards modulate what is behind them); the constraint `Prevent passing through a plane`; the renderer
 `render_screen_velocity_rotate` (drawn as sprites). Parameter names are the
 Source particle editor's; numbers that read wrong mean a name differs.
 

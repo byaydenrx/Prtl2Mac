@@ -334,6 +334,7 @@ const KNOWN_INITIALIZERS: &[&str] = &[
     "Remap Control Point to Scalar",
 ];
 const KNOWN_OPERATORS: &[&str] = &[
+    "Remap CP Speed to CP",
     "Set Control Point Rotation",
     "Set Control Point Positions",
     "Movement Basic",
@@ -567,6 +568,7 @@ impl SystemInstance {
                 "Set Control Point Positions" => self.op_cp_positions(op),
                 "Set Control Point To Player" => self.op_cp_to_player(op),
                 "Restart Effect after Duration" => self.op_restart(op, now),
+                "Remap CP Speed to CP" => self.op_cp_speed(op, dt),
                 _ => {}
             }
         }
@@ -661,6 +663,23 @@ impl SystemInstance {
         }
     }
 
+    /// `Remap CP Speed to CP`: how fast a control point moves (u/s), remapped
+    /// into one component of another control point (GLaDOS's drag effects
+    /// only emit while she moves).
+    fn op_cp_speed(&mut self, op: &OpDef, dt: f32) {
+        let out = op.i("output control point", -1);
+        if !(0..64).contains(&out) {
+            return;
+        }
+        let i = op.i("input control point", 0).clamp(0, 63) as usize;
+        let speed = (self.cps[i].pos - self.prev_cps[i].pos).length() / dt.max(1e-4);
+        let v = remap_clamped(speed, op.f("input minimum", 0.0), op.f("input maximum", 1.0), op.f("output minimum", 0.0), op.f("output maximum", 1.0));
+        let field = op.i("Output field 0-2 X/Y/Z", 0).clamp(0, 2) as usize;
+        let cp = &mut self.cps[out as usize];
+        cp.pos[field] = v;
+        cp.set = true;
+    }
+
     fn op_cp_positions(&mut self, op: &OpDef) {
         let from = op.i("Control Point to offset positions from", 0).clamp(0, 63) as usize;
         let world = op.b("Set positions in world space", false);
@@ -719,7 +738,17 @@ impl SystemInstance {
                     st.done = true;
                     return 0;
                 }
-                st.accumulated += em.f("emission_rate", 100.0) * dt;
+                // `emission count scale control point`: the rate times one
+                // component of that control point (only once something set it).
+                let scale = match em.i("emission count scale control point", -1) {
+                    i if (0..64).contains(&i) && self.cps[i as usize].set => {
+                        let c = em.i("emission count scale control point field", 0).clamp(0, 2) as usize;
+                        self.cps[i as usize].pos[c].max(0.0)
+                    }
+                    _ => 1.0,
+                };
+                let st = &mut self.emitters[ei];
+                st.accumulated += em.f("emission_rate", 100.0) * scale * dt;
                 let n = st.accumulated.floor();
                 st.accumulated -= n;
                 n as usize
@@ -1949,6 +1978,26 @@ mod tests {
             s.update(1.0 / 30.0, &lib);
         }
         assert!(s.particles.is_empty() && s.finished());
+    }
+
+    #[test]
+    fn drag_effect_emits_only_while_its_control_point_moves() {
+        // GLaDOS's drag dust: CP0 speed 1..35 u/s -> CP1.x -0.1..1, which scales the rate.
+        let speed = op("Remap CP Speed to CP", &[("input minimum", Attr::Float(1.0)), ("input maximum", Attr::Float(35.0)), ("output minimum", Attr::Float(-0.1)), ("output control point", Attr::Int(1))]);
+        let emit = op("emit_continuously", &[("emission_rate", Attr::Float(60.0)), ("emission count scale control point", Attr::Int(1))]);
+        let def = system(vec![emit], vec![lifetime(100.0)], vec![speed], vec![]);
+        let lib = ParticleLibrary::default();
+        let mut s = SystemInstance::new(def, 1);
+        s.cps[0].pos = Vec3::new(9000.0, 1200.0, 450.0);
+        for _ in 0..60 {
+            s.update(1.0 / 30.0, &lib);
+        }
+        assert!(s.particles.is_empty(), "still: {}", s.particles.len());
+        for _ in 0..30 {
+            s.cps[0].pos.z += 35.0 / 30.0;
+            s.update(1.0 / 30.0, &lib);
+        }
+        assert!((40..=70).contains(&s.particles.len()), "moving: {}", s.particles.len());
     }
 
     #[test]

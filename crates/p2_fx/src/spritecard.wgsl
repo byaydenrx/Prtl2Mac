@@ -127,6 +127,13 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         a = smoothstep(0.42, 0.58, tex.a);
     }
     a = a * in.color.a;
+    if ((params.flags & 8u) != 0u) {
+        // $mod2x (blended as 2 * src * dst): Source fades the card's colour
+        // toward mid grey (no change) by its alpha, in gamma space; the
+        // factor 2m is taken to linear light for our linear buffer.
+        let m = mix(vec3(0.5), clamp(g, vec3(0.0), vec3(1.0)), clamp(a, 0.0, 1.0));
+        return vec4(0.5 * pow(2.0 * m, vec3(2.2)), 1.0);
+    }
     let lin = srgb_to_linear(max(g, vec3(0.0)));
     // Premultiplied output: additive materials write alpha 0 (pure add).
     var out = vec4(lin * a, a);
