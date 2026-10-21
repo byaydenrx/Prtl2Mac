@@ -29,7 +29,7 @@ skipped; T-120 done enough. Don't work on anything already fixed.
 Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles.
 1. T-212 loud glass smash at sp_a3_00 load (owner report).
 2. T-213 PotatOS missing from the portal gun (owner report).
-3. T-150 motion blur/speed lines + gun glow through the wall (owner: fix for sure).
+3. T-150 gun glow seen through the wall after the sp_a2_intro fall (motion blur FIXED 7cc1096, awaiting owner replay).
 4. T-198 aerial faith plate physics (owner report, chapter 2).
 5. Common to many maps: T-203 switchable lights (50/63 maps), T-199
    particle sprite sheets (every map), T-214 DecalModulate (29 maps) and
