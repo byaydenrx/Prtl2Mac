@@ -123,6 +123,12 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   that fails to load, near-identical timestamps. Never invent data.
 
 ### T-184 Options framework: pending/applied, footer, dialogs, navigation  (P2, TODO; spec 3, 11, 12, 14)
+- 2026-10-21 footer buttons DONE (autopilot shots): every tiled dialog's
+  footer is now FooterPanel's button: the install's vgui/btn_bg_alt face
+  (idle), btn_bg_over (hovered, brighter), btn_bg_click (blue, while held),
+  1 px border 130/180, BoldCn 15 black, 10 units padding, 12 apart, at
+  y 417; upper case on dialogs, as typed on confirmations. Footer buttons
+  now act on release (vgui), so the blue face shows while held.
 - Settings functional; shown values = active or pending.
 - Use Defaults appears beside Apply and Back once anything changed
   (Advanced Video too), restores defaults; hidden when nothing changed.
@@ -195,7 +201,17 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 - Small arrow above the slider at its default value; no side arrows; one
   shared slider for every use; values in range, mouse and keyboard.
 
-### T-191 Quit confirmation dialog  (P2, TODO; spec 10)
+### T-191 Quit confirmation dialog  (P2, FIXED, awaiting owner replay; spec 10)
+- 2026-10-21 FIXED (autopilot shots only). Was a plain grey box ("QUIT",
+  OK/CANCEL) over the menu. Now GenericConfirmation as measured on a
+  Windows 4K shot: tiled frame 320 units wide at x 100, 2-tile title tab
+  "Portal 2" (BoldCn ~28, not upper case), body 81.5 units, the install's
+  vgui/hud/icon_info icon, "Are you sure you want to quit?" in the 20-tall
+  Cn font, Quit / Cancel footer at y 417; the menu column hides under it
+  and a blocking layer keeps clicks off the menu. Exit to Main Menu uses
+  the same dialog ("Exit To Main Menu?" / "Any unsaved progress will be
+  lost.", the game's strings). Not done: the tile-flip animation (T-179),
+  default keyboard focus on Quit (Windows draws it lit).
 - Main menu Quit opens dialog: title "Portal 2", "Are you sure you want to
   quit?", Quit / Cancel; same look and tile flip as the discard dialog;
   doesn't trigger the menu behind it.

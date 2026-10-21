@@ -56,7 +56,7 @@ impl Plugin for UiPlugin {
             .add_systems(
                 Update,
                 (
-                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, carry_hover, hover_rows, describe_rows, menu_movie).chain(),
+                    (capture_key, escape_key, scripted_clicks, buttons, scroll_lists, rebuild_menu, carry_hover, footer_art, hover_rows, describe_rows, menu_movie).chain(),
                     (menu_view, menu_camera, pause_world, menu_music, title_card).chain(),
                 )
                     .chain()
@@ -165,6 +165,11 @@ struct MenuArt {
     tiles: Option<Vec<Handle<Image>>>,
     /// Robot Enrichment's icon (materials/vgui/store/store_button).
     econ: Option<Handle<Image>>,
+    /// Footer button faces: idle (vgui/btn_bg_alt), hovered (btn_bg_over),
+    /// held down (btn_bg_click, blue).
+    btn: Option<[Handle<Image>; 3]>,
+    /// Confirmation dialogs' icon (vgui/hud/icon_info).
+    info: Option<Handle<Image>>,
 }
 
 /// The dialog tile pieces (materials/vgui/menu_tiles/ui_tile_128_*).
@@ -294,6 +299,8 @@ mod theme {
     pub const ERROR: Color = Color::srgb(0.62, 0.12, 0.1);
     /// HybridButton.DisabledColor 140 140 140.
     pub const DISABLED: Color = Color::srgb(140.0 / 255.0, 140.0 / 255.0, 140.0 / 255.0);
+    /// A confirmation's message (grey on the tiles, as on Windows).
+    pub const CONFIRM_TEXT: Color = Color::srgb(110.0 / 255.0, 110.0 / 255.0, 110.0 / 255.0);
     /// The chosen chapter-dialog tab.
     pub const TAB_ON: Color = Color::srgb(0.12, 0.12, 0.13);
 }
@@ -440,7 +447,11 @@ fn load_menu_art(mut commands: Commands, game: Res<GameFsRes>, mut images: ResMu
         warn!("portal2: materials/vgui/menu_tiles missing; dialogs use plain panels");
     }
     let econ = source_assets::vtf::VtfTexture::parse(&game.read("materials/vgui/store/store_button.vtf").unwrap_or_default()).ok().map(|v| images.add(v.into_image(false, true)));
-    commands.insert_resource(MenuArt { logo, tiles, econ });
+    let mut vtf = |path: &str| source_assets::vtf::VtfTexture::parse(&game.read(path)?).ok().map(|v| images.add(v.into_image(false, true)));
+    let btn = ["btn_bg_alt", "btn_bg_over", "btn_bg_click"].map(|n| vtf(&format!("materials/vgui/{n}.vtf")));
+    let btn = if btn.iter().all(Option::is_some) { Some(btn.map(Option::unwrap)) } else { None };
+    let info = vtf("materials/vgui/hud/icon_info.vtf");
+    commands.insert_resource(MenuArt { logo, tiles, econ, btn, info });
 }
 
 fn pick_logo(files: &[String]) -> Option<&String> {
@@ -693,47 +704,144 @@ fn title_tab_tiles(title: &str) -> usize {
 /// buttons sit below the frame (FooterPanel.OffsetY 12).
 fn tile_frame(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, title: &str, wide: usize, tall: usize, footer: &[(&str, Action)], content: impl FnOnce(&mut ChildSpawnerCommands)) {
     const T: f32 = 50.0;
-    let tab = title_tab_tiles(title);
-    let tab = tab.min(wide);
-    let top = 480.0 - 75.0 - (tall as f32 + 1.0) * T;
-    p.spawn(Node {
-        position_type: PositionType::Absolute,
-        left: units(100.0),
-        top: units(top),
-        width: units(wide as f32 * T),
-        height: units((tall as f32 + 1.0) * T),
-        ..default()
-    })
-    .with_children(|d| {
-        for r in 0..=tall {
-            for c in 0..wide {
-                let Some(piece) = tile_piece(c, r, tab, wide, tall) else { continue };
-                let node = Node { position_type: PositionType::Absolute, left: units(c as f32 * T), top: units(r as f32 * T), width: units(T), height: units(T), ..default() };
-                match art.and_then(|a| a.tiles.as_ref()) {
-                    Some(t) => {
-                        d.spawn((ImageNode::new(t[piece].clone()), node));
-                    }
-                    None => {
-                        d.spawn((node, BackgroundColor(theme::PANEL)));
+    let tab = title_tab_tiles(title).min(wide);
+    let frame = Frame { tab, top: 480.0 - 75.0 - (tall as f32 + 1.0) * T, width: wide as f32 * T, body: tall as f32 * T, title_font: TITLE_FONT, upper: true };
+    tile_frame_sized(p, fonts, art, &title.to_uppercase(), frame, footer, content);
+}
+
+/// A tiled frame's size and style, in units.
+struct Frame {
+    /// Title tab width in 50-unit tiles.
+    tab: usize,
+    /// The tab's top edge (the body starts 50 below).
+    top: f32,
+    width: f32,
+    /// Body height under the tab.
+    body: f32,
+    title_font: bevy::text::FontSize,
+    /// Footer labels in upper case (dialogstyle 1; confirmations keep case).
+    upper: bool,
+}
+
+/// [`tile_frame`] at any size: 50-unit tiles from the top left, the last
+/// column and row pulled in so the right and bottom edges land on the
+/// size (dialogstyle 2 confirmations size to their text). The footer sits
+/// at 417 units (480 - Dialog.PinFromBottom 75 + FooterPanel.OffsetY 12),
+/// where Portal 2 puts it under every dialog, short ones included.
+fn tile_frame_sized(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, title: &str, f: Frame, footer: &[(&str, Action)], content: impl FnOnce(&mut ChildSpawnerCommands)) {
+    const T: f32 = 50.0;
+    let wide = (f.width / T).ceil().max(1.0) as usize;
+    let tall = (f.body / T).ceil().max(1.0) as usize;
+    let tab = f.tab.clamp(1, wide);
+    p.spawn(Node { position_type: PositionType::Absolute, left: units(100.0), top: units(f.top), width: units(f.width), height: units(T + f.body), ..default() })
+        .with_children(|d| {
+            for r in 0..=tall {
+                for c in 0..wide {
+                    let Some(piece) = tile_piece(c, r, tab, wide, tall) else { continue };
+                    let x = if c + 1 == wide { f.width - T } else { c as f32 * T };
+                    let y = if r == 0 { 0.0 } else if r == tall { f.body } else { r as f32 * T };
+                    let node = Node { position_type: PositionType::Absolute, left: units(x.max(0.0)), top: units(y), width: units(T), height: units(T), ..default() };
+                    match art.and_then(|a| a.tiles.as_ref()) {
+                        Some(t) => {
+                            d.spawn((ImageNode::new(t[piece].clone()), node));
+                        }
+                        None => {
+                            d.spawn((node, BackgroundColor(theme::PANEL)));
+                        }
                     }
                 }
             }
+            d.spawn((
+                Node { position_type: PositionType::Absolute, left: units(10.0), top: units(9.0), ..default() },
+                children![(Text::new(title), TextFont { font: (&fonts.title).into(), font_size: f.title_font, ..default() }, TextColor(Color::BLACK))],
+            ));
+            d.spawn(Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: units(T), width: units(f.width), height: units(f.body), ..default() })
+                .with_children(content);
+            d.spawn(Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: units(417.0 - f.top), column_gap: units(12.0), ..default() })
+                .with_children(|row| {
+                    for (label, action) in footer {
+                        let label = if f.upper { label.to_uppercase() } else { label.to_string() };
+                        row.spawn(footer_button(fonts, art, &label, *action));
+                    }
+                });
+        });
+}
+
+/// A footer button (FooterPanel on PC): the vgui/btn_bg_* face, a 1 px
+/// border (BorderColor 130, 180 when armed), black UniversLTStd-BoldCn
+/// tall 15, 10 units of padding each side (ButtonPaddingX 20); 15 units
+/// tall as measured on Windows. Brighter when hovered, blue while held
+/// ([`footer_art`]); it acts when released, as vgui buttons do.
+fn footer_button(fonts: &UiFonts, art: Option<&MenuArt>, label: &str, action: Action) -> impl Bundle + use<> {
+    let face = art.and_then(|a| a.btn.clone());
+    let font = TextFont { font: (&fonts.title).into(), font_size: FOOTER_FONT, ..default() };
+    (
+        Button,
+        FooterButton,
+        action,
+        FOOTER_LOOK,
+        // The padding is the label's margin: an image node only paints
+        // its content box.
+        Node { height: units(15.0), border: UiRect::all(Val::Px(1.0)), align_items: AlignItems::Center, ..default() },
+        BorderColor::all(FOOTER_BORDER[0]),
+        match face {
+            Some(f) => ImageNode { image: f[0].clone(), image_mode: bevy::ui::widget::NodeImageMode::Stretch, ..default() },
+            None => ImageNode { color: theme::BUTTON, ..default() },
+        },
+        BackgroundColor(Color::NONE),
+        children![(Text::new(label.to_string()), font, TextColor(Color::BLACK), Node { margin: UiRect::axes(units(10.0), Val::Px(0.0)), ..default() })],
+    )
+}
+
+/// ButtonText_NC: UniversLTStd-BoldCn tall 15 (WIN32HIDEF).
+const FOOTER_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(15.0 / 1.265 * 100.0 / 480.0);
+/// FooterPanel.BorderColor / BorderArmedColor.
+const FOOTER_BORDER: [Color; 2] = [Color::srgb(130.0 / 255.0, 130.0 / 255.0, 130.0 / 255.0), Color::srgb(180.0 / 255.0, 180.0 / 255.0, 180.0 / 255.0)];
+/// Footer text stays black; the face image carries the state.
+const FOOTER_LOOK: Look = Look { text: Color::BLACK, text_hover: Color::BLACK, bg: Color::NONE, bg_hover: Color::NONE };
+
+#[derive(Component)]
+struct FooterButton;
+
+/// Footer buttons' face and border follow the mouse: idle, hovered,
+/// held down.
+fn footer_art(art: Option<Res<MenuArt>>, mut q: Query<(&Interaction, &mut ImageNode, &mut BorderColor), (With<FooterButton>, Changed<Interaction>)>) {
+    let Some(faces) = art.as_ref().and_then(|a| a.btn.as_ref()) else { return };
+    for (i, mut img, mut border) in &mut q {
+        let (face, edge) = match i {
+            Interaction::None => (0, 0),
+            Interaction::Hovered => (1, 1),
+            Interaction::Pressed => (2, 1),
+        };
+        img.image = faces[face].clone();
+        *border = BorderColor::all(FOOTER_BORDER[edge]);
+    }
+}
+
+/// A Portal 2 confirmation (GenericConfirmation, dialogstyle 2) as the
+/// Windows quit dialog measures: a tiled frame 320 units wide at x 100,
+/// its 50-unit title tab from y 259 (title in BoldCn ~28, not upper case),
+/// body 81.5 units; the info icon (29 units) 10.5 in and 31.5 down;
+/// the message (ConfirmationText: UniversLTStd-Cn tall 20, grey) from x 55,
+/// centred on the icon; the footer at 417.
+fn confirm_dialog(p: &mut ChildSpawnerCommands, fonts: &UiFonts, art: Option<&MenuArt>, title: &str, message: &str, buttons: &[(&str, Action)]) {
+    let tab = ((title.len() as f32 * 9.0 + 25.0) / 50.0).ceil().max(2.0) as usize;
+    let frame = Frame { tab, top: 259.0, width: 320.0, body: 81.5, title_font: CONFIRM_TITLE_FONT, upper: false };
+    tile_frame_sized(p, fonts, art, title, frame, buttons, |d| {
+        if let Some(icon) = art.and_then(|a| a.info.clone()) {
+            d.spawn((ImageNode::new(icon), Node { position_type: PositionType::Absolute, left: units(10.5), top: units(31.5), width: units(29.0), height: units(29.0), ..default() }));
         }
         d.spawn((
-            Node { position_type: PositionType::Absolute, left: units(10.0), top: units(9.0), ..default() },
-            children![(Text::new(title.to_uppercase()), TextFont { font: (&fonts.title).into(), font_size: TITLE_FONT, ..default() }, TextColor(Color::BLACK))],
+            Node { position_type: PositionType::Absolute, left: units(55.0), top: units(31.5), width: units(255.0), height: units(29.0), align_items: AlignItems::Center, ..default() },
+            children![(Text::new(message), TextFont { font: (&fonts.menu).into(), font_size: CONFIRM_FONT, ..default() }, TextColor(theme::CONFIRM_TEXT))],
         ));
-        d.spawn(Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: units(T), width: units(wide as f32 * T), height: units(tall as f32 * T), ..default() })
-            .with_children(content);
-        // FooterPanel: OffsetY 12 below the dialog.
-        d.spawn(Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: units((tall as f32 + 1.0) * T + 12.0), column_gap: units(6.0), ..default() })
-            .with_children(|f| {
-                for (label, action) in footer {
-                    f.spawn(button(&fonts.menu, *label, *action, 16.0, BUTTON_LOOK));
-                }
-            });
     });
 }
+
+/// The confirmation title: its capitals measure 16.25 units on Windows,
+/// UniversLTStd-BoldCn tall ~28.
+const CONFIRM_TITLE_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(28.0 / 1.265 * 100.0 / 480.0);
+const CONFIRM_FONT: bevy::text::FontSize = bevy::text::FontSize::Vh(20.0 / 1.265 * 100.0 / 480.0);
 
 /// A DefaultButton row of a tiled dialog, 25 units tall at `y` units below
 /// the body's top: upper case, black, white on the black cursor bar
@@ -1413,7 +1521,7 @@ fn rebuild_menu(
                     tiled_dialog(p, &fonts, art.as_deref(), "Single Player", 5, 4, &rows);
                 } else if menu.flyout == Some(Flyout::Options) {
                     options_dialog(p, &fonts, art.as_deref(), &options_flyout);
-                } else {
+                } else if menu.confirm.is_none() {
                     item_list(p, &fonts, art.as_deref(), &MAIN_ITEMS);
                 }
             });
@@ -1425,7 +1533,9 @@ fn rebuild_menu(
                     options_dialog(p, &fonts, art.as_deref(), &options_flyout);
                     return;
                 }
-                pause_dialog(p, &fonts, art.as_deref(), read_save().is_some());
+                if menu.confirm.is_none() {
+                    pause_dialog(p, &fonts, art.as_deref(), read_save().is_some());
+                }
             });
         }
         Screen::Chapters if !(tab.community && !community.maps.is_empty()) => {
@@ -1617,15 +1727,14 @@ fn rebuild_menu(
         }
     }
     if let Some(c) = menu.confirm {
-        let (title, message) = match c {
-            Confirm::QuitGame => ("QUIT", "Are you sure you want to quit?"),
-            Confirm::QuitToMenu => ("QUIT TO MAIN MENU", "Are you sure you want to quit to the main menu? Any progress since the last checkpoint will be lost."),
+        let (title, message, ok) = match c {
+            Confirm::QuitGame => ("Portal 2", "Are you sure you want to quit?", "Quit"),
+            Confirm::QuitToMenu => ("Exit To Main Menu?", "Any unsaved progress will be lost.", "OK"),
         };
-        // Centred, so its tab and panel line up as one block.
-        let panel = dialog_on(&mut commands, &fonts, title, 560.0, 20, theme::SHADE, true);
-        commands.entity(panel).with_children(|d| {
-            d.spawn((Node { margin: UiRect::horizontal(Val::Px(6.0)), ..default() }, children![text(&fonts.regular, 18.0, message, theme::LABEL)]));
-            footer_buttons(d, &fonts, "", &[("OK", Action::ConfirmOk), ("CANCEL", Action::ConfirmCancel)]);
+        // The menu under it is hidden (see rebuild_menu's screens); the
+        // shade keeps clicks off whatever else shows.
+        commands.spawn((layer(20), Interaction::None, bevy::ui::FocusPolicy::Block)).with_children(|p| {
+            confirm_dialog(p, &fonts, art.as_deref(), title, message, &[(ok, Action::ConfirmOk), ("Cancel", Action::ConfirmCancel)]);
         });
     }
 }
@@ -1774,7 +1883,12 @@ fn escape_key(
 /// Older click names that still work: (old, now).
 const CLICK_ALIASES: [(&str, &str); 4] = [("chapters", "newgame"), ("speedrunoptions", "page(speedrun)"), ("modsoptions", "page(mods)"), ("subtitleoptions", "page(subtitles)")];
 
-fn scripted_clicks(mut clicks: MessageReader<MenuClick>, mut screen: ResMut<Screen>, mut q: Query<(&mut Interaction, &Action)>) {
+/// A press from the autopilot: acts at once, even on buttons that act on
+/// release (there is no mouse to let go).
+#[derive(Component)]
+struct ScriptPress;
+
+fn scripted_clicks(mut commands: Commands, mut clicks: MessageReader<MenuClick>, mut screen: ResMut<Screen>, mut q: Query<(Entity, &mut Interaction, &Action)>) {
     for c in clicks.read() {
         // "hover:<Action>" (autopilot `hover`) only lights the button.
         let (state, name) = c.0.strip_prefix("hover:").map_or((Interaction::Pressed, c.0.as_str()), |n| (Interaction::Hovered, n));
@@ -1784,9 +1898,14 @@ fn scripted_clicks(mut clicks: MessageReader<MenuClick>, mut screen: ResMut<Scre
             *screen = Screen::Pause;
             continue;
         }
-        match q.iter_mut().find(|(_, a)| format!("{a:?}").replace(' ', "").to_ascii_lowercase() == want) {
-            Some((mut i, _)) => *i = state,
-            None => warn!("portal2: no menu button {:?}; have {:?}", c.0, q.iter().map(|(_, a)| format!("{a:?}")).collect::<Vec<_>>()),
+        match q.iter_mut().find(|(_, _, a)| format!("{a:?}").replace(' ', "").to_ascii_lowercase() == want) {
+            Some((e, mut i, _)) => {
+                *i = state;
+                if state == Interaction::Pressed {
+                    commands.entity(e).insert(ScriptPress);
+                }
+            }
+            None => warn!("portal2: no menu button {:?}; have {:?}", c.0, q.iter().map(|(_, _, a)| format!("{a:?}")).collect::<Vec<_>>()),
         }
     }
 }
@@ -1819,6 +1938,7 @@ fn buttons(
     mut load: MessageWriter<LoadLevel>,
     mut exit: MessageWriter<AppExit>,
     (mut load_game, mut save_game): (MessageWriter<LoadGame>, MessageWriter<SaveGame>),
+    (footers, scripted, mut armed): (Query<(), With<FooterButton>>, Query<(), With<ScriptPress>>, Local<Vec<Entity>>),
 ) {
     for (e, interaction, action, look, in_row) in &q {
         let hot = *interaction != Interaction::None;
@@ -1833,8 +1953,24 @@ fn buttons(
                 }
             }
         }
+        // Footer buttons act when the mouse is let go over them (they show
+        // their held-down face meanwhile); the rest act on the press.
+        let fire = if footers.contains(e) && !scripted.contains(e) {
+            let was = armed.contains(&e);
+            armed.retain(|x| *x != e);
+            match interaction {
+                Interaction::Pressed => {
+                    armed.push(e);
+                    false
+                }
+                Interaction::Hovered => was,
+                Interaction::None => false,
+            }
+        } else {
+            *interaction == Interaction::Pressed
+        };
         // A press while a key is being bound is the key itself.
-        if *interaction != Interaction::Pressed || eaten.0 || menu.capture.is_some() {
+        if !fire || eaten.0 || menu.capture.is_some() {
             continue;
         }
         info!("portal2: menu {:?}", action);
