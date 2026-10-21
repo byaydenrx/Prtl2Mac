@@ -106,6 +106,7 @@ impl bevy::app::Plugin for Plugin {
             .init_resource::<ViewTree>()
             .init_resource::<NodeCameras>()
             .init_resource::<NodeImages>()
+            .init_resource::<views::ViewWarmup>()
             .add_systems(Startup, views::spawn_node_cameras)
             // Node cameras switch target, pose and projection here; Bevy's
             // camera_system must see that in the same frame, or a view that

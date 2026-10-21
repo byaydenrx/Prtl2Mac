@@ -252,6 +252,34 @@ pub struct NodeCameras {
     pub dummy: Option<Handle<Image>>,
 }
 
+/// Frames left in which a parked node camera draws the main view into the
+/// 1x1 parking target. Portal views use a non-standard (oblique) projection,
+/// so Bevy composes separate shader variants for them; without the warm-up
+/// the first frame a portal came into view composed a dozen at once (a
+/// 40-50 ms hitch, T-171). It runs when a main camera appears (a map
+/// starts) and when a portal is created; compiled pipelines stay cached.
+#[derive(Resource, Default)]
+pub struct ViewWarmup {
+    pub frames: u32,
+    main: Option<Entity>,
+}
+
+/// Frames of a warm-up: enough for the specialized pipelines to be queued.
+pub const WARMUP_FRAMES: u32 = 8;
+
+/// Node used for the warm-up: level 1, the first one a portal brings in.
+pub const WARMUP_NODE: u32 = 2;
+
+/// Layers the warm-up view draws: the map plus every node's portal surfaces,
+/// and the local player's body and ghosts, so all of their portal-view
+/// variants are compiled.
+pub fn warmup_layers(config: &PortalRenderConfig) -> RenderLayers {
+    let all = (1..=config.doubler_nodes() as u32).fold(RenderLayers::layer(0), |l, code| l.with(node_layer(code)));
+    [LAYER_PLAYER_BODY, player_ghost_layer(PortalKind::Blue), player_ghost_layer(PortalKind::Orange)]
+        .into_iter()
+        .fold(all, |l, x| l.with(x))
+}
+
 /// Render targets of the active node cameras, keyed by node code.
 #[derive(Resource, Default)]
 pub struct NodeImages {
@@ -364,6 +392,7 @@ pub(crate) fn update_views(
         (Without<MainCamera>, Without<Portal>, Without<Player>),
     >,
     eye: Res<LocalEye>,
+    (mut warmup, new_portals): (ResMut<ViewWarmup>, Query<(), Added<Portal>>),
 ) {
     // Portal halves and their link state.
     let mut found: [Option<(Entity, Portal, Transform, PortalAnimation, Option<Entity>)>; 2] = [None, None];
@@ -396,6 +425,13 @@ pub(crate) fn update_views(
         return;
     }
 
+    if warmup.main != main.entity || !new_portals.is_empty() {
+        warmup.main = main.entity;
+        warmup.frames = WARMUP_FRAMES;
+    }
+    let warming = warmup.frames > 0;
+    warmup.frames = warmup.frames.saturating_sub(1);
+
     let new_tree = build_tree(main.global, &main.projection(), &out, config.recursion_depth);
     let target_size = (main.size.as_vec2() * config.target_scale).round().as_uvec2().max(UVec2::ONE);
     // Node images: one per active child, sized like the main view.
@@ -426,9 +462,19 @@ pub(crate) fn update_views(
             continue;
         };
         let Some(node) = new_tree.get(&code) else {
-            cam.is_active = false;
             if let Some(dummy) = cams.dummy.clone() {
                 *target = RenderTarget::Image(dummy.into());
+            }
+            cam.is_active = warming && code == WARMUP_NODE;
+            if cam.is_active {
+                let (_, rot, pos) = main.global.to_scale_rotation_translation();
+                *tf = Transform::from_translation(pos).with_rotation(rot.normalize());
+                *proj = Projection::custom(main.projection());
+                *layers = warmup_layers(&config);
+                match main.fog.clone() {
+                    Some(x) => commands.entity(entity).insert(x),
+                    None => commands.entity(entity).remove::<bevy::pbr::DistanceFog>(),
+                };
             }
             continue;
         };
@@ -538,6 +584,20 @@ pub(crate) fn ensure_main_layers(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn warmup_draws_map_every_surface_node_and_player() {
+        let config = PortalRenderConfig::default();
+        let l = warmup_layers(&config);
+        assert!(l.intersects(&RenderLayers::layer(0)));
+        for code in 1..=config.doubler_nodes() as u32 {
+            assert!(l.intersects(&RenderLayers::layer(node_layer(code))), "node {code}");
+        }
+        assert!(l.intersects(&RenderLayers::layer(LAYER_PLAYER_BODY)));
+        assert!(l.intersects(&RenderLayers::layer(player_ghost_layer(PortalKind::Orange))));
+        // The warm-up node is a real, pooled level-1 camera.
+        assert_eq!(node_level(WARMUP_NODE), 1);
+    }
 
     #[test]
     fn codes_and_levels() {
