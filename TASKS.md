@@ -26,7 +26,7 @@ P1:
 P2:
    (T-162 UI styling: every screen done 2026-10-20, awaiting owner replay.)
    (T-170 carrying at walls fixed 9f1ed5a, awaiting owner replay.)
-   (T-145 lit cubes black BLOCKED, attempt/T-145; spikes/jitter still open.)
+   (T-145 lit cubes black still open, cause not found; companion/rusted lit skins merged cc8d8e0; spikes/jitter still open.)
 3. T-172 voice lines start late (stretches elevator rides; T-120's VO part).
 4. T-135 things fall through elevators (turrets, rubble).
 5. T-139 music not playing with ambience; soundscapes.
@@ -86,9 +86,10 @@ Then the Backlog (prove and sweep the campaign).
 - Also found: cube_lit_skin's table was wrong for non-standard cubes:
   metal_box skin textures are 0 standard, 1 companion, 2 standard lit,
   3 rusted, 4 companion lit, 5 rusted lit (we lit companion 1 as 3 = rusted
-  blue, rusted 3 not at all). Untested fix: local branch attempt/T-145
-  (cc8d8e0), needs owner review/replay (not seen in game: no companion or
-  rusted cube on a button was checked).
+  blue, rusted 3 not at all). Fix cc8d8e0 (was attempt/T-145) MERGED
+  2026-10-21 at the owner's request; not seen in game (no companion or
+  rusted cube on a button was checked). The dark standard lit cube is NOT
+  fixed by it.
 - Spikes under the button and jitter on buttons: not looked at this run.
 - Owner playtest 9 (2026-10-20, build 014ab6e): button press works, but "cubes turn black when they're activated and yellow" and "it adds weird spikes under the button almost like there's grass under it"; "buttons are still juttery/buggy when [cubes are] put on buttons".
 - Section 0: no press-down when used or when a cube lands; cubes kept their

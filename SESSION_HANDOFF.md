@@ -4,7 +4,12 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-20 19:55, autorun (prtl2mac-auto-resume). T-145 dark lit cube reproduced, cause not found; skin-table fix on local attempt/T-145 only. No code change on wheatley/main.
+2026-10-21 00:30, owner session. Autorun `prtl2mac-auto-resume` PAUSED by
+the owner: they are playtesting the whole game several times and taking
+Windows Portal 2 (CrossOver) comparison shots for UI, textures and
+lighting; weekly usage limit until Sunday. Merged attempt/T-145 (companion/
+rusted lit skins) at the owner's request. Next session: file the owner's
+playtest 10 report and comparisons in TASKS.md first.
 
 ## Where things stand
 - T-176 FIXED (2bf3d20), autopilot-checked only: use only took a prop hit
@@ -34,22 +39,20 @@ reads it first (via `sh scripts/resume.sh`).
   and sRGB cache ruled out; suspect the render path of SkinVariant draws
   spawned Hidden. Next check written in the T-145 entry. Spikes under the
   button and jitter not looked at yet.
-- dist/Prtl2Mac.app = 0.1.0+9f1ed5a.20261020T2241Z (unchanged).
+- T-145 skin table (cc8d8e0) merged 2026-10-21, untested in game.
+- dist/Prtl2Mac.app = see the make_app line in the latest commit message.
 
 ## Next action
 1. T-172 late VO (stretches elevator rides). Then T-135, T-139, T-112,
    T-144, T-149, T-147, T-113, then P3/P4. New crashes/softlocks still
    first. T-145's dark-lit-cube cause, spikes and jitter remain (see its
-   entry). Skip T-116 (owner screenshots coming), T-164, T-151 and T-145's
-   skin table (attempt branches await the owner).
+   entry). Skip T-116 (owner screenshots coming), T-164, T-151 (attempt
+   branches await the owner).
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.
 
 ## Fix attempts awaiting the owner
-- attempt/T-145 (cc8d8e0): cube lit skins follow metal_box's skin table
-  (companion 1 -> 4, rusted 3 -> 5; was 1 -> 3). Does not fix the dark lit
-  cube. Check a companion/rusted cube on a button, then merge or delete.
 - attempt/T-151 (2df932d): water reflects the (LDR-clamped) sky on fogged
   maps and glass/water get the map's distance fog. intro3 water goes from
   flat brown to grey with flowing ripples; compare with Windows Portal 2's
