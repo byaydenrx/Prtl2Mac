@@ -23,15 +23,16 @@ change, no attempt branch. Next: T-113.
   by a subagent, merged), 4:3 layout (T-192). Open pieces listed at the
   top of TASKS.md's priority order.
 - Earlier fixes still awaiting the owner: T-176, T-169, T-162, T-170.
-- dist/Prtl2Mac.app = 0.1.0+910da9a.20261021T1324Z (T-144 clipboard carry angle; T-139 soundscapes before it).
+- dist/Prtl2Mac.app = 0.1.0+693f8ce.20261021T1346Z (T-113 hints stay until EndHint; T-144 clipboard carry angle before it).
 
 ## Next action
-1. T-113 instructor hints vanish (T-147 intro2 black door NOT REPRODUCED,
+1. P3: T-171 FPS drops looking at portals (T-113 hints FIXED 693f8ce,
+   awaiting owner replay; T-147 intro2 black door NOT REPRODUCED,
    blocked on owner; T-149 not reproduced, blocked on owner shots;
    T-144 clipboard FIXED 910da9a, awaiting owner replay; T-112 untested fix
    on attempt/T-112, blocked on owner; T-139 music pieces, T-135 rubble
    open; T-172 blocked; T-195..T-197 awaiting owner replay).
-2. Then P3 (T-171, T-148, ...)/P4. Skip T-116, T-164, T-151 (owner).
+2. Then T-148, T-117, T-152, ... /P4. Skip T-116, T-164, T-151 (owner).
 MENUS FROZEN: only T-196/T-195/T-197 may touch menu code; no other menu
 changes (owner, 2026-10-21). A separate session may port upstream engine
 changes (Stink-O/Portal2-rust-engine) into main; merge origin/main often.

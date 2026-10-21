@@ -27,7 +27,7 @@ NEXT UP (owner round 4, 2026-10-21): T-196 black screen after flips
 (FIXED f8c9be3, awaiting owner replay), T-195 pause menu as Windows
 (FIXED 8af5fa3, awaiting owner replay), T-197 even tile grid (FIXED 209c358,
 awaiting owner replay). T-172 not reproduced (blocked, needs owner).
-T-144 clipboard FIXED 910da9a (awaiting owner replay). T-149 not reproduced (blocked, needs owner shots). T-147 not reproduced (blocked, needs owner). Next T-113 onward (no more menu work; T-112 attempt branch awaits owner).
+T-144 clipboard FIXED 910da9a (awaiting owner replay). T-149 not reproduced (blocked, needs owner shots). T-147 not reproduced (blocked, needs owner). T-113 hints FIXED 693f8ce (awaiting owner replay). Next T-171 onward (no more menu work; T-112 attempt branch awaits owner).
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
 before every other task. Owner notes after build fb0090a (12 items,
 listed under the spec heading) come first: T-179 flip like the video,
@@ -858,9 +858,6 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
   screenshot or a short video, and whether it is the whole screen or a
   shape in the door (screenshot 7's dark shard).
 
-### T-113 Instructor hints vanish after a few seconds if not done  (P2, TODO)
-- Key labels fixed (owner confirmed).
-
 ## Open: P3
 
 ### T-171 FPS drops, especially looking at portals  (P3, TODO)
@@ -1054,6 +1051,18 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-113 Instructor hints vanish after a few seconds if not done  (P2, FIXED 693f8ce, awaiting owner replay)
+- Key labels fixed (owner confirmed).
+- Cause: env_instructor_hint with hint_timeout 0 or unset (every intro1
+  hint) got an 8 s timeout; Source's FGD: "0 will persist until stopped
+  with EndHint". Fix: ai.rs hint_until (no timeout = until EndHint/Kill);
+  unit test zero_or_no_timeout_waits_for_endhint.
+- Evidence (autopilot, sp_a1_intro1, `3 input hint_press_to_use_bed
+  showhint`): dist 910da9a shows SLEEP at 5 s, gone at 14 s; 693f8ce still
+  shows it at 14 s and EndHint at 15 s removes it. The map sends EndHint
+  for every hint it shows (bed, talk, apple, crouch); other maps' hints not
+  replayed.
 
 ### T-144 Missing props: intro1 portal room clipboard and movable clock  (P2, FIXED 910da9a, awaiting owner replay: props and clipboard carry angle)
 - Owner playtest 9 (2026-10-20, build 014ab6e): fixed, "but the clipboard prop doesn't auto face you so you can read it" (Portal 2 turns some props to a preferred carry angle when picked up; check the model's physgun/carry keyvalues).
