@@ -20,7 +20,10 @@ Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 
 ## Priority order (2026-10-21, owner menu/intro spec first)
 OWNER PRIORITY (2026-10-21): the menu/intro spec (docs/MENU_SPEC.md) comes
-before every other task. Status 2026-10-21 (build cec807a+): all of
+before every other task. Owner notes after build fb0090a (12 items,
+listed under the spec heading) come first: T-179 flip like the video,
+T-193 scrolling/arrows, T-194 Options list, T-178/T-185/T-187/T-189/T-177
+tweaks, T-192 spacing. Status 2026-10-21 (build cec807a+): all of
 T-177..T-192 built, autopilot-checked only, awaiting the owner's replay.
 Open pieces: T-188 gamepad input (none at all yet), T-189 raw mouse
 input / key conflicts / keyboard scrolling of Edit Keys, T-187 detail
@@ -57,6 +60,40 @@ P4:
 Then the Backlog (prove and sweep the campaign).
 
 ## Owner menu/intro spec (2026-10-21): T-177..T-192, before everything else
+- Owner notes 2026-10-21 (after build fb0090a), the owner's words, filed:
+  (1) tile animation should match https://www.youtube.com/watch?v=qtm2U-M-lHA
+  (first 2-3 s), with its sound, and be basically instant, not waiting
+  for the tiles to finish and then the menu fading in (T-179);
+  (2) scrolling breaks: scrolling past the end keeps scrolling "behind the
+  scenes", so you must scroll back the same amount before it moves up
+  (repro: Edit Keys, scroll far down, then up) (T-193);
+  (3) scrollbar arrows and the slider default arrow render very pixely
+  (T-193); (4) the arrows shown when hovering an option render as empty
+  "missing glyph" boxes (T-193);
+  (5) Options list should be only Audio, Video, Keyboard/Mouse, Controller,
+  Mods: remove Speedrun, merge the subtitle options into Audio, grey out
+  Mods and make it unhoverable (T-194);
+  (6) spacing still feels off; it should scale correctly to different
+  aspect ratios and resolutions (T-192);
+  (7) move Robot Enrichment down a little; its text aligned with the rest
+  of the menu, the icon to the left of it (T-178);
+  (8) grey out Setup Microphone, Enable Voice and Push To Talk Key for now
+  (T-185); (9) remove Graphics Original/Enhanced from Advanced Video
+  (T-187); (10) Edit Keys/Buttons' hover bar is a different colour from
+  the rest of the menu (T-189); (11) hide the cursor during the intro logos
+  and loading screens, back with the menu (T-177); (12) list every control
+  that isn't greyed out but doesn't work or can't be tested (answered in
+  chat, kept in T-194).
+
+### T-193 Scrolling and arrow glyphs  (P2, TODO; owner notes 2026-10-21 items 2-4)
+- Wheel scrolling past a list's end keeps counting; arrows (scrollbar,
+  slider marker) pixely; hover arrows draw as missing-glyph boxes.
+
+### T-194 Options list and dead controls  (P2, TODO; owner notes 2026-10-21 items 5, 8, 9, 12)
+- Options: Audio, Video, Keyboard/Mouse, Controller, Mods (greyed); no
+  Speedrun; subtitle options inside Audio; voice rows greyed; Graphics
+  row removed; list what still doesn't work.
+
 The owner's spec, verbatim: docs/MENU_SPEC.md (section numbers below are
 its sections). The owner can send Windows screenshots for any screen.
 Reference: Windows Portal 2 (install .res files, client.dll in depot 624,

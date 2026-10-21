@@ -104,3 +104,11 @@ Full text in docs/MENU_SPEC.md (startup intros, main menu, Single Player,
 New/Load Game, Options/Audio/Video/Advanced Video/Controller/Keyboard-Mouse,
 Edit Keys, sliders, quit dialog, navigation, persistence, scaling). Tracked
 as T-177..T-192; the owner wants these fixed before any other task.
+
+## Owner notes 2026-10-21 (build fb0090a), menus
+Tracked in TASKS.md under the menu spec heading (T-177, T-178, T-179,
+T-185, T-187, T-189, T-192, T-193, T-194): flips like the linked video and
+instant; scroll overshoot; pixely/missing arrows; Options list trimmed
+(Mods greyed, subtitles into Audio, no Speedrun); spacing per aspect;
+Robot Enrichment lower and aligned; voice rows greyed; no Graphics row;
+Edit Keys hover colour; no cursor during intro; list dead controls.
