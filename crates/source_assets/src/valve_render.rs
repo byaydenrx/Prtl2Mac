@@ -162,15 +162,6 @@ pub(crate) struct GpuMesh {
     pub(crate) count: u32,
     /// Bounds of the vertices (Source units, model space).
     pub(crate) bounds: (Vec3, Vec3),
-    /// Generation of the skinned vertices last uploaded.
-    gen: u64,
-}
-
-fn vertex_bounds(v: &[FatVertex]) -> (Vec3, Vec3) {
-    v.iter().fold((Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)), |(lo, hi), v| {
-        let p = Vec3::new(v.position[0], v.position[1], v.position[2]);
-        (lo.min(p), hi.max(p))
-    })
 }
 
 struct PreparedDraw {
@@ -493,38 +484,29 @@ pub(crate) fn prepare_surfaces(
     // ---- meshes ----
     for (d, _, _) in &extracted.draws {
         let key = (Arc::as_ptr(&d.vertices) as usize, Arc::as_ptr(&d.indices) as usize);
-        if let Some(&mi) = prepared.mesh_index.get(&key) {
-            // Soft-skinned: upload the vertices again when the bones moved.
-            if let Some(sk) = &d.skinned {
-                let data = sk.0.lock().unwrap();
-                let mesh = &mut prepared.meshes[mi];
-                if data.0 != mesh.gen && data.1.len() == d.vertices.len() {
-                    queue.write_buffer(&mesh.vertex, 0, bytemuck::cast_slice(&data.1));
-                    mesh.bounds = vertex_bounds(&data.1);
-                    mesh.gen = data.0;
-                }
-            }
+        if prepared.mesh_index.contains_key(&key) {
             continue;
         }
-        let usage = if d.skinned.is_some() { BufferUsages::VERTEX | BufferUsages::COPY_DST } else { BufferUsages::VERTEX };
         let vertex = device.create_buffer_with_data(&BufferInitDescriptor {
             label: Some("valve vertices"),
             contents: bytemuck::cast_slice(&d.vertices),
-            usage,
+            usage: BufferUsages::VERTEX,
         });
         let index = device.create_buffer_with_data(&BufferInitDescriptor {
             label: Some("valve indices"),
             contents: bytemuck::cast_slice(&d.indices),
             usage: BufferUsages::INDEX,
         });
-        let bounds = vertex_bounds(&d.vertices);
+        let bounds = d.vertices.iter().fold((Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)), |(lo, hi), v| {
+            let p = Vec3::new(v.position[0], v.position[1], v.position[2]);
+            (lo.min(p), hi.max(p))
+        });
         prepared.mesh_index.insert(key, prepared.meshes.len());
         prepared.meshes.push(GpuMesh {
             vertex,
             index,
             count: d.indices.len() as u32,
             bounds,
-            gen: 0,
         });
     }
 

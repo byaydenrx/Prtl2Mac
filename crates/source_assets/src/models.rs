@@ -305,43 +305,6 @@ pub fn split_by_bone(mesh: &ModelMesh, pose_to_bone: &[Affine3A], bone_to_model:
     parts
 }
 
-/// Whether a mesh is soft-skinned: some vertex blends several bones. Such
-/// meshes (the intro1 ride's rebar and torn sheet metal) tear apart when
-/// split into rigid parts, so they are skinned whole ([`skin_vertices`]).
-pub fn is_soft(mesh: &ModelMesh) -> bool {
-    mesh.bone_weights.iter().any(|w| w.iter().filter(|x| x.1 > 0.0).count() > 1)
-}
-
-/// Linear-blend skinning, as Source's vertex shaders do: each bind-pose
-/// vertex (Source space) moved by its bones' `skin[bone]` (bone-to-model
-/// times pose-to-bone), weighted. Weights are renormalised; bones past
-/// `skin` count as identity. Returns positions and normalised normals.
-pub fn skin_vertices(mesh: &ModelMesh, skin: &[Affine3A]) -> (Vec<Vec3>, Vec<Vec3>) {
-    let mut pos = Vec::with_capacity(mesh.source_positions.len());
-    let mut nrm = Vec::with_capacity(mesh.source_positions.len());
-    for (i, (&p, &n)) in mesh.source_positions.iter().zip(&mesh.source_normals).enumerate() {
-        let w = mesh.bone_weights.get(i).copied().unwrap_or([(0, 1.0), (0, 0.0), (0, 0.0)]);
-        let total: f32 = w.iter().map(|x| x.1.max(0.0)).sum();
-        let (mut sp, mut sn) = (Vec3::ZERO, Vec3::ZERO);
-        for (b, wt) in w {
-            if wt <= 0.0 {
-                continue;
-            }
-            let m = skin.get(b as usize).copied().unwrap_or(Affine3A::IDENTITY);
-            let k = if total > 0.0 { wt / total } else { 1.0 };
-            sp += m.transform_point3(p) * k;
-            sn += m.transform_vector3(n) * k;
-        }
-        if total <= 0.0 {
-            sp = p;
-            sn = n;
-        }
-        pos.push(sp);
-        nrm.push(sn.normalize_or_zero());
-    }
-    (pos, nrm)
-}
-
 /// A bone's model-space transform (Source axes and units, as from
 /// [`crate::skeleton::Skeleton::bone_to_model`]) as a [`Transform`] in the
 /// model entity's space (world axes, metres): rotation `C R C^-1` with `C`
@@ -852,24 +815,6 @@ mod pose_sweep {
 #[cfg(test)]
 mod part_tests {
     use super::*;
-
-    #[test]
-    fn soft_vertices_blend_their_bones() {
-        let m = ModelMesh {
-            source_positions: vec![Vec3::ZERO, Vec3::X],
-            source_normals: vec![Vec3::Z, Vec3::Z],
-            bone_weights: vec![[(0, 0.5), (1, 0.5), (0, 0.0)], [(1, 1.0), (0, 0.0), (0, 0.0)]],
-            ..Default::default()
-        };
-        assert!(is_soft(&m));
-        let skin = [Affine3A::IDENTITY, Affine3A::from_translation(Vec3::new(0.0, 10.0, 0.0))];
-        let (p, n) = skin_vertices(&m, &skin);
-        assert!((p[0] - Vec3::new(0.0, 5.0, 0.0)).length() < 1e-5, "{:?}", p[0]);
-        assert!((p[1] - Vec3::new(1.0, 10.0, 0.0)).length() < 1e-5);
-        assert!((n[0] - Vec3::Z).length() < 1e-5);
-        let rigid = ModelMesh { bone_weights: vec![[(1, 1.0), (0, 0.0), (0, 0.0)]], ..Default::default() };
-        assert!(!is_soft(&rigid));
-    }
 
     /// Two bones: bone 0 at the origin, bone 1 at (10, 0, 0) turned 90
     /// degrees about Z. Bind-pose (model space) transforms of each bone.
