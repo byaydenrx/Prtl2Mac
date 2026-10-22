@@ -1,5 +1,10 @@
+> [!NOTE]
+> **This is upstream's README** (Stink-O/Portal2-rust-engine, release 0.1.0), kept for reference with its
+> links fixed for this folder. It describes the toolkit Prtl2Mac started from, not Prtl2Mac today: see the
+> [project README](../README.md) and [PROJECT_STATE.md](../PROJECT_STATE.md).
+
 <p align="center">
-  <img src="docs/images/ferris-portals.png" alt="Ferris the Rust crab holding a portal gun, between a blue and an orange portal" width="520">
+  <img src="images/ferris-portals.png" alt="Ferris the Rust crab holding a portal gun, between a blue and an orange portal" width="520">
 </p>
 
 # Portal 2 Rust Engine
@@ -24,7 +29,7 @@ with recursion, Chell seen through the portals as you walk through them, and Por
 </p>
 
 <p align="center">
-  <img alt="Looking back through the orange portal, with the view recursing and the portal gun in hand" width="720" src="docs/screenshots/portals.png">
+  <img alt="Looking back through the orange portal, with the view recursing and the portal gun in hand" width="720" src="screenshots/portals.png">
 </p>
 
 > [!IMPORTANT]
@@ -92,7 +97,7 @@ and checked against it number by number. It is written in Rust from those notes,
   camera, controller or body model).
 
 <p align="center">
-  <img alt="Chell halfway through a portal: the half that has gone through steps out of the orange portal in one piece" width="720" src="docs/screenshots/body-through-portal.png">
+  <img alt="Chell halfway through a portal: the half that has gone through steps out of the orange portal in one piece" width="720" src="screenshots/body-through-portal.png">
 </p>
 
 ## New in 0.1.0
@@ -191,7 +196,7 @@ fn setup(mut commands: Commands) {
 
 Add `PortalPlugins` after `DefaultPlugins`. Without Portal 2 installed, the app logs why and exits with an error
 before opening a window. Every plugin in the group can be turned off and replaced with your own; the table in
-[`crates/p2_portals/README.md`](crates/p2_portals/README.md) says what each one does and what to provide instead.
+[`crates/p2_portals/README.md`](../crates/p2_portals/README.md) says what each one does and what to provide instead.
 Each crate's README documents its public API and its own known gaps.
 
 ## Building it in with an AI agent
@@ -244,19 +249,19 @@ from my game's code, tell me what is missing.
 
 | crate | what it does |
 |---|---|
-| [`p2_portals`](crates/p2_portals) | the plugin group, and the place to start |
-| [`p2_core`](crates/p2_core) | shared types and messages: player, portals, view angles, the frame and system order |
-| [`p2_assets`](crates/p2_assets) | finds and mounts Portal 2, portal textures, model animation sampling |
-| [`p2_movement`](crates/p2_movement) | the Source / Portal 2 first-person controller, keyboard and mouse |
-| [`p2_gun`](crates/p2_gun) | firing and placing portals |
-| [`p2_transit`](crates/p2_transit) | teleporting through portals, and the wall behind an open portal |
-| [`p2_render`](crates/p2_render) | views through portals, recursion and the portal surface shader |
-| [`p2_view`](crates/p2_view) | the first-person camera, the gun viewmodel and the crosshair |
-| [`p2_body`](crates/p2_body) | Chell, her animation, and her copy through portals |
-| [`p2_fx`](crates/p2_fx) | Portal 2's particle systems and sounds |
-| [`p2_room`](crates/p2_room) | the demo's test chamber |
-| [`p2_app`](crates/p2_app) | the demo binary, `portal2-demo` |
-| [`source_assets`](crates/source_assets) | reading Portal 2's files: VPK, VMT/VTF materials, MDL models, sound and particle data |
+| [`p2_portals`](../crates/p2_portals) | the plugin group, and the place to start |
+| [`p2_core`](../crates/p2_core) | shared types and messages: player, portals, view angles, the frame and system order |
+| [`p2_assets`](../crates/p2_assets) | finds and mounts Portal 2, portal textures, model animation sampling |
+| [`p2_movement`](../crates/p2_movement) | the Source / Portal 2 first-person controller, keyboard and mouse |
+| [`p2_gun`](../crates/p2_gun) | firing and placing portals |
+| [`p2_transit`](../crates/p2_transit) | teleporting through portals, and the wall behind an open portal |
+| [`p2_render`](../crates/p2_render) | views through portals, recursion and the portal surface shader |
+| [`p2_view`](../crates/p2_view) | the first-person camera, the gun viewmodel and the crosshair |
+| [`p2_body`](../crates/p2_body) | Chell, her animation, and her copy through portals |
+| [`p2_fx`](../crates/p2_fx) | Portal 2's particle systems and sounds |
+| [`p2_room`](../crates/p2_room) | the demo's test chamber |
+| [`p2_app`](../crates/p2_app) | the demo binary, `portal2-demo` |
+| [`source_assets`](../crates/source_assets) | reading Portal 2's files: VPK, VMT/VTF materials, MDL models, sound and particle data |
 
 `shared`, `d3d9_decl`, `d3d9_sm3` and `d3d9_state` are support crates used by `source_assets`.
 
@@ -287,8 +292,8 @@ Bug reports are welcome in [Issues](https://github.com/Stink-O/Portal2-rust-engi
 
 ## Credits and licence
 
-MIT licensed: see [LICENSE](LICENSE). The mascot is [Ferris](https://rustacean.net) by Karen Rustad Tölva (public
-domain), with a portal gun. Third-party code and its licences are listed in [NOTICE](NOTICE): the
+MIT licensed: see [LICENSE](../LICENSE). The mascot is [Ferris](https://rustacean.net) by Karen Rustad Tölva (public
+domain), with a portal gun. Third-party code and its licences are listed in [NOTICE](../NOTICE): the
 `d3d9_*` crates come from [IW4L](https://github.com/vladtrc/iw4L) (Apache-2.0).
 
 An independent fan project, not affiliated with or endorsed by Valve. Portal 2 is Valve's, and you need your own
