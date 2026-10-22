@@ -45,6 +45,10 @@ add detail there, keep the four documents short.
    summaries come back (the full log path is printed).
 6. RECORD: task -> DONE with evidence (or NEEDS_VERIFICATION / BLOCKED with the
    reason); update PROJECT_STATE.md and SESSION_HANDOFF.md; commit; push.
+   If the task changed code, then run `sh scripts/make_app.sh` so the owner's
+   `dist/Prtl2Mac.app` has the fix (the old app is kept as
+   Prtl2Mac-previous.app), and put its build id (Contents/Resources/BUILD.txt)
+   in the handoff and the run log, with what to replay.
 7. CONTINUE with the next task. Don't stop after one task while usage remains.
 
 Statuses: TODO, IN_PROGRESS, BLOCKED, NEEDS_VERIFICATION, DONE.
