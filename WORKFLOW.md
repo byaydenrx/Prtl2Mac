@@ -43,8 +43,9 @@ add detail there, keep the four documents short.
 
 Statuses: TODO, IN_PROGRESS, BLOCKED, NEEDS_VERIFICATION, DONE.
 Map statuses (PROJECT_STATE.md): NOT STARTED, IN PROGRESS, BLOCKED, VERIFIED.
-VERIFIED only with evidence (autopilot log lines, screenshots, or the owner's
-manual play). Say which.
+VERIFIED only when the owner has played the map through (owner, 2026-10-21).
+Autopilot log lines, screenshots and saved routes are evidence that a map is
+solvable; with them the map stays IN PROGRESS and goes to the owner to play.
 
 ## Commit and push routine
 ```
@@ -130,9 +131,8 @@ for independent tasks with separate files.
   (headless analysis/scripts) for server.dll/client.dll behaviour (entity
   logic, cvar defaults, physics constants). Understand, then write our own
   code; never use leaked source.
-  OPEN DECISION (owner, flagged 2026-10-21): this conflicts with
-  docs/STATUS.md line 8 ("never ... decompile Valve binaries"). Not resolved;
-  see CLAUDE.md "Open decisions". Either way, never commit decompiled code.
+  Confirmed by the owner 2026-10-21 (personal project). Never commit
+  decompiled code or paste it into docs; write findings in your own words.
 
 ## Gotchas (map logic)
 - Departure elevators only arrive after the player walks through
@@ -162,8 +162,7 @@ for independent tasks with separate files.
   own install (Ghidra, tools in ~/Documents/Claude/tools) to understand
   behaviour is fine; write our own code. The install's `bin/*.fgd` files
   document every entity (`LC_ALL=C grep -a`).
-  (Conflicts with docs/STATUS.md line 8; owner decision pending, see
-  CLAUDE.md "Open decisions".)
+  (Confirmed 2026-10-21.)
 - Never commit decompiled Valve code (owner, 2026-10-21).
 - Only touch the project, scratch/temp folders and
   ~/Library/Application Support/Portal2Rust.

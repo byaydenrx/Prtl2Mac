@@ -1,8 +1,9 @@
 # Map routes
 
 One file per proven map, `<map>.txt`: the autopilot script that solves it.
-This is the evidence TASKS.md's "Prove a map" asks for, and what makes a map
-VERIFIED in PROJECT_STATE.md. No map has one yet (2026-10-21).
+This is the evidence TASKS.md's "Prove a map" asks for. It shows the map is
+solvable; the map only becomes VERIFIED in PROJECT_STATE.md once the owner
+has played it. No map has one yet (2026-10-21).
 
 A route plays the intended solution from the map's start with movement,
 `fire`, `use` and props: no `setpos` past a puzzle step and no `input` on

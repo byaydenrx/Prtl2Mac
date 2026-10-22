@@ -39,7 +39,8 @@ that use `setpos`/`input` prove logic, not playability.
   UI), matchmaking.dll; Windows PE32 (x86). Engine/shader DLLs (engine.dll,
   materialsystem, shaderapidx9) are in another depot, not installed. The
   game still mounts depot_621 for content. Use: reverse engineering to
-  understand behaviour, own code only (WORKFLOW owner rules).
+  understand behaviour, own code only (WORKFLOW owner rules; confirmed by the
+  owner 2026-10-21; never commit decompiled code).
 
 ## Build and package
 - [x] `cargo build --release`, `cargo test --release --workspace` pass
@@ -54,7 +55,10 @@ that use `setpos`/`input` prove logic, not playability.
 ## Map status
 Columns: L load, O objective logic, S solvable (route played with mechanics),
 N next map loads, R restart works. `y` proven, `-` not checked, `x` broken.
-Status: VERIFIED = L O S N y (R may be `-` until T-090); IN PROGRESS = some
+Status: VERIFIED = the owner played the map through (owner's rule,
+2026-10-21) and L O S N are y (R may be `-` until T-090); autopilot runs and
+saved routes (scripts/routes/) are supporting evidence only, so a map Claude
+solved stays IN PROGRESS until the owner plays it. IN PROGRESS = some
 proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 
 | Ch | Map | L | O | S | N | R | Status | Evidence / notes |
@@ -74,14 +78,14 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 2 | sp_a2_trust_fling | y | - | - | y | - | IN PROGRESS | plates land on target; T-005 |
 | 2 | sp_a2_pit_flings | y | - | - | y | - | IN PROGRESS | plates land on target; T-006 |
 | 2 | sp_a2_fizzler_intro | y | - | - | y | - | IN PROGRESS | T-007 |
-| 3 | sp_a2_sphere_peek, ricochet, bridge_intro | y | y | y | y | - | VERIFIED | solved (ch3-5 session) |
+| 3 | sp_a2_sphere_peek, ricochet, bridge_intro | y | y | y | y | - | IN PROGRESS | solved by autopilot (ch3-5 session); owner hasn't played them (was VERIFIED before the 2026-10-21 rule) |
 | 3 | sp_a2_bridge_the_gap | y | - | - | y | - | IN PROGRESS | T-008 |
 | 3 | sp_a2_turret_intro | y | - | - | y | - | IN PROGRESS | walk-in transition_trigger works; T-008 |
 | 3 | sp_a2_laser_relays | y | - | - | y | - | IN PROGRESS | T-008 |
 | 3 | sp_a2_turret_blocker, laser_vs_turret, pull_the_rug | y | - | - | y | - | IN PROGRESS | T-008 |
 | 4 | sp_a2_column_blocker, laser_chaining, triple_laser, bts1, bts2 | - | - | - | - | - | NOT STARTED | T-010 |
 | 5 | sp_a2_bts3..bts6, sp_a2_core | - | - | - | - | - | NOT STARTED | T-011 |
-| 6 | sp_a3_00, sp_a3_01, sp_a3_03 | y | y | y | y | - | VERIFIED | I/O chains and transitions (ch6-9 session) |
+| 6 | sp_a3_00, sp_a3_01, sp_a3_03 | y | y | y | y | - | IN PROGRESS | I/O chains and transitions by autopilot with setpos/use (ch6-9 session); owner hasn't played them (was VERIFIED before the 2026-10-21 rule) |
 | 6 | sp_a3_jump_intro | y | y | - | - | - | IN PROGRESS | buttons/doors proven; gel + portal climb not flown (T-012) |
 | 6 | sp_a3_bomb_flings, crazy_box, transition01 | - | - | - | - | - | NOT STARTED | T-012 |
 | 7 | sp_a3_speed_ramp, speed_flings, portal_intro, end | - | - | - | - | - | NOT STARTED | T-013 |

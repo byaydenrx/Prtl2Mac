@@ -12,7 +12,9 @@ docs/PLAYTESTS.md (history only, everything there is tracked here).
 autopilot script plays the intended solution with movement, `fire`, `use`
 and props (no `setpos` past a puzzle step, no `input` on puzzle entities);
 the exit opens from the puzzle's own outputs; the next map loads. Save the
-script as `scripts/routes/<map>.txt`. Engine bugs found become tasks.
+script as `scripts/routes/<map>.txt`. Engine bugs found become tasks. A
+proven map stays IN PROGRESS in PROJECT_STATE.md until the owner plays it
+(owner, 2026-10-21: VERIFIED means the owner played it).
 
 Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 4 intro5/intro6, 5 intro7 + sp_a1_wakeup + sp_a2_intro, 6 sp_a2_laser_intro,

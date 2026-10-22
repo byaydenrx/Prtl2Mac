@@ -45,8 +45,8 @@ More commands, including the scripted autopilot runs used for testing, are in [T
 | Portals, portal gun, player, Chell, particles and sounds (from upstream 0.1.0) | `p2_portals` and the `p2_*` crates it groups |
 | Reading the game's files; Portal 2's own D3D9 shaders translated to WGSL; level scripts | `source_assets`, `d3d9_*`, `vscript`, `p2_assets` |
 
-Behaviour comes from the levels' own entity wiring and scripts, public file formats and observation of the original
-game. Code comments cite behaviour notes under `research/specs/`, which are not in this repository.
+Behaviour comes from the levels' own entity wiring and scripts, public file formats, observation of the original
+game and study of its binaries; no Valve code is in this repository. Code comments cite behaviour notes under `research/specs/`, which are not in this repository.
 
 ## Working on it
 
