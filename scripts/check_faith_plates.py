@@ -1,8 +1,11 @@
 # Faith plate check: stand on each trigger_catapult, see how close the player gets to its launch target.
 # Usage (from the repo, after cargo build --release): python3 scripts/check_faith_plates.py sp_a2_catapult_intro ...
 import os, re, subprocess, sys
-REPO = "/Users/aydensnider/Documents/Claude/Portal2-rust-engine"
-env = dict(os.environ, PORTAL2_DIR=os.path.expanduser("~/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steamapps/content/app_620/depot_621"))
+# The checkout this script lives in (any worktree), not a fixed path.
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+env = dict(os.environ)
+# The asset examples need PORTAL2_DIR; keep the caller's, else the owner's macOS depot.
+env.setdefault("PORTAL2_DIR", os.path.expanduser("~/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steamapps/content/app_620/depot_621"))
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 def run(m, script, secs):
     e = dict(env, P2_SCRIPT=script)
@@ -26,7 +29,7 @@ for m in sys.argv[1:]:
     info = run(m, "3 " + "; 3 ".join("info " + n for n in names.split()) + "; 3.2 quit", 60)
     pos, bounds = {}, {}
     for line in info.splitlines():
-        mm = re.search(r'"([^"]+)" enabled .* at source Vec3\(([-\d.]+), ([-\d.]+), ([-\d.]+)\) bounds (Some\(\(Vec3\(([-\d.]+), ([-\d.]+), ([-\d.]+)\), Vec3\(([-\d.]+), ([-\d.]+), ([-\d.]+)\)\)\)|None)', line)
+        mm = re.search(r'"([^"]+)" enabled .* at source Vec3\(([-\d.]+), ([-\d.]+), ([-\d.]+)\).*? bounds (Some\(\(Vec3\(([-\d.]+), ([-\d.]+), ([-\d.]+)\), Vec3\(([-\d.]+), ([-\d.]+), ([-\d.]+)\)\)\)|None)', line)
         if mm:
             pos[mm.group(1)] = [float(mm.group(i)) for i in (2, 3, 4)]
             if mm.group(6): bounds[mm.group(1)] = [float(mm.group(i)) for i in range(6, 12)]

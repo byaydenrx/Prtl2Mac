@@ -7,6 +7,7 @@ branch `main`. The owner authorizes committing and pushing to `main`.
 ## The four documents (git is the source of truth, not chat history)
 - `PROJECT_STATE.md`: release target, per-map status with evidence, blockers.
 - `TASKS.md`: the backlog. IDs, priority, status, acceptance, evidence.
+  Owner-held tasks (menus, screenshot tasks) live in `docs/TASKS_ON_HOLD.md`.
 - `SESSION_HANDOFF.md`: exactly where the last session stopped and the next action.
 - `WORKFLOW.md`: this file.
 `docs/PLAYTESTS.md` keeps the owner's raw playtest reports (history; every
@@ -15,7 +16,9 @@ add detail there, keep the four documents short.
 
 ## Resume (start of every session)
 1. `sh scripts/resume.sh` (or read its output if someone ran it): git state of
-   every worktree, uncommitted work, the handoff's next action, the top task.
+   every worktree, uncommitted work, the handoff's next action, the priority
+   order, task counts, and the full entry of the next task (so TASKS.md
+   doesn't need opening to start).
 2. Check the handoff against reality: build (`~/.cargo/bin/cargo build --release`)
    and, if the last task touched code, its targeted test. Don't trust a status
    you haven't seen evidence for.
@@ -32,20 +35,23 @@ add detail there, keep the four documents short.
 4. IMPLEMENT: focused change, no unrelated refactors.
 5. VERIFY: `cargo test --release -p p2_game` (plus the crate touched) and a real
    game run when behaviour is involved (autopilot below). Read the diff.
+   Wrap cargo in `sh scripts/quiet.sh ...` so only errors, failures and
+   summaries come back (the full log path is printed).
 6. RECORD: task -> DONE with evidence (or NEEDS_VERIFICATION / BLOCKED with the
    reason); update PROJECT_STATE.md and SESSION_HANDOFF.md; commit; push.
 7. CONTINUE with the next task. Don't stop after one task while usage remains.
 
 Statuses: TODO, IN_PROGRESS, BLOCKED, NEEDS_VERIFICATION, DONE.
 Map statuses (PROJECT_STATE.md): NOT STARTED, IN PROGRESS, BLOCKED, VERIFIED.
-VERIFIED only with evidence (autopilot log lines, screenshots, or the owner's
-manual play). Say which.
+VERIFIED only when the owner has played the map through (owner, 2026-10-21).
+Autopilot log lines, screenshots and saved routes are evidence that a map is
+solvable; with them the map stays IN PROGRESS and goes to the owner to play.
 
 ## Commit and push routine
 ```
 git add <files> && git commit -m "<what and why>"   # end with the Co-Authored-By line
 git fetch -q origin && git merge --no-edit origin/main   # never rebase/force
-~/.cargo/bin/cargo build --release && ~/.cargo/bin/cargo test --release -p p2_game
+sh scripts/quiet.sh ~/.cargo/bin/cargo build --release && sh scripts/quiet.sh ~/.cargo/bin/cargo test --release -p p2_game
 git push origin HEAD:main
 ```
 Never reset, clean, force-push, or touch another session's checkout. If a
@@ -54,9 +60,11 @@ merge conflicts, resolve it keeping both sides' intent, rebuild, retest.
 ## Working copies
 One coding session by default. Each local session works in its own git
 worktree (`git worktree add ../Portal2-<name> -b <name> origin/main`), never in
-another session's folder. `../Portal2-rust-engine` is the main checkout; check
-`git worktree list` and SESSION_HANDOFF.md for who owns what. At most two extra
-sessions, only for independent tasks with separate files.
+another session's folder. Which checkout is active is recorded in
+SESSION_HANDOFF.md "Checkouts" (2026-10-20: `Portal2-wheatley`; the old main
+checkout `Portal2-rust-engine` is stuck mid-merge, owner to decide, leave it
+alone); `git worktree list` shows them all. At most two extra sessions, only
+for independent tasks with separate files.
 
 ## Running the game (verification)
 - Game files: found automatically (Steam libraries or the depot under
@@ -93,7 +101,9 @@ sessions, only for independent tasks with separate files.
 
 ## Unattended runs (scheduled task `prtl2mac-auto-resume-2`; the old `prtl2mac-auto-resume` folder is unused)
 - One task per fresh session; lock in ~/Library/Application Support/
-  Portal2Rust/autopilot-session.lock; one row per run in docs/AUTORUN_LOG.md.
+  Portal2Rust/autopilot-session.lock; one row per run in docs/AUTORUN_LOG.md,
+  appended with `sh scripts/log_run.sh <task> <outcome> <commit> <build>`
+  (no need to read the log).
 - Only reproduced, verified fixes reach main. A bug a run could not
   reproduce gets a best-guess fix on a local, never-pushed branch
   `attempt/T-<n>`, noted in the task and the handoff. Owner sessions review
@@ -121,6 +131,8 @@ sessions, only for independent tasks with separate files.
   (headless analysis/scripts) for server.dll/client.dll behaviour (entity
   logic, cvar defaults, physics constants). Understand, then write our own
   code; never use leaked source.
+  Confirmed by the owner 2026-10-21 (personal project). Never commit
+  decompiled code or paste it into docs; write findings in your own words.
 
 ## Gotchas (map logic)
 - Departure elevators only arrive after the player walks through
@@ -136,6 +148,11 @@ sessions, only for independent tasks with separate files.
 
 ## Cost rules
 - Read the handoff and the named files; don't rescan the repository.
+- Don't read the long files whole (TASKS.md, docs/TASKS_ON_HOLD.md,
+  docs/STATUS.md, docs/AUTORUN_LOG.md, docs/PLAYTESTS.md): grep by task id
+  or read the lines you need.
+- Cargo output through `sh scripts/quiet.sh`; game logs through a targeted
+  `RUST_LOG` and `grep`, never raw.
 - Prefer targeted tests and short autopilot runs over full sweeps.
 - No subagents/extra sessions unless a task is independent and worth it.
 - Model choice and usage limits are set by the owner in the Claude app.
@@ -145,6 +162,8 @@ sessions, only for independent tasks with separate files.
   own install (Ghidra, tools in ~/Documents/Claude/tools) to understand
   behaviour is fine; write our own code. The install's `bin/*.fgd` files
   document every entity (`LC_ALL=C grep -a`).
+  (Confirmed 2026-10-21.)
+- Never commit decompiled Valve code (owner, 2026-10-21).
 - Only touch the project, scratch/temp folders and
   ~/Library/Application Support/Portal2Rust.
 - Keep the game as close to the original as possible; new options go inside

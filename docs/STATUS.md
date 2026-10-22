@@ -5,7 +5,10 @@ player's install, natively on Apple Silicon (Metal), on top of the Portal 2
 Rust Engine crates. No Valve code: behaviour comes from the levels' own
 entity wiring, the game's text scenes/scripts/captions, public file formats
 and observation. Never use leaked Valve source (the owner has some in
-~/Downloads/game — do not open or use it) or decompile Valve binaries.
+~/Downloads/game — do not open or use it). Studying the owner's own
+server.dll/client.dll (Ghidra) to understand behaviour is allowed (owner,
+2026-10-21; this replaces the earlier "or decompile Valve binaries"); write
+our own code and never commit decompiled code.
 
 ## Run
 
