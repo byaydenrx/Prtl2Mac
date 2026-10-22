@@ -30,6 +30,10 @@ T-173, T-174, T-145, T-147, T-149, T-116, T-152, T-151, T-154; T-164
 skipped; T-120 done enough. Don't work on anything already fixed.
 Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles, T-150
 motion blur and gun glow, T-213 PotatOS on the gun, T-198 faith plates, T-215 winref.sh.
+This list is the one source of what's next: the handoff's "Next action" names
+its first open item, and resume.sh warns when they disagree.
+0. T-130 sp_a1_intro6: no portal under the resting cube (the last chapter 1
+   blocker; owner's pick, 2026-10-21 evening).
 1. T-212 loud glass smash at sp_a3_00 load (owner report). BLOCKED: attempt/T-212.
 2. T-213 PotatOS missing from the portal gun. FIXED a598811, awaiting replay.
 2b. T-215 Windows reference capture tool. DONE (scripts/winref.sh), awaiting replay.
@@ -57,6 +61,26 @@ them until the owner lifts the hold; search that file by task id.
 (none)
 
 ## Open: P1
+
+### T-130 sp_a1_intro6: can't put a portal under the resting cube; needed noclip  (P1, TODO; reopened 2026-10-21)
+- Owner playtest 8 (section 4): "couldn't get the cube down the portal
+  without noclip (should be able to place a portal under the cube by
+  shooting through it)"; playtest 7: "a cube still didn't fall into a
+  portal (noclip needed)". PROJECT_STATE.md has intro6 BLOCKED on this.
+- 2026-10-20 (0454ed8): the handrail half is fixed (models compiled
+  `$contents grate` let shots through). The cube half was NOT reproduced:
+  loose cubes already let shots pass (dynamic bodies are skipped), and in
+  that autopilot run the dropped cube landed tilted on non-portalable dirt at
+  (1947,381), ~25 u up a wall. The entry then left TASKS.md in owner round 5
+  (ef0144c) without the cube case being confirmed; restored here.
+- Leads: where the cube rests on the intended route; what the shot hits
+  there (`ray`, `portalable`, `info`); whether placement refuses because the
+  cube's collider overlaps the portal area or the surface under it, rather
+  than the trace stopping at the cube; what Portal 2 does (Windows reference
+  via scripts/winref.sh; server.dll study is allowed).
+- Acceptance: a route in scripts/routes/sp_a1_intro6.txt solves intro6 from
+  its start without noclip or setpos past a puzzle step; then the owner
+  replays it (VERIFIED needs the owner's play).
 
 ## Open: engine gaps (2026-10-21 audit: upstream READMEs + all-maps sweep; docs/UPSTREAM_GAPS.md)
 

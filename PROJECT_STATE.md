@@ -1,6 +1,7 @@
 # Project state
 
-Last updated 2026-10-20. Keep this current; evidence goes in TASKS.md and
+Last updated 2026-10-21 (map statuses re-checked against the owner's
+VERIFIED rule; release blockers refreshed). Keep this current; evidence goes in TASKS.md and
 docs/STATUS.md.
 
 ## Release target (honest definition)
@@ -93,7 +94,12 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 9 | sp_a4_finale1..finale4 | - | - | - | - | - | NOT STARTED | T-015 |
 
 ## Release blockers (open P0/P1)
-- TASKS "Priority order" P1 items: T-129, T-130, T-131, T-105, T-132.
+- T-130: sp_a1_intro6 needs noclip (no portal under the resting cube).
+- sp_a2_laser_stairs: T-128 stairs fix (8ac53a2) awaiting the owner's replay.
+- T-211 gels (P1) before chapters 6-8; gel isn't kept in saves (saves.rs).
+- (The 2026-10-20 list here is closed: T-129 and T-132 fixed by autoruns,
+  T-131 owner-confirmed, T-105 carried on as T-167/T-170 (T-170
+  owner-confirmed); see TASKS.md Done and docs/AUTORUN_LOG.md.)
 - Most chapter 2-3 puzzles unproven (T-002..T-008).
 - Chapters 4-9 not swept (T-010..T-015).
 - Restart/reload never checked per map (T-090).

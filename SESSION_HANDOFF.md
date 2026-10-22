@@ -4,7 +4,13 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-21 16:50 autorun: T-215 DONE: scripts/winref.sh takes reliable
+2026-10-21 22:55 owner session (cloud, docs and scripts only): post-audit
+housekeeping merged (9611a25): resume.sh fixed and now picks the next task
+from TASKS.md's priority order; on-hold tasks in docs/TASKS_ON_HOLD.md;
+owner decisions in CLAUDE.md (studying Valve's binaries is allowed, never
+commit decompiled code; VERIFIED = the owner played it); T-130 restored and
+put first. No code changed; the app build below is still current.
+Before that, 16:50 autorun: T-215 DONE: scripts/winref.sh takes reliable
 Windows Portal 2 reference shots (netcon console over TCP, waits for the
 load to finish). See WORKFLOW.md "Windows Portal 2 reference". First
 finding: laser_intro start is much darker in ours than in Windows.
@@ -21,8 +27,10 @@ kept; re-import takes ~10 min (JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/op
 - Regression-check note: sp_a3_jump_intro's 8 s shot is sometimes washed
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
-## Next action (auto sessions; owner away 24-48 h from 2026-10-21 evening)
-Follow TASKS.md "Priority order": the common engine gaps (T-203 lights, T-199 sprite
+## Next action (manual and auto sessions)
+T-130: make sp_a1_intro6 solvable without noclip and save its route
+(scripts/routes/sp_a1_intro6.txt); owner's pick, the last chapter 1 blocker.
+Then TASKS.md "Priority order": the common engine gaps (T-203 lights, T-199 sprite
 sheets, T-214 DecalModulate/SolidEnergy/broken models, T-201, T-206, T-200,
 T-202, T-204), T-211 gels, then the campaign T-002..T-015. Audit docs:
 docs/UPSTREAM_GAPS.md, T-214. Tools: p2_fx `pcfdump`, `fxaudit`; mdlinfo now

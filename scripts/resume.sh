@@ -70,11 +70,20 @@ else echo "  TASKS.md missing"; fi
 echo
 echo "== Next task's entry"
 if [ -f TASKS.md ]; then
-    # An IN_PROGRESS task wins; else the first task the handoff's next action names.
-    id=$(grep -m1 '^### T-[0-9]* .*IN_PROGRESS' TASKS.md | grep -oE 'T-[0-9]+' | head -1)
-    [ -z "$id" ] && [ -f SESSION_HANDOFF.md ] && id=$(section SESSION_HANDOFF.md "Next action" | grep -oE 'T-[0-9]+' | head -1)
+    # An IN_PROGRESS task wins; else the priority order's first open item (the
+    # first numbered line not marked FIXED/DONE/BLOCKED/awaiting). The priority
+    # order is the one source of what's next; the handoff should agree with it.
+    active=$(grep -m1 '^### T-[0-9]* .*IN_PROGRESS' TASKS.md | grep -oE 'T-[0-9]+' | head -1)
+    top=$(section TASKS.md "Priority order" | grep -E '^[0-9]+[a-z]?\. ' | grep -viE 'FIXED|DONE|BLOCKED|awaiting' | grep -oE 'T-[0-9]+' | head -1)
+    said=$( [ -f SESSION_HANDOFF.md ] && section SESSION_HANDOFF.md "Next action" | grep -oE 'T-[0-9]+' | head -1)
+    id=${active:-$top}
     if [ -n "$id" ]; then entry "$id" TASKS.md docs/TASKS_ON_HOLD.md
-    else echo "  no task named; take the top of the priority order"; fi
+    else echo "  no open task in the priority order"; fi
+    if [ -n "$said" ] && [ "$said" != "$id" ]; then
+        why="top of the priority order"; [ -n "$active" ] && why="in progress"
+        echo "  NOTE: the handoff's next action names $said, but the next task is $id ($why)."
+        echo "  The priority order wins; update the handoff's next action."
+    fi
 fi
 
 if [ $build = 1 ]; then
@@ -86,6 +95,6 @@ if [ $build = 1 ]; then
 fi
 
 echo
-echo "== Resume prompt (paste into a new session)"
-echo "  Resume Prtl2Mac in $root. Follow WORKFLOW.md: run sh scripts/resume.sh,"
-echo "  verify the handoff, then continue the next action in SESSION_HANDOFF.md."
+echo "== For a NEW session only (this one has already run resume.sh)"
+echo "  Resume Prtl2Mac in $root: read CLAUDE.md, run sh scripts/resume.sh once,"
+echo "  then do the next task it prints."

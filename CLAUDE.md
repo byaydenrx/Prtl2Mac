@@ -5,9 +5,10 @@ Native Apple Silicon remake of Portal 2's engine (Rust, Bevy 0.19, avian3d
 Game through sp_a4_finale4, every map solvable, no softlocks.
 
 Follow `WORKFLOW.md`. At the start of a session run `sh scripts/resume.sh`
-(it prints the handoff's next action, the priority order and the next task's
-full entry), then continue with the next action in `SESSION_HANDOFF.md` (or
-the top unblocked task in `TASKS.md`). Keep `TASKS.md`, `PROJECT_STATE.md`
+once (it prints the handoff, the priority order and the next task's full
+entry), then do the next task it prints. TASKS.md's "Priority order" is the
+one source of what's next; a prompt from the owner overrides it, and if the
+handoff disagrees, fix the handoff. Keep `TASKS.md`, `PROJECT_STATE.md`
 and `SESSION_HANDOFF.md` current as you work, and commit and push them with
 the code. Work in your own git worktree; never edit another session's
 checkout.

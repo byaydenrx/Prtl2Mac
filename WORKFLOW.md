@@ -15,22 +15,28 @@ item is a task in TASKS.md). `docs/STATUS.md` is the long engineering log (how s
 add detail there, keep the four documents short.
 
 ## Resume (start of every session)
-1. `sh scripts/resume.sh` (or read its output if someone ran it): git state of
-   every worktree, uncommitted work, the handoff's next action, the priority
-   order, task counts, and the full entry of the next task (so TASKS.md
-   doesn't need opening to start).
-2. Check the handoff against reality: build (`~/.cargo/bin/cargo build --release`)
-   and, if the last task touched code, its targeted test. Don't trust a status
-   you haven't seen evidence for.
-3. Take the handoff's next action, or the top unblocked task in TASKS.md.
+1. `sh scripts/resume.sh`, once per session (CLAUDE.md already asks for it;
+   don't rerun it): git state of every worktree, uncommitted work, the
+   handoff's next action, the priority order, task counts, and the full entry
+   of the next task (so TASKS.md doesn't need opening to start).
+2. Check the handoff against reality: build
+   (`sh scripts/quiet.sh ~/.cargo/bin/cargo build --release`) and, if the last
+   task touched code, its targeted test. Don't trust a status you haven't seen
+   evidence for.
+3. Take the next task resume.sh prints: an IN_PROGRESS task, else the first
+   open item of TASKS.md's "Priority order". That list is the one source of
+   what's next; if the handoff names something else, the list wins and the
+   handoff gets fixed. A prompt from the owner overrides both.
 
 ## Loop (per task)
-1. SELECT: highest priority first. P0 build/crash/corruption; P1 portals,
+1. SELECT: the owner's priority order first (Resume step 3). For anything it
+   doesn't list, highest priority first. P0 build/crash/corruption; P1 portals,
    unsolvable puzzles, softlocks, broken progression/transitions; P2 campaign
    scope, restart/checkpoints, controls, assets, packaging; P3 performance and
    macOS usability; P4 polish/refactors/optional features. Never do P3/P4 while a
    known P0/P1 is open. Split anything that can't be verified in one sitting.
-2. MARK: set the task IN_PROGRESS in TASKS.md (and commit) before big work.
+2. MARK: set the task IN_PROGRESS in TASKS.md (and commit, no build needed)
+   before big work, so another session doesn't take it too.
 3. PLAN briefly: objective, files, acceptance, cheapest reliable check.
 4. IMPLEMENT: focused change, no unrelated refactors.
 5. VERIFY: `cargo test --release -p p2_game` (plus the crate touched) and a real
@@ -50,12 +56,18 @@ solvable; with them the map stays IN PROGRESS and goes to the owner to play.
 ## Commit and push routine
 ```
 git add <files> && git commit -m "<what and why>"   # end with the Co-Authored-By line
+before=$(git rev-parse HEAD)
 git fetch -q origin && git merge --no-edit origin/main   # never rebase/force
-sh scripts/quiet.sh ~/.cargo/bin/cargo build --release && sh scripts/quiet.sh ~/.cargo/bin/cargo test --release -p p2_game
+# Rebuild and retest only if the merge brought in code (your own code was
+# already built and tested in VERIFY); docs-only commits skip this.
+git diff --quiet "$before" HEAD -- crates Cargo.toml Cargo.lock || {
+  sh scripts/quiet.sh ~/.cargo/bin/cargo build --release && sh scripts/quiet.sh ~/.cargo/bin/cargo test --release -p p2_game; }
 git push origin HEAD:main
 ```
 Never reset, clean, force-push, or touch another session's checkout. If a
 merge conflicts, resolve it keeping both sides' intent, rebuild, retest.
+Run one session at a time on this repo (manual or automatic): two sessions
+on the same task waste both.
 
 ## Working copies
 One coding session by default. Each local session works in its own git
