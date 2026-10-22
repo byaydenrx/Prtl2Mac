@@ -6,6 +6,10 @@ Rust Engine crates. No Valve code: behaviour comes from the levels' own
 entity wiring, the game's text scenes/scripts/captions, public file formats
 and observation. Never use leaked Valve source (the owner has some in
 ~/Downloads/game — do not open or use it) or decompile Valve binaries.
+(OPEN DECISION, flagged 2026-10-21: the "decompile" part conflicts with
+WORKFLOW.md, which allows Ghidra on the owner's server.dll/client.dll and was
+used for T-198. Not resolved; see CLAUDE.md "Open decisions". Never commit
+decompiled code.)
 
 ## Run
 

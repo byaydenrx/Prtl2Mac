@@ -38,8 +38,18 @@ echo "== This checkout"
 git log -1 --format='  HEAD %h %s (%cr)'
 git status --short | sed 's/^/  /' | head -20
 
-section() { # print a "## <name>" section of a markdown file
-    awk -v h="## $2" '$0==h{on=1;next} /^## /{on=0} on' "$1" | sed '/^$/d'
+section() { # print a "## <name>..." section of a markdown file (heading may say more after <name>)
+    awk -v h="## $2" 'index($0,h)==1{on=1;next} /^## /{on=0} on' "$1" | sed '/^$/d'
+}
+
+entry() { # print task <id>'s "### <id> ..." entry from the first file that has it
+    id=$1; shift
+    for f in "$@"; do
+        [ -f "$f" ] || continue
+        out=$(awk -v h="### $id " 'index($0,h)==1{on=1;print;next} on&&/^##/{exit} on' "$f")
+        if [ -n "$out" ]; then echo "  ($f)"; echo "$out" | sed 's/^/  /'; return 0; fi
+    done
+    echo "  $id: no entry found in $*"
 }
 
 echo
@@ -48,18 +58,24 @@ if [ -f SESSION_HANDOFF.md ]; then section SESSION_HANDOFF.md "Next action" | se
 else echo "  SESSION_HANDOFF.md missing"; fi
 
 echo
-echo "== Active task (TASKS.md)"
+echo "== Priority order (TASKS.md)"
 if [ -f TASKS.md ]; then
-    active=$(grep '^### .*IN_PROGRESS' TASKS.md)
-    if [ -n "$active" ]; then echo "$active" | sed 's/^### /  /'
-    else
-        echo "  none in progress; first TODO (the priority order's top P1):"
-        grep -m1 '^### .*TODO)' TASKS.md | sed 's/^### /  /'
-    fi
+    section TASKS.md "Priority order" | awk '/^[0-9]+[a-z]?\. /{on=1} on' | sed 's/^/  /'
     n() { grep -c "^### .*$1" TASKS.md; }
-    awaiting=$(awk '/^## Awaiting owner replay/{on=1;next} /^## /{on=0} on && /^- T-/' TASKS.md | wc -l | tr -d ' ')
-    echo "  counts: $(n IN_PROGRESS) in progress, $(n TODO) todo, $(n BLOCKED) blocked, $awaiting awaiting owner replay"
+    awaiting=$(section TASKS.md "Awaiting owner replay" | grep -c '^### T-')
+    held=$(awk '/^### T-/{c++} END{print c+0}' docs/TASKS_ON_HOLD.md 2>/dev/null); held=${held:-0}
+    echo "  counts: $(n IN_PROGRESS) in progress, $(n TODO) todo, $(n BLOCKED) blocked, $awaiting awaiting owner replay, $held on hold (docs/TASKS_ON_HOLD.md)"
 else echo "  TASKS.md missing"; fi
+
+echo
+echo "== Next task's entry"
+if [ -f TASKS.md ]; then
+    # An IN_PROGRESS task wins; else the first task the handoff's next action names.
+    id=$(grep -m1 '^### T-[0-9]* .*IN_PROGRESS' TASKS.md | grep -oE 'T-[0-9]+' | head -1)
+    [ -z "$id" ] && [ -f SESSION_HANDOFF.md ] && id=$(section SESSION_HANDOFF.md "Next action" | grep -oE 'T-[0-9]+' | head -1)
+    if [ -n "$id" ]; then entry "$id" TASKS.md docs/TASKS_ON_HOLD.md
+    else echo "  no task named; take the top of the priority order"; fi
+fi
 
 if [ $build = 1 ]; then
     echo
