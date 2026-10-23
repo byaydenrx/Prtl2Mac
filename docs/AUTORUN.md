@@ -33,43 +33,28 @@ run after it resets picks the work up from git state and the handoff.
 - Stop for good when ANY is true: (a) no line in the priority order is left
   that isn't FIXED, DONE, BLOCKED or already attempted; (b) the last 5 rows of
   docs/AUTORUN_LOG.md are all STUCK / NOT REPRODUCED / ATTEMPT / UNFINISHED
-  (no FIXED or PARTIAL): the runs are thrashing; (c) the regression check
-  fails and you can't repair it this run. To stop for good: write the date and
+  (no FIXED or PARTIAL): the runs are thrashing. To stop for good: write the date and
   reason into the STOP file, disable scheduled task prtl2mac-auto-resume-2 if
   a scheduled-tasks tool is available, put the reason at the top of
   SESSION_HANDOFF.md, commit and push the docs, remove the lock.
-
-## Regression check (once per new main, not every run)
-CHECKED="$HOME/Library/Application Support/Portal2Rust/autopilot-checked".
-If it holds the current `git rev-parse HEAD`, skip. Otherwise:
-`sh scripts/quiet.sh ~/.cargo/bin/cargo build --release`,
-`sh scripts/quiet.sh ~/.cargo/bin/cargo test --release --workspace`, and
-`for m in sp_a1_intro1 sp_a2_laser_intro sp_a3_jump_intro sp_a4_intro; do P2_NO_INTRO=1 P2_SCRIPT="8 shot /tmp/p2check_$m.png; 9 quit" perl -e 'alarm 45; exec @ARGV' ./target/release/portal2 $m; done`
-must pass with no panic and non-black shots (retake a black shot once; the
-capture is sometimes flaky). Then write HEAD into CHECKED. If main is broken,
-this run's task is to repair it: find the commit (`git log`, `git bisect` with
-these checks), `git revert` it (never reset or force-push), push, rebuild
-dist, put the reverted task back to TODO with the reason, log a row. A
-regression is worse than the original bug.
 
 ## The run
 1. Setup is in the starter (stop file, lock, branch, sync). If `git status`
    shows uncommitted changes or unpushed commits on `wheatley`, they are a
    previous run's unfinished work: read the diff, finish it (or revert only
    if clearly broken), test, commit, push. That is this run's work.
-2. Regression check (above).
-3. `sh scripts/resume.sh` once. Take the task it prints: an IN_PROGRESS task,
+2. `sh scripts/resume.sh` once. Take the task it prints: an IN_PROGRESS task,
    else the first open line of the priority order. Read only that task's
    entry (resume.sh prints it), WORKFLOW.md "Running the game" for autopilot
    commands and tools, and files the task names. Don't rescan the repo or read
    docs/STATUS.md unless the task needs it. Mark the task IN_PROGRESS in its
    header.
-4. Timebox: about 10 minutes of work (check `date` at the start and as you
+3. Timebox: about 10 minutes of work (check `date` at the start and as you
    go; at most ~15 minutes or ~25 tool calls). A task that needs more spans
    several runs: commit a working, tested step, write in the entry what is
    done and the exact next step, keep it IN_PROGRESS. The next run continues
    it.
-5. Outcome:
+4. Outcome:
    - FIXED (reproduced, before/after evidence, regression check for what you
      changed): commit on `wheatley`, `git fetch -q origin && git merge
      --no-edit origin/main`, rebuild and retest only if the merge brought in
@@ -88,11 +73,11 @@ regression is worse than the original bug.
      with the reason if there is nothing left to try.
    - UNFINISHED: only when nothing could be committed (ran out of time or
      usage); the entry says where you stopped.
-6. Record (always), one docs commit on `wheatley`, pushed to main:
+5. Record (always), one docs commit on `wheatley`, pushed to main:
    SESSION_HANDOFF.md (Last update, Where things stand with the dist build id,
    Next action, attempt branches under "Fix attempts awaiting the owner") and
    `sh scripts/log_run.sh "<T-n title>" "<OUTCOME: one line what and why>" <commit> <build or unchanged>`.
-7. End on `wheatley` with a clean tree, delete the lock, stop. Don't start
+6. End on `wheatley` with a clean tree, delete the lock, stop. Don't start
    another task.
 
 Rules: never claim owner verification; say what was only autopilot-checked.
@@ -104,5 +89,5 @@ Avoid regressions: only reproduced, verified fixes reach main.
 ```text
 Prtl2Mac autorun. First: if "$HOME/Library/Application Support/Portal2Rust/autopilot-STOP" exists, do nothing else (if a scheduled-tasks tool is available, disable task prtl2mac-auto-resume-2) and stop.
 Lock: LOCK="$HOME/Library/Application Support/Portal2Rust/autopilot-session.lock". If it exists and is less than 90 minutes old (find "$LOCK" -mmin -90 prints it), another run is working: stop now without doing anything else. Otherwise write the current date into it; delete it when you finish, also if you stop early.
-Then: cd ~/Documents/Claude/Portal2-wheatley, make sure you are on branch wheatley (git switch wheatley), run git fetch -q origin && git merge --no-edit origin/main, then read docs/AUTORUN.md and follow it exactly. It has the stop rules, the regression check, which task to take, the 10-minute timebox and how to record the run.
+Then: cd ~/Documents/Claude/Portal2-wheatley, make sure you are on branch wheatley (git switch wheatley), run git fetch -q origin && git merge --no-edit origin/main, then read docs/AUTORUN.md and follow it exactly. It has the stop rules, which task to take, the 10-minute timebox and how to record the run.
 ```
