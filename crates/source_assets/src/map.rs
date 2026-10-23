@@ -537,7 +537,7 @@ pub fn class_default_sequence(classname: &str) -> Option<&'static str> {
 /// Entity classes that play their model's sequences (map `SetAnimation`
 /// inputs, their own open/close, idles), so their models are drawn as rigid
 /// per-bone parts the game poses each frame (floor buttons go down and up).
-/// Physics props, cubes and turrets keep one baked pose.
+/// Physics props and cubes keep one baked pose.
 pub fn class_animates(classname: &str) -> bool {
     matches!(
         classname,
@@ -547,6 +547,7 @@ pub fn class_animates(classname: &str) -> bool {
             | "prop_dynamic_ornament"
             | "prop_testchamber_door"
             | "npc_personality_core"
+            | "npc_portal_turret_floor"
             | "prop_floor_button"
             | "prop_floor_cube_button"
             | "prop_floor_ball_button"

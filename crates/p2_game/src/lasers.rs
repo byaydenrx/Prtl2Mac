@@ -17,7 +17,13 @@ pub struct LasersPlugin;
 impl Plugin for LasersPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LaserState>()
-            .add_systems(Update, (laser_inputs, trace_lasers, crate::turrets::run_turrets, draw_beams).chain().after(crate::io::run_io).in_set(GameSet::Logic));
+            .init_resource::<crate::turrets::TurretFx>()
+            .add_systems(Update, (laser_inputs, trace_lasers, crate::turrets::run_turrets, draw_beams).chain().after(crate::io::run_io).in_set(GameSet::Logic))
+            .add_systems(Update, crate::turrets::turret_fx.after(crate::turrets::run_turrets).in_set(GameSet::Logic))
+            .add_systems(
+                Update,
+                crate::turrets::load_flash_assets.run_if(resource_exists::<p2_assets::GameFsRes>.and_then(not(resource_exists::<crate::turrets::FlashAssets>))),
+            );
     }
 }
 

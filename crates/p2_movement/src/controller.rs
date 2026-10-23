@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use avian3d::character_controller::move_and_slide::MoveHitData;
 use avian3d::prelude::*;
+
 use bevy::ecs::entity::EntityHashSet;
 use bevy::prelude::*;
 use p2_core::{
@@ -19,6 +20,12 @@ use p2_core::{
 use crate::config::MovementConfig;
 use crate::funnel::{self, FunnelPortal};
 use crate::rules::{self, EyeEase, DUCK_SPEED_SCALE, EDGE_PROBE_AHEAD, EDGE_PROBE_DEPTH, FEET_RISE, GROUND_CHECK, NON_JUMP_VELOCITY, SKIN};
+
+/// Fastest the player shoves a prop by walking into it (m/s), and how
+/// quickly it gets there (m/s²): set at once to walking speed, cubes
+/// tumbled end over end instead of sliding.
+const PUSH_MAX_SPEED: f32 = 120.0 * U;
+const PUSH_ACCEL: f32 = 900.0 * U;
 
 /// Crouch and jump bookkeeping, private to the controller.
 #[derive(Component, Clone, Debug)]
@@ -293,6 +300,7 @@ pub(crate) fn move_players(
         (With<Player>, Without<Portal>),
     >,
     mut bodies: Query<(&RigidBody, &mut LinearVelocity), Without<Player>>,
+    collider_of: Query<&ColliderOf>,
 ) {
     let dt = time.delta_secs();
     let forced: EntityHashSet = forced.read().map(|m| m.entity).collect();
@@ -437,6 +445,8 @@ pub(crate) fn move_players(
         // dynamic body hit from the side moves at least as fast as the player
         // along the push direction (floors and ceilings are not pushed).
         for (e, n) in mover.hits.take() {
+            // The hit is a collider; props carry theirs on child entities.
+            let e = collider_of.get(e).map_or(e, |c| c.body);
             let Ok((body, mut lv)) = bodies.get_mut(e) else { continue };
             if !body.is_dynamic() {
                 continue;
@@ -446,10 +456,10 @@ pub(crate) fn move_players(
                 continue;
             }
             let dir = dir.normalize();
-            let into = push_v.dot(dir);
+            let into = push_v.dot(dir).min(PUSH_MAX_SPEED);
             let cur = lv.0.dot(dir);
             if into > cur {
-                lv.0 += dir * (into - cur);
+                lv.0 += dir * (into - cur).min(PUSH_ACCEL * dt);
             }
         }
     }

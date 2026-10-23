@@ -25,7 +25,7 @@ marked FIXED, DONE or BLOCKED. Crashes and softlocks found on the way go to
 the top. Menus, on-hold and "later" tasks are never taken without the owner.
 Now (owner playtest 12, playability first):
 1. T-230 sp_a2_laser_relays: a laser that has gone through a portal doesn't power the relays (FIXED, awaiting owner replay; was unsolvable)
-2. T-229 Turrets don't work: no shooting animation, beams or bullets, knocking or dropping them does nothing, but they still do damage (turret_blocker and laser_vs_turret unplayable without godmode/noclip; owner playtest 12, "definitely prioritize")
+2. T-229 Turrets don't work: no shooting animation, beams or bullets, knocking or dropping them does nothing, but they still do damage (FIXED, awaiting owner replay: animated, visible shots, tip over when walked into or knocked, Portal 2 voice lines; gun aim still straight ahead)
 3. T-231 Lasers aim wrong globally: a laser angles up or down instead of going straight (owner playtest 12)
 4. T-232 sp_a2_bridge_the_gap: Wheatley glitches around; the bird looks wrong (owner playtests 11, 12)
 5. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid (BLOCKED, needs owner replay: not reproduced on 18676be, likely fixed by T-221)
@@ -89,7 +89,38 @@ Lower:
   level". Laser relays (prop_laser_relay) pass the beam on and light up; the
   leg after a portal hits nothing. He noclipped past the level.
 
-### T-229 Turrets don't work: no shooting, can't be knocked over  (P1 by owner, TODO; owner playtest 12)
+### T-229 Turrets don't work: no shooting, can't be knocked over  (P1 by owner, FIXED, awaiting owner replay; owner playtest 12)
+- 2026-10-23 FIXED (turrets.rs, map.rs, lasers.rs; p2_fx sim.rs; p2_movement
+  controller.rs). Turrets spawn animated (class_animates) and play deploy,
+  idlealert, fire (looping while firing or tipped), retract, eye_off /
+  idle_eye_off. Every 0.1 s a shot from one of the four muzzles
+  (LFT/RT_Gun1/2_muzzle attachments): a combinemuzzle1/2 flash sprite, a
+  `weapon_tracers` tracer to where the ray stops (new p2_fx initializer
+  "move particles between 2 control points") and on every other shot an
+  `impact_*_cheap` effect by surfaceprop. Tipped turrets spray bullets
+  where they point for 2.5 s (hit the player only in that line), then shut
+  down (TalkDisabled + Die). Walking into a standing turret tips it. Lasers
+  burn it for 1 s (TalkStartBurning, then TalkBurned + Die). Voice lines
+  added: TalkActive while engaged, TalkAutosearch mid-search, TalkRetire on
+  retract, TalkCollide when knocked/hit (velocity jump or contact impulse
+  from a moving body), TalkFlung when thrown/launched, TalkDissolved.
+- Found on the way: walking into any prop never pushed it (the push code
+  looked up the hit collider, not its body; props carry colliders on child
+  entities). Fixed via ColliderOf, with a gentle push (accelerates to at
+  most 120 u/s) so cubes slide instead of tumbling.
+- Evidence (autopilot, turret_intro second_turret, god mode): before the
+  turret stayed closed with only its sight line; after deploy pose, flashes
+  alternating guns, tracers (screenshot burst). Walked into from the side:
+  Idle -> Tipped -> Dead, spray shown. Dropped on its side: TalkTipped,
+  TalkDisabled, Die. Dropped upright: TalkCollide, stays alive. Another
+  turret dropped on its head: TalkCollide. Picked up: TalkPickup; dropped:
+  TalkCollide. fps with 3 turrets firing (laser_vs_turret): 120 = old build
+  (full per-bullet impact effects had cost ~25 fps; now cheap ones on every
+  other shot). Tests 205 + 30 + 20 + 74 pass.
+- Not done: the guns don't aim at the player (aim_yaw/aim_pitch pose
+  parameters; they fire straight from the muzzles toward the player), no
+  eye glow sprite, carried turrets don't play carry_pose, no bullet decals,
+  turrets don't push the player with bullets.
 - Owner: "turrets definitely do not work as intended theres no shooting
   animations or anything hitting them or dropping them doesnt trigger
   anything their just not done yet but they do damage as if their

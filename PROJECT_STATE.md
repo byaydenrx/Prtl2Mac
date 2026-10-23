@@ -96,7 +96,7 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 9 | sp_a4_finale1..finale4 | - | - | - | - | - | NOT STARTED | T-015 |
 
 ## Release blockers (open P0/P1)
-- T-229: turrets don't work (turret_blocker, laser_vs_turret unplayable without cheats).
+- T-229: turrets fixed (shoot visibly, tip, die, talk); owner to replay turret_blocker and laser_vs_turret.
 - T-211 gels (P1) before chapters 6-8; gel isn't kept in saves (saves.rs).
 - (The 2026-10-20 list here is closed: T-129 and T-132 fixed by autoruns,
   T-131 owner-confirmed, T-105 carried on as T-167/T-170 (T-170

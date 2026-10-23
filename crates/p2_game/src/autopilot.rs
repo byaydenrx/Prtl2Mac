@@ -228,13 +228,21 @@ fn drive(
                 fire.write(FirePortal { gun: player, kind });
             }
             "propto" => {
-                // propto <name> x y z: move a physics prop there (tests).
+                // propto <name> x y z [pitch yaw roll]: move a physics prop
+                // there, upright or turned to Source angles (tests).
                 let key = a.first().map(|k| k.to_ascii_lowercase()).unwrap_or_default();
                 let p = shared::source_to_world(Vec3::new(f(a, 1), f(a, 2), f(a, 3)));
+                let rot = if a.len() >= 7 { source_assets::entities::source_angles_to_world(Vec3::new(f(a, 4), f(a, 5), f(a, 6))) } else { Quat::IDENTITY };
                 if let Some(ents) = ents.as_deref() {
                     for (pe, prop) in &prop_ents {
                         if ents.list[prop.ent].name == key && !ents.list[prop.ent].killed {
-                            commands.entity(pe).insert((Transform::from_translation(p), avian3d::prelude::Position(p), avian3d::prelude::LinearVelocity::ZERO));
+                            commands.entity(pe).insert((
+                                Transform::from_translation(p).with_rotation(rot),
+                                avian3d::prelude::Position(p),
+                                avian3d::prelude::Rotation(rot),
+                                avian3d::prelude::LinearVelocity::ZERO,
+                                avian3d::prelude::AngularVelocity::ZERO,
+                            ));
                         }
                     }
                 }

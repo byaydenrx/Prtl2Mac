@@ -339,6 +339,7 @@ const KNOWN_INITIALIZERS: &[&str] = &[
     "Rotation Yaw Random",
     "Sequence Two Random",
     "Remap Control Point to Scalar",
+    "move particles between 2 control points",
 ];
 const KNOWN_OPERATORS: &[&str] = &[
     "Remap CP Speed to CP",
@@ -825,7 +826,7 @@ impl SystemInstance {
         // authored order (modifiers and remaps read the created position).
         let rank = |f: &str| match f {
             "Position Within Sphere Random" | "Position Along Ring" | "Position Along Path Sequential" | "Position Within Box Random" | "Position Along Path Random" => 0,
-            "Position Modify Warp Random" | "Position Modify Offset Random" | "Velocity Repulse from World" | "Position Modify Place On Ground" => 1,
+            "Position Modify Warp Random" | "Position Modify Offset Random" | "Velocity Repulse from World" | "Position Modify Place On Ground" | "move particles between 2 control points" => 1,
             _ => 2,
         };
         let mut order: Vec<usize> = (0..def.initializers.len()).collect();
@@ -986,6 +987,16 @@ impl SystemInstance {
                 }
                 p.pos = pos;
                 p.prev = pos;
+            }
+            // Tracers (`weapon_tracers`): fly from where they were created
+            // to the end control point and die on arrival.
+            "move particles between 2 control points" => {
+                let end = self.cp(op.i("end control point", 1)).pos + in_unit_sphere(r(1), r(2), r(3)) * op.f("end spread", 0.0);
+                let dir = (end - p.pos).normalize_or_zero();
+                p.pos += dir * op.f("start offset", 0.0);
+                let speed = lerp(op.f("minimum speed", 1.0), op.f("maximum speed", 1.0), r(4)).max(1.0);
+                p.lifetime = (end - p.pos).length() / speed;
+                p.prev = p.pos - dir * speed * dt;
             }
             "Lifetime Random" => {
                 p.lifetime = rexp(1, op.f("lifetime_min", 0.0), op.f("lifetime_max", 0.0), op.f("lifetime_random_exponent", 1.0));
@@ -1998,6 +2009,35 @@ mod tests {
             let l = p.pos - Vec3::new(100.0, 0.0, 0.0);
             assert!(l.x.abs() <= 10.0 && l.y.abs() <= 5.0 && (0.0..=2.0).contains(&l.z), "{l:?}");
         }
+        assert!(s.unsupported.is_empty(), "{:?}", s.unsupported);
+    }
+
+    #[test]
+    fn tracers_fly_to_the_end_point_and_die_there() {
+        // weapon_tracers: 7000..9000 u/s from CP0 to CP1, fading out by life.
+        let def = system(
+            vec![burst(1)],
+            vec![op("move particles between 2 control points", &[("end control point", Attr::Int(1)), ("minimum speed", Attr::Float(8000.0)), ("maximum speed", Attr::Float(8000.0)), ("start offset", Attr::Float(0.0))])],
+            vec![op("Movement Basic", &[]), op("Alpha Fade and Decay", &[])],
+            vec![],
+        );
+        let lib = ParticleLibrary::default();
+        let mut s = SystemInstance::new(def, 7);
+        s.set_cp(0, ControlPoint::new(Vec3::ZERO, Mat3::IDENTITY));
+        s.set_cp(1, ControlPoint::new(Vec3::new(800.0, 0.0, 0.0), Mat3::IDENTITY));
+        s.update(1.0 / 60.0, &lib);
+        assert_eq!(s.particles.len(), 1);
+        assert!((s.particles[0].lifetime - 0.1).abs() < 1e-3, "{}", s.particles[0].lifetime);
+        for _ in 0..3 {
+            s.update(1.0 / 60.0, &lib);
+        }
+        // Moving along +X toward the end, not beyond it.
+        let x = s.particles[0].pos.x;
+        assert!(x > 100.0 && x < 800.0 && s.particles[0].pos.y.abs() < 1e-3, "{x}");
+        for _ in 0..10 {
+            s.update(1.0 / 60.0, &lib);
+        }
+        assert!(s.particles.is_empty());
         assert!(s.unsupported.is_empty(), "{:?}", s.unsupported);
     }
 
