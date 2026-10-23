@@ -4,6 +4,13 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
+2026-10-23 05:42 autorun (ATTEMPT, docs only on main): T-217 laser_stairs:
+the missing floor is already fixed on main by T-221 (all tiles flat on the
+grid after the floor move; attempt/T-217 not needed). Wheatley: Kill didn't
+remove entities parented to the target (sphere_bone -> sphere_peek01);
+untested fix on local branch attempt/T-217-wheatley (978c28c). Not shown to
+fix the owner's report. T-217 BLOCKED (needs owner). Details in TASKS.md.
+Before that:
 2026-10-23 05:27 autorun (NOT REPRODUCED, docs only): T-223 ricochet
 rotating platform: panel_error_arm_03a draws, turns with its arm, is solid
 and holds juggled_cube on build 18676be (also after error_arm_stop_relay);
@@ -83,6 +90,8 @@ check not done; details in TASKS.md T-217.
   angled, the GLaDOS faith plate should launch you while standing on it, and
   no platform should drop you (none reproduced by autopilot on this build;
   if one still happens, say where).
+- Owner to replay: T-217 laser_stairs floor after GLaDOS's floor move
+  (fixed by T-221); say where Wheatley stays visible through the wall.
 - Owner to replay: T-223 ricochet: the turning platform under the cube at
   the start is visible and solid (not reproduced by autopilot on 18676be).
 - Owner to replay: T-220 load the bridge_the_gap autosave, drop a new cube,
@@ -102,19 +111,21 @@ check not done; details in TASKS.md T-217.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-TASKS.md "Priority order": finish T-217 (attempt/T-217 regression check),
-then T-145 jitter, then the feel tasks. T-222 and T-223 are BLOCKED on owner replay
+TASKS.md "Priority order": T-145 jitter, then the feel tasks. T-217, T-222
+and T-223 are BLOCKED on owner replay
 (optional: Windows check of the catapult2_up ceiling bounce). The owner plays the campaign himself; no level scripts.
 
 ## Uncommitted / in-flight work
-None. T-217 work in progress is on branch attempt/T-217 (pushed).
+None.
 Scratch scripts used this session (not in the repo): Windows netcon/vscript
 tracker (method in docs/STATUS.md "Measuring Windows Portal 2
 numerically"), frame benchmarks (P2_FRAMELOG, WORKFLOW.md).
 
 ## Fix attempts awaiting the owner
-- attempt/T-217 (2fe2ac4): laser_stairs floor tiles (pushed; regression
-  check left).
+- attempt/T-217 (2fe2ac4, pushed): superseded, main already has the floor
+  right (T-221); can be deleted.
+- attempt/T-217-wheatley (978c28c, local): Kill also kills entities
+  parented to the target (laser_stairs Wheatley). Not pushed.
 - attempt/T-212 (9a9373e): skip frame-0 events of a spawn default sequence
   (sp_a3_00 glass smash at load). Not pushed.
 

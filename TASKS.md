@@ -28,7 +28,7 @@ Now (owner playtest 11, playability first):
 2. T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room (FIXED, awaiting owner replay; was unplayable; check T-222 and T-223 with it: likely one cause, see entry)
 3. T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far (BLOCKED, needs owner replay: not reproduced on 18676be)
 4. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid (BLOCKED, needs owner replay: not reproduced on 18676be, likely fixed by T-221)
-5. T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall (floor fix waits on attempt/T-217's regression check)
+5. T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall (BLOCKED, needs owner: floor fixed on main by T-221; Wheatley attempt on local branch attempt/T-217-wheatley)
 6. T-145 Cubes go dark and jitter on buttons, every chapter (jitter still open)
 7. T-218 Performance: 60-70 fps and stutter on an M4 Pro; portals cost a lot; v-sync unclear (owner: better; continue)
 8. T-224 Cube physics feel: no tumbling in the air; plate and button hits unreliable
@@ -271,7 +271,7 @@ Lower:
   pose. Not checked on a pre-18676be build. Owner: replay ricochet's start
   (cube on the turning platform, platform visible and solid).
 
-### T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall  (P2, TODO; playable; owner playtest 10)
+### T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall  (P2, BLOCKED (needs owner); playable; owner playtest 10)
 - Missing floor: look down a few seconds after the animation where GLaDOS
   moves the floor, at `setpos 121.78 -354.91 -90.00`.
 - Wheatley: in the room where you get the laser cube, he appears for a
@@ -298,6 +298,28 @@ Lower:
   brush_armfollow_move03 tiles); shots of the owner's spot before/after;
   then merge attempt/T-217 into main, make_app. Wheatley-through-wall and
   the floating texture: not started.
+- 2026-10-23 05:40 autorun: missing floor is already fixed on main by
+  T-221 (18676be, props spawn in their DefaultAnim): same replay on main
+  (no attempt/T-217 code) leaves all 18 brush_flooranima_NN tiles flat at
+  z -97 on the grid (tile 11 at (80,-352,-97)); mid-animation tile 11 moves
+  (-46 at 5 s, -88 at 6 s) and comes back; shot at the owner's spot shows
+  floor. attempt/T-217 (2fe2ac4) is not needed; don't merge it.
+  Wheatley: he is npc_personality_core sphere_peek01, parented to
+  prop_dynamic sphere_bone. sphere_hide_trigger (trigger_look) plays
+  sphere_peek_01, then _end at 3 s, then Kills sphere_bone at 4 s. Source's
+  Kill removes entities parented to the target; ours only killed the
+  target, so sphere_peek01 stayed alive. Untested fix: local branch
+  attempt/T-217-wheatley (978c28c, io.rs: Kill queues Kill on children by
+  parentname; cargo test p2_game 202 ok; autopilot: sphere_peek01 killed
+  after the kill). Not shown to fix the report: in shots from the owner's
+  spot, after sphere_peek_01_end he already leaves the window on old and
+  new builds. Needs owner review/replay (where exactly he stays visible).
+  The white arm with a cyan light seen through the robot_eyepeek window at
+  the owner's spot is not Wheatley; robot_eyepeek_07/08 panels (attached
+  with maintain offset at 0.2 s while the arms get close_idle at 0 s) look
+  open from spawn: worth checking against Windows (scripts/winref.sh
+  sp_a2_laser_stairs --pos -529.75 327.04 -26 --ang -5 87). Floating
+  texture: not started.
 
 ### T-145 Cubes go dark and jitter on buttons, every chapter  (P1 by owner, PARTLY FIXED: dark cubes and spikes owner-confirmed 2026-10-23; jitter open)
 - 2026-10-23 dark cubes, cause: a moving prop's vertex light was baked once
