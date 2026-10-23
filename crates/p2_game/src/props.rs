@@ -27,6 +27,33 @@ impl Plugin for PropsPlugin {
             .add_systems(PostUpdate, gun_holding.before(P2Systems::Effects))
             .add_systems(FixedUpdate, (hold_obstructions, carry, hold_clearance, prop_transit, wall_passthrough).chain().after(P2Systems::Transit))
             .add_systems(FixedUpdate, held_prop_blocks_player.before(P2Systems::Move));
+        if std::env::var_os("P2_PROPTRACE").is_some() {
+            app.add_systems(FixedPostUpdate, trace_props);
+        }
+    }
+}
+
+/// P2_PROPTRACE=<name>: every physics tick, the named prop's place (Source
+/// units), up axis and speeds, to measure settling and jitter.
+fn trace_props(ents: Option<Res<Ents>>, time: Res<Time>, props: Query<(&Prop, &Position, &Rotation, &LinearVelocity, &AngularVelocity)>) {
+    let (Some(ents), Ok(key)) = (ents, std::env::var("P2_PROPTRACE")) else { return };
+    for (p, pos, rot, lin, ang) in &props {
+        if ents.list.get(p.ent).is_some_and(|e| e.name.eq_ignore_ascii_case(&key)) {
+            let s = shared::world_to_source(pos.0);
+            let up = rot.0 * Vec3::Y;
+            info!(
+                "proptrace t {:.3} pos {:.2} {:.2} {:.2} up {:.3} {:.3} {:.3} v {:.1} w {:.2}",
+                time.elapsed_secs(),
+                s.x,
+                s.y,
+                s.z,
+                up.x,
+                -up.z,
+                up.y,
+                lin.0.length() / shared::SOURCE_UNIT,
+                ang.0.length()
+            );
+        }
     }
 }
 
