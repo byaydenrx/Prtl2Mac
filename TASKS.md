@@ -219,6 +219,20 @@ Lower:
   forever. Next step: confirm what Windows does there (the lowered ceiling
   may be meant to stop you, or catapult2 should fling at 45 deg), then the
   fall-through platform and the panel end pose items.
+- 2026-10-23 05:06 autorun, panel end pose NOT REPRODUCED (autopilot, build
+  18676be, so with the T-221 fix): the two moving platforms are arm_panel_01
+  / arm_panel_02 (func_brush, SetParentAttachmentMaintainOffset to
+  robo_spherepeek_meea_01 / meeb_01; DefaultAnim spherepeek_0N_idleend,
+  logic_auto sets default _idle; relays arm_spherepeek_01/02 play
+  spherepeek_0N then default _idleend). Before the relay the panel sits
+  vertical in the wall (rotated 45 deg from its brush); after
+  `input arm_spherepeek_01 trigger` + 10 s both panels end with identity
+  rotation at their compiled brush origins (-800 1841 145 / -751 2400 145),
+  i.e. the Hammer-authored pose, and a side shot shows panel 01 sticking out
+  angled ~45 deg, not horizontal. Most likely the owner's playtest-11 report
+  was the pre-18676be bug (offsets measured in bindpose). Owner: replay; if
+  still wrong, say which platform. Left: Windows check of the catapult2_up
+  bounce, the fall-through platform.
 
 ### T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid  (P1, TODO; playable; owner playtest 11)
 - The platform surface (not the machinery) is missing, so the cube falls to

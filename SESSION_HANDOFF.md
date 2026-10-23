@@ -4,6 +4,13 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
+2026-10-23 05:07 autorun (NOT REPRODUCED, docs only): T-222 sphere_peek
+panel end pose: arm_panel_01/02 end at their Hammer-authored pose (angled
+~45 deg, side shot) after arm_spherepeek_01/02, with build 18676be; most
+likely the T-221 fix (spawn in DefaultAnim) already fixed it. Owner replay
+needed. T-222 stays IN_PROGRESS (catapult2_up bounce Windows check and the
+fall-through platform left). No code changed.
+Before that:
 2026-10-23 05:01 autorun (NOT REPRODUCED, docs only): T-222 sphere_peek
 faith plate: a player standing on catapult_up/catapult2_up is launched at
 once when GLaDOS re-enables or swaps it, by direct input and in the real
@@ -60,6 +67,8 @@ check not done; details in TASKS.md T-217.
 - dist/Prtl2Mac.app = 0.1.0+18676be.20261023T0847Z (T-216, T-218, T-145, T-220, T-221 fixes).
 - Owner to replay: T-221 bridge_intro from the start: the hallway floor
   panels rise to floor level, no invisible walls.
+- Owner to replay: T-222 sphere_peek, the two arm platforms should end
+  angled (autopilot shows they do with this build).
 - Owner to replay: T-220 load the bridge_the_gap autosave, drop a new cube,
   finish the map; try picking up a cube resting on a bridge.
 - Owner to replay: T-216 catapult_intro (grab the bouncing cube at eye
@@ -77,9 +86,9 @@ check not done; details in TASKS.md T-217.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-TASKS.md "Priority order": T-222 (faith plate not reproduced, see entry;
-next: Windows check of the catapult2_up ceiling bounce, then the
-fall-through platform and panel end poses), T-223,
+TASKS.md "Priority order": T-222 (faith plate and panel end pose not
+reproduced, see entry; next: Windows check of the catapult2_up ceiling
+bounce, then the fall-through platform), T-223,
 then finish T-217 (attempt/T-217 regression check), T-145 jitter, then the
 feel tasks. The owner plays the campaign himself; no level scripts.
 
