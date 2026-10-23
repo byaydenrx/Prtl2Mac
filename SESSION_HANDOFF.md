@@ -7,7 +7,7 @@ reads it first (via `sh scripts/resume.sh`).
 Stop rule (b) in docs/AUTORUN.md: the last 5 autorun rows (T-222 x3, T-223,
 T-217) are NOT REPRODUCED / ATTEMPT, none FIXED or PARTIAL. They mostly look
 already fixed by T-221 (18676be) and need the owner's replay. STOP file
-written, scheduled task prtl2mac-auto-resume-2 disabled. To resume: replay
+written (disabling task prtl2mac-auto-resume-2 needed approval, so it still fires but exits on the STOP file). To resume: replay
 T-217/T-222/T-223, delete the STOP file, re-enable the task.
 
 ## Last update
