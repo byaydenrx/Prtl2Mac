@@ -150,6 +150,31 @@ Lower:
   elevator (or `input row_1_panel_3-floor_panel_up Trigger`) and shoot the
   panel rows before/after they rise; compare with Windows (scripts/winref.sh)
   at the same spot; then check what fires floor_panel_up (ents outputs).
+- Autorun 2026-10-23 04:37 (autopilot only, build a8fda9c): REPRODUCED.
+  Walk from `setpos -736 560 -127 10 -90` (`walk 6`): door_52 opens,
+  floor_up_relay -> row_1/row_2_up_relay -> each `floor_panel_up` plays
+  `64_out_straight` on the arm prop. Arms and frames rise but the floor
+  surfaces are missing (the hallway looks like open framework). Cause:
+  the parented `..._floor_panel_01_brush` (func_brush *64, top face
+  metal/black_floor_metal_001c) starts with its top at source z 0 (floor
+  level) and after the rise `info` puts it at z 64 (origin -45 -> 19): it
+  ends 64 units too high, i.e. at eye height, seen edge-on = invisible
+  walls; the player is stopped at y -432 by them. Map setup per panel:
+  prop keyvalue `defaultanim 64_idle`; logic_auto onmapspawn: prop
+  `SetDefaultAnimation bindpose`, brush `SetParentAttachmentMaintainOffset
+  panel_attach` (both delay 0). So the maintained offset must be measured
+  against the attachment in the prop's spawn pose (64_idle = extended, the
+  brush's Hammer position), after which bindpose retracts it (brush hidden
+  below the floor) and 64_out_straight brings it back to z 0. We seem to
+  measure the offset against bindpose/rest (or apply bindpose first), so
+  the brush ends +64. Next step: find SetParentAttachmentMaintainOffset in
+  crates/p2_game (grep maintainoffset) and check which pose the attachment
+  is read from at spawn; make it the current sequence's (64_idle) pose;
+  check bindpose actually plays after 64_idle ends (brush below floor
+  before the rise). `animinfo` panicked "parse" on
+  models/anim_wp/room_transform/arm64x64_interior_rusty.mdl (path given as
+  framework/, retry with room_transform/). Likely the same bug for T-222
+  (sphere_peek panels) and T-223 (ricochet platform): check after the fix.
 
 ### T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far  (P1, TODO; playable; owner playtest 11)
 - A platform you stand on sometimes lets you fall through; "its like not

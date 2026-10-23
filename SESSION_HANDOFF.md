@@ -4,6 +4,13 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
+2026-10-23 04:38 autorun (UNFINISHED, docs only): T-221 bridge_intro invisible
+walls REPRODUCED: the rising floor-panel func_brushes (parented with
+SetParentAttachmentMaintainOffset to the arm props) end 64 units too high,
+at eye level, so they read as invisible walls and the floor looks missing.
+Likely offset taken from the wrong pose (bindpose vs spawn 64_idle). Next
+step in TASKS.md T-221 (stays IN_PROGRESS). No code changed.
+Before that:
 2026-10-23 04:27 autorun (UNFINISHED, docs only): T-221 bridge_intro invisible
 walls not reproduced yet in a short pass; arrival area and ceiling repair
 arms render. Narrowed the "hallway animation" to the floor-panel rows
