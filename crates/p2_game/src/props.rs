@@ -28,7 +28,23 @@ impl Plugin for PropsPlugin {
             .add_systems(FixedUpdate, (hold_obstructions, carry, hold_clearance, prop_transit, wall_passthrough).chain().after(P2Systems::Transit))
             .add_systems(FixedUpdate, held_prop_blocks_player.before(P2Systems::Move));
         if std::env::var_os("P2_PROPTRACE").is_some() {
-            app.add_systems(FixedPostUpdate, trace_props);
+            app.add_systems(FixedPostUpdate, trace_props)
+                .add_systems(PostUpdate, trace_drawn.after(bevy::transform::TransformSystems::Propagate));
+        }
+    }
+}
+
+/// P2_PROPTRACE=<name>: every rendered frame, where the named prop is
+/// drawn (Source units) and how far that is from last frame: smooth
+/// motion vs jumps.
+fn trace_drawn(ents: Option<Res<Ents>>, time: Res<Time>, props: Query<(&Prop, &GlobalTransform)>, mut last: Local<Option<Vec3>>) {
+    let (Some(ents), Ok(key)) = (ents, std::env::var("P2_PROPTRACE")) else { return };
+    for (p, g) in &props {
+        if ents.list.get(p.ent).is_some_and(|e| !e.killed && e.name.eq_ignore_ascii_case(&key)) {
+            let s = shared::world_to_source(g.translation());
+            let step = last.map_or(0.0, |l| l.distance(s));
+            *last = Some(s);
+            info!("drawtrace t {:.3} pos {:.2} {:.2} {:.2} step {:.2}", time.elapsed_secs(), s.x, s.y, s.z, step);
         }
     }
 }
