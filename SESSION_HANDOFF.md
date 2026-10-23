@@ -147,7 +147,11 @@ fixed on branch attempt/T-217 (2fe2ac4, pushed to origin), regression
 check not done; details in TASKS.md T-217.
 
 ## Where things stand
-- dist/Prtl2Mac.app = 0.1.0+024d846.20261023T2207Z (T-232/T-237 Wheatley, T-231, T-229, T-230, T-145, T-220).
+- dist/Prtl2Mac.app = 0.1.0+9d43b7a.20261023T2309Z (T-239 bts1 breakout, T-238/T-233 glass and grates; before: T-232/T-237, T-231, T-229, T-230).
+- Owner to replay (0.1.0+9d43b7a): sp_a2_bts1 (catch the cube on the bridge, walk
+  on: the power cut and Wheatley's breakout should start); sp_a2_laser_vs_turret
+  (beams through glass burn the turrets; turrets behind glass can't hurt you);
+  column_blocker grate (laser and turret through it).
 - Owner to replay: column_blocker with the T-231 fix (beams stay level),
   its departure elevator (barrier? Wheatley rides his rail and looks at you),
   bridge_the_gap Wheatley window scene (no teleport) and say what's wrong
