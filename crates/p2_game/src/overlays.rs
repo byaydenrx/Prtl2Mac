@@ -18,6 +18,11 @@ pub struct OverlaysPlugin;
 impl Plugin for OverlaysPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<FrameStats>().add_systems(Last, record_frame).add_systems(Update, draw_overlays.in_set(crate::level::GameSet::Logic));
+        // Measured runs' windows are usually unfocused, which Bevy holds
+        // to 60 Hz; measure what a focused window does.
+        if std::env::var_os("P2_FRAMELOG").is_some() {
+            app.insert_resource(bevy::winit::WinitSettings::continuous());
+        }
     }
 }
 
@@ -88,8 +93,23 @@ pub fn pos_text(feet: Vec3, vel: Vec3, view: &ViewAngles, on_ground: bool) -> St
 }
 
 /// Every frame's real duration (frame start to frame start, so the frame
-/// limiter's wait and v-sync are included).
-fn record_frame(time: Res<Time<Real>>, settings: Res<Settings>, mut stats: ResMut<FrameStats>) {
+/// limiter's wait and v-sync are included). `P2_FRAMELOG=1` also logs the
+/// summary once a second and every frame over 25 ms (performance checks).
+fn record_frame(time: Res<Time<Real>>, settings: Res<Settings>, mut stats: ResMut<FrameStats>, mut last_log: Local<f64>) {
+    if std::env::var_os("P2_FRAMELOG").is_some() {
+        let (now, dt) = (time.elapsed_secs_f64(), time.delta_secs_f64());
+        stats.push(now, dt);
+        if dt > 0.025 {
+            info!("FRAMELOG hitch {:.1} ms at {now:.2} s", dt * 1000.0);
+        }
+        if now - *last_log >= 1.0 {
+            *last_log = now;
+            if let Some(s) = stats.summary() {
+                info!("FRAMELOG {:.1} fps avg {:.2} min {:.2} max {:.2} ms at {now:.2} s", s.fps, s.avg, s.min, s.max);
+            }
+        }
+        return;
+    }
     if !settings.tools.show_fps {
         if !stats.frames.is_empty() {
             stats.frames.clear();

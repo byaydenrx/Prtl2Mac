@@ -1539,3 +1539,22 @@ straight up) peaks at z 190 (first throw from a slow fall) and 204 after,
 bounce period 2.81 s, so Source loses almost nothing to drag; ours lost ~35
 units to avian `LinearDamping(0.05)`, now removed from props. The player's
 2a flight matched Windows to the unit (apex z 156 near y -219).
+
+## Frame time and profiling (T-218, 2026-10-23)
+- `P2_FRAMELOG=1` logs `FRAMELOG <fps> avg/min/max` each second and every
+  hitch over 25 ms. Bevy holds an unfocused window to 60 Hz
+  (WinitSettings::game), so the log also switches to continuous updates;
+  without it, scripted runs read 60 fps no matter what.
+- Per-system timing: build a separate copy with Bevy's chrome tracing,
+  `CARGO_TARGET_DIR=<scratch> cargo build --release -p p2_game --features
+  bevy/trace_chrome`, run with `RUST_LOG=info` (warn hides the spans); it
+  writes trace-<ts>.json (~2 GB for 10 s) in the working directory. Sum the
+  B/E pairs per span name with a streaming script. `sample` gets no stacks
+  here and xctrace needs full Xcode.
+- What it showed: pipelined rendering, so the frame is the render thread.
+  Per camera, Core3d costs ~1.5 ms CPU (about 25 small Bevy passes; the
+  Valve main pass is the largest at 0.35 ms). Before the culling fix,
+  prepare_surfaces built constants for every map surface for every camera.
+- 4K: 2x MSAA costs ~5.4 ms GPU (intro6 room 66 -> 103 fps without it).
+- V-sync off: windowed runs pin at 60.0 fps (Metal displaySyncEnabled=false
+  on a 120 Hz display), lower than v-sync on.

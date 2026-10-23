@@ -99,7 +99,9 @@ for independent tasks with separate files.
   of a no-map launch; with the intro the script clock starts at launch),
   P2_LOADING_HOLD=<s> (keep the loading screen up), P2_TRACE, P2_NOCROSSHAIR, P2_HIDE_MAT (hide materials by name
   substring: find which material a bad surface is), P2_LIST_MATS,
-  P2_EXPOSURE=1 (fixed exposure), SOURCE_VALVE_DEBUG (shader combo per
+  P2_EXPOSURE=1 (fixed exposure), P2_FRAMELOG=1 (fps/min/avg/max each second
+  and every frame over 25 ms; keeps an unfocused window from being held to
+  60 Hz; with `--size 1920x1080` it measures 3840x2160), SOURCE_VALVE_DEBUG (shader combo per
   material).
 - Placing the view: `goto <entity> <dist>` + `lookat <entity>` beats
   guessing `setpos` (setpos z is the feet; outside the map you fall into the

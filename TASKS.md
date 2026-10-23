@@ -40,7 +40,7 @@ campaign himself; fix what stops him, then what he called "necessary now".
 Owner's order (2026-10-22 23:20): T-216, T-218, T-145, T-217; everything
 else (items 1-8 below and the "Later" list) waits until the owner says.
 0a. T-216 sp_a2_catapult_intro: the plate throws the cube too low. FIXED, awaiting replay.
-0b. T-218 performance (60-70 fps, stutter, portals, v-sync).
+0b. T-218 performance. PARTLY FIXED (culling), awaiting replay; MSAA-at-4K and v-sync-off findings in its entry.
 0c. T-145 cubes dark and jittery on buttons, every chapter.
 0d. T-217 sp_a2_laser_stairs: missing floor, Wheatley through the wall, floating texture.
 0e. Then wait for the owner's next playtest (chapter 2 from catapult_intro);
@@ -132,15 +132,6 @@ them until the owner lifts the hold; search that file by task id.
   animation: `setpos -529.75 327.04 -90.00; setang -5.15 87.45 0.00`.
 - A floating texture to the right of that spot.
 - Done when all three are gone and the map still plays through.
-
-### T-218 Performance: 60-70 fps and stutter on an M4 Pro; portals cost a lot; v-sync unclear  (P2, TODO; owner playtest 10)
-- Owner: "pretty poor for my m4 pro ... 60-70fps and its stuttery and im not
-  sure if vsync works correctly, portals lower performance". Measure first:
-  frame times (P2_TRACE / overlay) with and without portals in view on a few
-  maps; what v-sync/frame-limit settings actually do (present mode); where
-  the stutter comes from (shader compiles, asset loads, GC-like spikes,
-  portal render targets). No full-map visibility culling exists (audit).
-  Fix the biggest cost first; report fps before/after on the same views.
 
 ### T-219 No footstep or jump sounds in water (intro3)  (P3, TODO; owner playtest 10)
 - Splash on the fall works; walking or jumping in the water is silent.
@@ -308,6 +299,41 @@ them until the owner lifts the hold; search that file by task id.
 ## Open: P4
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-218 Performance: 60-70 fps and stutter on an M4 Pro; portals cost a lot; v-sync unclear  (P2, PARTLY FIXED, awaiting owner replay; findings below)
+- Owner (playtest 10): "60-70fps and its stuttery ... not sure if vsync
+  works correctly, portals lower performance". His settings: fullscreen
+  3840x2160, v-sync on + triple buffering, 2x MSAA, on a 120 Hz 6K display.
+- Measured (P2_FRAMELOG=1, new; `--size 1920x1080` = his pixel count):
+  the frame was render-thread bound everywhere (~10.7 ms at any size; even
+  640x360 only reached 104 fps), so at 120 Hz v-sync frames alternate 8.3 and
+  16.7 ms: 60-80 fps with judder, his "stutter". Chrome trace
+  (bevy/trace_chrome): every camera (main, each portal level, the water
+  reflection, the exposure probe) built constants for and drew every map
+  surface; valve_render had no per-view culling.
+- Fix (valve_render.rs prepare_surfaces): each draw's bounding sphere is
+  tested against the view's own clip_from_world (the matrix the GPU clips
+  with, oblique portal planes included), so a view only draws what is in
+  its frustum. Same as projected_render's light culling.
+- Evidence, fps before -> after, v-sync on, his settings. 2560x1440:
+  catapult_intro room 94 -> 120 (locked), intro6 room 102 -> 120, intro6
+  with a portal pair in view 59 -> 69, intro3 120 -> 120, laser_stairs 109
+  -> 111. 3840x2160: 80 -> 90, 63 -> 66, 36 -> 40, 90 -> 91, 79 -> 80.
+  Shots on 11 views (incl. portal views, water) match the old build within
+  run-to-run noise. Tests: p2_game 202, source_assets 72 pass.
+- Still open (findings, not fixed):
+  1. 4K is GPU bound and 2x MSAA is the biggest cost there: intro6 room
+     66 fps with MSAA, 103 without; motion blur costs nothing. Likely the
+     MSAA HDR target being loaded/stored by each of ~8 render passes on a
+     tile GPU. Until fixed: Antialiasing off (or 1440p) for 120 fps.
+  2. V-sync OFF is capped at exactly 60 fps in a window (focused or not),
+     below v-sync ON: wgpu maps it to Metal displaySyncEnabled=false and
+     macOS paces such a window at 60. Exclusive fullscreen not checked
+     (would switch the owner's display mode). Keep v-sync on.
+  3. Each portal recursion level still costs ~1.5 ms CPU (Bevy's per-camera
+     passes) and a full-resolution render; rendering only the portal's
+     screen rectangle needs the portal and refraction shaders' screen UVs
+     reworked (they use the drawing camera's viewport).
 
 ### T-216 sp_a2_catapult_intro: the faith plate throws the cube too low; blocks chapter 2  (P1, FIXED, awaiting owner replay)
 - Owner (playtest 10): catching works, "the cube doesn't go high enough up".

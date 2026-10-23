@@ -513,6 +513,20 @@ pub(crate) fn prepare_surfaces(
     // ---- per view constants ----
     let s2w = crate::valve::source_to_world_matrix();
     let w2s = s2w.inverse();
+    // Each draw's bounding sphere in world space, so every view (main,
+    // portal views, water reflection, exposure probe) builds constants for
+    // and draws only what is inside its frustum, not the whole map (T-218).
+    let spheres: Vec<(Vec3, f32)> = extracted
+        .draws
+        .iter()
+        .map(|(d, model, _)| {
+            let mesh = &prepared.meshes[prepared.mesh_index[&(Arc::as_ptr(&d.vertices) as usize, Arc::as_ptr(&d.indices) as usize)]];
+            let world_from_local = *model * s2w;
+            let (lo, hi) = mesh.bounds;
+            let scale = world_from_local.x_axis.truncate().length().max(world_from_local.y_axis.truncate().length()).max(world_from_local.z_axis.truncate().length());
+            (world_from_local.transform_point3((lo + hi) * 0.5), (hi - lo).length() * 0.5 * scale)
+        })
+        .collect();
     let mut arena: Vec<[f32; 4]> = Vec::new();
     for (view_entity, view, target, msaa, layers) in &views {
         // Map surfaces are on layer 0: cameras that don't draw it (a
@@ -528,7 +542,10 @@ pub(crate) fn prepare_surfaces(
         let mut vd = ViewDraws::default();
         let mut translucent: Vec<(f32, PreparedDraw)> = Vec::new();
         let mut late: Vec<(f32, PreparedDraw)> = Vec::new();
-        for (d, model, over) in &extracted.draws {
+        for ((d, model, over), &(center, radius)) in extracted.draws.iter().zip(&spheres) {
+            if !crate::projected::sphere_in_frustum(&clip_from_world, center, radius) {
+                continue;
+            }
             let pass = &d.pass.pass;
             let key = PipelineKey {
                 pass: d.pass.id,
