@@ -196,3 +196,8 @@ the issues on sp_a2_sphere_ peek are fixed, cube jittering is fixed, visuals on 
 Tracked in TASKS.md (T-233..T-235 new; T-231 updated).
 
 sp_a2_pull_the rug is verified and playable. in dp_a2_column_blocker the light doesnt switch back on in the supries room, also the laser for the turret doesnt go through the grate in that level and the turret cant see you through or shoot you through the grate, also the laser doesnt kill the turret through the grate, and when the turret does get killed by the laser it doesnt blow up, this level is nit completeable because of the lasers being weird and angling, it angles itself above the next reflection box making it unplayable past this point.
+
+## Owner playtest 12c (2026-10-23 evening, build a40afeb), the owner's words
+Tracked in TASKS.md (T-236, T-237 new).
+
+okay sp_a2_column_blocker that first chamber is completeable but when i get to the elevator theres an invisivle barrier stopping me from getting in and moving forward, noclipping past it into the elevator worked, wheatlys animation here while im in the elevator is pretty buggy like he doesnt look at you and hes moving through a rail just buggy.
