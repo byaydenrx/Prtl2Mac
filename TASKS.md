@@ -26,7 +26,7 @@ the top. Menus, on-hold and "later" tasks are never taken without the owner.
 Now (owner playtest 12, playability first):
 1. T-230 sp_a2_laser_relays: a laser that has gone through a portal doesn't power the relays (FIXED, awaiting owner replay; was unsolvable)
 2. T-229 Turrets don't work: no shooting animation, beams or bullets, knocking or dropping them does nothing, but they still do damage (FIXED, awaiting owner replay: animated, visible shots, tip over when walked into or knocked, Portal 2 voice lines; gun aim still straight ahead)
-3. T-231 Lasers aim wrong globally: a laser angles up or down instead of going straight (owner playtest 12)
+3. T-231 Lasers aim wrong globally: a laser angles up or down instead of going straight (FIXED, awaiting owner replay: no more auto-aim toward portal centres and relays)
 4. T-232 sp_a2_bridge_the_gap: Wheatley glitches around; the bird looks wrong (owner playtests 11, 12)
 5. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid (BLOCKED, needs owner replay: not reproduced on 18676be, likely fixed by T-221)
 6. T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall (BLOCKED, needs owner: floor fixed on main by T-221; Wheatley attempt on local branch attempt/T-217-wheatley)
@@ -133,7 +133,18 @@ Lower:
   knocked over / picked up / dropped -> tips over, "dies" (sparks, voice,
   stops firing), lasers kill turrets, voice lines per state.
 
-### T-231 Lasers aim wrong: a laser angles up or down instead of going straight  (P2, TODO; owner playtest 12)
+### T-231 Lasers aim wrong: a laser angles up or down instead of going straight  (P2, FIXED, awaiting owner replay; owner playtest 12)
+- 2026-10-23 FIXED. Cause: lasers.rs auto-aimed a beam leaving a portal or a
+  reflection cube at portal centres and at a point 32 u up each relay, so a
+  beam at cube height (z 18) climbed to a portal's centre (z 58) and left
+  the other portal sloping. Portal 2's auto-aim is for catchers
+  (server.dll has `sv_laser_cube_autoaim`); a beam goes through a portal
+  wherever it meets it and a relay is a column. Now only catcher lenses
+  are auto-aim targets. Evidence (laser_relays cube + two portals, T-230
+  setup): before legs z 18 -> 58 and 58 -> 25; after 18 -> 18 and 18 -> 18,
+  all three relays still powered and the exit opens; starting beams on 7
+  laser maps unchanged; 205 tests pass. Not compared against Windows: how
+  strongly Portal 2 snaps onto a catcher (kept our 10 degrees).
 - Owner: "lasers function a bit weird globally like being angled if they
   look up or down when they should just go straight they just function
   strange". Check emitter/catcher/relay directions and the cube's

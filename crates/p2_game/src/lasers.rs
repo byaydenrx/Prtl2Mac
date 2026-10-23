@@ -167,20 +167,20 @@ fn trace_lasers(
             Some((Portal::frame(t), p.half_size, Portal::frame(exit_t), exit_p.surfaces.clone()))
         })
         .collect();
-    // Auto-aim targets (Portal 2 bends a redirected beam onto a catcher,
-    // relay or portal it nearly points at): (point, facing or zero).
-    let mut aim_targets: Vec<(Vec3, Vec3)> = Vec::new();
-    for e in ents.list.iter().filter(|e| !e.killed) {
-        let r = e.transform.rotation;
-        match e.class.as_str() {
-            "prop_laser_catcher" => aim_targets.push((e.transform.translation + r * Vec3::X * (8.0 * U), r * Vec3::X)),
-            "prop_laser_relay" => aim_targets.push((e.transform.translation + r * Vec3::Y * (32.0 * U), Vec3::ZERO)),
-            _ => {}
-        }
-    }
-    for (frame, _, _, _) in &windows {
-        aim_targets.push((frame.position, frame.normal()));
-    }
+    // Auto-aim targets: Portal 2 bends a redirected beam onto a catcher's
+    // lens it nearly points at (`sv_laser_cube_autoaim`): (point, facing).
+    // Not onto portals or relays: a beam goes through a portal wherever it
+    // meets it, and a relay is a tall column a level beam passes anyway;
+    // bending toward their centres tilted beams up and down (T-231).
+    let aim_targets: Vec<(Vec3, Vec3)> = ents
+        .list
+        .iter()
+        .filter(|e| !e.killed && e.class == "prop_laser_catcher")
+        .map(|e| {
+            let r = e.transform.rotation;
+            (e.transform.translation + r * Vec3::X * (8.0 * U), r * Vec3::X)
+        })
+        .collect();
     let autoaim = |o: Vec3, dir: Vec3, skip: &[Entity]| -> Vec3 {
         let filter = SpatialQueryFilter::from_excluded_entities(skip.iter().copied()).with_mask(LayerMask(!source_assets::plugin::PLAYER_CLIP_LAYER));
         let mut best: Option<(f32, Vec3)> = None;
@@ -192,7 +192,7 @@ fn trace_lasers(
             }
             let d = to / dist;
             let c = d.dot(dir);
-            if c < AUTOAIM_COS || facing.dot(d) > -0.3 && facing != Vec3::ZERO || best.is_some_and(|b| c <= b.0) {
+            if c < AUTOAIM_COS || facing.dot(d) > -0.3 || best.is_some_and(|b| c <= b.0) {
                 continue;
             }
             // Only onto targets in plain sight.
