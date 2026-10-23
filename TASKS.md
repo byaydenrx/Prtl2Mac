@@ -27,7 +27,7 @@ Now (owner playtest 11, playability first):
 1. T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up (P0 crash, FIXED, awaiting owner replay: crash a8fda9c; bridge pickup not reproduced)
 2. T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room (FIXED, awaiting owner replay; was unplayable; check T-222 and T-223 with it: likely one cause, see entry)
 3. T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far (BLOCKED, needs owner replay: not reproduced on 18676be)
-4. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid
+4. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid (BLOCKED, needs owner replay: not reproduced on 18676be, likely fixed by T-221)
 5. T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall (floor fix waits on attempt/T-217's regression check)
 6. T-145 Cubes go dark and jitter on buttons, every chapter (jitter still open)
 7. T-218 Performance: 60-70 fps and stutter on an M4 Pro; portals cost a lot; v-sync unclear (owner: better; continue)
@@ -252,9 +252,24 @@ Lower:
   owner replay). Optional, not the owner's report: Windows check of the
   catapult2_up ceiling bounce (scripts/winref.sh).
 
-### T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid  (P1, TODO; playable; owner playtest 11)
+### T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid  (P1, BLOCKED (needs owner replay: not reproduced on 18676be); playable; owner playtest 11)
 - The platform surface (not the machinery) is missing, so the cube falls to
   the floor (still grabbable). Same family as T-221/T-222.
+- Autorun 2026-10-23 05:27 NOT REPRODUCED (autopilot only, build 18676be,
+  HEAD 43b5854). The platform is `panel_error_arm_03a` (func_brush *54,
+  top nature/dirtfloor004c) parented to prop `error_arm_03a`
+  (arm64x64_interior_rusty, keyvalue DefaultAnim bindpose; logic_auto
+  onmapspawn SetDefaultAnimation error_arm_cube +
+  SetParentAttachmentMaintainOffset panel_attach); the second one is
+  `panel_error_arm_02b`. `P2_SCRIPT="3 goto juggled_cube 160; 3.5 lookat
+  juggled_cube; 9 shot ..."`: the panel draws, turns with the arm, has a
+  collider (top z -1264) and `juggled_cube` rests on it at z -1246 for the
+  whole run; after `input error_arm_stop_relay Trigger` both panels keep
+  their colliders and the cube stays. Likely fixed by T-221 (18676be): before
+  it the map-spawn SetDefaultAnimation (here error_arm_cube) was applied
+  before the spawn sequence, so the offset was measured against the wrong
+  pose. Not checked on a pre-18676be build. Owner: replay ricochet's start
+  (cube on the turning platform, platform visible and solid).
 
 ### T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall  (P2, TODO; playable; owner playtest 10)
 - Missing floor: look down a few seconds after the animation where GLaDOS

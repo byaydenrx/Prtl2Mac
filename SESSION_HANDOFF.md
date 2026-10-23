@@ -4,6 +4,12 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
+2026-10-23 05:27 autorun (NOT REPRODUCED, docs only): T-223 ricochet
+rotating platform: panel_error_arm_03a draws, turns with its arm, is solid
+and holds juggled_cube on build 18676be (also after error_arm_stop_relay);
+likely fixed by T-221 (spawn sequence before the map-spawn
+SetDefaultAnimation). T-223 BLOCKED (needs owner replay). No code changed.
+Before that:
 2026-10-23 05:19 autorun (NOT REPRODUCED, docs only): T-222 sphere_peek
 fall-through platform: catapult_block1..4 floors and the floor_repair_1 arm
 panels all end drawn and solid where they belong on build 18676be (likely
@@ -77,6 +83,8 @@ check not done; details in TASKS.md T-217.
   angled, the GLaDOS faith plate should launch you while standing on it, and
   no platform should drop you (none reproduced by autopilot on this build;
   if one still happens, say where).
+- Owner to replay: T-223 ricochet: the turning platform under the cube at
+  the start is visible and solid (not reproduced by autopilot on 18676be).
 - Owner to replay: T-220 load the bridge_the_gap autosave, drop a new cube,
   finish the map; try picking up a cube resting on a bridge.
 - Owner to replay: T-216 catapult_intro (grab the bouncing cube at eye
@@ -94,9 +102,8 @@ check not done; details in TASKS.md T-217.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-TASKS.md "Priority order": T-223 ricochet rotating platform (likely the
-same family as T-221), then finish T-217 (attempt/T-217 regression check),
-T-145 jitter, then the feel tasks. T-222 is BLOCKED on owner replay
+TASKS.md "Priority order": finish T-217 (attempt/T-217 regression check),
+then T-145 jitter, then the feel tasks. T-222 and T-223 are BLOCKED on owner replay
 (optional: Windows check of the catapult2_up ceiling bounce). The owner plays the campaign himself; no level scripts.
 
 ## Uncommitted / in-flight work
