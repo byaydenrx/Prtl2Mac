@@ -85,8 +85,10 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 3 | sp_a2_bridge_the_gap | y | y | y | y | y | VERIFIED | owner playtest 12: playable; Wheatley and the bird buggy (T-232) |
 | 3 | sp_a2_turret_intro | y | y | y | y | y | VERIFIED | owner playtest 12: completable; turrets don't shoot or tip over but do damage (T-229) |
 | 3 | sp_a2_laser_relays | y | y | y | y | - | IN PROGRESS | T-230 fixed: all three relays power and the exit opens (autopilot); owner to replay |
-| 3 | sp_a2_turret_blocker, laser_vs_turret, pull_the_rug | y | y | - | y | - | IN PROGRESS | owner playtest 12: turret_blocker finished only with godmode, laser_vs_turret noclipped (T-229); pull_the_rug no bugs seen, not finished |
-| 4 | sp_a2_column_blocker, laser_chaining, triple_laser, bts1, bts2 | - | - | - | - | - | NOT STARTED | T-010 |
+| 3 | sp_a2_turret_blocker, laser_vs_turret | y | y | - | y | - | IN PROGRESS | owner playtest 12: turret_blocker finished only with godmode, laser_vs_turret noclipped (T-229 turrets fixed since) |
+| 3 | sp_a2_pull_the_rug | y | y | y | y | y | VERIFIED | owner playtest 12b: verified and playable |
+| 4 | sp_a2_column_blocker | y | - | x | y | - | BLOCKED | owner playtest 12b: laser angled over the next cube (T-231, fixed since), grate blocks lasers/turret (T-233), turret doesn't explode (T-234), light (T-235) |
+| 4 | sp_a2_laser_chaining, triple_laser, bts1, bts2 | - | - | - | - | - | NOT STARTED | T-010 |
 | 5 | sp_a2_bts3..bts6, sp_a2_core | - | - | - | - | - | NOT STARTED | T-011 |
 | 6 | sp_a3_00, sp_a3_01, sp_a3_03 | y | y | y | y | - | IN PROGRESS | I/O chains and transitions by autopilot with setpos/use (ch6-9 session); owner hasn't played them (was VERIFIED before the 2026-10-21 rule) |
 | 6 | sp_a3_jump_intro | y | y | - | - | - | IN PROGRESS | buttons/doors proven; gel + portal climb not flown (T-012) |

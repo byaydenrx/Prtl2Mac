@@ -26,46 +26,49 @@ the top. Menus, on-hold and "later" tasks are never taken without the owner.
 Now (owner playtest 12, playability first):
 1. T-230 sp_a2_laser_relays: a laser that has gone through a portal doesn't power the relays (FIXED, awaiting owner replay; was unsolvable)
 2. T-229 Turrets don't work: no shooting animation, beams or bullets, knocking or dropping them does nothing, but they still do damage (FIXED, awaiting owner replay: animated, visible shots, tip over when walked into or knocked, Portal 2 voice lines; gun aim still straight ahead)
-3. T-231 Lasers aim wrong globally: a laser angles up or down instead of going straight (FIXED, awaiting owner replay: no more auto-aim toward portal centres and relays)
-4. T-232 sp_a2_bridge_the_gap: Wheatley glitches around; the bird looks wrong (owner playtests 11, 12)
-5. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid (BLOCKED, needs owner replay: not reproduced on 18676be, likely fixed by T-221)
-6. T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall (BLOCKED, needs owner: floor fixed on main by T-221; Wheatley attempt on local branch attempt/T-217-wheatley)
-7. T-218 Performance: 60-70 fps and stutter on an M4 Pro; portals cost a lot; v-sync unclear (owner: better; continue)
-8. T-224 Cube physics feel: no tumbling in the air; plate and button hits unreliable
-9. T-225 No dissolve ("fizzle") effect on cubes
-10. T-226 Pedestal buttons (prop_button): no sound or press animation
-11. T-173 Portal gun view model: hold beam, carry anims, fizzler shake
-12. T-227 Zoom doesn't work
-13. T-228 Chapter HUD icons don't look like Portal 2's
+3. T-231 Lasers aim wrong globally: a laser angles up or down instead of going straight (FIXED, awaiting owner replay: no more auto-aim toward portal centres and relays; owner hit it in column_blocker on the build before the fix)
+4. T-233 sp_a2_column_blocker: lasers and turret sight don't pass the grate (laser can't reach or kill the turret; turret can't see or shoot through it) (owner playtest 12b)
+5. T-234 Turrets killed by a laser don't blow up (owner playtest 12b)
+6. T-235 sp_a2_column_blocker: the light doesn't switch back on in the surprise room (owner playtest 12b)
+7. T-232 sp_a2_bridge_the_gap: Wheatley glitches around; the bird looks wrong (owner playtests 11, 12)
+8. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid (BLOCKED, needs owner replay: not reproduced on 18676be, likely fixed by T-221)
+9. T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall (BLOCKED, needs owner: floor fixed on main by T-221; Wheatley attempt on local branch attempt/T-217-wheatley)
+10. T-218 Performance: 60-70 fps and stutter on an M4 Pro; portals cost a lot; v-sync unclear (owner: better; continue)
+11. T-224 Cube physics feel: no tumbling in the air; plate and button hits unreliable
+12. T-225 No dissolve ("fizzle") effect on cubes
+13. T-226 Pedestal buttons (prop_button): no sound or press animation
+14. T-173 Portal gun view model: hold beam, carry anims, fizzler shake
+15. T-227 Zoom doesn't work
+16. T-228 Chapter HUD icons don't look like Portal 2's
 Then the engine gaps common to many maps, and gels:
-14. T-212 sp_a3_00 (start of chapter 6): loud glass smash at load (BLOCKED: merge attempt/T-212 for the owner's replay)
-15. T-203 Switchable lights frozen: lightmap styles other than 0 ignored (50 of 63 maps)
-16. T-199 Particle sprite sheets not decoded: sheet particles draw the whole atlas
-17. T-214 All-maps load sweep findings (2026-10-21)
-18. T-201 UnlitTwoTexture (TV/monitor screens) and other model shaders on the fallback
-19. T-206 Sounds not panned left/right
-20. T-200 Particle operators the maps' effects use but p2_fx doesn't simulate
-21. T-202 No bloom or colour correction (every map)
-22. T-204 No env_cubemap reflections or dynamic lights on props
-23. T-211 Gels: check each against Source
-24. T-030 Gel chapters: missing buttons in gel rooms, black elevator, cube carry feel
+17. T-212 sp_a3_00 (start of chapter 6): loud glass smash at load (BLOCKED: merge attempt/T-212 for the owner's replay)
+18. T-203 Switchable lights frozen: lightmap styles other than 0 ignored (50 of 63 maps)
+19. T-199 Particle sprite sheets not decoded: sheet particles draw the whole atlas
+20. T-214 All-maps load sweep findings (2026-10-21)
+21. T-201 UnlitTwoTexture (TV/monitor screens) and other model shaders on the fallback
+22. T-206 Sounds not panned left/right
+23. T-200 Particle operators the maps' effects use but p2_fx doesn't simulate
+24. T-202 No bloom or colour correction (every map)
+25. T-204 No env_cubemap reflections or dynamic lights on props
+26. T-211 Gels: check each against Source
+27. T-030 Gel chapters: missing buttons in gel rooms, black elevator, cube carry feel
 Then the campaign sweeps (the owner's playtests go first):
-25. T-008 Prove chapter 3 rest: bridge_the_gap, turret_intro, laser_relays, turret_blocker, laser_vs_turret, pull_the_rug
-26. T-010 Sweep chapter 4 (column_blocker, laser_chaining, triple_laser, bts1, bts2)
-27. T-011 Sweep chapter 5 (bts3, bts4, bts5, bts6, core)
-28. T-012 Sweep chapter 6 rest (jump_intro gel climb, bomb_flings, crazy_box, transition01)
-29. T-013 Sweep chapter 7 (speed_ramp, speed_flings, portal_intro, end)
-30. T-014 Sweep chapter 8 (sp_a4_intro .. jump_polarity)
-31. T-015 Sweep chapter 9 (finale1..finale4)
+28. T-008 Prove chapter 3 rest: bridge_the_gap, turret_intro, laser_relays, turret_blocker, laser_vs_turret, pull_the_rug
+29. T-010 Sweep chapter 4 (column_blocker, laser_chaining, triple_laser, bts1, bts2)
+30. T-011 Sweep chapter 5 (bts3, bts4, bts5, bts6, core)
+31. T-012 Sweep chapter 6 rest (jump_intro gel climb, bomb_flings, crazy_box, transition01)
+32. T-013 Sweep chapter 7 (speed_ramp, speed_flings, portal_intro, end)
+33. T-014 Sweep chapter 8 (sp_a4_intro .. jump_polarity)
+34. T-015 Sweep chapter 9 (finale1..finale4)
 Lower:
-32. T-205 Portal gun edge cases
-33. T-209 Portal transit only mirrors box-shaped geometry at the exit
-34. T-207 Viewmodel gaps
-35. T-208 Chell body gaps
-36. T-210 Upstream minor gaps
-37. T-090 Restart check per verified map
-38. T-040 App icon and second-Mac first-run check
-39. T-050 Verify merged cloud features in game: Wheatley look-at, gels, projtex, saves
+35. T-205 Portal gun edge cases
+36. T-209 Portal transit only mirrors box-shaped geometry at the exit
+37. T-207 Viewmodel gaps
+38. T-208 Chell body gaps
+39. T-210 Upstream minor gaps
+40. T-090 Restart check per verified map
+41. T-040 App icon and second-Mac first-run check
+42. T-050 Verify merged cloud features in game: Wheatley look-at, gels, projtex, saves
 
 ## Active tasks (in priority order)
 
@@ -149,6 +152,24 @@ Lower:
   look up or down when they should just go straight they just function
   strange". Check emitter/catcher/relay directions and the cube's
   redirection (Portal 2 keeps a reflection cube's beam level).
+
+### T-233 sp_a2_column_blocker: lasers and turret sight don't pass the grate  (P1, TODO; owner playtest 12b)
+- Owner: "the laser for the turret doesnt go through the grate in that level
+  and the turret cant see you through or shoot you through the grate, also
+  the laser doesnt kill the turret through the grate". Grates
+  (CONTENTS_GRATE, T-130) stop the player but should pass lasers, turret
+  sight lines and bullets. Also: "this level is nit completeable because of
+  the lasers being weird and angling, it angles itself above the next
+  reflection box" (build 1894bb5, before the T-231 fix: replay first).
+
+### T-234 Turrets killed by a laser don't blow up  (P2, TODO; owner playtest 12b)
+- Owner: "when the turret does get killed by the laser it doesnt blow up".
+  Portal 2: a burned-out turret explodes into gibs (robot_fx.pcf
+  turret_fx_break_gib*, impact_turret_break sparks, explosion sound).
+
+### T-235 sp_a2_column_blocker: the light doesn't switch back on in the surprise room  (P2, TODO; owner playtest 12b)
+- Owner: "the light doesnt switch back on in the supries room". Likely the
+  switchable-lights gap (T-203: lightmap styles other than 0 ignored).
 
 ### T-232 sp_a2_bridge_the_gap: Wheatley glitches around; the bird looks wrong  (P2, TODO; owner playtests 11, 12)
 - Owner (11): "wheatly is also a little buggy glitching around and shit and
