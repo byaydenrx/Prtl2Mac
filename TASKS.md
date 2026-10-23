@@ -41,7 +41,7 @@ Owner's order (2026-10-22 23:20): T-216, T-218, T-145, T-217; everything
 else (items 1-8 below and the "Later" list) waits until the owner says.
 0a. T-216 sp_a2_catapult_intro: the plate throws the cube too low. FIXED, awaiting replay.
 0b. T-218 performance. PARTLY FIXED (culling), awaiting replay; MSAA-at-4K and v-sync-off findings in its entry.
-0c. T-145 cubes dark and jittery on buttons, every chapter.
+0c. T-145 cubes on buttons: dark cubes FIXED (relight); spikes and jitter in progress.
 0d. T-217 sp_a2_laser_stairs: missing floor, Wheatley through the wall, floating texture.
 0e. Then wait for the owner's next playtest (chapter 2 from catapult_intro);
     his reports go before everything below.
@@ -79,7 +79,28 @@ them until the owner lifts the hold; search that file by task id.
 
 ## Open: P1
 
-### T-145 Cubes go dark and jitter on buttons, every chapter  (P1 by owner, TODO; back from hold 2026-10-22)
+### T-145 Cubes go dark and jitter on buttons, every chapter  (P1 by owner, IN_PROGRESS: dark cubes FIXED (see 2026-10-23), spikes and jitter next)
+- 2026-10-23 dark cubes, cause: a moving prop's vertex light was baked once
+  where it spawned and kept forever. Dropper and template cubes spawn in
+  the dropper's tube, where the ambient light is 0.000, so they were black
+  everywhere; cubes spawned in dark corners (intro2's "box", 0.017) stayed
+  dark. Not the lit skin: swapping which skin is the hidden variant gave the
+  same dark cube (the earlier hidden-variant lead was wrong). Source lights
+  moving models from where they are now. Fix (source_assets plugin.rs
+  RelightOnMove/relight_moved_props): cubes, physics props, turrets and
+  paint bombs redo their vertex light (same maths as the spawn) after
+  moving 8 u or turning 0.15 rad, at most every 0.1 s; template copies keep
+  it (components are Clone). valve_render rewrites a relit draw's vertex
+  buffer in place instead of adding buffers.
+- Evidence: fizzler_intro and laser_stairs dropper cubes black -> lit;
+  catapult_intro dropper cube on the floor 84 -> 110 (floor 34 both);
+  intro5/intro6 cubes slightly brighter. 20-map load check clean, fps
+  unchanged, tests 202 + 72 pass.
+- Left: under intro2's button lamp the relit cube's top is a saturated
+  pinkish white where Windows shows grey, and its sides stay darker than
+  Windows: our ambient for models (leaf-average samples, world-light term)
+  isn't calibrated against Source. Inverse-square sample weighting was tried
+  and overshot ~10x; not kept.
 - Owner playtest 10 (2026-10-22): "cubes still show as black and are
   jittery/buggy moving on buttons, still playable but a necessary now fix,
   global, not on all buttons". Find which buttons/cubes (class, skin, model)

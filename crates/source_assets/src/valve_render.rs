@@ -185,6 +185,10 @@ pub(crate) struct PreparedSurfaces {
     pipelines: HashMap<PipelineKey, CachedRenderPipelineId>,
     pub(crate) meshes: Vec<GpuMesh>,
     pub(crate) mesh_index: HashMap<(usize, usize), usize>,
+    /// Each mesh slot's current key, and the slot of each index buffer, so a
+    /// relit draw's new vertices can go into its old slot.
+    slot_keys: Vec<(usize, usize)>,
+    slot_of_indices: HashMap<usize, usize>,
     constants: Option<Buffer>,
     constants_bind: Option<BindGroup>,
     pub(crate) texture_bind: Option<BindGroup>,
@@ -482,15 +486,31 @@ pub(crate) fn prepare_surfaces(
     }
 
     // ---- meshes ----
+    let live: std::collections::HashSet<(usize, usize)> =
+        extracted.draws.iter().map(|(d, _, _)| (Arc::as_ptr(&d.vertices) as usize, Arc::as_ptr(&d.indices) as usize)).collect();
     for (d, _, _) in &extracted.draws {
         let key = (Arc::as_ptr(&d.vertices) as usize, Arc::as_ptr(&d.indices) as usize);
         if prepared.mesh_index.contains_key(&key) {
             continue;
         }
+        // A relit prop (plugin::RelightOnMove): the same draw with new vertex
+        // light. Rewrite its buffer rather than adding one per relight,
+        // unless something still draws the old vertices this frame.
+        if let Some(&slot) = prepared.slot_of_indices.get(&key.1) {
+            let old = prepared.slot_keys[slot];
+            let bytes: &[u8] = bytemuck::cast_slice(&d.vertices);
+            if !live.contains(&old) && prepared.meshes[slot].vertex.size() == bytes.len() as u64 {
+                queue.write_buffer(&prepared.meshes[slot].vertex, 0, bytes);
+                prepared.mesh_index.remove(&old);
+                prepared.mesh_index.insert(key, slot);
+                prepared.slot_keys[slot] = key;
+                continue;
+            }
+        }
         let vertex = device.create_buffer_with_data(&BufferInitDescriptor {
             label: Some("valve vertices"),
             contents: bytemuck::cast_slice(&d.vertices),
-            usage: BufferUsages::VERTEX,
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         });
         let index = device.create_buffer_with_data(&BufferInitDescriptor {
             label: Some("valve indices"),
@@ -502,6 +522,8 @@ pub(crate) fn prepare_surfaces(
             (lo.min(p), hi.max(p))
         });
         prepared.mesh_index.insert(key, prepared.meshes.len());
+        prepared.slot_of_indices.insert(key.1, prepared.meshes.len());
+        prepared.slot_keys.push(key);
         prepared.meshes.push(GpuMesh {
             vertex,
             index,

@@ -244,6 +244,7 @@ impl FatVertex {
 }
 
 /// Everything needed to draw one mesh with a Valve shader.
+#[derive(Clone)]
 pub struct SurfaceDraw {
     pub pass: Arc<LibraryPass>,
     pub vertices: Arc<Vec<FatVertex>>,
@@ -264,7 +265,7 @@ pub struct SurfaceDraw {
     /// Material name, for diagnostics.
     pub material: String,
     /// Set when the material has proxies we evaluate.
-    pub dynamic: Option<DynamicMaterial>,
+    pub dynamic: Option<Arc<DynamicMaterial>>,
 }
 
 /// Draw this entity's mesh with Portal 2's shaders. Vertex positions are in
@@ -616,7 +617,7 @@ pub fn lightmapped_generic(
     bind(12, detail, &env.grey, false, "$detailframe");
     // Only keep samplers the pass declares.
     textures.retain(|t| pass.pass.samplers.iter().any(|(r, _)| *r == t.register));
-    let dynamic = dynamic_material(m, recipe, &textures);
+    let dynamic = dynamic_material(m, recipe, &textures).map(Arc::new);
 
     Ok(SurfaceDraw {
         pass,
@@ -846,7 +847,7 @@ pub fn vertex_lit_generic(
     bind(4, envmask, &env.white, false, "$envmapmaskframe");
     bind(11, simask_or_base, &env.white, false, simask_frame);
     textures.retain(|t| pass.pass.samplers.iter().any(|(r, _)| *r == t.register));
-    let dynamic = dynamic_material(m, recipe, &textures);
+    let dynamic = dynamic_material(m, recipe, &textures).map(Arc::new);
     Ok(SurfaceDraw {
         pass,
         vertices: Arc::new(vertices),

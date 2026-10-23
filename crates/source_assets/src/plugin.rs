@@ -18,7 +18,7 @@ use bevy::image::{CompressedImageFormatSupport, CompressedImageFormats, ImageSam
 use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureViewDescriptor, TextureViewDimension};
-use shared::{source_dir_to_world, source_to_world, Portalable};
+use shared::{source_dir_to_world, source_to_world, world_to_source, Portalable};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -57,7 +57,8 @@ impl Plugin for SourceMapPlugin {
         .add_plugins(crate::valve_render::ValveRenderPlugin)
         .add_plugins(crate::proxy::MaterialProxyPlugin)
         .add_plugins(crate::projected::ProjectedLightPlugin)
-        .add_plugins(crate::glass::GlassPlugin);
+        .add_plugins(crate::glass::GlassPlugin)
+        .add_systems(PostUpdate, relight_moved_props.after(TransformSystems::Propagate));
         if std::env::var_os("P2_TRACE_BONE").is_some() {
             app.add_systems(PostUpdate, trace_bones.after(TransformSystems::Propagate));
         }
@@ -203,6 +204,80 @@ pub struct AltSkin {
 /// shown while the model's [`ModelSkin`] is this skin.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct SkinVariant(pub i32);
+
+/// On a movable entity prop (a cube, a physics prop): Source lights a
+/// moving model each frame from the light where it is, so its baked vertex
+/// light is redone when it has moved or turned ([`relight_moved_props`]).
+/// Without it a cube kept the light of where it spawned: a dropper's dark
+/// tube made it near black everywhere (T-145).
+#[derive(Component, Clone)]
+pub struct RelightOnMove {
+    map: Arc<LoadedMap>,
+    lights: Arc<Vec<map::WorldLight>>,
+    /// The model's illumination point (Source units, model space, scaled).
+    illum: Vec3,
+    /// Where the map was spawned (world).
+    offset: Vec3,
+    tint: Vec3,
+    light_scale: f32,
+    /// Pose (world) and time of the last lighting.
+    last: Option<(Vec3, Quat, f32)>,
+}
+
+/// On each Valve surface of a [`RelightOnMove`] model: the Source
+/// model-space normals its vertex light is computed from, one per vertex.
+#[derive(Component, Clone)]
+pub struct RelightNormals(Arc<Vec<Vec3>>);
+
+/// Entity classes that move freely and get [`RelightOnMove`].
+const RELIT_CLASSES: &[&str] = &["prop_weighted_cube", "prop_monster_box", "prop_physics", "prop_physics_override", "prop_physics_multiplayer", "npc_portal_turret_floor", "prop_paint_bomb"];
+/// Relight after moving this far (Source units) or turning this much (radians)...
+const RELIGHT_MOVE: f32 = 8.0;
+const RELIGHT_TURN: f32 = 0.15;
+/// ...at most this often (seconds).
+const RELIGHT_EVERY: f32 = 0.1;
+
+/// Redoes the vertex light of moved [`RelightOnMove`] models, the same way
+/// the spawn lit them, at their current position and rotation.
+fn relight_moved_props(
+    time: Res<Time>,
+    mut roots: Query<(Entity, &GlobalTransform, &mut RelightOnMove)>,
+    children: Query<&Children>,
+    mut surfaces: Query<(&mut crate::valve::ValveSurface, &RelightNormals)>,
+) {
+    let now = time.elapsed_secs();
+    for (e, gt, mut r) in &mut roots {
+        let (_, rot, pos) = gt.to_scale_rotation_translation();
+        match r.last {
+            None => {
+                // The spawn just lit it here.
+                r.last = Some((pos, rot, now));
+                continue;
+            }
+            Some((p, q, t)) => {
+                let moved = world_to_source(p).distance(world_to_source(pos)) > RELIGHT_MOVE || q.angle_between(rot) > RELIGHT_TURN;
+                if !moved || now - t < RELIGHT_EVERY {
+                    continue;
+                }
+            }
+        }
+        r.last = Some((pos, rot, now));
+        let illum = world_to_source(pos - r.offset) + world_to_source(rot * source_to_world(r.illum));
+        let amb = r.map.lit_ambient_at(illum, &r.lights);
+        let scale = r.tint * r.light_scale;
+        for c in children.iter_descendants(e) {
+            let Ok((mut surface, normals)) = surfaces.get_mut(c) else { continue };
+            let mut draw = (*surface.0).clone();
+            let mut vertices = (*draw.vertices).clone();
+            for (v, n) in vertices.iter_mut().zip(normals.0.iter()) {
+                let wn = rot * source_dir_to_world(*n);
+                v.color1 = crate::valve::encode_static_light(amb.eval(Vec3::new(wn.x, -wn.z, wn.y)) * scale);
+            }
+            draw.vertices = Arc::new(vertices);
+            surface.0 = Arc::new(draw);
+        }
+    }
+}
 
 #[derive(Component, Clone, Copy, Debug)]
 pub struct BonePart {
@@ -788,7 +863,7 @@ fn parse_light(s: Option<&str>) -> (Vec3, f32) {
 pub fn spawn_loaded_map(
     commands: &mut Commands,
     assets: &mut SourceMapAssets,
-    map: &LoadedMap,
+    map: &Arc<LoadedMap>,
     offset: Vec3,
 ) -> MapInfo {
     let root = commands
@@ -1065,6 +1140,7 @@ pub fn spawn_loaded_map(
             None,
             transform,
             root,
+            false,
             &|src_n: Vec3, vvd: u32| match &sp.vertex_light {
                 Some(vl) => vl.get(vvd as usize).copied().unwrap_or(Vec3::ZERO),
                 None => {
@@ -1100,7 +1176,7 @@ pub fn spawn_loaded_map(
     // Entity lump.
     let mut player_start = None;
     let mut light_env = None;
-    let world_lights = map.world_lights();
+    let world_lights = Arc::new(map.world_lights());
     for (ei, e) in map.entities.iter().enumerate() {
         let kind = classify(e);
         let transform = Transform::from_translation(source_to_world(e.origin) + offset)
@@ -1148,6 +1224,7 @@ pub fn spawn_loaded_map(
                 let q_src = Quat::from_rotation_z(e.angles.y.to_radians())
                     * Quat::from_rotation_y(e.angles.x.to_radians())
                     * Quat::from_rotation_x(e.angles.z.to_radians());
+                let relit = RELIT_CLASSES.contains(&e.classname.as_str());
                 let amb = map.lit_ambient_at(e.origin + q_src * model.illum_position * scale, &world_lights);
                 if std::env::var_os("P2_TRACE_LIGHT").is_some() {
                     let avg: Vec3 = amb.sides.iter().copied().sum::<Vec3>() / 6.0;
@@ -1172,6 +1249,7 @@ pub fn spawn_loaded_map(
                     alt_skin,
                     local,
                     root,
+                    relit,
                     &|src_n: Vec3, _| {
                         let wn = rot * source_dir_to_world(src_n);
                         amb.eval(Vec3::new(wn.x, -wn.z, wn.y))
@@ -1182,6 +1260,17 @@ pub fn spawn_loaded_map(
                 );
                 if let Some(alt) = alt_skin {
                     commands.entity(ent).insert((ModelSkin(skin), AltSkin { base: skin, alt }));
+                }
+                if let (true, Some(v)) = (relit, amb_ctx.as_ref()) {
+                    commands.entity(ent).insert(RelightOnMove {
+                        map: map.clone(),
+                        lights: world_lights.clone(),
+                        illum: model.illum_position * scale,
+                        offset,
+                        tint,
+                        light_scale: v.light_scale,
+                        last: None,
+                    });
                 }
                 if e.get("startdisabled") == Some("1") || e.get("rendermode") == Some("10") || e.classname == "env_shooter" {
                     commands.entity(ent).insert(Visibility::Hidden);
@@ -1422,6 +1511,7 @@ fn spawn_model(
     alt_skin: Option<i32>,
     transform: Transform,
     parent: Entity,
+    relit: bool,
     light: &dyn Fn(Vec3, u32) -> Vec3,
     tint: Vec3,
     pose: ModelPose,
@@ -1546,12 +1636,15 @@ fn spawn_model(
                 };
                 match crate::valve::vertex_lit_generic(&assets.valve, &mut assets.shaders, &mut env, minfo, verts, mesh.indices.clone()) {
                     Ok(draw) => {
-                        commands.spawn((
+                        let mut ec = commands.spawn((
                             crate::valve::ValveSurface(Arc::new(draw)),
                             Transform::IDENTITY,
                             Visibility::default(),
                             ChildOf(e),
                         ));
+                        if relit {
+                            ec.insert(RelightNormals(Arc::new(normals.to_vec())));
+                        }
                         continue;
                     }
                     Err(err) => {
