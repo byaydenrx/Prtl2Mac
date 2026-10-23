@@ -4,6 +4,12 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
+2026-10-23 04:27 autorun (UNFINISHED, docs only): T-221 bridge_intro invisible
+walls not reproduced yet in a short pass; arrival area and ceiling repair
+arms render. Narrowed the "hallway animation" to the floor-panel rows
+(row_[12]_panel_*) raised by floor_panel_up relays; next step written in
+TASKS.md T-221 (stays IN_PROGRESS). No code changed.
+Before that:
 2026-10-23 04:22 autorun (FIXED, autopilot only): T-220 bridge_the_gap crash
 fixed in a8fda9c: dropper copies cloned avian's broad-phase proxy key from
 the cube prototype; after a save load that freed the prototype's proxy and

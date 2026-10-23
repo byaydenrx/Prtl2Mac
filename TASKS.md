@@ -123,7 +123,7 @@ Lower:
     the map; also try picking up a cube lying on a bridge (not reproduced:
     propto onto the projector3 bridge + use picked it up).
 
-### T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room  (P1, TODO; owner playtest 11: "unplayable")
+### T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room  (P1, IN_PROGRESS; owner playtest 11: "unplayable")
 - Owner: "lots of invisible textures and walls just from the beginning room,
   the animations machinery is missing walls are missing ... you can crouch
   past the hallway animation and continue". He finished it only because he
@@ -135,6 +135,21 @@ Lower:
   the models that fail to load (T-214) and fallback shaders.
 - Likely shares a cause with T-222/T-223 (moving panels drawn without their
   surface) and bridge_the_gap's missing textures: fix the cause once.
+- Autorun 2026-10-23 04:23 (autopilot only, build a8fda9c): not reproduced
+  yet. Arrival area (elevator at source -736,736; stairs going -y, frames,
+  video screens) renders complete from `setpos -736 560 -127`. Ceiling
+  repair arms `ceiling_panel_repair1-roboarmm_0[1-5]bendy01` (191..319,
+  -416..-480, 384) and their parented func_brush panels draw. The likely
+  "hallway animation" is the floor-panel instance rows
+  `row_[12]_panel_[2-5]-floor_panel_01_prop` (arm64x64_interior_rusty.mdl at
+  -704/-768, -480..-672, -64) with func_brush `..._floor_panel_01_brush`
+  (collider present, prop value 0 = not yet raised), raised by relays
+  `row_*_panel_*-floor_panel_up`. Also `wall_panel_extend_model`
+  (telescope_arm_128, 400,-768,64). `setpos -736 -330 -63` lands in the void,
+  so use `goto`/walk from the stairs. Next step: walk up the stairs from the
+  elevator (or `input row_1_panel_3-floor_panel_up Trigger`) and shoot the
+  panel rows before/after they rise; compare with Windows (scripts/winref.sh)
+  at the same spot; then check what fires floor_panel_up (ents outputs).
 
 ### T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far  (P1, TODO; playable; owner playtest 11)
 - A platform you stand on sometimes lets you fall through; "its like not
