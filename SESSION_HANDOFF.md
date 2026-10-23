@@ -9,6 +9,22 @@ The autorun no longer stops itself or uses a STOP file (docs/AUTORUN.md
 T-217, T-222, T-223 wait for the owner's replay (see Fix attempts below).
 
 ## Last update
+2026-10-23 night, manual session (stopping: context full). App 0.1.0+024d846.20261023T2207Z.
+Done this session (all pushed): T-220 regression (dropper cubes), T-145
+jitter, T-230 laser relays through portals, T-229 turrets (animated,
+visible shots, tip/die, voice lines; props pushable), T-231 lasers level
+(auto-aim only onto catchers), T-232/T-237 Wheatley rides his rail (deep
+parent chains; track trains start on their first node, matched to Windows).
+Owner playtests 12, 12b, 12c logged (docs/PLAYTESTS.md).
+Open, in priority order: T-233 column_blocker grate blocks lasers and
+turret sight/shots; T-234 laser-killed turrets don't explode; T-235
+column_blocker surprise-room light; T-236 departure-elevator barrier (not
+reproduced, asked owner); T-232 bird (owner to describe).
+Windows reference: scratch winref copy that sends each command on its own
+line was needed for VScript printl with quotes (winref.sh joins --cmd into
+one line and the console strips quotes); consider adding that to winref.sh.
+Screenshots come out black while the owner's game is open.
+Before that:
 2026-10-23 evening, manual session: T-229 turrets FIXED (1894bb5, app
 0.1.0+1894bb5.20261023T2124Z): animated, visible shots (flash, tracer, impacts), tip over when
 walked into or knocked, spray then die, lasers burn them, Portal 2's voice
@@ -125,7 +141,11 @@ fixed on branch attempt/T-217 (2fe2ac4, pushed to origin), regression
 check not done; details in TASKS.md T-217.
 
 ## Where things stand
-- dist/Prtl2Mac.app = 0.1.0+1894bb5.20261023T2124Z (T-229 turrets, T-230 laser relays, T-145, T-220).
+- dist/Prtl2Mac.app = 0.1.0+024d846.20261023T2207Z (T-232/T-237 Wheatley, T-231, T-229, T-230, T-145, T-220).
+- Owner to replay: column_blocker with the T-231 fix (beams stay level),
+  its departure elevator (barrier? Wheatley rides his rail and looks at you),
+  bridge_the_gap Wheatley window scene (no teleport) and say what's wrong
+  with the bird; turret maps (T-229).
 - Owner to replay: T-229 turret_intro, turret_blocker, laser_vs_turret: turrets
   deploy, shoot visibly, tip over when walked into or hit, talk, die.
 - Owner to replay: T-230 sp_a2_laser_relays: route the beam through all
@@ -158,7 +178,7 @@ check not done; details in TASKS.md T-217.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-TASKS.md "Priority order": T-231 laser tilt, then T-232 (owner's order). T-217, T-222
+TASKS.md "Priority order": T-233 (column_blocker grate), T-234, T-235.
 and T-223 are BLOCKED on owner replay
 (optional: Windows check of the catapult2_up ceiling bounce). The owner plays the campaign himself; no level scripts.
 
