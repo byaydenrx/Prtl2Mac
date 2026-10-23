@@ -152,8 +152,12 @@ fn default_anim(anims: &PropAnims, i: usize, e: &GameEnt) -> Option<String> {
 
 /// What a prop plays when nothing asked for anything: its default
 /// animation, else (personality cores) its idle activity, else sequence 0.
+/// It spawns in its `DefaultAnim`: a `SetDefaultAnimation` at map spawn only
+/// picks what follows (bridge_intro's floor panels spawn in `64_idle`, the
+/// pose their brushes are attached in, then fold to `bindpose`).
 fn initial_seq(anims: &PropAnims, i: usize, e: &GameEnt, anim: &Animator) -> Option<String> {
-    if let Some(d) = default_anim(anims, i, e).filter(|d| anim.find(d).is_some()) {
+    let spawn = e.get("defaultanim").map(str::trim).filter(|d| anim.find(d).is_some()).map(str::to_string);
+    if let Some(d) = spawn.or_else(|| default_anim(anims, i, e).filter(|d| anim.find(d).is_some())) {
         return Some(d);
     }
     let seq = (e.class == "npc_personality_core").then(|| anim.find_activity("ACT_IDLE")).flatten().unwrap_or(0);
