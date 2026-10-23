@@ -107,3 +107,4 @@ UNFINISHED (stopped mid-task; the next run continues it).
 | 2026-10-22 23:50 | T-216 catapult_intro cube throw | FIXED: prop LinearDamping removed; cube peak 165-171 -> 188-200 (Windows 190/204) | b9ac2b1 | 0.1.0+b9ac2b1.20261023T0349Z |
 | 2026-10-23 00:27 | T-218 performance | PARTIAL: per-view frustum culling of Valve surfaces; 1440p 94->120 fps, portals 59->69; MSAA-at-4K and vsync-off 60 cap recorded | 51c6aa7 | 0.1.0+51c6aa7.20261023T0427Z |
 | 2026-10-23 01:30 | T-145 cubes on buttons | PARTIAL: dark cubes fixed (relight where they are, c005fbc), button spikes fixed (stretch parts, bf5006a); jitter open, narrowed to contact with the button's convex pieces | c0cd7f1 | 0.1.0+c0cd7f1.20261023T0530Z |
+| 2026-10-23 01:37 | T-217 laser_stairs | UNFINISHED: missing floor fixed on attempt/T-217 (2fe2ac4), regression check left; owner paused | 2fe2ac4 | 0.1.0+c0cd7f1.20261023T0530Z |

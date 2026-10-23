@@ -42,7 +42,7 @@ else (items 1-8 below and the "Later" list) waits until the owner says.
 0a. T-216 sp_a2_catapult_intro: the plate throws the cube too low. FIXED, awaiting replay.
 0b. T-218 performance. PARTLY FIXED (culling), awaiting replay; MSAA-at-4K and v-sync-off findings in its entry.
 0c. T-145 cubes on buttons: dark cubes and spikes FIXED, awaiting replay; jitter open (cause narrowed, entry).
-0d. T-217 sp_a2_laser_stairs: missing floor, Wheatley through the wall, floating texture.
+0d. T-217 sp_a2_laser_stairs: missing floor fixed on attempt/T-217 (regression check left); Wheatley through the wall and floating texture not started.
 0e. Then wait for the owner's next playtest (chapter 2 from catapult_intro);
     his reports go before everything below.
 Later, owner says not blocking (keep for the polish pass): intro1 sky
@@ -180,6 +180,25 @@ them until the owner lifts the hold; search that file by task id.
   animation: `setpos -529.75 327.04 -90.00; setang -5.15 87.45 0.00`.
 - A floating texture to the right of that spot.
 - Done when all three are gone and the map still plays through.
+- 2026-10-23 missing floor REPRODUCED and fixed on branch attempt/T-217
+  (2fe2ac4, pushed, not on main yet). Replay without the elevator: autopilot
+  `3 input flooranima_go trigger; 8 input floor_collsion_brush enable;
+  15 input robo_flooranima_NN disabledraw`, then `info brush_flooranima_NN`.
+  Cause: a logic_auto sends each tile SetParentAttachmentMaintainOffset
+  panel_attach, then each arm SetDefaultAnimation flooranima_NN_idle. We
+  applied and posed the animation before handling the attach (anim_props
+  chain ran before viewcontrol::track_animations), so the offset was taken
+  against the idle pose; when the arms returned to idleend the tiles sat
+  ~80 u low and tilted (tile 11 at (123,-274,-179) instead of (80,-352,-97)).
+  Fix: track_animations runs before anim_inputs; follow_attachments and the
+  viewcontrol inputs stay after pose_parts. After: all checked tiles at
+  their map positions, flat.
+- To finish: cargo test; regression on other attachment users (intro1
+  container ride and camera proxy, Wheatley's rail in intro1/wakeup,
+  sp_a2_intro's portal panel, laser_stairs' panel_error_arm and
+  brush_armfollow_move03 tiles); shots of the owner's spot before/after;
+  then merge attempt/T-217 into main, make_app. Wheatley-through-wall and
+  the floating texture: not started.
 
 ### T-219 No footstep or jump sounds in water (intro3)  (P3, TODO; owner playtest 10)
 - Splash on the fall works; walking or jumping in the water is silent.

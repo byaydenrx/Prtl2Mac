@@ -4,11 +4,11 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-23 owner session (owner's order T-216, T-218, T-145, T-217):
-T-216 FIXED b9ac2b1. T-218 PARTLY FIXED 51c6aa7 (culling; MSAA/v-sync
-findings). T-145 PARTLY FIXED: dark cubes c005fbc (relit where they are),
-button spikes bf5006a (stretch parts); jitter open, narrowed (entry).
-Working on T-217 next.
+2026-10-23 owner session, PAUSED by the owner mid T-217. Done: T-216 FIXED
+b9ac2b1; T-218 PARTLY FIXED 51c6aa7; T-145 PARTLY FIXED (c005fbc dark
+cubes, bf5006a spikes; jitter open). T-217 missing floor: cause found and
+fixed on branch attempt/T-217 (2fe2ac4, pushed to origin), regression
+check not done; details in TASKS.md T-217.
 
 ## Where things stand
 - dist/Prtl2Mac.app = 0.1.0+c0cd7f1.20261023T0530Z (T-216, T-218, T-145 fixes).
@@ -27,15 +27,19 @@ Working on T-217 next.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-Owner's order: T-216, T-218 and T-145 (partly) done, awaiting replay; next
-T-217 (laser_stairs), then T-145's jitter if the owner wants it continued. Nothing else until the
-owner says. The owner plays the campaign himself: fix what he reports, no
-level scripts.
+Resume T-217: `git merge attempt/T-217` only after its regression check
+(TASKS.md T-217 "To finish"), then Wheatley through the wall and the
+floating texture. Then wait for the owner (T-145 jitter is open, narrowed).
 
 ## Uncommitted / in-flight work
-None outside what this file's commit contains.
+None. T-217 work in progress is on branch attempt/T-217 (pushed).
+Scratch scripts used this session (not in the repo): Windows netcon/vscript
+tracker (method in docs/STATUS.md "Measuring Windows Portal 2
+numerically"), frame benchmarks (P2_FRAMELOG, WORKFLOW.md).
 
 ## Fix attempts awaiting the owner
+- attempt/T-217 (2fe2ac4): laser_stairs floor tiles (pushed; regression
+  check left).
 - attempt/T-212 (9a9373e): skip frame-0 events of a spawn default sequence
   (sp_a3_00 glass smash at load). Not pushed.
 
