@@ -3,6 +3,13 @@
 Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
+## AUTORUN STOPPED (2026-10-23 05:43)
+Stop rule (b) in docs/AUTORUN.md: the last 5 autorun rows (T-222 x3, T-223,
+T-217) are NOT REPRODUCED / ATTEMPT, none FIXED or PARTIAL. They mostly look
+already fixed by T-221 (18676be) and need the owner's replay. STOP file
+written, scheduled task prtl2mac-auto-resume-2 disabled. To resume: replay
+T-217/T-222/T-223, delete the STOP file, re-enable the task.
+
 ## Last update
 2026-10-23 05:42 autorun (ATTEMPT, docs only on main): T-217 laser_stairs:
 the missing floor is already fixed on main by T-221 (all tiles flat on the
