@@ -4,6 +4,10 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
+2026-10-22 22:40 owner (cloud session): T-130 verified by the owner; intro6
+VERIFIED. Owner rule: no scripts that play whole levels; fix reported
+bugs with before/after evidence and a regression check (TASKS.md top).
+scripts/routes/ removed. Before that:
 2026-10-22 22:15 owner session: T-130 FIXED (0634859). A cube resting
 where a portal opens (intro6's cube under the glass box, shot through the
 round hole) now falls through: the portal hooks go in with the prop's
@@ -18,7 +22,7 @@ tasks when wanted). No intro6 route saved: the owner replays it themselves.
 - Owner to replay: sp_a1_intro6 room 1: shoot the floor under the cube
   straight down through the round hole on the glass box; the cube should
   drop through and come out of the orange wall portal.
-- Awaiting the owner: T-130 intro6 cube, T-112 GLaDOS floor reflection,
+- Awaiting the owner: T-112 GLaDOS floor reflection,
   T-153 particles, T-150 motion blur + gun glow, T-213 PotatOS on the gun,
   T-198 faith plates, T-215 winref.sh.
 - ON HOLD: menus (no menu code changes), screenshot tasks (T-173, T-174,
@@ -27,8 +31,8 @@ tasks when wanted). No intro6 route saved: the owner replays it themselves.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-TASKS.md "Priority order": T-130 awaits the owner's intro6 replay (if it
-still fails, ask where the cube was). Next open: the common engine gaps
+T-130 DONE (owner verified intro6, 2026-10-22). The owner is replaying all
+of chapter 1; act on his bug report first. Then TASKS.md "Priority order": the common engine gaps
 (T-203 lights, T-199 sprite sheets, T-214 DecalModulate/SolidEnergy/broken
 models, T-201, T-206, T-200, T-202, T-204), T-211 gels, then the campaign
 T-002..T-015. ON HOLD: menus, screenshot tasks, T-164, T-120.

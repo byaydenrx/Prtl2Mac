@@ -54,8 +54,9 @@ add detail there, keep the four documents short.
 Statuses: TODO, IN_PROGRESS, BLOCKED, NEEDS_VERIFICATION, DONE.
 Map statuses (PROJECT_STATE.md): NOT STARTED, IN PROGRESS, BLOCKED, VERIFIED.
 VERIFIED only when the owner has played the map through (owner, 2026-10-21).
-Autopilot log lines, screenshots and saved routes are evidence that a map is
-solvable; with them the map stays IN PROGRESS and goes to the owner to play.
+Sessions don't script whole levels (owner, 2026-10-22): the owner plays
+them. Autopilot runs are for reproducing one bug, showing the fix, and the
+regression check (TASKS.md top).
 
 ## Commit and push routine
 ```

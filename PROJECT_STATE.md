@@ -58,7 +58,7 @@ Columns: L load, O objective logic, S solvable (route played with mechanics),
 N next map loads, R restart works. `y` proven, `-` not checked, `x` broken.
 Status: VERIFIED = the owner played the map through (owner's rule,
 2026-10-21) and L O S N are y (R may be `-` until T-090); autopilot runs and
-saved routes (scripts/routes/) are supporting evidence only, so a map Claude
+autopilot runs are supporting evidence only, so a map Claude
 solved stays IN PROGRESS until the owner plays it. IN PROGRESS = some
 proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 
@@ -66,7 +66,7 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 |---|---|---|---|---|---|---|---|---|
 | 1 | sp_a1_intro1 | y | y | y | y | - | VERIFIED | owner played through (playtests 1-8); P2/P3 issues in TASKS |
 | 1 | sp_a1_intro2, intro3, intro5 | y | y | y | y | - | VERIFIED | owner played through (playtest 8); intro3 floors/roofs missing (T-131) |
-| 1 | sp_a1_intro6 | y | y | x | y | - | IN PROGRESS | T-130 fixed 2026-10-22 (resting cube now falls through the portal); owner to replay |
+| 1 | sp_a1_intro6 | y | y | y | y | - | VERIFIED | owner replayed after the T-130 fix (0634859), 2026-10-22 |
 | 1 | sp_a1_intro4 | y | y | y | y | - | VERIFIED | owner played through (playtest 8) |
 | 1 | sp_a1_intro7 | y | y | y | y | - | VERIFIED | owner played through (playtest 8); turn-away slow (T-125), Wheatley floats (T-133) |
 | 1 | sp_a1_wakeup | y | y | y | y | - | VERIFIED | owner played through (playtest 8); pod rotation (T-134), held drop (T-105) |

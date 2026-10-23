@@ -40,10 +40,12 @@ checkout.
   to understand behaviour is allowed: it's a personal project. Write our own
   code from what you learn; never commit decompiled code or paste it into
   docs. Leaked Valve source stays off limits.
-- A map is VERIFIED only when the owner has played it through. A saved
-  autopilot route (scripts/routes/<map>.txt) is how a session proves a map
-  is solvable (TASKS.md "Prove a map"); the map then stays IN PROGRESS and
-  goes to the owner to play.
+- A map is VERIFIED only when the owner has played it through.
+- (2026-10-22) The owner playtests the levels himself. Don't write scripts
+  that play whole levels; fix the bugs he reports. A fix is done when the
+  bug is reproduced, shown gone (before/after), and nothing else broke:
+  tests pass and every map the change could affect still loads and plays
+  (TASKS.md top).
 
 # Compact instructions
 Keep the task id, files changed, test results, commit ids and what is left.

@@ -8,13 +8,16 @@ to "Awaiting owner replay"; once the owner confirms, move it to Done. Long
 investigation notes go in docs/STATUS.md; the owner's raw reports in
 docs/PLAYTESTS.md (history only, everything there is tracked here).
 
-"Prove a map" (acceptance for T-002..T-015): from the map's start, an
-autopilot script plays the intended solution with movement, `fire`, `use`
-and props (no `setpos` past a puzzle step, no `input` on puzzle entities);
-the exit opens from the puzzle's own outputs; the next map loads. Save the
-script as `scripts/routes/<map>.txt`. Engine bugs found become tasks. A
-proven map stays IN PROGRESS in PROJECT_STATE.md until the owner plays it
-(owner, 2026-10-21: VERIFIED means the owner played it).
+How maps get proven (owner, 2026-10-22): the owner plays each chapter
+himself and reports bugs; sessions fix bugs, they do not write scripts that
+play whole levels. A bug fix is done when (1) the bug is reproduced, (2) a
+targeted autopilot run or unit test shows it gone (before/after evidence),
+and (3) nothing else broke: `cargo test --release -p p2_game` plus the crate
+touched pass, and every map the change could affect still loads and plays
+its first seconds normally (short autopilot run per map). Then the owner
+replays it. VERIFIED (PROJECT_STATE.md) means the owner played the map.
+T-002..T-015 ("prove/sweep" a map) mean: find what blocks the owner from
+finishing it, fix that, and hand it to the owner.
 
 Owner playtest sections (playtest 8): 0 intro1, 1 intro2, 2 intro3, 3 intro4,
 4 intro5/intro6, 5 intro7 + sp_a1_wakeup + sp_a2_intro, 6 sp_a2_laser_intro,
@@ -32,8 +35,6 @@ Awaiting the owner: T-130 intro6 cube, T-112 GLaDOS floor, T-153 leftover partic
 motion blur and gun glow, T-213 PotatOS on the gun, T-198 faith plates, T-215 winref.sh.
 This list is the one source of what's next: the handoff's "Next action" names
 its first open item, and resume.sh warns when they disagree.
-0. T-130 sp_a1_intro6: cube resting on a new portal didn't fall through.
-   FIXED 2026-10-22, awaiting the owner's replay (route not saved: owner testing).
 1. T-212 loud glass smash at sp_a3_00 load (owner report). BLOCKED: attempt/T-212.
 2. T-213 PotatOS missing from the portal gun. FIXED a598811, awaiting replay.
 2b. T-215 Windows reference capture tool. DONE (scripts/winref.sh), awaiting replay.
@@ -226,7 +227,7 @@ them until the owner lifts the hold; search that file by task id.
 
 ## Awaiting owner replay (fixed, autopilot evidence)
 
-### T-130 sp_a1_intro6: the resting cube didn't fall through a portal opened under it  (P1, FIXED 2026-10-22, awaiting owner replay)
+### T-130 sp_a1_intro6: the resting cube didn't fall through a portal opened under it  (P1, DONE 2026-10-22: owner replayed and verified intro6)
 - Owner playtest 8 (section 4) and 2026-10-22: the cube sits in a pit under
   a glass box; the only shot is straight down through the round hole on top.
   The portal opens under the cube, but the cube doesn't go through it.
@@ -505,6 +506,7 @@ them until the owner lifts the hold; search that file by task id.
 - Checklists in docs/STATUS.md.
 
 ## Done (newest first; details in git log and docs/STATUS.md)
+- 2026-10-22 T-130 intro6 resting cube falls through a portal opened under it (0634859): owner verified; sp_a1_intro6 VERIFIED, chapter 1 fully verified pending the owner's full-chapter replay.
 - 2026-10-21 T-146 intro1 exit door wiggles half stuck (de1d09b): owner confirmed ("i just saw the door fixed"). Oscillator logic_timers fire OnTimerHigh/Low in turn.
 - 2026-10-21 Owner-confirmed (round 7, build 6e0efbf): T-175 sp_a1_intro1 ride: the big room outside the container has no fog in parts, black sky; T-140 Game-placed portals: no screen shake or sound; T-117 Blocky shadows (run-time fog "looks better", portal shake good, shadows good). T-153: gun drop and arms confirmed.
 - 2026-10-21 Owner-confirmed (round 6, build ef0144c): T-169 sp_a2_laser_over_goo: GLaDOS never moves the walls, the way on is blocked; T-171 FPS drops, especially looking at portals; T-148 Portals behind glass; T-135 Turrets fall through the exit elevator; T-139 Audio; T-162 Menu animations, logo alignment, styling. Menus: "all menu items are fixed for now, buttons just don't function" (on hold, see "On hold: menus").
