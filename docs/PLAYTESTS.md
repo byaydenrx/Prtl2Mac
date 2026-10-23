@@ -201,3 +201,10 @@ sp_a2_pull_the rug is verified and playable. in dp_a2_column_blocker the light d
 Tracked in TASKS.md (T-236, T-237 new).
 
 okay sp_a2_column_blocker that first chamber is completeable but when i get to the elevator theres an invisivle barrier stopping me from getting in and moving forward, noclipping past it into the elevator worked, wheatlys animation here while im in the elevator is pretty buggy like he doesnt look at you and hes moving through a rail just buggy.
+
+## Owner playtest 13 (2026-10-23 night, build 024d846), chapters 3-4, the owner's words
+Tracked in TASKS.md (T-238..T-240 new; T-230, T-231 done; T-229 partly).
+
+sp_a2_laser_chaining is verified and playable. sp_a2_triple_laser is also verified and playable there was a weird bug behind one of the portals with an invisible barrier but i got out without noclip and still completed the level like mormal. at sp_a2_bts1 the wheatly busting you out cutscene or whatever doesnt register or start so not playable past this point. going back through chapter 3 levels now to test the ones i didnt verify before, sp_a2_laser_relays is now verified and playable. sp_a2_turret_blocker is verified and playable although turret functions still arent finished. sp_a2_laser_vs_turret is still not playable because the lasers dont shoot through glass like they should.
+
+(Later in the session: "turrets shouldnt be able to shoot through glass btw".)

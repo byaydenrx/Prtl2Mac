@@ -23,78 +23,61 @@ VERIFIED (PROJECT_STATE.md) means the owner played the map. T-008..T-015
 The one source of what's next: sessions and autoruns take the first line not
 marked FIXED, DONE or BLOCKED. Crashes and softlocks found on the way go to
 the top. Menus, on-hold and "later" tasks are never taken without the owner.
-Now (owner playtest 12, playability first):
-1. T-230 sp_a2_laser_relays: a laser that has gone through a portal doesn't power the relays (FIXED, awaiting owner replay; was unsolvable)
-2. T-229 Turrets don't work: no shooting animation, beams or bullets, knocking or dropping them does nothing, but they still do damage (FIXED, awaiting owner replay: animated, visible shots, tip over when walked into or knocked, Portal 2 voice lines; gun aim still straight ahead)
-3. T-231 Lasers aim wrong globally: a laser angles up or down instead of going straight (FIXED, awaiting owner replay: no more auto-aim toward portal centres and relays; owner hit it in column_blocker on the build before the fix)
-4. T-233 sp_a2_column_blocker: lasers and turret sight don't pass the grate (laser can't reach or kill the turret; turret can't see or shoot through it) (owner playtest 12b)
+Now (owner playtests 12-13, playability first):
+1. T-239 sp_a2_bts1: Wheatley's breakout doesn't start (FIXED, awaiting owner replay: triggers ignored spawnflag 64 "everything", so the dropped cube never armed it; was unplayable past this point)
+2. T-238 sp_a2_laser_vs_turret: lasers don't pass glass (FIXED, awaiting owner replay: Portal 2's laser mask passes glass and grates; was unplayable)
+3. T-233 sp_a2_column_blocker: lasers and turret sight don't pass the grate (FIXED, awaiting owner replay: same fix as T-238; turrets see through glass and grates, bullets pass grates but stop at glass)
+4. T-229 Turrets: owner: "turret functions still arent finished" (BLOCKED, needs owner: which parts; turret_blocker verified; needs owner to say what's missing; known gaps: guns don't aim, no eye glow, no carry pose)
 5. T-234 Turrets killed by a laser don't blow up (owner playtest 12b)
 6. T-235 sp_a2_column_blocker: the light doesn't switch back on in the surprise room (owner playtest 12b)
-7. T-236 sp_a2_column_blocker: invisible barrier at the departure elevator (NOT REPRODUCED, needs owner; owner playtest 12c)
-8. T-237 sp_a2_column_blocker: Wheatley in the departure elevator doesn't look at you (FIXED, awaiting owner replay: his rail train started 34 u off its rail)
-9. T-232 sp_a2_bridge_the_gap: Wheatley glitches around; the bird looks wrong (Wheatley FIXED, awaiting owner replay; bird: needs owner to say what looks wrong)
-10. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid (BLOCKED, needs owner replay: not reproduced on 18676be, likely fixed by T-221)
-11. T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall (BLOCKED, needs owner: floor fixed on main by T-221; Wheatley attempt on local branch attempt/T-217-wheatley)
-12. T-218 Performance: 60-70 fps and stutter on an M4 Pro; portals cost a lot; v-sync unclear (owner: better; continue)
-13. T-224 Cube physics feel: no tumbling in the air; plate and button hits unreliable
-14. T-225 No dissolve ("fizzle") effect on cubes
-15. T-226 Pedestal buttons (prop_button): no sound or press animation
-16. T-173 Portal gun view model: hold beam, carry anims, fizzler shake
-17. T-227 Zoom doesn't work
-18. T-228 Chapter HUD icons don't look like Portal 2's
+7. T-240 sp_a2_triple_laser: invisible barrier behind one of the portals (BLOCKED, needs owner: where; he got out and finished the level)
+8. T-236 sp_a2_column_blocker: invisible barrier at the departure elevator (NOT REPRODUCED, needs owner; owner playtest 12c)
+9. T-237 sp_a2_column_blocker: Wheatley in the departure elevator doesn't look at you (FIXED, awaiting owner replay: his rail train started 34 u off its rail)
+10. T-232 sp_a2_bridge_the_gap: Wheatley glitches around; the bird looks wrong (Wheatley FIXED, awaiting owner replay; bird: needs owner to say what looks wrong)
+11. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid (BLOCKED, needs owner replay: not reproduced on 18676be, likely fixed by T-221)
+12. T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall (BLOCKED, needs owner: floor fixed on main by T-221; Wheatley attempt on local branch attempt/T-217-wheatley)
+13. T-218 Performance: 60-70 fps and stutter on an M4 Pro; portals cost a lot; v-sync unclear (owner: better; continue)
+14. T-224 Cube physics feel: no tumbling in the air; plate and button hits unreliable
+15. T-225 No dissolve ("fizzle") effect on cubes
+16. T-226 Pedestal buttons (prop_button): no sound or press animation
+17. T-173 Portal gun view model: hold beam, carry anims, fizzler shake
+18. T-227 Zoom doesn't work
+19. T-228 Chapter HUD icons don't look like Portal 2's
 Then the engine gaps common to many maps, and gels:
-19. T-212 sp_a3_00 (start of chapter 6): loud glass smash at load (BLOCKED: merge attempt/T-212 for the owner's replay)
-20. T-203 Switchable lights frozen: lightmap styles other than 0 ignored (50 of 63 maps)
-21. T-199 Particle sprite sheets not decoded: sheet particles draw the whole atlas
-22. T-214 All-maps load sweep findings (2026-10-21)
-23. T-201 UnlitTwoTexture (TV/monitor screens) and other model shaders on the fallback
-24. T-206 Sounds not panned left/right
-25. T-200 Particle operators the maps' effects use but p2_fx doesn't simulate
-26. T-202 No bloom or colour correction (every map)
-27. T-204 No env_cubemap reflections or dynamic lights on props
-28. T-211 Gels: check each against Source
-29. T-030 Gel chapters: missing buttons in gel rooms, black elevator, cube carry feel
+20. T-212 sp_a3_00 (start of chapter 6): loud glass smash at load (BLOCKED: merge attempt/T-212 for the owner's replay)
+21. T-203 Switchable lights frozen: lightmap styles other than 0 ignored (50 of 63 maps)
+22. T-199 Particle sprite sheets not decoded: sheet particles draw the whole atlas
+23. T-214 All-maps load sweep findings (2026-10-21)
+24. T-201 UnlitTwoTexture (TV/monitor screens) and other model shaders on the fallback
+25. T-206 Sounds not panned left/right
+26. T-200 Particle operators the maps' effects use but p2_fx doesn't simulate
+27. T-202 No bloom or colour correction (every map)
+28. T-204 No env_cubemap reflections or dynamic lights on props
+29. T-211 Gels: check each against Source
+30. T-030 Gel chapters: missing buttons in gel rooms, black elevator, cube carry feel
 Then the campaign sweeps (the owner's playtests go first):
-30. T-008 Prove chapter 3 rest: bridge_the_gap, turret_intro, laser_relays, turret_blocker, laser_vs_turret, pull_the_rug
-31. T-010 Sweep chapter 4 (column_blocker, laser_chaining, triple_laser, bts1, bts2)
-32. T-011 Sweep chapter 5 (bts3, bts4, bts5, bts6, core)
-33. T-012 Sweep chapter 6 rest (jump_intro gel climb, bomb_flings, crazy_box, transition01)
-34. T-013 Sweep chapter 7 (speed_ramp, speed_flings, portal_intro, end)
-35. T-014 Sweep chapter 8 (sp_a4_intro .. jump_polarity)
-36. T-015 Sweep chapter 9 (finale1..finale4)
+31. T-008 Prove chapter 3 rest: bridge_the_gap, turret_intro, laser_relays, turret_blocker, laser_vs_turret, pull_the_rug
+32. T-010 Sweep chapter 4 (column_blocker, laser_chaining, triple_laser, bts1, bts2)
+33. T-011 Sweep chapter 5 (bts3, bts4, bts5, bts6, core)
+34. T-012 Sweep chapter 6 rest (jump_intro gel climb, bomb_flings, crazy_box, transition01)
+35. T-013 Sweep chapter 7 (speed_ramp, speed_flings, portal_intro, end)
+36. T-014 Sweep chapter 8 (sp_a4_intro .. jump_polarity)
+37. T-015 Sweep chapter 9 (finale1..finale4)
 Lower:
-37. T-205 Portal gun edge cases
-38. T-209 Portal transit only mirrors box-shaped geometry at the exit
-39. T-207 Viewmodel gaps
-40. T-208 Chell body gaps
-41. T-210 Upstream minor gaps
-42. T-090 Restart check per verified map
-43. T-040 App icon and second-Mac first-run check
-44. T-050 Verify merged cloud features in game: Wheatley look-at, gels, projtex, saves
+38. T-205 Portal gun edge cases
+39. T-209 Portal transit only mirrors box-shaped geometry at the exit
+40. T-207 Viewmodel gaps
+41. T-208 Chell body gaps
+42. T-210 Upstream minor gaps
+43. T-090 Restart check per verified map
+44. T-040 App icon and second-Mac first-run check
+45. T-050 Verify merged cloud features in game: Wheatley look-at, gels, projtex, saves
 
 ## Active tasks (in priority order)
 
-### T-230 sp_a2_laser_relays: a laser that has gone through a portal doesn't power the relays  (P1, FIXED, awaiting owner replay; owner playtest 12)
-- 2026-10-23 FIXED. Cause: lasers.rs checked relays only on a beam's last
-  leg; a leg that ended by entering a portal (or on the player) skipped
-  them. In laser_relays the reflection cube's leg passes catcher_1 into a
-  portal, so catcher_1 dropped out the moment the portal opened; the
-  branch listener went "mixed" and closed the exit door in the same frame.
-  Fix: every leg checks the relays it passes. Evidence (autopilot: spawn
-  laser_cube, cube on the beam at -544 -704, blue portal east wall
-  448 -704, orange north wall 256 -320): before catcher_1 OnUnpowered,
-  onmixed -> exit_door_close_rl; after catcher_1..3 stay powered,
-  onalltrue -> exit_door_open_rl, door stays open. Smaller repro: cube leg
-  through catcher_2 into a portal: before catcher_2 unpowered, after
-  powered. Regression: starting laser state identical on 7 laser maps; 202
-  tests pass. The legs in that run also show T-231's tilt (the cube leg
-  climbs z 18 -> 58 toward the portal).
-- Owner: "the laser goes through multiile of the glass things but after it
-  goes through a portal it doesnt so i cant trigger all 3 to finish the
-  level". Laser relays (prop_laser_relay) pass the beam on and light up; the
-  leg after a portal hits nothing. He noclipped past the level.
-
-### T-229 Turrets don't work: no shooting, can't be knocked over  (P1 by owner, FIXED, awaiting owner replay; owner playtest 12)
+### T-229 Turrets don't work: no shooting, can't be knocked over  (P1 by owner, PARTLY CONFIRMED: turret_blocker verified in playtest 13, "turret functions still arent finished"; needs owner to say what's missing)
+- 2026-10-23 playtest 13: turret_blocker "verified and playable although
+  turret functions still arent finished". Asked the owner which parts.
 - 2026-10-23 FIXED (turrets.rs, map.rs, lasers.rs; p2_fx sim.rs; p2_movement
   controller.rs). Turrets spawn animated (class_animates) and play deploy,
   idlealert, fire (looping while firing or tipped), retract, eye_off /
@@ -138,24 +121,14 @@ Lower:
   knocked over / picked up / dropped -> tips over, "dies" (sparks, voice,
   stops firing), lasers kill turrets, voice lines per state.
 
-### T-231 Lasers aim wrong: a laser angles up or down instead of going straight  (P2, FIXED, awaiting owner replay; owner playtest 12)
-- 2026-10-23 FIXED. Cause: lasers.rs auto-aimed a beam leaving a portal or a
-  reflection cube at portal centres and at a point 32 u up each relay, so a
-  beam at cube height (z 18) climbed to a portal's centre (z 58) and left
-  the other portal sloping. Portal 2's auto-aim is for catchers
-  (server.dll has `sv_laser_cube_autoaim`); a beam goes through a portal
-  wherever it meets it and a relay is a column. Now only catcher lenses
-  are auto-aim targets. Evidence (laser_relays cube + two portals, T-230
-  setup): before legs z 18 -> 58 and 58 -> 25; after 18 -> 18 and 18 -> 18,
-  all three relays still powered and the exit opens; starting beams on 7
-  laser maps unchanged; 205 tests pass. Not compared against Windows: how
-  strongly Portal 2 snaps onto a catcher (kept our 10 degrees).
-- Owner: "lasers function a bit weird globally like being angled if they
-  look up or down when they should just go straight they just function
-  strange". Check emitter/catcher/relay directions and the cube's
-  redirection (Portal 2 keeps a reflection cube's beam level).
-
-### T-233 sp_a2_column_blocker: lasers and turret sight don't pass the grate  (P1, TODO; owner playtest 12b)
+### T-233 sp_a2_column_blocker: lasers and turret sight don't pass the grate  (P1, FIXED, awaiting owner replay; owner playtest 12b)
+- 2026-10-23 FIXED with T-238 (one cause). Grate colliders (CONTENTS_GRATE,
+  no SOLID/WINDOW; brushes and `$contents grate` models) are on their own
+  collision layer (plugin.rs GRATE_LAYER); lasers and turret sight mask it
+  out, bullets too. Evidence (autopilot, player at -192 600 0 across the
+  pit from the turret behind grate brush 600 at y 1027): before the
+  turret stays Idle; after Deploying -> Firing and the player dies in
+  ~2.5 s. Lasers use the same mask, shown through glass in T-238.
 - Owner: "the laser for the turret doesnt go through the grate in that level
   and the turret cant see you through or shoot you through the grate, also
   the laser doesnt kill the turret through the grate". Grates
@@ -163,6 +136,53 @@ Lower:
   sight lines and bullets. Also: "this level is nit completeable because of
   the lasers being weird and angling, it angles itself above the next
   reflection box" (build 1894bb5, before the T-231 fix: replay first).
+
+### T-239 sp_a2_bts1: Wheatley's breakout doesn't start  (P1, FIXED, awaiting owner replay; owner playtest 13)
+- Owner: "at sp_a2_bts1 the wheatly busting you out cutscene or whatever
+  doesnt register or start so not playable past this point".
+- 2026-10-23 FIXED (triggers.rs). The breakout trigger
+  (jailbreak_chamber_lit-jailbreak_trigger, a slab at y -912) starts
+  disabled. A trigger_multiple at the dropper mouth (model *96, z 544..576,
+  cube filter) enables it when the dropped cube falls through, and one in
+  the pit (*94) disables it again if the cube falls in: the cube has to be
+  caught on the light bridge. Both have spawnflags 4161 (clients +
+  "everything"); our triggers only let props touch flag 8, so the cube
+  never armed it. Flag 64 now counts the player, props and NPCs. Evidence
+  (autopilot: cube moved through *96 and onto the bridge, player into the
+  slab): before the trigger stays disabled and nothing fires; after it is
+  enabled and @jailbreak_begin_logic, @sphere_lookat_player_relay and
+  jailbreak_peak_logic fire. Other maps with flag-64 triggers (bts3, bts4,
+  core, laser_over_goo, jump_intro, speed_ramp, tb_wall_button,
+  stop_the_box, finale2, finale3) load and run without a crash or death
+  in both builds. The rest of the breakout sequence is not checked yet.
+
+### T-238 sp_a2_laser_vs_turret: lasers don't pass glass  (P1, FIXED, awaiting owner replay; owner playtest 13)
+- Owner: "sp_a2_laser_vs_turret is still not playable because the lasers
+  dont shoot through glass like they should"; later: "turrets shouldnt be
+  able to shoot through glass btw".
+- 2026-10-23 FIXED (plugin.rs, lasers.rs, turrets.rs). Cause: laser rays
+  stopped at everything but player clips. From the owner's server.dll
+  (Ghidra): the laser traces with 0x46004001 (MASK_SHOT without
+  CONTENTS_WINDOW; no GRATE), turret bullets with MASK_SHOT 0x46004003,
+  turret sight with MASK_BLOCKLOS 0x4041. Glass (WINDOW, no SOLID) and
+  grates now sit on WINDOW_LAYER / GRATE_LAYER (memberships only; physics
+  and player movement still collide, filters ALL). LASER_MASK and
+  SIGHT_MASK skip glass, grates, clips; SHOT_MASK skips grates and clips:
+  a turret behind glass sees you and fires, the glass stops the bullets
+  and you take no damage. Evidence (autopilot): emitter room_6_laser
+  before stops on the glass at z 381, after reaches the floor; cube under
+  it aimed east: after the beam crosses the glass wall (x 160) to the
+  turret at 288 80 and burns it (Burning -> Dead); before it never left
+  the glass box. Player inside the glass box (100 80): after, three
+  turrets deploy and fire but the player never dies in 12 s. Walking
+  into the glass still stops the player. Starting beams on laser_relays,
+  laser_chaining, triple_laser, column_blocker identical to the old
+  build; tests 205 + 74 pass.
+
+### T-240 sp_a2_triple_laser: invisible barrier behind one of the portals  (P3, NEEDS OWNER: where; owner playtest 13)
+- Owner: "there was a weird bug behind one of the portals with an invisible
+  barrier but i got out without noclip and still completed the level like
+  normal". Needs the spot (setpos/getpos or which portal surface).
 
 ### T-234 Turrets killed by a laser don't blow up  (P2, TODO; owner playtest 12b)
 - Owner: "when the turret does get killed by the laser it doesnt blow up".

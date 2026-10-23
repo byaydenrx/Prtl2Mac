@@ -1558,3 +1558,25 @@ units to avian `LinearDamping(0.05)`, now removed from props. The player's
 - 4K: 2x MSAA costs ~5.4 ms GPU (intro6 room 66 -> 103 fps without it).
 - V-sync off: windowed runs pin at 60.0 fps (Metal displaySyncEnabled=false
   on a 120 Hz display), lower than v-sync on.
+
+## Trace masks: lasers, turrets, glass, grates (2026-10-23, T-233/T-238)
+Read from the owner's server.dll (Ghidra 12.1.4 headless; project in the
+session scratchpad, re-import with analyzeHeadless <abs dir> p2server
+-import .../portal2/bin/server.dll, JAVA_HOME=openjdk@21; found by scanning
+the CPortalLaser and portal turret functions for PUSH immediates):
+- env_portal_laser beam trace: 0x46004001 = MASK_SHOT without
+  CONTENTS_WINDOW (and MASK_SHOT has no CONTENTS_GRATE): beams pass glass,
+  grates and player clips.
+- npc_portal_turret_floor: sight check (FVisible) 0x4041 = MASK_BLOCKLOS
+  (sees through glass, grates, clips); bullets 0x46004003 = MASK_SHOT
+  (stop at glass, pass grates and clips).
+Ours: plugin.rs puts colliders whose contents are WINDOW (no SOLID or
+MOVEABLE) on WINDOW_LAYER and GRATE ones on GRATE_LAYER (memberships only,
+filters ALL, so physics and the player still collide). LASER_MASK /
+SIGHT_MASK / SHOT_MASK are the query masks. Default queries (portal gun,
+movement) see everything as before.
+
+## Trigger spawnflags (2026-10-23, T-239)
+1 clients, 2 NPCs, 8 physics objects, 64 "everything" (players, props,
+NPCs; not debris). bts1's jailbreak arming trigger is 4161 (1 + 64 + 4096)
+and is touched by the falling dropper cube; flag 64 was ignored before.

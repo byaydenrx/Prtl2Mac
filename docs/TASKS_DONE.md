@@ -3,6 +3,45 @@
 Moved out of TASKS.md (2026-10-23) to keep it short. Entries unchanged;
 newest summary list at the bottom. Grep by task id.
 
+### T-230 sp_a2_laser_relays: a laser that has gone through a portal doesn't power the relays  (P1, DONE 2026-10-23: owner playtest 13: "sp_a2_laser_relays is now verified and playable")
+- 2026-10-23 FIXED. Cause: lasers.rs checked relays only on a beam's last
+  leg; a leg that ended by entering a portal (or on the player) skipped
+  them. In laser_relays the reflection cube's leg passes catcher_1 into a
+  portal, so catcher_1 dropped out the moment the portal opened; the
+  branch listener went "mixed" and closed the exit door in the same frame.
+  Fix: every leg checks the relays it passes. Evidence (autopilot: spawn
+  laser_cube, cube on the beam at -544 -704, blue portal east wall
+  448 -704, orange north wall 256 -320): before catcher_1 OnUnpowered,
+  onmixed -> exit_door_close_rl; after catcher_1..3 stay powered,
+  onalltrue -> exit_door_open_rl, door stays open. Smaller repro: cube leg
+  through catcher_2 into a portal: before catcher_2 unpowered, after
+  powered. Regression: starting laser state identical on 7 laser maps; 202
+  tests pass. The legs in that run also show T-231's tilt (the cube leg
+  climbs z 18 -> 58 toward the portal).
+- Owner: "the laser goes through multiile of the glass things but after it
+  goes through a portal it doesnt so i cant trigger all 3 to finish the
+  level". Laser relays (prop_laser_relay) pass the beam on and light up; the
+  leg after a portal hits nothing. He noclipped past the level.
+
+
+### T-231 Lasers aim wrong: a laser angles up or down instead of going straight  (P2, DONE 2026-10-23: owner verified laser_chaining, triple_laser and laser_relays in playtest 13)
+- 2026-10-23 FIXED. Cause: lasers.rs auto-aimed a beam leaving a portal or a
+  reflection cube at portal centres and at a point 32 u up each relay, so a
+  beam at cube height (z 18) climbed to a portal's centre (z 58) and left
+  the other portal sloping. Portal 2's auto-aim is for catchers
+  (server.dll has `sv_laser_cube_autoaim`); a beam goes through a portal
+  wherever it meets it and a relay is a column. Now only catcher lenses
+  are auto-aim targets. Evidence (laser_relays cube + two portals, T-230
+  setup): before legs z 18 -> 58 and 58 -> 25; after 18 -> 18 and 18 -> 18,
+  all three relays still powered and the exit opens; starting beams on 7
+  laser maps unchanged; 205 tests pass. Not compared against Windows: how
+  strongly Portal 2 snaps onto a catcher (kept our 10 degrees).
+- Owner: "lasers function a bit weird globally like being angled if they
+  look up or down when they should just go straight they just function
+  strange". Check emitter/catcher/relay directions and the cube's
+  redirection (Portal 2 keeps a reflection cube's beam level).
+
+
 ### T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up  (P0, DONE 2026-10-23: owner played bridge_the_gap through on c38ce98; Wheatley and the bird moved to T-232)
 - Owner: "i couldnt pick up one of the cubes that landed on a bridge about
   half way into beating this level so i spawned another and it crashed my

@@ -18,6 +18,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use p2_core::*;
 use p2_fx::ParticleEffect;
+use source_assets::plugin::{SHOT_MASK, SIGHT_MASK};
 
 use crate::anim_props::Playback;
 use crate::audio::PlayGameSound;
@@ -326,14 +327,18 @@ pub fn run_turrets(
         let to = target - eye;
         let dist = to.length();
         let range = e.get_f32("turretrange").unwrap_or(1024.0) * U;
-        let clear_to_player = |sp: &SpatialQuery| {
+        // Nothing of `mask` between the turret and the player: it sees
+        // through glass and grates (SIGHT_MASK); its bullets pass grates but
+        // stop at glass (SHOT_MASK).
+        let clear_to_player = |sp: &SpatialQuery, mask: u32| {
             let mut s = skip();
             s.push(player);
-            sp.cast_ray(eye, Dir3::new(to).unwrap_or(Dir3::X), dist, true, &SpatialQueryFilter::from_excluded_entities(s)).is_none()
+            let filter = SpatialQueryFilter::from_excluded_entities(s).with_mask(LayerMask(mask));
+            sp.cast_ray(eye, Dir3::new(to).unwrap_or(Dir3::X), dist, true, &filter).is_none()
         };
         if !matches!(t.mode, Mode::Tipped(_) | Mode::Burning(_) | Mode::Dead) {
             // Can it see the player?
-            let sees = !held && dist < range && dist > 1e-3 && fwd.dot(to / dist) > VIEW_COS && clear_to_player(&spatial);
+            let sees = !held && dist < range && dist > 1e-3 && fwd.dot(to / dist) > VIEW_COS && clear_to_player(&spatial, SIGHT_MASK);
             t.mode = match (t.mode, sees) {
                 (Mode::Idle, true) | (Mode::Searching(_), true) => {
                     say(&mut play, "NPC_FloorTurret.Deploy", eye);
@@ -396,17 +401,18 @@ pub fn run_turrets(
         // Sight line: at the player while it has them, else straight ahead.
         let aim = if matches!(t.mode, Mode::Firing | Mode::Deploying(_)) { to.normalize_or(fwd) } else { fwd };
         if !matches!(t.mode, Mode::Tipped(_) | Mode::Burning(_)) {
-            let filter = SpatialQueryFilter::from_excluded_entities(skip());
+            let filter = SpatialQueryFilter::from_excluded_entities(skip()).with_mask(LayerMask(SHOT_MASK));
             let reach = spatial.cast_ray(eye, Dir3::new(aim).unwrap_or(Dir3::X), range, true, &filter).map_or(range, |h| h.distance);
             lasers.sights.push((eye + aim * (6.0 * U), eye + aim * reach));
         }
         let firing = t.mode == Mode::Firing;
         let tipped = matches!(t.mode, Mode::Tipped(_));
-        if firing {
+        // Behind glass it fires, but the glass stops the bullets.
+        if firing && clear_to_player(&spatial, SHOT_MASK) {
             damage.write(crate::health::DamagePlayer(DPS * dt));
         }
         // Tipped, it hits the player only if they're where it points.
-        if tipped && dist < range && fwd.dot(to / dist.max(1e-3)) > 0.97 && clear_to_player(&spatial) {
+        if tipped && dist < range && fwd.dot(to / dist.max(1e-3)) > 0.97 && clear_to_player(&spatial, SHOT_MASK) {
             damage.write(crate::health::DamagePlayer(DPS * dt));
         }
         if (firing || tipped) && now >= t.next_shot {
@@ -508,7 +514,7 @@ pub fn turret_fx(
     let src_basis = crate::map_particles::source_basis(Quat::IDENTITY);
     for (k, shot) in shots.into_iter().enumerate() {
         let muzzle = anims.attachment_transform(&game, &ents, shot.ent, GUNS[shot.gun]).map(|t| t.translation).unwrap_or(shot.eye);
-        let filter = SpatialQueryFilter::from_excluded_entities(shot.skip.iter().copied()).with_mask(LayerMask(!source_assets::plugin::PLAYER_CLIP_LAYER));
+        let filter = SpatialQueryFilter::from_excluded_entities(shot.skip.iter().copied()).with_mask(LayerMask(SHOT_MASK));
         let range = 4096.0 * U;
         let hit = spatial.cast_ray(muzzle, Dir3::new(shot.dir).unwrap_or(Dir3::X), range, true, &filter);
         let end = muzzle + shot.dir * hit.map_or(range, |h| h.distance);

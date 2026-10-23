@@ -182,7 +182,7 @@ fn trace_lasers(
         })
         .collect();
     let autoaim = |o: Vec3, dir: Vec3, skip: &[Entity]| -> Vec3 {
-        let filter = SpatialQueryFilter::from_excluded_entities(skip.iter().copied()).with_mask(LayerMask(!source_assets::plugin::PLAYER_CLIP_LAYER));
+        let filter = SpatialQueryFilter::from_excluded_entities(skip.iter().copied()).with_mask(LayerMask(source_assets::plugin::LASER_MASK));
         let mut best: Option<(f32, Vec3)> = None;
         for &(p, facing) in &aim_targets {
             let to = p - o;
@@ -242,8 +242,9 @@ fn trace_lasers(
             skip.extend(children.iter_descendants(x).filter(|c| colliders.contains(*c)));
         }
         for _ in 0..MAX_LEGS {
-            // Beams pass player clips (they stand in front of catchers).
-            let filter = SpatialQueryFilter::from_excluded_entities(skip.iter().copied()).with_mask(LayerMask(!source_assets::plugin::PLAYER_CLIP_LAYER));
+            // Beams pass player clips (they stand in front of catchers),
+            // glass and grates (Portal 2's laser mask).
+            let filter = SpatialQueryFilter::from_excluded_entities(skip.iter().copied()).with_mask(LayerMask(source_assets::plugin::LASER_MASK));
             let hit = spatial.cast_ray(o, Dir3::new(dir).unwrap_or(Dir3::X), RANGE, true, &filter);
             let mut len = hit.map_or(RANGE, |h| h.distance);
             // Through the front of a linked portal?
@@ -331,7 +332,8 @@ fn trace_lasers(
     state.powered = powered;
     if std::env::var_os("P2_TRACE").is_some() && (ents.now * 2.0).fract() < time.delta_secs() * 2.0 {
         let src = |v: Vec3| (v / U).round();
-        info!("TRACE lasers: {:?} powered {:?}", state.legs.iter().map(|(a, b)| (src(Vec3::new(a.x, -a.z, a.y)), src(Vec3::new(b.x, -b.z, b.y)))).collect::<Vec<_>>(), state.powered);
+        let hit: Vec<(usize, &str)> = state.hit.iter().map(|&i| (i, ents.list[i].class.as_str())).collect();
+        info!("TRACE lasers: {:?} powered {:?} hit {hit:?}", state.legs.iter().map(|(a, b)| (src(Vec3::new(a.x, -a.z, a.y)), src(Vec3::new(b.x, -b.z, b.y)))).collect::<Vec<_>>(), state.powered);
     }
     if let (Some(dir), Some((_, _, _, mut vel))) = (burn, player) {
         damage.write(crate::health::DamagePlayer(BURN * time.delta_secs()));

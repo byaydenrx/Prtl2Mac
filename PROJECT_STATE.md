@@ -84,11 +84,14 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 3 | sp_a2_bridge_intro | y | y | y | y | y | VERIFIED | owner playtest 12: playable, visuals fixed (T-221) |
 | 3 | sp_a2_bridge_the_gap | y | y | y | y | y | VERIFIED | owner playtest 12: playable; Wheatley fixed since (T-232), bird open |
 | 3 | sp_a2_turret_intro | y | y | y | y | y | VERIFIED | owner playtest 12: completable; turrets don't shoot or tip over but do damage (T-229) |
-| 3 | sp_a2_laser_relays | y | y | y | y | - | IN PROGRESS | T-230 fixed: all three relays power and the exit opens (autopilot); owner to replay |
-| 3 | sp_a2_turret_blocker, laser_vs_turret | y | y | - | y | - | IN PROGRESS | owner playtest 12: turret_blocker finished only with godmode, laser_vs_turret noclipped (T-229 turrets fixed since) |
+| 3 | sp_a2_laser_relays | y | y | y | y | y | VERIFIED | owner playtest 13: verified and playable (T-230) |
+| 3 | sp_a2_turret_blocker | y | y | y | y | y | VERIFIED | owner playtest 13: verified and playable; "turret functions still arent finished" (T-229) |
+| 3 | sp_a2_laser_vs_turret | y | y | x | y | - | IN PROGRESS | owner playtest 13: lasers didn't pass glass (T-238, fixed since); owner to replay |
 | 3 | sp_a2_pull_the_rug | y | y | y | y | y | VERIFIED | owner playtest 12b: verified and playable |
 | 4 | sp_a2_column_blocker | y | - | x | y | - | BLOCKED | owner playtest 12b: laser angled over the next cube (T-231, fixed since), grate blocks lasers/turret (T-233), turret doesn't explode (T-234), light (T-235) |
-| 4 | sp_a2_laser_chaining, triple_laser, bts1, bts2 | - | - | - | - | - | NOT STARTED | T-010 |
+| 4 | sp_a2_laser_chaining, triple_laser | y | y | y | y | y | VERIFIED | owner playtest 13: verified and playable; triple_laser invisible barrier behind a portal (T-240, not blocking) |
+| 4 | sp_a2_bts1 | y | y | x | y | - | IN PROGRESS | owner playtest 13: Wheatley's breakout didn't start (T-239, fixed since); owner to replay |
+| 4 | sp_a2_bts2 | - | - | - | - | - | NOT STARTED | T-010 |
 | 5 | sp_a2_bts3..bts6, sp_a2_core | - | - | - | - | - | NOT STARTED | T-011 |
 | 6 | sp_a3_00, sp_a3_01, sp_a3_03 | y | y | y | y | - | IN PROGRESS | I/O chains and transitions by autopilot with setpos/use (ch6-9 session); owner hasn't played them (was VERIFIED before the 2026-10-21 rule) |
 | 6 | sp_a3_jump_intro | y | y | - | - | - | IN PROGRESS | buttons/doors proven; gel + portal climb not flown (T-012) |
@@ -98,7 +101,8 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 9 | sp_a4_finale1..finale4 | - | - | - | - | - | NOT STARTED | T-015 |
 
 ## Release blockers (open P0/P1)
-- T-229: turrets fixed (shoot visibly, tip, die, talk); owner to replay turret_blocker and laser_vs_turret.
+- T-239 bts1 breakout and T-238 laser_vs_turret glass fixed; owner to replay.
+- T-229: turrets mostly working (turret_blocker verified); owner to say what is still missing.
 - T-211 gels (P1) before chapters 6-8; gel isn't kept in saves (saves.rs).
 - (The 2026-10-20 list here is closed: T-129 and T-132 fixed by autoruns,
   T-131 owner-confirmed, T-105 carried on as T-167/T-170 (T-170

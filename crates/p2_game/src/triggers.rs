@@ -115,11 +115,14 @@ fn touch_triggers(
         let Some((lo, hi)) = e.bounds else { continue };
         let flags = e.spawnflags;
         let class = e.class.clone();
-        // spawnflags: 1 clients, 8 physics objects (cleansers catch everything).
-        let wants_player = flags & 1 != 0 || class == "trigger_portal_cleanser" || class == "trigger_look" || flags == 0;
-        let wants_props = flags & 8 != 0 || class == "trigger_portal_cleanser";
+        // spawnflags: 1 clients, 8 physics objects, 64 everything (cleansers
+        // catch everything). bts1's jailbreak is armed by a 64 trigger that
+        // a cube in the dropper touches (T-239).
+        let everything = flags & 64 != 0;
+        let wants_player = flags & 1 != 0 || everything || class == "trigger_portal_cleanser" || class == "trigger_look" || flags == 0;
+        let wants_props = flags & 8 != 0 || everything || class == "trigger_portal_cleanser";
         // spawnflags 2: NPCs (the personality cores, turrets).
-        let wants_npcs = flags & 2 != 0;
+        let wants_npcs = flags & 2 != 0 || everything;
         let filter = e.get("filtername").filter(|f| !f.is_empty()).map(str::to_string);
         // Past the box, the trigger's own brushes (Source space, relative
         // to its origin and unturned by its angles).

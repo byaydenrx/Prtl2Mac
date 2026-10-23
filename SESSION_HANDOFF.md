@@ -9,6 +9,20 @@ The autorun no longer stops itself or uses a STOP file (docs/AUTORUN.md
 T-217, T-222, T-223 wait for the owner's replay (see Fix attempts below).
 
 ## Last update
+2026-10-23 night (2), manual session. Owner playtest 13 logged: laser_chaining,
+triple_laser, laser_relays, turret_blocker VERIFIED (T-230, T-231 done).
+Fixed (pushed, app build id in "Where things stand"): T-239 bts1 Wheatley breakout
+never armed (triggers ignored spawnflag 64, so the dropped cube didn't
+enable jailbreak_trigger); T-238 laser_vs_turret lasers stopped at glass
+and T-233 column_blocker grate (one cause: Portal 2's trace masks read
+from server.dll; glass/grate colliders on their own collision layers;
+lasers and turret sight pass both, bullets stop at glass). Not done:
+T-229 turrets (owner: "still arent finished", asked which parts), T-240
+triple_laser barrier behind a portal (asked where), T-234 turret
+explosion, T-235 light. Ghidra project for server.dll is in this
+session's scratchpad (not kept); re-import recipe in docs/STATUS.md
+"Trace masks".
+Before that:
 2026-10-23 night, manual session (stopping: context full). App 0.1.0+024d846.20261023T2207Z.
 Done this session (all pushed): T-220 regression (dropper cubes), T-145
 jitter, T-230 laser relays through portals, T-229 turrets (animated,
@@ -16,14 +30,6 @@ visible shots, tip/die, voice lines; props pushable), T-231 lasers level
 (auto-aim only onto catchers), T-232/T-237 Wheatley rides his rail (deep
 parent chains; track trains start on their first node, matched to Windows).
 Owner playtests 12, 12b, 12c logged (docs/PLAYTESTS.md).
-Open, in priority order: T-233 column_blocker grate blocks lasers and
-turret sight/shots; T-234 laser-killed turrets don't explode; T-235
-column_blocker surprise-room light; T-236 departure-elevator barrier (not
-reproduced, asked owner); T-232 bird (owner to describe).
-Windows reference: scratch winref copy that sends each command on its own
-line was needed for VScript printl with quotes (winref.sh joins --cmd into
-one line and the console strips quotes); consider adding that to winref.sh.
-Screenshots come out black while the owner's game is open.
 Before that:
 2026-10-23 evening, manual session: T-229 turrets FIXED (1894bb5, app
 0.1.0+1894bb5.20261023T2124Z): animated, visible shots (flash, tracer, impacts), tip over when
@@ -178,9 +184,9 @@ check not done; details in TASKS.md T-217.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-TASKS.md "Priority order": T-233 (column_blocker grate), T-234, T-235.
-and T-223 are BLOCKED on owner replay
-(optional: Windows check of the catapult2_up ceiling bounce). The owner plays the campaign himself; no level scripts.
+TASKS.md "Priority order": T-234 (laser-killed turrets explode), then T-235
+(column_blocker light, likely T-203). T-229 and T-240 wait on the owner.
+The owner plays the campaign himself; no level scripts.
 
 ## Uncommitted / in-flight work
 None.

@@ -1404,6 +1404,35 @@ fn model_bounds(model: &ModelData) -> (Vec3, Vec3) {
 /// The collision layer of player clips: queries that should see through
 /// them (lasers) mask it out (`LayerMask(!PLAYER_CLIP_LAYER)`).
 pub const PLAYER_CLIP_LAYER: u32 = 1 << 1;
+/// The collision layer of glass (CONTENTS_WINDOW without SOLID). Physics
+/// and the player still collide with it (their filters are ALL); queries
+/// that see through glass mask it out.
+pub const WINDOW_LAYER: u32 = 1 << 2;
+/// The collision layer of grates (CONTENTS_GRATE brushes and `$contents
+/// grate` models without SOLID or WINDOW), like [`WINDOW_LAYER`].
+pub const GRATE_LAYER: u32 = 1 << 3;
+/// Portal 2's laser mask (MASK_SHOT without CONTENTS_WINDOW, read from
+/// server.dll): beams pass glass, grates and player clips (T-233, T-238).
+pub const LASER_MASK: u32 = !(PLAYER_CLIP_LAYER | WINDOW_LAYER | GRATE_LAYER);
+/// What blocks a turret's sight (MASK_BLOCKLOS): not glass, grates or clips.
+pub const SIGHT_MASK: u32 = LASER_MASK;
+/// What stops a bullet (MASK_SHOT): glass does, grates and clips don't.
+pub const SHOT_MASK: u32 = !(PLAYER_CLIP_LAYER | GRATE_LAYER);
+
+/// The see-through layer of a collider with these contents, if any.
+fn see_through_layers(contents: u32) -> Option<CollisionLayers> {
+    use crate::collision::{CONTENTS_GRATE, CONTENTS_MOVEABLE, CONTENTS_SOLID, CONTENTS_WINDOW};
+    let layer = if contents & (CONTENTS_SOLID | CONTENTS_MOVEABLE) != 0 {
+        return None;
+    } else if contents & CONTENTS_WINDOW != 0 {
+        WINDOW_LAYER
+    } else if contents & CONTENTS_GRATE != 0 {
+        GRATE_LAYER
+    } else {
+        return None;
+    };
+    Some(CollisionLayers::new(LayerMask(layer), LayerMask::ALL))
+}
 
 fn spawn_collider(commands: &mut Commands, c: &ColliderData, parent: Entity) -> Option<Entity> {
     let collider = if c.pieces.len() == 1 {
@@ -1444,6 +1473,8 @@ fn spawn_collider(commands: &mut Commands, c: &ColliderData, parent: Entity) -> 
         // whose movement is a shape cast: physics objects fall through them
         // (cube droppers have one across their chute).
         ec.insert(CollisionLayers::new(LayerMask(PLAYER_CLIP_LAYER), LayerMask::NONE));
+    } else if let Some(layers) = see_through_layers(c.contents) {
+        ec.insert(layers);
     }
     Some(ec.id())
 }
@@ -1494,6 +1525,9 @@ fn spawn_prop_collider(
                 if shot_passthrough {
                     ec.insert(PortalShotPassthrough);
                 }
+                if let Some(layers) = see_through_layers(model.contents) {
+                    ec.insert(layers);
+                }
             }
         }
         compound(rest)
@@ -1513,6 +1547,9 @@ fn spawn_prop_collider(
         let mut ec = commands.spawn((Name::new("prop collider"), c, Transform::IDENTITY, ChildOf(parent)));
         if shot_passthrough {
             ec.insert(PortalShotPassthrough);
+        }
+        if let Some(layers) = see_through_layers(model.contents) {
+            ec.insert(layers);
         }
     }
 }
@@ -1743,4 +1780,28 @@ fn spawn_model(
         }
     }
     (e, parts)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::collision::{CONTENTS_DETAIL, CONTENTS_GRATE, CONTENTS_SOLID, CONTENTS_WINDOW};
+
+    #[test]
+    fn glass_and_grates_get_see_through_layers() {
+        // laser_vs_turret's glass is 0x18000002, column_blocker's grate 0x18000008.
+        let glass = see_through_layers(0x1000_0000 | CONTENTS_DETAIL | CONTENTS_WINDOW).unwrap();
+        let grate = see_through_layers(0x1000_0000 | CONTENTS_DETAIL | CONTENTS_GRATE).unwrap();
+        assert_eq!(glass.memberships.0, WINDOW_LAYER);
+        assert_eq!(grate.memberships.0, GRATE_LAYER);
+        // Still collides with everything.
+        assert_eq!(glass.filters, LayerMask::ALL);
+        assert!(see_through_layers(CONTENTS_SOLID | CONTENTS_GRATE).is_none());
+        assert!(see_through_layers(CONTENTS_SOLID).is_none());
+        // Lasers and sight pass both; bullets stop at glass only.
+        assert_eq!(LASER_MASK & (WINDOW_LAYER | GRATE_LAYER), 0);
+        assert_eq!(SIGHT_MASK & (WINDOW_LAYER | GRATE_LAYER), 0);
+        assert_ne!(SHOT_MASK & WINDOW_LAYER, 0);
+        assert_eq!(SHOT_MASK & GRATE_LAYER, 0);
+    }
 }
