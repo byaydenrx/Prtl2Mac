@@ -49,11 +49,14 @@ impl Templates {
 pub fn spawn_copy(commands: &mut Commands, ents: &Ents, proto: usize, idx: usize, tf: Transform, props: &Query<&Prop>) -> Option<Entity> {
     let e = ents.list[proto].entity?;
     // A prototype despawned by something else must not take the game down.
+    // The copy gets its own broad-phase proxy: a cloned proxy key would make
+    // avian free the prototype's proxy when the copy's collider is added,
+    // leaving a stale key that panics in the next AABB update (T-220).
     let copy = commands
         .get_entity(e)
         .ok()?
         .clone_and_spawn_with_opt_out(|b| {
-            b.linked_cloning(true).deny::<(RigidBodyDisabled, ColliderDisabled, ColliderOf, RigidBodyColliders)>();
+            b.linked_cloning(true).deny::<(RigidBodyDisabled, ColliderDisabled, ColliderOf, RigidBodyColliders, avian3d::collider_tree::ColliderTreeProxyKey)>();
         })
         .id();
     commands.entity(copy).insert((tf, Visibility::Inherited, crate::level::LevelOwned));
