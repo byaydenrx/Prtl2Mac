@@ -24,52 +24,51 @@ The one source of what's next: sessions and autoruns take the first line not
 marked FIXED, DONE or BLOCKED. Crashes and softlocks found on the way go to
 the top. Menus, on-hold and "later" tasks are never taken without the owner.
 Now (owner playtest 11, playability first):
-1. T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up (P0 crash, FIXED, awaiting owner replay: crash a8fda9c; bridge pickup not reproduced)
-2. T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room (FIXED, awaiting owner replay; was unplayable; check T-222 and T-223 with it: likely one cause, see entry)
-3. T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far (BLOCKED, needs owner replay: not reproduced on 18676be)
-4. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid (BLOCKED, needs owner replay: not reproduced on 18676be, likely fixed by T-221)
-5. T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall (BLOCKED, needs owner: floor fixed on main by T-221; Wheatley attempt on local branch attempt/T-217-wheatley)
-6. T-145 Cubes go dark and jitter on buttons, every chapter (jitter still open)
-7. T-218 Performance: 60-70 fps and stutter on an M4 Pro; portals cost a lot; v-sync unclear (owner: better; continue)
-8. T-224 Cube physics feel: no tumbling in the air; plate and button hits unreliable
-9. T-225 No dissolve ("fizzle") effect on cubes
-10. T-226 Pedestal buttons (prop_button): no sound or press animation
-11. T-173 Portal gun view model: hold beam, carry anims, fizzler shake
-12. T-227 Zoom doesn't work
-13. T-228 Chapter HUD icons don't look like Portal 2's
+1. T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up (P0, FIXED again, awaiting owner replay: a8fda9c's crash fix left dropper cubes without collision, softlock; fixed 2026-10-23 evening; bridge pickup not reproduced)
+2. T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far (BLOCKED, needs owner replay: not reproduced on 18676be)
+3. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid (BLOCKED, needs owner replay: not reproduced on 18676be, likely fixed by T-221)
+4. T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall (BLOCKED, needs owner: floor fixed on main by T-221; Wheatley attempt on local branch attempt/T-217-wheatley)
+5. T-145 Cubes go dark and jitter on buttons, every chapter (jitter still open)
+6. T-218 Performance: 60-70 fps and stutter on an M4 Pro; portals cost a lot; v-sync unclear (owner: better; continue)
+7. T-224 Cube physics feel: no tumbling in the air; plate and button hits unreliable
+8. T-225 No dissolve ("fizzle") effect on cubes
+9. T-226 Pedestal buttons (prop_button): no sound or press animation
+10. T-173 Portal gun view model: hold beam, carry anims, fizzler shake
+11. T-227 Zoom doesn't work
+12. T-228 Chapter HUD icons don't look like Portal 2's
 Then the engine gaps common to many maps, and gels:
-14. T-212 sp_a3_00 (start of chapter 6): loud glass smash at load (BLOCKED: merge attempt/T-212 for the owner's replay)
-15. T-203 Switchable lights frozen: lightmap styles other than 0 ignored (50 of 63 maps)
-16. T-199 Particle sprite sheets not decoded: sheet particles draw the whole atlas
-17. T-214 All-maps load sweep findings (2026-10-21)
-18. T-201 UnlitTwoTexture (TV/monitor screens) and other model shaders on the fallback
-19. T-206 Sounds not panned left/right
-20. T-200 Particle operators the maps' effects use but p2_fx doesn't simulate
-21. T-202 No bloom or colour correction (every map)
-22. T-204 No env_cubemap reflections or dynamic lights on props
-23. T-211 Gels: check each against Source
-24. T-030 Gel chapters: missing buttons in gel rooms, black elevator, cube carry feel
+13. T-212 sp_a3_00 (start of chapter 6): loud glass smash at load (BLOCKED: merge attempt/T-212 for the owner's replay)
+14. T-203 Switchable lights frozen: lightmap styles other than 0 ignored (50 of 63 maps)
+15. T-199 Particle sprite sheets not decoded: sheet particles draw the whole atlas
+16. T-214 All-maps load sweep findings (2026-10-21)
+17. T-201 UnlitTwoTexture (TV/monitor screens) and other model shaders on the fallback
+18. T-206 Sounds not panned left/right
+19. T-200 Particle operators the maps' effects use but p2_fx doesn't simulate
+20. T-202 No bloom or colour correction (every map)
+21. T-204 No env_cubemap reflections or dynamic lights on props
+22. T-211 Gels: check each against Source
+23. T-030 Gel chapters: missing buttons in gel rooms, black elevator, cube carry feel
 Then the campaign sweeps (the owner's playtests go first):
-25. T-008 Prove chapter 3 rest: bridge_the_gap, turret_intro, laser_relays, turret_blocker, laser_vs_turret, pull_the_rug
-26. T-010 Sweep chapter 4 (column_blocker, laser_chaining, triple_laser, bts1, bts2)
-27. T-011 Sweep chapter 5 (bts3, bts4, bts5, bts6, core)
-28. T-012 Sweep chapter 6 rest (jump_intro gel climb, bomb_flings, crazy_box, transition01)
-29. T-013 Sweep chapter 7 (speed_ramp, speed_flings, portal_intro, end)
-30. T-014 Sweep chapter 8 (sp_a4_intro .. jump_polarity)
-31. T-015 Sweep chapter 9 (finale1..finale4)
+24. T-008 Prove chapter 3 rest: bridge_the_gap, turret_intro, laser_relays, turret_blocker, laser_vs_turret, pull_the_rug
+25. T-010 Sweep chapter 4 (column_blocker, laser_chaining, triple_laser, bts1, bts2)
+26. T-011 Sweep chapter 5 (bts3, bts4, bts5, bts6, core)
+27. T-012 Sweep chapter 6 rest (jump_intro gel climb, bomb_flings, crazy_box, transition01)
+28. T-013 Sweep chapter 7 (speed_ramp, speed_flings, portal_intro, end)
+29. T-014 Sweep chapter 8 (sp_a4_intro .. jump_polarity)
+30. T-015 Sweep chapter 9 (finale1..finale4)
 Lower:
-32. T-205 Portal gun edge cases
-33. T-209 Portal transit only mirrors box-shaped geometry at the exit
-34. T-207 Viewmodel gaps
-35. T-208 Chell body gaps
-36. T-210 Upstream minor gaps
-37. T-090 Restart check per verified map
-38. T-040 App icon and second-Mac first-run check
-39. T-050 Verify merged cloud features in game: Wheatley look-at, gels, projtex, saves
+31. T-205 Portal gun edge cases
+32. T-209 Portal transit only mirrors box-shaped geometry at the exit
+33. T-207 Viewmodel gaps
+34. T-208 Chell body gaps
+35. T-210 Upstream minor gaps
+36. T-090 Restart check per verified map
+37. T-040 App icon and second-Mac first-run check
+38. T-050 Verify merged cloud features in game: Wheatley look-at, gels, projtex, saves
 
 ## Active tasks (in priority order)
 
-### T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up  (P0 crash, FIXED, awaiting owner replay; owner playtest 11)
+### T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up  (P0, FIXED again 2026-10-23, awaiting owner replay; owner playtest 11, owner report 2026-10-23 evening)
 - Owner: "i couldnt pick up one of the cubes that landed on a bridge about
   half way into beating this level so i spawned another and it crashed my
   game". Reproduce both: a cube resting on a hard light bridge (pickup ray /
@@ -123,72 +122,21 @@ Lower:
     the map; also try picking up a cube lying on a bridge (not reproduced:
     propto onto the projector3 bridge + use picked it up).
 
-### T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room  (P1, FIXED, awaiting owner replay; owner playtest 11: "unplayable")
-- Owner: "lots of invisible textures and walls just from the beginning room,
-  the animations machinery is missing walls are missing ... you can crouch
-  past the hallway animation and continue". He finished it only because he
-  knows the game. Bridges work and show through portals ("super ugly").
-- First check (T-213 side effect): a598811 changed how MDL body parts are
-  read and said "other props' non-default bodygroups were garbage before and
-  are now hidden". Animated Aperture panels/arms may rely on bodygroups; diff
-  an autopilot shot of this room on a build before a598811 vs now. Also check
-  the models that fail to load (T-214) and fallback shaders.
-- Likely shares a cause with T-222/T-223 (moving panels drawn without their
-  surface) and bridge_the_gap's missing textures: fix the cause once.
-- Autorun 2026-10-23 04:23 (autopilot only, build a8fda9c): not reproduced
-  yet. Arrival area (elevator at source -736,736; stairs going -y, frames,
-  video screens) renders complete from `setpos -736 560 -127`. Ceiling
-  repair arms `ceiling_panel_repair1-roboarmm_0[1-5]bendy01` (191..319,
-  -416..-480, 384) and their parented func_brush panels draw. The likely
-  "hallway animation" is the floor-panel instance rows
-  `row_[12]_panel_[2-5]-floor_panel_01_prop` (arm64x64_interior_rusty.mdl at
-  -704/-768, -480..-672, -64) with func_brush `..._floor_panel_01_brush`
-  (collider present, prop value 0 = not yet raised), raised by relays
-  `row_*_panel_*-floor_panel_up`. Also `wall_panel_extend_model`
-  (telescope_arm_128, 400,-768,64). `setpos -736 -330 -63` lands in the void,
-  so use `goto`/walk from the stairs. Next step: walk up the stairs from the
-  elevator (or `input row_1_panel_3-floor_panel_up Trigger`) and shoot the
-  panel rows before/after they rise; compare with Windows (scripts/winref.sh)
-  at the same spot; then check what fires floor_panel_up (ents outputs).
-- Autorun 2026-10-23 04:37 (autopilot only, build a8fda9c): REPRODUCED.
-  Walk from `setpos -736 560 -127 10 -90` (`walk 6`): door_52 opens,
-  floor_up_relay -> row_1/row_2_up_relay -> each `floor_panel_up` plays
-  `64_out_straight` on the arm prop. Arms and frames rise but the floor
-  surfaces are missing (the hallway looks like open framework). Cause:
-  the parented `..._floor_panel_01_brush` (func_brush *64, top face
-  metal/black_floor_metal_001c) starts with its top at source z 0 (floor
-  level) and after the rise `info` puts it at z 64 (origin -45 -> 19): it
-  ends 64 units too high, i.e. at eye height, seen edge-on = invisible
-  walls; the player is stopped at y -432 by them. Map setup per panel:
-  prop keyvalue `defaultanim 64_idle`; logic_auto onmapspawn: prop
-  `SetDefaultAnimation bindpose`, brush `SetParentAttachmentMaintainOffset
-  panel_attach` (both delay 0). So the maintained offset must be measured
-  against the attachment in the prop's spawn pose (64_idle = extended, the
-  brush's Hammer position), after which bindpose retracts it (brush hidden
-  below the floor) and 64_out_straight brings it back to z 0. We seem to
-  measure the offset against bindpose/rest (or apply bindpose first), so
-  the brush ends +64. Next step: find SetParentAttachmentMaintainOffset in
-  crates/p2_game (grep maintainoffset) and check which pose the attachment
-  is read from at spawn; make it the current sequence's (64_idle) pose;
-  check bindpose actually plays after 64_idle ends (brush below floor
-  before the rise). `animinfo` panicked "parse" on
-  models/anim_wp/room_transform/arm64x64_interior_rusty.mdl (path given as
-  framework/, retry with room_transform/). Likely the same bug for T-222
-  (sphere_peek panels) and T-223 (ricochet platform): check after the fix.
-  - Autorun 2026-10-23 04:48 FIXED in 18676be (autopilot only, build
-    0.1.0+18676be.20261023T0847Z). Cause: on the first frame
-    `anim_inputs` stored the map-spawn `SetDefaultAnimation bindpose` before
-    `start_default_anims` picked the spawn sequence, so the arms spawned in
-    bindpose instead of their keyvalue `DefaultAnim` (64_idle) and
-    SetParentAttachmentMaintainOffset measured the brush offset against the
-    folded pose. Fix (anim_props.rs `initial_seq`): a prop spawns in its
-    DefaultAnim keyvalue, as in Source; SetDefaultAnimation only sets what
-    follows. Evidence: row_1_panel_3 brush top before the rise z -55 (hidden
-    below the floor), after z 0 (floor level; was +64); the walk from the
-    elevator now passes the hallway (was stopped at y -432); p2_game tests
-    pass; sphere_peek/ricochet load without errors. Owner: replay
-    bridge_intro from the start (hallway floor rises and is walkable, no
-    invisible walls); T-222/T-223 not checked yet against this fix.
+- 2026-10-23 evening, owner: the a8fda9c build "removed the entire cube
+  from the dropper", so the map can't be finished (softlock). Cause: Bevy's
+  clone `deny` also denies every component that requires the denied one,
+  and avian makes Collider require ColliderTreeProxyKey, so denying the key
+  stripped the Collider from every template copy (all cube droppers, every
+  map). Reproduced (fresh bridge_the_gap, P2_PROPTRACE): copies fell from
+  z 1904 through the dropper and floor in free fall and were killed below.
+  Fix (templates.rs): deny the key inside `without_required_by_components`,
+  so the copy keeps its Collider and gets the placeholder key. After: the
+  copy lands in the dropper (z 1430) with a live collider; the save-load
+  crash repro (autosave, two drops) exits 0, no panic, saves unchanged;
+  fizzler_intro, laser_stairs, catapult_intro, ricochet and jump_intro
+  droppers all leave live, solid copies on floors; 202 tests pass.
+  Screenshots came out black for every build this session (capture
+  problem, old build too), so evidence is from traces and entity state.
 
 ### T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far  (P1, BLOCKED (needs owner replay: none of the three reproduced on 18676be); playable; owner playtest 11)
 - A platform you stand on sometimes lets you fall through; "its like not
@@ -322,6 +270,22 @@ Lower:
   texture: not started.
 
 ### T-145 Cubes go dark and jitter on buttons, every chapter  (P1 by owner, PARTLY FIXED: dark cubes and spikes owner-confirmed 2026-10-23; jitter open)
+- 2026-10-23 evening (session paused for the T-220 regression; not fixed):
+  re-reproduced with the new P2_PROPTRACE=<name> trace (props.rs: place,
+  up axis, speeds every physics tick). intro2 `propto box -610 284 35`:
+  the cube never settles, sliding ~10 u/s and turning ~1 rad/s for 8+ s,
+  centre z -35.9 (Windows -33.47). button_1-button is
+  portal_button_damaged01 at pitch -3 (authored; the tilt is real). Its
+  .phy: pieces 0-7 a rim ring 0..9.8 u high in the root's space (one
+  static compound on the button), pieces 8-9 the pad -3.8..0.1 in the top
+  bone's space (bone 2 at y 13.64, on the animated bone part), pressed top
+  at 6.35. Windows' -33.47 = pressed pad top 6.35 + cube half 18, so our
+  cube sits ~2.4 u lower than the pad top: it is likely resting on or in
+  the rim pieces/pad edge rather than flat on the pressed pad. Next: log
+  which collider pairs touch the cube while it rattles (rim compound vs
+  pad part), check the pad part's collider pose when pressed (does the
+  collider follow the bone's 7.3 u drop?), and whether VPhysics treats the
+  rim as solid for props at all.
 - 2026-10-23 dark cubes, cause: a moving prop's vertex light was baked once
   where it spawned and kept forever. Dropper and template cubes spawn in
   the dropper's tube, where the ambient light is 0.000, so they were black

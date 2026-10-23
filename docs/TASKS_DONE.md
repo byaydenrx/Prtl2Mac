@@ -3,6 +3,73 @@
 Moved out of TASKS.md (2026-10-23) to keep it short. Entries unchanged;
 newest summary list at the bottom. Grep by task id.
 
+### T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room  (P1, DONE 2026-10-23: owner confirmed all walls and textures are back; owner playtest 11: "unplayable")
+- Owner: "lots of invisible textures and walls just from the beginning room,
+  the animations machinery is missing walls are missing ... you can crouch
+  past the hallway animation and continue". He finished it only because he
+  knows the game. Bridges work and show through portals ("super ugly").
+- First check (T-213 side effect): a598811 changed how MDL body parts are
+  read and said "other props' non-default bodygroups were garbage before and
+  are now hidden". Animated Aperture panels/arms may rely on bodygroups; diff
+  an autopilot shot of this room on a build before a598811 vs now. Also check
+  the models that fail to load (T-214) and fallback shaders.
+- Likely shares a cause with T-222/T-223 (moving panels drawn without their
+  surface) and bridge_the_gap's missing textures: fix the cause once.
+- Autorun 2026-10-23 04:23 (autopilot only, build a8fda9c): not reproduced
+  yet. Arrival area (elevator at source -736,736; stairs going -y, frames,
+  video screens) renders complete from `setpos -736 560 -127`. Ceiling
+  repair arms `ceiling_panel_repair1-roboarmm_0[1-5]bendy01` (191..319,
+  -416..-480, 384) and their parented func_brush panels draw. The likely
+  "hallway animation" is the floor-panel instance rows
+  `row_[12]_panel_[2-5]-floor_panel_01_prop` (arm64x64_interior_rusty.mdl at
+  -704/-768, -480..-672, -64) with func_brush `..._floor_panel_01_brush`
+  (collider present, prop value 0 = not yet raised), raised by relays
+  `row_*_panel_*-floor_panel_up`. Also `wall_panel_extend_model`
+  (telescope_arm_128, 400,-768,64). `setpos -736 -330 -63` lands in the void,
+  so use `goto`/walk from the stairs. Next step: walk up the stairs from the
+  elevator (or `input row_1_panel_3-floor_panel_up Trigger`) and shoot the
+  panel rows before/after they rise; compare with Windows (scripts/winref.sh)
+  at the same spot; then check what fires floor_panel_up (ents outputs).
+- Autorun 2026-10-23 04:37 (autopilot only, build a8fda9c): REPRODUCED.
+  Walk from `setpos -736 560 -127 10 -90` (`walk 6`): door_52 opens,
+  floor_up_relay -> row_1/row_2_up_relay -> each `floor_panel_up` plays
+  `64_out_straight` on the arm prop. Arms and frames rise but the floor
+  surfaces are missing (the hallway looks like open framework). Cause:
+  the parented `..._floor_panel_01_brush` (func_brush *64, top face
+  metal/black_floor_metal_001c) starts with its top at source z 0 (floor
+  level) and after the rise `info` puts it at z 64 (origin -45 -> 19): it
+  ends 64 units too high, i.e. at eye height, seen edge-on = invisible
+  walls; the player is stopped at y -432 by them. Map setup per panel:
+  prop keyvalue `defaultanim 64_idle`; logic_auto onmapspawn: prop
+  `SetDefaultAnimation bindpose`, brush `SetParentAttachmentMaintainOffset
+  panel_attach` (both delay 0). So the maintained offset must be measured
+  against the attachment in the prop's spawn pose (64_idle = extended, the
+  brush's Hammer position), after which bindpose retracts it (brush hidden
+  below the floor) and 64_out_straight brings it back to z 0. We seem to
+  measure the offset against bindpose/rest (or apply bindpose first), so
+  the brush ends +64. Next step: find SetParentAttachmentMaintainOffset in
+  crates/p2_game (grep maintainoffset) and check which pose the attachment
+  is read from at spawn; make it the current sequence's (64_idle) pose;
+  check bindpose actually plays after 64_idle ends (brush below floor
+  before the rise). `animinfo` panicked "parse" on
+  models/anim_wp/room_transform/arm64x64_interior_rusty.mdl (path given as
+  framework/, retry with room_transform/). Likely the same bug for T-222
+  (sphere_peek panels) and T-223 (ricochet platform): check after the fix.
+  - Autorun 2026-10-23 04:48 FIXED in 18676be (autopilot only, build
+    0.1.0+18676be.20261023T0847Z). Cause: on the first frame
+    `anim_inputs` stored the map-spawn `SetDefaultAnimation bindpose` before
+    `start_default_anims` picked the spawn sequence, so the arms spawned in
+    bindpose instead of their keyvalue `DefaultAnim` (64_idle) and
+    SetParentAttachmentMaintainOffset measured the brush offset against the
+    folded pose. Fix (anim_props.rs `initial_seq`): a prop spawns in its
+    DefaultAnim keyvalue, as in Source; SetDefaultAnimation only sets what
+    follows. Evidence: row_1_panel_3 brush top before the rise z -55 (hidden
+    below the floor), after z 0 (floor level; was +64); the walk from the
+    elevator now passes the hallway (was stopped at y -432); p2_game tests
+    pass; sphere_peek/ricochet load without errors. Owner: replay
+    bridge_intro from the start (hallway floor rises and is walkable, no
+    invisible walls); T-222/T-223 not checked yet against this fix.
+
 ### T-216 sp_a2_catapult_intro: the faith plate throws the cube too low; blocks chapter 2  (P1, DONE 2026-10-23: owner finished catapult_intro)
 - Owner (playtest 10): catching works, "the cube doesn't go high enough up".
 - Cause: props had avian `LinearDamping(0.05)`, which bled ~6% of the cube's

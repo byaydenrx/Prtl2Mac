@@ -81,8 +81,8 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 2 | sp_a2_pit_flings | y | y | y | y | y | VERIFIED | owner played through (playtest 11); no dissolve effect (T-225) |
 | 2 | sp_a2_fizzler_intro | y | y | y | y | y | VERIFIED | owner played through (playtest 11) |
 | 3 | sp_a2_sphere_peek, ricochet | y | y | y | y | y | VERIFIED | owner played through (playtest 11); bugs T-222, T-223 |
-| 3 | sp_a2_bridge_intro | y | y | x | y | - | BLOCKED | invisible walls and machinery from the first room; owner finished it only by knowing the game (T-221) |
-| 3 | sp_a2_bridge_the_gap | y | y | - | y | - | IN PROGRESS | owner: playable but crashed spawning a cube (T-220); Wheatley glitches, missing textures |
+| 3 | sp_a2_bridge_intro | y | y | - | y | - | IN PROGRESS | T-221 fixed: owner confirmed walls, textures and machinery are back (2026-10-23); not yet reported played through |
+| 3 | sp_a2_bridge_the_gap | y | y | - | y | - | IN PROGRESS | T-220: crash fixed, then dropper cubes had no collision (softlock, owner 2026-10-23); fixed again, owner to replay; Wheatley glitches |
 | 3 | sp_a2_turret_intro | y | - | - | y | - | IN PROGRESS | walk-in transition_trigger works; T-008 |
 | 3 | sp_a2_laser_relays | y | - | - | y | - | IN PROGRESS | T-008 |
 | 3 | sp_a2_turret_blocker, laser_vs_turret, pull_the_rug | y | - | - | y | - | IN PROGRESS | T-008 |
@@ -96,8 +96,7 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 9 | sp_a4_finale1..finale4 | - | - | - | - | - | NOT STARTED | T-015 |
 
 ## Release blockers (open P0/P1)
-- T-220: bridge_the_gap crash after spawning a cube (P0).
-- T-221: sp_a2_bridge_intro invisible walls and machinery (unplayable without knowing the game).
+- T-220: bridge_the_gap dropper cubes fell through the world after the crash fix (softlock); fixed again, awaiting owner replay.
 - T-211 gels (P1) before chapters 6-8; gel isn't kept in saves (saves.rs).
 - (The 2026-10-20 list here is closed: T-129 and T-132 fixed by autoruns,
   T-131 owner-confirmed, T-105 carried on as T-167/T-170 (T-170

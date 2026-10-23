@@ -52,11 +52,16 @@ pub fn spawn_copy(commands: &mut Commands, ents: &Ents, proto: usize, idx: usize
     // The copy gets its own broad-phase proxy: a cloned proxy key would make
     // avian free the prototype's proxy when the copy's collider is added,
     // leaving a stale key that panics in the next AABB update (T-220).
+    // Only the key is denied: a plain deny also denies what requires it,
+    // i.e. the Collider, and the copy fell through the world.
     let copy = commands
         .get_entity(e)
         .ok()?
         .clone_and_spawn_with_opt_out(|b| {
-            b.linked_cloning(true).deny::<(RigidBodyDisabled, ColliderDisabled, ColliderOf, RigidBodyColliders, avian3d::collider_tree::ColliderTreeProxyKey)>();
+            b.linked_cloning(true).deny::<(RigidBodyDisabled, ColliderDisabled, ColliderOf, RigidBodyColliders)>();
+            b.without_required_by_components(|b| {
+                b.deny::<avian3d::collider_tree::ColliderTreeProxyKey>();
+            });
         })
         .id();
     commands.entity(copy).insert((tf, Visibility::Inherited, crate::level::LevelOwned));
