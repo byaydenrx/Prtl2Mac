@@ -36,8 +36,9 @@ tasks when wanted). No intro6 route saved: the owner replays it themselves.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-TASKS.md "Priority order": T-216 (sp_a2_catapult_intro, catching the cube in
-the air; blocks chapter 2), then T-145, T-217, T-218. The owner plays the
+Owner's order: T-216 (catapult_intro: the plate throws the cube too low;
+blocks chapter 2), T-218 (performance), T-145 (cubes on buttons), T-217
+(laser_stairs). Nothing else until the owner says. The owner plays the
 campaign himself: fix what he reports, no level scripts.
 
 ## Uncommitted / in-flight work

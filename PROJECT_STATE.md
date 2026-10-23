@@ -76,7 +76,7 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 2 | sp_a2_laser_stairs | y | y | y | y | y | VERIFIED | owner played through (playtest 10); T-217 floor, Wheatley through wall, floating texture |
 | 2 | sp_a2_dual_lasers | y | y | y | y | y | VERIFIED | owner played through (playtest 10) |
 | 2 | sp_a2_laser_over_goo | y | y | y | y | y | VERIFIED | owner: played "the level after" dual_lasers (playtest 10) |
-| 2 | sp_a2_catapult_intro | y | y | x | y | - | BLOCKED | owner can't catch/carry the cube in the air (T-216) |
+| 2 | sp_a2_catapult_intro | y | y | x | y | - | BLOCKED | the faith plate throws the cube too low to continue (T-216) |
 | 2 | sp_a2_trust_fling | y | - | - | y | - | IN PROGRESS | plates land on target; T-005 |
 | 2 | sp_a2_pit_flings | y | - | - | y | - | IN PROGRESS | plates land on target; T-006 |
 | 2 | sp_a2_fizzler_intro | y | - | - | y | - | IN PROGRESS | T-007 |
@@ -95,7 +95,7 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 9 | sp_a4_finale1..finale4 | - | - | - | - | - | NOT STARTED | T-015 |
 
 ## Release blockers (open P0/P1)
-- T-216: sp_a2_catapult_intro, the cube can't be caught in the air (blocks chapter 2).
+- T-216: sp_a2_catapult_intro, the plate throws the cube too low (blocks chapter 2).
 - T-211 gels (P1) before chapters 6-8; gel isn't kept in saves (saves.rs).
 - (The 2026-10-20 list here is closed: T-129 and T-132 fixed by autoruns,
   T-131 owner-confirmed, T-105 carried on as T-167/T-170 (T-170

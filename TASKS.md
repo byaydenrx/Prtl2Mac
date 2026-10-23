@@ -37,10 +37,12 @@ This list is the one source of what's next: the handoff's "Next action" names
 its first open item, and resume.sh warns when they disagree.
 Owner 2026-10-22 (playtest 10): playability first. The owner plays the
 campaign himself; fix what stops him, then what he called "necessary now".
-0a. T-216 sp_a2_catapult_intro: can't catch the cube in the air (blocks chapter 2).
-0b. T-145 cubes dark and jittery on buttons, every chapter (owner: fix now).
-0c. T-217 sp_a2_laser_stairs: missing floor, Wheatley through the wall, floating texture.
-0d. T-218 performance (60-70 fps, stutter, portals, v-sync).
+Owner's order (2026-10-22 23:20): T-216, T-218, T-145, T-217; everything
+else (items 1-8 below and the "Later" list) waits until the owner says.
+0a. T-216 sp_a2_catapult_intro: the plate throws the cube too low (blocks chapter 2).
+0b. T-218 performance (60-70 fps, stutter, portals, v-sync).
+0c. T-145 cubes dark and jittery on buttons, every chapter.
+0d. T-217 sp_a2_laser_stairs: missing floor, Wheatley through the wall, floating texture.
 0e. Then wait for the owner's next playtest (chapter 2 from catapult_intro);
     his reports go before everything below.
 Later, owner says not blocking (keep for the polish pass): intro1 sky
@@ -77,22 +79,23 @@ them until the owner lifts the hold; search that file by task id.
 
 ## Open: P1
 
-### T-216 sp_a2_catapult_intro: can't catch/carry the cube in the air; blocks the chapter  (P1, TODO; owner playtest 10)
-- Owner: "playability stops ... im pretty sure the cubes physics are wrong,
-  i cant push it midair it goes below me rather than at my chest ... so i
-  cant grab it and move forward." Unclear whether the cube, the player or
-  both move wrong; first find out (reproduce the intended solution: the
-  owner can describe it, or docs/maps/sp_a2_catapult_intro.md).
-- Leads: T-198 (b55fc08, 2026-10-21) rewrote faith-plate launches and added
-  air-control suppression, and this is the first plate map the owner reached
-  since: check it first (diff the plate's cube launch and the player's).
-  props.rs carry: held velocity = player_vel + chase (HOLD_MAX_SPEED 1000
-  u/s, HOLD_BREAK_DISTANCE 64 u); gravity/hold point while airborne; the
-  T-176 use cone for grabbing a moving cube. Compare with Windows
-  (scripts/winref.sh; server.dll study allowed).
-- Done when the owner can finish catapult_intro; regression: the other plate
-  maps (trust_fling, pit_flings) still launch on target
-  (scripts/check_faith_plates.py) and carrying in intro2 is unchanged.
+### T-216 sp_a2_catapult_intro: the faith plate throws the cube too low; blocks chapter 2  (P1, TODO; owner playtest 10)
+- Owner (2026-10-22 23:20): catching and carrying work fine ("cubes and props
+  can be caught midair"). The problem is the plate's throw: "the cube doesn't
+  go high enough up". T-198 (b55fc08) "improved the issue but didn't fix it".
+  So it is the launch of a physics prop by trigger_catapult, not the carry.
+- Leads: how triggers.rs launches props vs the player (T-198 rebuilt the
+  player path from server.dll CTriggerCatapult: 3D-distance flight time,
+  player feet aimed 32 u under the target, exact-velocity arcs; check the
+  prop path got the same: physicsSpeed vs playerSpeed, the prop's aim point
+  (its centre, not feet), and that nothing slows it after launch: avian
+  damping/gravity scale, prop mass 40 kg (T-144), contact with the plate, the
+  speed cap HOLD_MAX_SPEED if a held-prop path touches it, sv_gravity 600).
+  Source also adds a random angular impulse to props (skipped; harmless?).
+  Compare the arc with Windows (scripts/winref.sh; server.dll study allowed).
+- Done when the cube reaches its target in catapult_intro and the owner can
+  finish the map; regression: player launches unchanged
+  (scripts/check_faith_plates.py on catapult_intro, trust_fling, pit_flings).
 
 ### T-145 Cubes go dark and jitter on buttons, every chapter  (P1 by owner, TODO; back from hold 2026-10-22)
 - Owner playtest 10 (2026-10-22): "cubes still show as black and are
