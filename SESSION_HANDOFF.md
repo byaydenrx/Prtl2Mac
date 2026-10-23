@@ -4,37 +4,34 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
-2026-10-21 22:55 owner session (cloud, docs and scripts only): post-audit
-housekeeping merged (9611a25): resume.sh fixed and now picks the next task
-from TASKS.md's priority order; on-hold tasks in docs/TASKS_ON_HOLD.md;
-owner decisions in CLAUDE.md (studying Valve's binaries is allowed, never
-commit decompiled code; VERIFIED = the owner played it); T-130 restored and
-put first. No code changed; the app build below is still current.
-Before that, 16:50 autorun: T-215 DONE: scripts/winref.sh takes reliable
-Windows Portal 2 reference shots (netcon console over TCP, waits for the
-load to finish). See WORKFLOW.md "Windows Portal 2 reference". First
-finding: laser_intro start is much darker in ours than in Windows.
-Earlier: T-198 faith plates (b55fc08). Ghidra project of server.dll is not
-kept; re-import takes ~10 min (JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home).
+2026-10-22 22:15 owner session: T-130 FIXED (0634859). A cube resting
+where a portal opens (intro6's cube under the glass box, shot through the
+round hole) now falls through: the portal hooks go in with the prop's
+re-attached colliders, since avian 0.7 only sets MODIFY_CONTACTS when a
+collider proxy is created (docs/STATUS.md). The owner asked to stop the auto
+sessions: the running one was stopped and the scheduled task
+`prtl2mac-auto-resume-2` is DISABLED (re-enable it in the app's scheduled
+tasks when wanted). No intro6 route saved: the owner replays it themselves.
 
 ## Where things stand
-- dist/Prtl2Mac.app = 0.1.0+b55fc08.20261021T2016Z.
-- Awaiting the owner: T-112 GLaDOS floor reflection, T-153 particles,
-  T-150 motion blur + gun glow, T-213 PotatOS on the gun, T-198 faith plates,
-  T-215 winref.sh.
+- dist/Prtl2Mac.app = 0.1.0+0634859.20261023T0214Z (has the T-130 fix).
+- Owner to replay: sp_a1_intro6 room 1: shoot the floor under the cube
+  straight down through the round hole on the glass box; the cube should
+  drop through and come out of the orange wall portal.
+- Awaiting the owner: T-130 intro6 cube, T-112 GLaDOS floor reflection,
+  T-153 particles, T-150 motion blur + gun glow, T-213 PotatOS on the gun,
+  T-198 faith plates, T-215 winref.sh.
 - ON HOLD: menus (no menu code changes), screenshot tasks (T-173, T-174,
   T-145, T-147, T-149, T-116, T-152, T-151, T-154), T-164, T-120.
 - Regression-check note: sp_a3_jump_intro's 8 s shot is sometimes washed
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-T-130: make sp_a1_intro6 solvable without noclip and save its route
-(scripts/routes/sp_a1_intro6.txt); owner's pick, the last chapter 1 blocker.
-Then TASKS.md "Priority order": the common engine gaps (T-203 lights, T-199 sprite
-sheets, T-214 DecalModulate/SolidEnergy/broken models, T-201, T-206, T-200,
-T-202, T-204), T-211 gels, then the campaign T-002..T-015. Audit docs:
-docs/UPSTREAM_GAPS.md, T-214. Tools: p2_fx `pcfdump`, `fxaudit`; mdlinfo now
-lists bodygroup alternates; scripts/winref.sh for Windows reference shots. ON HOLD: menus, screenshot tasks, T-164, T-120.
+TASKS.md "Priority order": T-130 awaits the owner's intro6 replay (if it
+still fails, ask where the cube was). Next open: the common engine gaps
+(T-203 lights, T-199 sprite sheets, T-214 DecalModulate/SolidEnergy/broken
+models, T-201, T-206, T-200, T-202, T-204), T-211 gels, then the campaign
+T-002..T-015. ON HOLD: menus, screenshot tasks, T-164, T-120.
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.
