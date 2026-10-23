@@ -190,7 +190,7 @@ Lower:
     bridge_intro from the start (hallway floor rises and is walkable, no
     invisible walls); T-222/T-223 not checked yet against this fix.
 
-### T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far  (P1, TODO; playable; owner playtest 11)
+### T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far  (P1, IN_PROGRESS; playable; owner playtest 11)
 - A platform you stand on sometimes lets you fall through; "its like not
   rendering the wall part itself just the mechanical" (see T-221 lead).
 - The faith plate GLaDOS tampers with should launch a player already standing
@@ -199,6 +199,26 @@ Lower:
   entities when a trigger is enabled).
 - Two moving platforms move too far: they end horizontal instead of angled
   (animation end pose, pose parameters, or rotation clamping).
+- 2026-10-23 05:00 autorun, faith plate NOT REPRODUCED (autopilot, build
+  18676be): the plate is catapult_up (disabled by disable_catapult_rl on each
+  sphere look, re-enabled by GLaDOS's FailureOne03/FailureTwo03 scene
+  `fires` -> @trigger_this_to_fix_catapult); after FailureThree,
+  @trigger_this_to_fix_ceiling -> catapult_switch_relay (+9 s) swaps to
+  catapult2_up. Standing still on the plate, every path launched at once:
+  direct inputs (fix relay, switch relay) and the real flow (goto plate,
+  lookat @sphere x3: fix fired twice, launched twice, then ceiling, then
+  catapult2_up launched). The trigger code already re-tests on Enable (a
+  disabled trigger drops out of `touching`, so enable = new StartTouch).
+  Owner: which plate/moment exactly (before or after the ceiling lowers)?
+  Maybe the player stood off the 8-unit trigger (bounds y -4.47..-4.27 m,
+  feet -4.67 when centred) e.g. on the plate rim.
+- Seen while testing (not the owner's report, check against Windows with
+  scripts/winref.sh): after the ceiling closes, catapult2_up (target
+  helper_catapult2_target straight above, 500 u/s) throws the player into
+  ceiling_panel (apex feet ~9.3 m) and back onto the plate every ~1.9 s,
+  forever. Next step: confirm what Windows does there (the lowered ceiling
+  may be meant to stop you, or catapult2 should fling at 45 deg), then the
+  fall-through platform and the panel end pose items.
 
 ### T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid  (P1, TODO; playable; owner playtest 11)
 - The platform surface (not the machinery) is missing, so the cube falls to

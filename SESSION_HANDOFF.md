@@ -4,6 +4,13 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
+2026-10-23 05:01 autorun (NOT REPRODUCED, docs only): T-222 sphere_peek
+faith plate: a player standing on catapult_up/catapult2_up is launched at
+once when GLaDOS re-enables or swaps it, by direct input and in the real
+look-at-the-sphere flow. Noted a possible loop after the ceiling lowers
+(catapult2_up bounces the player off ceiling_panel every ~1.9 s; check vs
+Windows). T-222 stays IN_PROGRESS. No code changed.
+Before that:
 2026-10-23 04:48 autorun (FIXED, autopilot only): T-221 bridge_intro
 invisible walls fixed in 18676be: props spawn in their DefaultAnim keyvalue;
 a SetDefaultAnimation at map spawn no longer replaced it, so the floor-panel
@@ -70,8 +77,9 @@ check not done; details in TASKS.md T-217.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-TASKS.md "Priority order": T-222 (first check whether the T-221
-spawn-pose fix 18676be already helps), T-223,
+TASKS.md "Priority order": T-222 (faith plate not reproduced, see entry;
+next: Windows check of the catapult2_up ceiling bounce, then the
+fall-through platform and panel end poses), T-223,
 then finish T-217 (attempt/T-217 regression check), T-145 jitter, then the
 feel tasks. The owner plays the campaign himself; no level scripts.
 
