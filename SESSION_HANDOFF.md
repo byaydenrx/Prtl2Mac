@@ -9,6 +9,13 @@ The autorun no longer stops itself or uses a STOP file (docs/AUTORUN.md
 T-217, T-222, T-223 wait for the owner's replay (see Fix attempts below).
 
 ## Last update
+2026-10-23 evening, manual session: T-229 turrets FIXED (1894bb5, app
+0.1.0+1894bb5.20261023T2124Z): animated, visible shots (flash, tracer, impacts), tip over when
+walked into or knocked, spray then die, lasers burn them, Portal 2's voice
+lines. Also: the player can push props now (was broken for every prop).
+fps with 3 turrets firing = old build. Next: T-231 laser tilt, T-232
+bridge_the_gap Wheatley and bird (owner's order).
+Before that:
 2026-10-23 evening, manual session: owner playtest 12 recorded (T-145,
 T-220, T-222 done; bridge_intro, bridge_the_gap, turret_intro VERIFIED;
 new T-229 turrets, T-230 laser_relays, T-231 laser tilt, T-232 Wheatley and
@@ -118,7 +125,9 @@ fixed on branch attempt/T-217 (2fe2ac4, pushed to origin), regression
 check not done; details in TASKS.md T-217.
 
 ## Where things stand
-- dist/Prtl2Mac.app = 0.1.0+c7a8308.20261023T2012Z (T-230 laser relays, T-145, T-220).
+- dist/Prtl2Mac.app = 0.1.0+1894bb5.20261023T2124Z (T-229 turrets, T-230 laser relays, T-145, T-220).
+- Owner to replay: T-229 turret_intro, turret_blocker, laser_vs_turret: turrets
+  deploy, shoot visibly, tip over when walked into or hit, talk, die.
 - Owner to replay: T-230 sp_a2_laser_relays: route the beam through all
   three relays (cube + portals); the exit door should open and stay open.
 - Owner to replay: T-222 sphere_peek: the two arm platforms should end
@@ -149,7 +158,7 @@ check not done; details in TASKS.md T-217.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-TASKS.md "Priority order": T-229 turrets, then T-231 laser tilt. T-217, T-222
+TASKS.md "Priority order": T-231 laser tilt, then T-232 (owner's order). T-217, T-222
 and T-223 are BLOCKED on owner replay
 (optional: Windows check of the catapult2_up ceiling bounce). The owner plays the campaign himself; no level scripts.
 
