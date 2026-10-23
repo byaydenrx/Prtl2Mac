@@ -29,7 +29,7 @@ right, then fix the biggest problems common to many levels, each gel, then
 the full campaign (chapters 2-9), done by the auto sessions. Audit sources:
 docs/UPSTREAM_GAPS.md (upstream README gaps), T-214 (all-maps sweep), fxaudit.
 ON HOLD (owner): menus (no menu code changes at all); screenshot tasks
-T-173, T-174, T-145, T-147, T-149, T-116, T-152, T-151, T-154; T-164
+T-173, T-174, T-147, T-149, T-116, T-152, T-151, T-154; T-164
 skipped; T-120 done enough. Don't work on anything already fixed.
 Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles, T-150
 motion blur and gun glow, T-213 PotatOS on the gun, T-198 faith plates, T-215 winref.sh.
@@ -41,7 +41,7 @@ Owner's order (2026-10-22 23:20): T-216, T-218, T-145, T-217; everything
 else (items 1-8 below and the "Later" list) waits until the owner says.
 0a. T-216 sp_a2_catapult_intro: the plate throws the cube too low. FIXED, awaiting replay.
 0b. T-218 performance. PARTLY FIXED (culling), awaiting replay; MSAA-at-4K and v-sync-off findings in its entry.
-0c. T-145 cubes on buttons: dark cubes and spikes FIXED; jitter in progress.
+0c. T-145 cubes on buttons: dark cubes and spikes FIXED, awaiting replay; jitter open (cause narrowed, entry).
 0d. T-217 sp_a2_laser_stairs: missing floor, Wheatley through the wall, floating texture.
 0e. Then wait for the owner's next playtest (chapter 2 from catapult_intro);
     his reports go before everything below.
@@ -71,7 +71,7 @@ Owner holds of 2026-10-21, moved out of this file unchanged. Do not work on
 them until the owner lifts the hold; search that file by task id.
 - Menus (no menu code changes at all): T-193 T-194 T-177 T-178 T-179 T-180
   T-181 T-183 T-184 T-185 T-187 T-188 T-189 T-190 T-191.
-- Waiting for owner screenshots: T-173 T-174 T-145 T-147 T-149 T-116.
+- Waiting for owner screenshots: T-173 T-174 T-147 T-149 T-116.
 - Skip for now / wait for screenshots: T-164 T-152 T-151 T-154 T-120.
 
 ## Open: P0
@@ -79,7 +79,7 @@ them until the owner lifts the hold; search that file by task id.
 
 ## Open: P1
 
-### T-145 Cubes go dark and jitter on buttons, every chapter  (P1 by owner, IN_PROGRESS: dark cubes and button spikes FIXED (see 2026-10-23), jitter next)
+### T-145 Cubes go dark and jitter on buttons, every chapter  (P1 by owner, PARTLY FIXED: dark cubes c005fbc and button spikes bf5006a awaiting replay; jitter open, cause narrowed)
 - 2026-10-23 dark cubes, cause: a moving prop's vertex light was baked once
   where it spawned and kept forever. Dropper and template cubes spawn in
   the dropper's tube, where the ambient light is 0.000, so they were black
@@ -109,6 +109,20 @@ them until the owner lifts the hold; search that file by task id.
   Evidence: intro2 button pressed, spikes before, none after; released pose
   normal; plate arm mid-launch, Wheatley and GLaDOS shots unchanged; unit
   test pinned_mixed_triangles_stretch.
+- 2026-10-23 jitter, reproduced (autopilot, intro2, `propto box` dropped
+  from ~70 u onto button_1): Windows' cube rests perfectly still (z -33.47,
+  vscript 0.25 s samples). Ours, depending on where it lands: (a) rocks
+  ~5-7 deg for 1-3 s after landing, or (b) keeps rattling indefinitely, up
+  vector flipping every frame and slowly turning (spin ~1.1 rad/s sustained),
+  e.g. drop at (-610,284,35) resting near (-598,286). Same cube on plain
+  floor: perfectly still. Ruled out: the press (no pad animation: still
+  rattles), SweptCcd, restitution, damping (a settle damping of 6 once
+  nearly still for 0.2 s stops (a) in 3 of 5 drops but not (b); not kept).
+  Cause is in the contact between the cube box and the button's compound
+  of ten small convex .phy pieces (rim pieces 0..9.8 u high, pad -3.8..0).
+  Next: draw/inspect those hulls where the cube's corners rest, try avian
+  contact settings (speculative margin, contact softness, substeps) on this
+  case, and check whether VPhysics merges or simplifies those pieces.
 - Left: under intro2's button lamp the relit cube's top is a saturated
   pinkish white where Windows shows grey, and its sides stay darker than
   Windows: our ambient for models (leaf-average samples, world-light term)
