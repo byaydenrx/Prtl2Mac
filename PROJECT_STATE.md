@@ -66,7 +66,7 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | Ch | Map | L | O | S | N | R | Status | Evidence / notes |
 |---|---|---|---|---|---|---|---|---|
 | 1 | sp_a1_intro1 | y | y | y | y | y | VERIFIED | owner replayed (playtest 10, 2026-10-22); later: sky tint, ride debris, window |
-| 1 | sp_a1_intro2, intro3, intro5 | y | y | y | y | y | VERIFIED | owner replayed (playtest 10); cubes on buttons T-145; intro5 vine T-154 |
+| 1 | sp_a1_intro2, intro3, intro5 | y | y | y | y | y | VERIFIED | owner replayed (playtest 10); cubes on buttons T-145 (jitter fixed 2026-10-23, owner to replay); intro5 vine T-154 |
 | 1 | sp_a1_intro6 | y | y | y | y | - | VERIFIED | owner replayed after the T-130 fix (0634859), 2026-10-22 |
 | 1 | sp_a1_intro4 | y | y | y | y | y | VERIFIED | owner replayed (playtest 10) |
 | 1 | sp_a1_intro7 | y | y | y | y | y | VERIFIED | owner replayed (playtest 10); turn-away slow (T-125) |

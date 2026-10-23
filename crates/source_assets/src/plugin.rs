@@ -1470,7 +1470,8 @@ fn spawn_prop_collider(
     let compound = |pieces: Vec<&Vec<Vec3>>| -> Option<Collider> {
         let parts: Vec<(Vec3, Quat, Collider)> = pieces
             .into_iter()
-            .filter_map(|p| Collider::convex_hull(p.clone()).map(|c| (Vec3::ZERO, Quat::IDENTITY, c)))
+            .flat_map(|p| crate::collision::contact_hulls(p))
+            .filter_map(|p| Collider::convex_hull(p).map(|c| (Vec3::ZERO, Quat::IDENTITY, c)))
             .collect();
         match parts.len() {
             0 => None,

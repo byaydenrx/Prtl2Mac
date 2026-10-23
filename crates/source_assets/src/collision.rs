@@ -265,6 +265,144 @@ pub fn brush_colliders(
     out
 }
 
+/// Most vertices a face of a collision hull may have. avian's contact
+/// generation (parry 0.27) clips only the first four vertices of a face, so a
+/// cube resting on a button's 14-sided pad found contact on a sliver at its
+/// edge, sank into the rest and rocked forever (T-145).
+const MAX_FACE_VERTICES: u32 = 4;
+/// Most cuts per hull (a button pad takes 7); rounder hulls keep their
+/// remaining big faces rather than shatter into slivers.
+const MAX_CUTS: usize = 15;
+
+/// The convex hull of `points` (world metres) as exact convex pieces whose
+/// faces have at most [`MAX_FACE_VERTICES`] vertices: the biggest face is
+/// cut along one of its diagonals, again and again, until none is left.
+/// Hulls that already qualify come back whole.
+pub fn contact_hulls(points: &[Vec3]) -> Vec<Vec<Vec3>> {
+    let (mut out, mut cuts) = (Vec::new(), MAX_CUTS);
+    split_hull(points.to_vec(), 0, &mut cuts, &mut out);
+    out
+}
+
+fn split_hull(points: Vec<Vec3>, depth: u32, cuts: &mut usize, out: &mut Vec<Vec<Vec3>>) {
+    use avian3d::parry::shape::ConvexPolyhedron;
+    const MAX_DEPTH: u32 = 12;
+    let Some(mut poly) = ConvexPolyhedron::from_convex_hull(&points) else {
+        out.push(points);
+        return;
+    };
+    // Vertices in the middle of a straight edge aren't corners: drop them so
+    // faces list only their corners (they made quads look like pentagons).
+    let kept = hull_corners(&poly);
+    if kept.len() < poly.points().len() && kept.len() >= 4 {
+        match ConvexPolyhedron::from_convex_hull(&kept) {
+            Some(p) => poly = p,
+            None => {
+                out.push(points);
+                return;
+            }
+        }
+    }
+    let pts = poly.points();
+    let big = poly.faces().iter().filter(|f| f.num_vertices_or_edges > MAX_FACE_VERTICES).max_by_key(|f| f.num_vertices_or_edges);
+    let Some(face) = big.filter(|_| *cuts > 0 && depth < MAX_DEPTH) else {
+        out.push(pts.to_vec());
+        return;
+    };
+    let first = face.first_vertex_or_edge as usize;
+    let corners: Vec<Vec3> = poly.vertices_adj_to_face()[first..first + face.num_vertices_or_edges as usize].iter().map(|&i| pts[i as usize]).collect();
+    let size = pts.iter().fold(Vec3::ZERO, |m, p| m.max(p.abs())).max_element().max(1e-3);
+    let eps = size * 1e-5;
+    // Candidate cuts through two corners of the face: perpendicular to it,
+    // or through a third hull point. Each is scored by the biggest face it
+    // leaves anywhere on the hull (a convex face cut in two keeps the corners
+    // on each side plus two), then by how evenly it splits this face.
+    let faces: Vec<Vec<Vec3>> = poly
+        .faces()
+        .iter()
+        .map(|f| {
+            let first = f.first_vertex_or_edge as usize;
+            poly.vertices_adj_to_face()[first..first + f.num_vertices_or_edges as usize].iter().map(|&i| pts[i as usize]).collect()
+        })
+        .collect();
+    let mut best: Option<((usize, usize), Vec3, Vec3)> = None;
+    for (i, &a) in corners.iter().enumerate() {
+        for &b in &corners[i + 1..] {
+            let normals = std::iter::once(face.normal.cross(b - a)).chain(pts.iter().map(|&c| (b - a).cross(c - a)));
+            for n in normals {
+                let n = n.normalize_or_zero();
+                if n == Vec3::ZERO {
+                    continue;
+                }
+                let sides = |vs: &[Vec3]| (vs.iter().filter(|&&v| n.dot(v - a) > eps).count(), vs.iter().filter(|&&v| n.dot(v - a) < -eps).count());
+                let (front, back) = sides(&corners);
+                if front == 0 || back == 0 {
+                    continue;
+                }
+                // The cut's own face: a corner per hull edge crossed or
+                // hull point on the plane.
+                let d = |p: Vec3| n.dot(p - a);
+                let section = pts.iter().filter(|&&p| d(p).abs() <= eps).count()
+                    + poly.edges().iter().filter(|e| { let (d0, d1) = (d(pts[e.vertices[0] as usize]), d(pts[e.vertices[1] as usize])); (d0 > eps && d1 < -eps) || (d0 < -eps && d1 > eps) }).count();
+                let biggest = faces.iter().map(|vs| match sides(vs) { (f, k) if f > 0 && k > 0 => f.max(k) + 2, _ => vs.len() }).max().unwrap_or(0).max(section);
+                let score = (biggest, usize::MAX - front.min(back));
+                if best.is_none_or(|b| score < b.0) {
+                    best = Some((score, n, a));
+                }
+            }
+        }
+    }
+    let Some((_, n, a)) = best else {
+        out.push(pts.to_vec());
+        return;
+    };
+    *cuts -= 1;
+    let dist = |p: Vec3| n.dot(p - a);
+    let (mut front, mut back) = (Vec::new(), Vec::new());
+    for &p in pts {
+        let d = dist(p);
+        if d >= -eps {
+            front.push(p);
+        }
+        if d <= eps {
+            back.push(p);
+        }
+    }
+    // Where the plane crosses the hull's edges belongs to both halves.
+    for e in poly.edges() {
+        let (p0, p1) = (pts[e.vertices[0] as usize], pts[e.vertices[1] as usize]);
+        let (d0, d1) = (dist(p0), dist(p1));
+        if (d0 > eps && d1 < -eps) || (d0 < -eps && d1 > eps) {
+            let x = p0 + (p1 - p0) * (d0 / (d0 - d1));
+            front.push(x);
+            back.push(x);
+        }
+    }
+    split_hull(front, depth + 1, cuts, out);
+    split_hull(back, depth + 1, cuts, out);
+}
+
+/// The hull's points that are corners of every face they're on (not in the
+/// middle of a straight edge).
+fn hull_corners(poly: &avian3d::parry::shape::ConvexPolyhedron) -> Vec<Vec3> {
+    let pts = poly.points();
+    let mut keep = vec![true; pts.len()];
+    for f in poly.faces() {
+        let first = f.first_vertex_or_edge as usize;
+        let ids = &poly.vertices_adj_to_face()[first..first + f.num_vertices_or_edges as usize];
+        for k in 0..ids.len() {
+            let prev = pts[ids[(k + ids.len() - 1) % ids.len()] as usize];
+            let cur = pts[ids[k] as usize];
+            let next = pts[ids[(k + 1) % ids.len()] as usize];
+            let (e1, e2) = ((cur - prev).normalize_or_zero(), (next - cur).normalize_or_zero());
+            if e1.dot(e2) > 0.0 && e1.cross(e2).length() < 1e-3 {
+                keep[ids[k] as usize] = false;
+            }
+        }
+    }
+    pts.iter().zip(keep).filter(|(_, k)| *k).map(|(p, _)| *p).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -286,6 +424,43 @@ mod tests {
                 }
             })
             .collect()
+    }
+
+    /// A prism over a regular `n`-gon, `r` wide and `h` high (metres).
+    fn prism(n: usize, r: f32, h: f32) -> Vec<Vec3> {
+        (0..n)
+            .flat_map(|i| {
+                let t = i as f32 / n as f32 * std::f32::consts::TAU;
+                [Vec3::new(r * t.cos(), 0.0, r * t.sin()), Vec3::new(r * t.cos(), -h, r * t.sin())]
+            })
+            .collect()
+    }
+
+    #[test]
+    fn many_sided_hulls_are_cut_into_quad_faced_pieces() {
+        use avian3d::parry::shape::ConvexPolyhedron;
+        use avian3d::prelude::*;
+        // The floor button pad: a 14-sided prism (T-145).
+        let pad = prism(14, 0.82, 0.095);
+        let pieces = contact_hulls(&pad);
+        assert!(pieces.len() > 1);
+        let mut volume: f32 = 0.0;
+        for p in &pieces {
+            let poly = ConvexPolyhedron::from_convex_hull(p).unwrap();
+            assert!(poly.faces().iter().all(|f| f.num_vertices_or_edges <= MAX_FACE_VERTICES));
+            volume += Collider::convex_hull(p.clone()).unwrap().mass(1.0);
+        }
+        // Exact: the pieces fill the prism.
+        let whole = Collider::convex_hull(pad.clone()).unwrap().mass(1.0);
+        assert!((volume - whole).abs() < whole * 1e-3, "{volume} vs {whole}");
+        // A box is left alone, also with extra points on its edges.
+        assert_eq!(contact_hulls(&prism(4, 0.5, 0.5)).len(), 1);
+        let mut boxy = prism(4, 0.5, 0.5);
+        boxy.push((boxy[0] + boxy[2]) * 0.5);
+        boxy.push((boxy[1] + boxy[3]) * 0.5);
+        let whole = contact_hulls(&boxy);
+        assert_eq!(whole.len(), 1);
+        assert_eq!(whole[0].len(), 8);
     }
 
     #[test]

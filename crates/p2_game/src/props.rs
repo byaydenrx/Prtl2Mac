@@ -35,14 +35,25 @@ impl Plugin for PropsPlugin {
 
 /// P2_PROPTRACE=<name>: every physics tick, the named prop's place (Source
 /// units), up axis and speeds, to measure settling and jitter.
-fn trace_props(ents: Option<Res<Ents>>, time: Res<Time>, props: Query<(&Prop, &Position, &Rotation, &LinearVelocity, &AngularVelocity)>) {
+fn trace_props(
+    ents: Option<Res<Ents>>,
+    time: Res<Time>,
+    props: Query<(Entity, &Prop, &Position, &Rotation, &LinearVelocity, &AngularVelocity)>,
+    collisions: Collisions,
+    children: Query<&Children>,
+    names: Query<(Option<&Name>, Option<&ChildOf>)>,
+    places: Query<(&Position, &Rotation), Without<Prop>>,
+    mut tick: Local<u32>,
+) {
+    *tick += 1;
     let (Some(ents), Ok(key)) = (ents, std::env::var("P2_PROPTRACE")) else { return };
-    for (p, pos, rot, lin, ang) in &props {
-        if ents.list.get(p.ent).is_some_and(|e| e.name.eq_ignore_ascii_case(&key)) {
+    for (pe, p, pos, rot, lin, ang) in &props {
+        if ents.list.get(p.ent).is_some_and(|e| !e.killed && e.name.eq_ignore_ascii_case(&key)) {
             let s = shared::world_to_source(pos.0);
             let up = rot.0 * Vec3::Y;
             info!(
-                "proptrace t {:.3} pos {:.2} {:.2} {:.2} up {:.3} {:.3} {:.3} v {:.1} w {:.2}",
+                "proptrace #{} t {:.3} pos {:.2} {:.2} {:.2} up {:.3} {:.3} {:.3} v {:.1} w {:.2}",
+                p.ent,
                 time.elapsed_secs(),
                 s.x,
                 s.y,
@@ -53,6 +64,43 @@ fn trace_props(ents: Option<Res<Ents>>, time: Res<Time>, props: Query<(&Prop, &P
                 lin.0.length() / shared::SOURCE_UNIT,
                 ang.0.length()
             );
+            // Every tick: where the colliders it touches are (static
+            // pieces moved by animation show up here).
+            for c in children.iter_descendants(pe).chain(std::iter::once(pe)) {
+                for pair in collisions.collisions_with(c) {
+                    let other = if pair.collider1 == c { pair.collider2 } else { pair.collider1 };
+                    if let Ok((op, or)) = places.get(other) {
+                        let w = shared::world_to_source(op.0);
+                        let up = or.0 * Vec3::Y;
+                        let pen = pair.manifolds.iter().flat_map(|m| m.points.iter()).map(|q| q.penetration).fold(f32::MIN, f32::max) / shared::SOURCE_UNIT;
+                        info!("proptrace   at {other} {:.3} {:.3} {:.3} up {:.3} {:.3} {:.3} pen {:.2}", w.x, w.y, w.z, up.x, -up.z, up.y, pen);
+                    }
+                }
+            }
+            // Every 15 ticks: what it touches (the other collider and its
+            // parents' names), contact normals and points.
+            if *tick % 15 != 0 {
+                continue;
+            }
+            let src = |v: Vec3| shared::world_to_source(v);
+            for c in children.iter_descendants(pe).chain(std::iter::once(pe)) {
+                for pair in collisions.collisions_with(c) {
+                    let other = if pair.collider1 == c { pair.collider2 } else { pair.collider1 };
+                    let mut chain = Vec::new();
+                    let mut e = Some(other);
+                    while let Some(x) = e {
+                        let (n, parent) = names.get(x).unwrap_or((None, None));
+                        chain.push(format!("{x}:{}", n.map(|n| n.as_str()).unwrap_or("-")));
+                        e = parent.map(|p| p.parent());
+                    }
+                    for m in &pair.manifolds {
+                        let n = if pair.collider1 == c { -m.normal } else { m.normal };
+                        let pts: Vec<String> = m.points.iter().map(|q| { let w = src(q.point); format!("({:.1} {:.1} {:.1} pen {:.2} imp {:.2})", w.x, w.y, w.z, q.penetration / shared::SOURCE_UNIT, q.normal_impulse) }).collect();
+                        let nn = Vec3::new(n.x, -n.z, n.y);
+                        info!("proptrace   touch {} n {:.2} {:.2} {:.2} {}", chain.join("<"), nn.x, nn.y, nn.z, pts.join(" "));
+                    }
+                }
+            }
         }
     }
 }

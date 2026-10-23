@@ -28,7 +28,7 @@ Now (owner playtest 11, playability first):
 2. T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far (BLOCKED, needs owner replay: not reproduced on 18676be)
 3. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid (BLOCKED, needs owner replay: not reproduced on 18676be, likely fixed by T-221)
 4. T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall (BLOCKED, needs owner: floor fixed on main by T-221; Wheatley attempt on local branch attempt/T-217-wheatley)
-5. T-145 Cubes go dark and jitter on buttons, every chapter (jitter still open)
+5. T-145 Cubes go dark and jitter on buttons, every chapter (FIXED, awaiting owner replay: jitter fixed 2026-10-23 evening; dark cubes and spikes owner-confirmed)
 6. T-218 Performance: 60-70 fps and stutter on an M4 Pro; portals cost a lot; v-sync unclear (owner: better; continue)
 7. T-224 Cube physics feel: no tumbling in the air; plate and button hits unreliable
 8. T-225 No dissolve ("fizzle") effect on cubes
@@ -269,23 +269,37 @@ Lower:
   sp_a2_laser_stairs --pos -529.75 327.04 -26 --ang -5 87). Floating
   texture: not started.
 
-### T-145 Cubes go dark and jitter on buttons, every chapter  (P1 by owner, PARTLY FIXED: dark cubes and spikes owner-confirmed 2026-10-23; jitter open)
-- 2026-10-23 evening (session paused for the T-220 regression; not fixed):
-  re-reproduced with the new P2_PROPTRACE=<name> trace (props.rs: place,
-  up axis, speeds every physics tick). intro2 `propto box -610 284 35`:
-  the cube never settles, sliding ~10 u/s and turning ~1 rad/s for 8+ s,
-  centre z -35.9 (Windows -33.47). button_1-button is
-  portal_button_damaged01 at pitch -3 (authored; the tilt is real). Its
-  .phy: pieces 0-7 a rim ring 0..9.8 u high in the root's space (one
-  static compound on the button), pieces 8-9 the pad -3.8..0.1 in the top
-  bone's space (bone 2 at y 13.64, on the animated bone part), pressed top
-  at 6.35. Windows' -33.47 = pressed pad top 6.35 + cube half 18, so our
-  cube sits ~2.4 u lower than the pad top: it is likely resting on or in
-  the rim pieces/pad edge rather than flat on the pressed pad. Next: log
-  which collider pairs touch the cube while it rattles (rim compound vs
-  pad part), check the pad part's collider pose when pressed (does the
-  collider follow the bone's 7.3 u drop?), and whether VPhysics treats the
-  rim as solid for props at all.
+### T-145 Cubes go dark and jitter on buttons, every chapter  (P1 by owner, FIXED, awaiting owner replay: jitter fixed 2026-10-23 evening; dark cubes and spikes owner-confirmed 2026-10-23)
+- 2026-10-23 evening, jitter FIXED. Cause: avian's contact generation
+  (parry 0.27, convex_polyhedron.rs local_support_feature) clips only the
+  first four vertices of a face. The floor button pad (portal_button and
+  both damaged variants, .phy piece 9 on the top bone) is a 14-sided prism,
+  so a cube on it found one contact point on a sliver at the pad's edge,
+  sank ~2 u into the rest (centre z -35.9 vs Windows -33.47) and rocked on
+  that point forever (15 Hz wobble, sliding ~10 u/s). Found with
+  P2_PROPTRACE contacts (one point, pen 2.1 u, 10x the floor's impulse;
+  the pad collider itself was still and correctly placed, ray-mapped) and a
+  scratch probe of avian contact_manifolds (cube vs pad hull: always 1
+  point; vs a cuboid: 4-6). Fix (source_assets collision.rs contact_hulls,
+  used for every model .phy hull in plugin.rs spawn_prop_collider): a hull
+  with a face of more than 4 corners is cut into exact convex pieces along
+  face diagonals (cut choice scored by the biggest face it leaves, at most
+  15 cuts; corners in the middle of a straight edge dropped first). Pad: 8
+  pieces, rim pieces 2-4, the cube's box untouched.
+  Evidence (same binary, split on/off): intro2 button_1, six drops: before
+  3 of 6 still rocking/sliding 3-6 s after landing (max 16.6 u/s, 1.35
+  rad/s), after all 6 still (<= 0.3 u/s, 0.01 rad/s), flat on the tilted
+  pad; laser_stairs exit button: rattling drop (9.5 u/s) now still.
+  Regression: player walks over button_1 straight and diagonally identical
+  with/without; fps and load time unchanged (bts4 329 hulls split, intro2
+  283; 120 fps both); 16 maps ch1-9 load clean; unit test
+  many_sided_hulls_are_cut_into_quad_faced_pieces (pieces fill the prism
+  exactly); tests 202 + 74 pass.
+  Not changed: brush hulls (world geometry) go through the same parry code
+  and a brush face with more than 4 corners would act the same; not
+  measured. Possibly related: T-224's unreliable plate and button hits.
+  Off-centre drops rest leaning on the rim (tilt up to ~7 deg): that's the
+  rim's geometry, not compared against Windows.
 - 2026-10-23 dark cubes, cause: a moving prop's vertex light was baked once
   where it spawned and kept forever. Dropper and template cubes spawn in
   the dropper's tube, where the ambient light is 0.000, so they were black

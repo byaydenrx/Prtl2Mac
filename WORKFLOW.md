@@ -98,7 +98,8 @@ for independent tasks with separate files.
 - Debug env: P2_NO_INTRO=1 (skip the startup intro movie and loading screen
   of a no-map launch; with the intro the script clock starts at launch),
   P2_LOADING_HOLD=<s> (keep the loading screen up), P2_TRACE,
-  P2_PROPTRACE=<name> (a prop's place, up axis and speeds every physics tick), P2_NOCROSSHAIR, P2_HIDE_MAT (hide materials by name
+  P2_PROPTRACE=<name> (a prop's place, up axis and speeds every physics tick,
+  where the colliders it touches are, and every 15 ticks its contacts), P2_NOCROSSHAIR, P2_HIDE_MAT (hide materials by name
   substring: find which material a bad surface is), P2_LIST_MATS,
   P2_EXPOSURE=1 (fixed exposure), P2_FRAMELOG=1 (fps/min/avg/max each second
   and every frame over 25 ms; keeps an unfocused window from being held to

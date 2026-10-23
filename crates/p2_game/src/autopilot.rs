@@ -306,7 +306,7 @@ fn drive(
                         info!("autopilot: ray face {} portalable {} surfaceprop {:?} contents {:#x}", side.material, side.portalable, side.surface_prop, src_cols.get(h.entity).map_or(0, |c| c.contents));
                     }
                     info!(
-                        "autopilot: ray hit at source z {:.0} ({:.0} {:.0} {:.0}): {}",
+                        "autopilot: ray hit at source z {:.2} ({:.0} {:.0} {:.2}): {}",
                         at.y / shared::SOURCE_UNIT,
                         at.x / shared::SOURCE_UNIT,
                         -at.z / shared::SOURCE_UNIT,
