@@ -4,6 +4,12 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
+2026-10-23 04:22 autorun (FIXED, autopilot only): T-220 bridge_the_gap crash
+fixed in a8fda9c: dropper copies cloned avian's broad-phase proxy key from
+the cube prototype; after a save load that freed the prototype's proxy and
+left a stale key that panicked on the next drop. Repro now passes; bridge
+pickup still not reproduced. Details in TASKS.md T-220.
+Before that:
 2026-10-23 03:17 autorun (docs only, UNFINISHED): regression check on main
 3a2bddb passed (build, tests, 4 map shots; a4_intro shot black twice, then
 good on a third run: capture flake). T-220 crash REPRODUCED: load the
@@ -25,7 +31,9 @@ fixed on branch attempt/T-217 (2fe2ac4, pushed to origin), regression
 check not done; details in TASKS.md T-217.
 
 ## Where things stand
-- dist/Prtl2Mac.app = 0.1.0+c0cd7f1.20261023T0530Z (T-216, T-218, T-145 fixes).
+- dist/Prtl2Mac.app = 0.1.0+a8fda9c.20261023T0821Z (T-216, T-218, T-145, T-220 crash fixes).
+- Owner to replay: T-220 load the bridge_the_gap autosave, drop a new cube,
+  finish the map; try picking up a cube resting on a bridge.
 - Owner to replay: T-216 catapult_intro (grab the bouncing cube at eye
   height from the far plate, finish the map). T-218 fps with cl_showfps 1
   (4K: try Antialiasing off; keep v-sync on). T-145: cubes from droppers
@@ -41,8 +49,7 @@ check not done; details in TASKS.md T-217.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-TASKS.md "Priority order": T-220 (bridge_the_gap crash; IN_PROGRESS, repro and
-next step in its entry: save-load + kill -> avian panic), T-221
+TASKS.md "Priority order": T-221
 (bridge_intro invisible walls; check T-222/T-223 with it), T-222, T-223,
 then finish T-217 (attempt/T-217 regression check), T-145 jitter, then the
 feel tasks. The owner plays the campaign himself; no level scripts.

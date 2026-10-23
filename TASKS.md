@@ -24,7 +24,7 @@ The one source of what's next: sessions and autoruns take the first line not
 marked FIXED, DONE or BLOCKED. Crashes and softlocks found on the way go to
 the top. Menus, on-hold and "later" tasks are never taken without the owner.
 Now (owner playtest 11, playability first):
-1. T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up (P0 crash, IN_PROGRESS: crash reproduced after loading a save)
+1. T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up (P0 crash, FIXED, awaiting owner replay: crash a8fda9c; bridge pickup not reproduced)
 2. T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room (unplayable; check T-222 and T-223 with it: likely one cause, see entry)
 3. T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far
 4. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid
@@ -69,7 +69,7 @@ Lower:
 
 ## Active tasks (in priority order)
 
-### T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up  (P0 crash, IN_PROGRESS; owner playtest 11)
+### T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up  (P0 crash, FIXED, awaiting owner replay; owner playtest 11)
 - Owner: "i couldnt pick up one of the cubes that landed on a bridge about
   half way into beating this level so i spawned another and it crashed my
   game". Reproduce both: a cube resting on a hard light bridge (pickup ray /
@@ -100,6 +100,28 @@ Lower:
   check whether `load` despawns and respawns physics entities in the same
   frame, or reinserts Collider/RigidBody on existing entities. A minimal
   repro: load the save, then `input cube_dropper-cube_dropper_box kill`.
+  - 2026-10-23 04:22 autorun: CRASH FIXED a8fda9c (autopilot only), build
+    0.1.0+a8fda9c.20261023T0821Z. Cause: templates::spawn_copy clones the
+    prototype with linked_cloning, which copied avian's
+    ColliderTreeProxyKey. After a save load the cube prototype's (disabled)
+    collider still held a live key; when a restored copy's collider was
+    inserted, avian's add_to_tree_on "removed the old proxy", i.e. freed the
+    prototype's proxy, and the prototype kept a stale key whose slot the
+    copy reused. Killing that copy freed it again and the next drop's AABB
+    update hit the freed slot. Found with a temporary per-frame check of
+    every ColliderTreeProxyKey against ColliderTrees (stale key right
+    after "save restored"). Fix: deny ColliderTreeProxyKey when cloning, so
+    each copy starts with the placeholder key and gets its own proxy.
+    Evidence: the repro above exited 101 before, 0 after, with no stale keys;
+    after load, 3 drops in a row fine; fresh map, 3 drops fine; 202 unit
+    tests pass; owner's saves left unchanged.
+    Not explained: why the prototype's key was live after the load (the
+    fix makes it harmless). Also seen: after this save load the new cube
+    falls to z~641 and is killed (as the old one was), while on a fresh map
+    it stops near z~1430; may be the save's world state (bridge off).
+    Owner replay: load the bridge_the_gap autosave, drop a new cube, finish
+    the map; also try picking up a cube lying on a bridge (not reproduced:
+    propto onto the projector3 bridge + use picked it up).
 
 ### T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room  (P1, TODO; owner playtest 11: "unplayable")
 - Owner: "lots of invisible textures and walls just from the beginning room,
