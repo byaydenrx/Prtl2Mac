@@ -4,6 +4,12 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
+2026-10-23 04:48 autorun (FIXED, autopilot only): T-221 bridge_intro
+invisible walls fixed in 18676be: props spawn in their DefaultAnim keyvalue;
+a SetDefaultAnimation at map spawn no longer replaced it, so the floor-panel
+brushes' maintained offset is taken in the right pose and they rise to floor
+level (was eye level). Details in TASKS.md T-221.
+Before that:
 2026-10-23 04:38 autorun (UNFINISHED, docs only): T-221 bridge_intro invisible
 walls REPRODUCED: the rising floor-panel func_brushes (parented with
 SetParentAttachmentMaintainOffset to the arm props) end 64 units too high,
@@ -44,7 +50,9 @@ fixed on branch attempt/T-217 (2fe2ac4, pushed to origin), regression
 check not done; details in TASKS.md T-217.
 
 ## Where things stand
-- dist/Prtl2Mac.app = 0.1.0+a8fda9c.20261023T0821Z (T-216, T-218, T-145, T-220 crash fixes).
+- dist/Prtl2Mac.app = 0.1.0+18676be.20261023T0847Z (T-216, T-218, T-145, T-220, T-221 fixes).
+- Owner to replay: T-221 bridge_intro from the start: the hallway floor
+  panels rise to floor level, no invisible walls.
 - Owner to replay: T-220 load the bridge_the_gap autosave, drop a new cube,
   finish the map; try picking up a cube resting on a bridge.
 - Owner to replay: T-216 catapult_intro (grab the bouncing cube at eye
@@ -62,8 +70,8 @@ check not done; details in TASKS.md T-217.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-TASKS.md "Priority order": T-221
-(bridge_intro invisible walls; check T-222/T-223 with it), T-222, T-223,
+TASKS.md "Priority order": T-222 (first check whether the T-221
+spawn-pose fix 18676be already helps), T-223,
 then finish T-217 (attempt/T-217 regression check), T-145 jitter, then the
 feel tasks. The owner plays the campaign himself; no level scripts.
 

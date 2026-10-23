@@ -25,7 +25,7 @@ marked FIXED, DONE or BLOCKED. Crashes and softlocks found on the way go to
 the top. Menus, on-hold and "later" tasks are never taken without the owner.
 Now (owner playtest 11, playability first):
 1. T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up (P0 crash, FIXED, awaiting owner replay: crash a8fda9c; bridge pickup not reproduced)
-2. T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room (unplayable; check T-222 and T-223 with it: likely one cause, see entry)
+2. T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room (FIXED, awaiting owner replay; was unplayable; check T-222 and T-223 with it: likely one cause, see entry)
 3. T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far
 4. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid
 5. T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall (floor fix waits on attempt/T-217's regression check)
@@ -123,7 +123,7 @@ Lower:
     the map; also try picking up a cube lying on a bridge (not reproduced:
     propto onto the projector3 bridge + use picked it up).
 
-### T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room  (P1, IN_PROGRESS; owner playtest 11: "unplayable")
+### T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room  (P1, FIXED, awaiting owner replay; owner playtest 11: "unplayable")
 - Owner: "lots of invisible textures and walls just from the beginning room,
   the animations machinery is missing walls are missing ... you can crouch
   past the hallway animation and continue". He finished it only because he
@@ -175,6 +175,20 @@ Lower:
   models/anim_wp/room_transform/arm64x64_interior_rusty.mdl (path given as
   framework/, retry with room_transform/). Likely the same bug for T-222
   (sphere_peek panels) and T-223 (ricochet platform): check after the fix.
+  - Autorun 2026-10-23 04:48 FIXED in 18676be (autopilot only, build
+    0.1.0+18676be.20261023T0847Z). Cause: on the first frame
+    `anim_inputs` stored the map-spawn `SetDefaultAnimation bindpose` before
+    `start_default_anims` picked the spawn sequence, so the arms spawned in
+    bindpose instead of their keyvalue `DefaultAnim` (64_idle) and
+    SetParentAttachmentMaintainOffset measured the brush offset against the
+    folded pose. Fix (anim_props.rs `initial_seq`): a prop spawns in its
+    DefaultAnim keyvalue, as in Source; SetDefaultAnimation only sets what
+    follows. Evidence: row_1_panel_3 brush top before the rise z -55 (hidden
+    below the floor), after z 0 (floor level; was +64); the walk from the
+    elevator now passes the hallway (was stopped at y -432); p2_game tests
+    pass; sphere_peek/ricochet load without errors. Owner: replay
+    bridge_intro from the start (hallway floor rises and is walkable, no
+    invisible walls); T-222/T-223 not checked yet against this fix.
 
 ### T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far  (P1, TODO; playable; owner playtest 11)
 - A platform you stand on sometimes lets you fall through; "its like not
