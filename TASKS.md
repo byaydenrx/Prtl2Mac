@@ -26,7 +26,7 @@ the top. Menus, on-hold and "later" tasks are never taken without the owner.
 Now (owner playtest 11, playability first):
 1. T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up (P0 crash, FIXED, awaiting owner replay: crash a8fda9c; bridge pickup not reproduced)
 2. T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room (FIXED, awaiting owner replay; was unplayable; check T-222 and T-223 with it: likely one cause, see entry)
-3. T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far
+3. T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far (BLOCKED, needs owner replay: not reproduced on 18676be)
 4. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid
 5. T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall (floor fix waits on attempt/T-217's regression check)
 6. T-145 Cubes go dark and jitter on buttons, every chapter (jitter still open)
@@ -190,7 +190,7 @@ Lower:
     bridge_intro from the start (hallway floor rises and is walkable, no
     invisible walls); T-222/T-223 not checked yet against this fix.
 
-### T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far  (P1, IN_PROGRESS; playable; owner playtest 11)
+### T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far  (P1, BLOCKED (needs owner replay: none of the three reproduced on 18676be); playable; owner playtest 11)
 - A platform you stand on sometimes lets you fall through; "its like not
   rendering the wall part itself just the mechanical" (see T-221 lead).
 - The faith plate GLaDOS tampers with should launch a player already standing
@@ -233,6 +233,24 @@ Lower:
   was the pre-18676be bug (offsets measured in bindpose). Owner: replay; if
   still wrong, say which platform. Left: Windows check of the catapult2_up
   bounce, the fall-through platform.
+- 2026-10-23 05:18 autorun, fall-through platform NOT REPRODUCED (autopilot,
+  build 18676be): checked every arm-carried brush you can stand on.
+  catapult_block1..4_floor (telescope arms, catapult_block_relay from the
+  entry trigger_once: rise, ClearParent at 2.75 s, arms killed at 3 s): all
+  four floors survive, drawn and solid at z -191 next to the
+  catapult_block_floor door. floor_repair_1 roboarmk_01/03/05/07 panels
+  (2-unit func_brushes, SetParentAttachmentMaintainOffset panel_attach):
+  held up at spawn, after floor_replace_relay all four land at their
+  compiled pose (z -193, y 1536), drawn and solid; a shot shows a normal
+  tiled floor. landing_01 clipsforbigplatform/tilesonbigplatform are a
+  vertical wall (not a floor) and stay put. Most likely the same pre-18676be
+  bindpose-offset bug as T-221 (panels ending in the wrong place: "only the
+  mechanical part" drawn). Owner: replay on the current build; if you fall
+  through again, say where (near the faith plates, the floor GLaDOS
+  repairs, or elsewhere).
+- Status: all three owner items not reproduced on 18676be -> BLOCKED (needs
+  owner replay). Optional, not the owner's report: Windows check of the
+  catapult2_up ceiling bounce (scripts/winref.sh).
 
 ### T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid  (P1, TODO; playable; owner playtest 11)
 - The platform surface (not the machinery) is missing, so the cube falls to
