@@ -3,6 +3,260 @@
 Moved out of TASKS.md (2026-10-23) to keep it short. Entries unchanged;
 newest summary list at the bottom. Grep by task id.
 
+### T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up  (P0, DONE 2026-10-23: owner played bridge_the_gap through on c38ce98; Wheatley and the bird moved to T-232)
+- Owner: "i couldnt pick up one of the cubes that landed on a bridge about
+  half way into beating this level so i spawned another and it crashed my
+  game". Reproduce both: a cube resting on a hard light bridge (pickup ray /
+  use cone vs the bridge's collider, or the cube asleep on a kinematic
+  body), and the crash when the dropper replaces it (compare T-168, a Kill
+  reaching a template prototype; panic message in the terminal log).
+- Also seen in this map (P2): Wheatley glitches around; the bird that flies
+  through is visible when it shouldn't be (or looks wrong); some missing
+  textures (fewer than bridge_intro, likely the same cause as T-221).
+- 2026-10-23 autorun: CRASH REPRODUCED (autopilot only). Back up the owner's
+  saves first (cp -Rp "~/Library/Application Support/Portal2Rust/saves",
+  save.txt, progress.cfg), then
+  `P2_SCRIPT="1 con load autosave; 9 input cube_dropper-cube_dropper_relay trigger; 21 quit" ./target/release/portal2 sp_a2_bridge_the_gap`
+  with the owner's 02:16 autosave: the dropped cube falls into
+  trigger_kill_boxes and the game panics in avian
+  `update_solver_body_aabbs`: "no element at index 20 in
+  StableVec::index_mut" (avian3d-0.7.0 data_structures/stable_vec.rs:334).
+  Exit 101. Same steps on a fresh map load, or after `con map` reload, do
+  NOT crash, and re-dropping 3 times in a row is fine. So it's specific to
+  a save load: the restored cube (#1281, restored from the save rather
+  than spawned by the template) probably has a stale collider-tree proxy
+  key or a body restored without avian re-registering it, and killing it
+  (or the dropper's respawn) hits a freed slot.
+  Not reproduced: the bridge pickup (cube placed on the projector3 bridge
+  with propto, goto+lookat+use picks it up fine).
+  Next step: read crates/p2_game/src/saves.rs prop restore (how props get
+  re-created or moved on load) and avian's ColliderTreeProxyKey handling;
+  check whether `load` despawns and respawns physics entities in the same
+  frame, or reinserts Collider/RigidBody on existing entities. A minimal
+  repro: load the save, then `input cube_dropper-cube_dropper_box kill`.
+  - 2026-10-23 04:22 autorun: CRASH FIXED a8fda9c (autopilot only), build
+    0.1.0+a8fda9c.20261023T0821Z. Cause: templates::spawn_copy clones the
+    prototype with linked_cloning, which copied avian's
+    ColliderTreeProxyKey. After a save load the cube prototype's (disabled)
+    collider still held a live key; when a restored copy's collider was
+    inserted, avian's add_to_tree_on "removed the old proxy", i.e. freed the
+    prototype's proxy, and the prototype kept a stale key whose slot the
+    copy reused. Killing that copy freed it again and the next drop's AABB
+    update hit the freed slot. Found with a temporary per-frame check of
+    every ColliderTreeProxyKey against ColliderTrees (stale key right
+    after "save restored"). Fix: deny ColliderTreeProxyKey when cloning, so
+    each copy starts with the placeholder key and gets its own proxy.
+    Evidence: the repro above exited 101 before, 0 after, with no stale keys;
+    after load, 3 drops in a row fine; fresh map, 3 drops fine; 202 unit
+    tests pass; owner's saves left unchanged.
+    Not explained: why the prototype's key was live after the load (the
+    fix makes it harmless). Also seen: after this save load the new cube
+    falls to z~641 and is killed (as the old one was), while on a fresh map
+    it stops near z~1430; may be the save's world state (bridge off).
+    Owner replay: load the bridge_the_gap autosave, drop a new cube, finish
+    the map; also try picking up a cube lying on a bridge (not reproduced:
+    propto onto the projector3 bridge + use picked it up).
+
+- 2026-10-23 evening, owner: the a8fda9c build "removed the entire cube
+  from the dropper", so the map can't be finished (softlock). Cause: Bevy's
+  clone `deny` also denies every component that requires the denied one,
+  and avian makes Collider require ColliderTreeProxyKey, so denying the key
+  stripped the Collider from every template copy (all cube droppers, every
+  map). Reproduced (fresh bridge_the_gap, P2_PROPTRACE): copies fell from
+  z 1904 through the dropper and floor in free fall and were killed below.
+  Fix (templates.rs): deny the key inside `without_required_by_components`,
+  so the copy keeps its Collider and gets the placeholder key. After: the
+  copy lands in the dropper (z 1430) with a live collider; the save-load
+  crash repro (autosave, two drops) exits 0, no panic, saves unchanged;
+  fizzler_intro, laser_stairs, catapult_intro, ricochet and jump_intro
+  droppers all leave live, solid copies on floors; 202 tests pass.
+  Screenshots came out black for every build this session (capture
+  problem, old build too), so evidence is from traces and entity state.
+
+### T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far  (P1, DONE 2026-10-23: owner: "the issues on sp_a2_sphere_peek are fixed")
+- A platform you stand on sometimes lets you fall through; "its like not
+  rendering the wall part itself just the mechanical" (see T-221 lead).
+- The faith plate GLaDOS tampers with should launch a player already standing
+  on it once she's done; it only launches after stepping off and on again
+  (trigger_catapult on Enable / touch state: Source re-tests touching
+  entities when a trigger is enabled).
+- Two moving platforms move too far: they end horizontal instead of angled
+  (animation end pose, pose parameters, or rotation clamping).
+- 2026-10-23 05:00 autorun, faith plate NOT REPRODUCED (autopilot, build
+  18676be): the plate is catapult_up (disabled by disable_catapult_rl on each
+  sphere look, re-enabled by GLaDOS's FailureOne03/FailureTwo03 scene
+  `fires` -> @trigger_this_to_fix_catapult); after FailureThree,
+  @trigger_this_to_fix_ceiling -> catapult_switch_relay (+9 s) swaps to
+  catapult2_up. Standing still on the plate, every path launched at once:
+  direct inputs (fix relay, switch relay) and the real flow (goto plate,
+  lookat @sphere x3: fix fired twice, launched twice, then ceiling, then
+  catapult2_up launched). The trigger code already re-tests on Enable (a
+  disabled trigger drops out of `touching`, so enable = new StartTouch).
+  Owner: which plate/moment exactly (before or after the ceiling lowers)?
+  Maybe the player stood off the 8-unit trigger (bounds y -4.47..-4.27 m,
+  feet -4.67 when centred) e.g. on the plate rim.
+- Seen while testing (not the owner's report, check against Windows with
+  scripts/winref.sh): after the ceiling closes, catapult2_up (target
+  helper_catapult2_target straight above, 500 u/s) throws the player into
+  ceiling_panel (apex feet ~9.3 m) and back onto the plate every ~1.9 s,
+  forever. Next step: confirm what Windows does there (the lowered ceiling
+  may be meant to stop you, or catapult2 should fling at 45 deg), then the
+  fall-through platform and the panel end pose items.
+- 2026-10-23 05:06 autorun, panel end pose NOT REPRODUCED (autopilot, build
+  18676be, so with the T-221 fix): the two moving platforms are arm_panel_01
+  / arm_panel_02 (func_brush, SetParentAttachmentMaintainOffset to
+  robo_spherepeek_meea_01 / meeb_01; DefaultAnim spherepeek_0N_idleend,
+  logic_auto sets default _idle; relays arm_spherepeek_01/02 play
+  spherepeek_0N then default _idleend). Before the relay the panel sits
+  vertical in the wall (rotated 45 deg from its brush); after
+  `input arm_spherepeek_01 trigger` + 10 s both panels end with identity
+  rotation at their compiled brush origins (-800 1841 145 / -751 2400 145),
+  i.e. the Hammer-authored pose, and a side shot shows panel 01 sticking out
+  angled ~45 deg, not horizontal. Most likely the owner's playtest-11 report
+  was the pre-18676be bug (offsets measured in bindpose). Owner: replay; if
+  still wrong, say which platform. Left: Windows check of the catapult2_up
+  bounce, the fall-through platform.
+- 2026-10-23 05:18 autorun, fall-through platform NOT REPRODUCED (autopilot,
+  build 18676be): checked every arm-carried brush you can stand on.
+  catapult_block1..4_floor (telescope arms, catapult_block_relay from the
+  entry trigger_once: rise, ClearParent at 2.75 s, arms killed at 3 s): all
+  four floors survive, drawn and solid at z -191 next to the
+  catapult_block_floor door. floor_repair_1 roboarmk_01/03/05/07 panels
+  (2-unit func_brushes, SetParentAttachmentMaintainOffset panel_attach):
+  held up at spawn, after floor_replace_relay all four land at their
+  compiled pose (z -193, y 1536), drawn and solid; a shot shows a normal
+  tiled floor. landing_01 clipsforbigplatform/tilesonbigplatform are a
+  vertical wall (not a floor) and stay put. Most likely the same pre-18676be
+  bindpose-offset bug as T-221 (panels ending in the wrong place: "only the
+  mechanical part" drawn). Owner: replay on the current build; if you fall
+  through again, say where (near the faith plates, the floor GLaDOS
+  repairs, or elsewhere).
+- Status: all three owner items not reproduced on 18676be -> BLOCKED (needs
+  owner replay). Optional, not the owner's report: Windows check of the
+  catapult2_up ceiling bounce (scripts/winref.sh).
+
+### T-145 Cubes go dark and jitter on buttons, every chapter  (P1 by owner, DONE 2026-10-23: owner: "cube jittering is fixed"; dark cubes and spikes confirmed earlier)
+- 2026-10-23 evening, jitter FIXED. Cause: avian's contact generation
+  (parry 0.27, convex_polyhedron.rs local_support_feature) clips only the
+  first four vertices of a face. The floor button pad (portal_button and
+  both damaged variants, .phy piece 9 on the top bone) is a 14-sided prism,
+  so a cube on it found one contact point on a sliver at the pad's edge,
+  sank ~2 u into the rest (centre z -35.9 vs Windows -33.47) and rocked on
+  that point forever (15 Hz wobble, sliding ~10 u/s). Found with
+  P2_PROPTRACE contacts (one point, pen 2.1 u, 10x the floor's impulse;
+  the pad collider itself was still and correctly placed, ray-mapped) and a
+  scratch probe of avian contact_manifolds (cube vs pad hull: always 1
+  point; vs a cuboid: 4-6). Fix (source_assets collision.rs contact_hulls,
+  used for every model .phy hull in plugin.rs spawn_prop_collider): a hull
+  with a face of more than 4 corners is cut into exact convex pieces along
+  face diagonals (cut choice scored by the biggest face it leaves, at most
+  15 cuts; corners in the middle of a straight edge dropped first). Pad: 8
+  pieces, rim pieces 2-4, the cube's box untouched.
+  Evidence (same binary, split on/off): intro2 button_1, six drops: before
+  3 of 6 still rocking/sliding 3-6 s after landing (max 16.6 u/s, 1.35
+  rad/s), after all 6 still (<= 0.3 u/s, 0.01 rad/s), flat on the tilted
+  pad; laser_stairs exit button: rattling drop (9.5 u/s) now still.
+  Regression: player walks over button_1 straight and diagonally identical
+  with/without; fps and load time unchanged (bts4 329 hulls split, intro2
+  283; 120 fps both); 16 maps ch1-9 load clean; unit test
+  many_sided_hulls_are_cut_into_quad_faced_pieces (pieces fill the prism
+  exactly); tests 202 + 74 pass.
+  Not changed: brush hulls (world geometry) go through the same parry code
+  and a brush face with more than 4 corners would act the same; not
+  measured. Possibly related: T-224's unreliable plate and button hits.
+  Off-centre drops rest leaning on the rim (tilt up to ~7 deg): that's the
+  rim's geometry, not compared against Windows.
+- 2026-10-23 dark cubes, cause: a moving prop's vertex light was baked once
+  where it spawned and kept forever. Dropper and template cubes spawn in
+  the dropper's tube, where the ambient light is 0.000, so they were black
+  everywhere; cubes spawned in dark corners (intro2's "box", 0.017) stayed
+  dark. Not the lit skin: swapping which skin is the hidden variant gave the
+  same dark cube (the earlier hidden-variant lead was wrong). Source lights
+  moving models from where they are now. Fix (source_assets plugin.rs
+  RelightOnMove/relight_moved_props): cubes, physics props, turrets and
+  paint bombs redo their vertex light (same maths as the spawn) after
+  moving 8 u or turning 0.15 rad, at most every 0.1 s; template copies keep
+  it (components are Clone). valve_render rewrites a relit draw's vertex
+  buffer in place instead of adding buffers.
+- Evidence: fizzler_intro and laser_stairs dropper cubes black -> lit;
+  catapult_intro dropper cube on the floor 84 -> 110 (floor 34 both);
+  intro5/intro6 cubes slightly brighter. 20-map load check clean, fps
+  unchanged, tests 202 + 72 pass.
+- 2026-10-23 spikes, cause: animated models are drawn as rigid per-bone
+  parts and each triangle went to one bone. portal_button(_damaged01/02)
+  has 80 triangles with corners pinned to the base and to the top; pressed,
+  the top drops 7.3 u (13.64 -> 6.35) and those triangles stayed up with
+  the base, poking through the red pad. Fix (models.rs split_by_bone,
+  plugin.rs StretchSurface): such triangles go to a stretch part whose
+  vertices each follow their own bone and are moved when bone parts move,
+  as skinning stretches them. Also used by the faith plate, Wheatley,
+  GLaDOS pieces, a chamber door, the box dropper, an arm and intro1's
+  container-ride debris (possibly T-164's "spiky debris"; not checked).
+  Evidence: intro2 button pressed, spikes before, none after; released pose
+  normal; plate arm mid-launch, Wheatley and GLaDOS shots unchanged; unit
+  test pinned_mixed_triangles_stretch.
+- 2026-10-23 jitter, reproduced (autopilot, intro2, `propto box` dropped
+  from ~70 u onto button_1): Windows' cube rests perfectly still (z -33.47,
+  vscript 0.25 s samples). Ours, depending on where it lands: (a) rocks
+  ~5-7 deg for 1-3 s after landing, or (b) keeps rattling indefinitely, up
+  vector flipping every frame and slowly turning (spin ~1.1 rad/s sustained),
+  e.g. drop at (-610,284,35) resting near (-598,286). Same cube on plain
+  floor: perfectly still. Ruled out: the press (no pad animation: still
+  rattles), SweptCcd, restitution, damping (a settle damping of 6 once
+  nearly still for 0.2 s stops (a) in 3 of 5 drops but not (b); not kept).
+  Cause is in the contact between the cube box and the button's compound
+  of ten small convex .phy pieces (rim pieces 0..9.8 u high, pad -3.8..0).
+  Next: draw/inspect those hulls where the cube's corners rest, try avian
+  contact settings (speculative margin, contact softness, substeps) on this
+  case, and check whether VPhysics merges or simplifies those pieces.
+- Left: under intro2's button lamp the relit cube's top is a saturated
+  pinkish white where Windows shows grey, and its sides stay darker than
+  Windows: our ambient for models (leaf-average samples, world-light term)
+  isn't calibrated against Source. Inverse-square sample weighting was tried
+  and overshot ~10x; not kept.
+- Owner playtest 10 (2026-10-22): "cubes still show as black and are
+  jittery/buggy moving on buttons, still playable but a necessary now fix,
+  global, not on all buttons". Find which buttons/cubes (class, skin, model)
+  show it and which don't; the dark lit skin and the settle jitter may be
+  separate causes. Leads already in this entry.
+- 2026-10-20 19:50 autorun: dark lit cube REPRODUCED (autopilot sp_a1_intro2,
+  `propto box -607 288 -20` onto button_1-button, dist build 9f1ed5a): on the
+  pressed button the cube body renders dark grey (yellow ring fine); off the
+  button it is light grey. P2_HIDE_MAT=metal_box_skin002 hides the whole cube,
+  so only the lit-skin draw shows, and it is the one that is dark. Forcing lit
+  skin 4 instead of 2 is just as dark, so it is not the texture. Ruled out:
+  texture brightness (skin000/002/004 avg ~0.6, decoded with `ls --vtf`),
+  shader combo (both `vs 0 ps 36`), lighting (one ambient-cube closure, baked
+  into both skins' vertices at spawn), sRGB cache (both srgb=true), skin
+  switch (apply_model_skins only flips Visibility). Not yet checked: the
+  render side for draws under a SkinVariant entity spawned Hidden
+  (valve_render prepare/upload of draws first seen while hidden, e.g. light
+  stream or constants), and whether the dark look is the variant draw being
+  drawn without its static-light stream. Next step: spawn the cube with
+  base skin 2 (no variant) and compare; if bright, the bug is the
+  hidden-at-spawn variant path.
+- Also found: cube_lit_skin's table was wrong for non-standard cubes:
+  metal_box skin textures are 0 standard, 1 companion, 2 standard lit,
+  3 rusted, 4 companion lit, 5 rusted lit (we lit companion 1 as 3 = rusted
+  blue, rusted 3 not at all). Fix cc8d8e0 (was attempt/T-145) MERGED
+  2026-10-21 at the owner's request; not seen in game (no companion or
+  rusted cube on a button was checked). The dark standard lit cube is NOT
+  fixed by it.
+- Spikes under the button and jitter on buttons: not looked at this run.
+- Owner playtest 9 (2026-10-20, build 014ab6e): button press works, but "cubes turn black when they're activated and yellow" and "it adds weird spikes under the button almost like there's grass under it"; "buttons are still juttery/buggy when [cubes are] put on buttons".
+- Section 0: no press-down when used or when a cube lands; cubes kept their
+  off skin; cubes twitched on buttons (press/unpress flicker as they settle).
+- Press + twitch (feb5072): buttons were a baked pose; now animated
+  (down/idledown/up and variants), release only after 0.15 s clear.
+- Cube skins (2e8df1a): skin was baked in at spawn. Cubes whose model has a
+  lit skin (metal_box 0/1 -> 2/3; reflection/antique have none) spawn both
+  skins' draws in SkinVariant groups; floor_buttons sets ModelSkin lit while
+  the cube rests on a pressed button. Unit test cube_lit_skins.
+- Evidence (autopilot, sp_a1_intro2, `propto box` onto button_1-button): old
+  build cube ring stays blue on the pressed button, new build ring lit
+  yellow; moved off the button, ring blue again. Not owner-verified.
+- Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
+
 ### T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room  (P1, DONE 2026-10-23: owner confirmed all walls and textures are back; owner playtest 11: "unplayable")
 - Owner: "lots of invisible textures and walls just from the beginning room,
   the animations machinery is missing walls are missing ... you can crouch
