@@ -356,39 +356,7 @@ https://interfaceingame.com/games/portal-2/). Supersedes T-162's open notes.
 "ill send screenshots another time so put those tasks on hold". Not for
 autoruns until the screenshots arrive.
 
-### T-173 Portal gun view model: hold beam, carry anims, fizzler shake  (P3, OPEN: hold beam "looks terrible"; fizzler shake owner-confirmed)
-- Owner round 5 (2026-10-21): "the gun hold beam is not fixed it looks
-  terrible, the fizzler shakes are fixed". A screenshot or clip of ours while
-  holding a cube would pin down what is wrong.
-- Owner playtest 9: "portal gun still doesn't have that electricity when
-  picking things up and doesn't spark/shake when going through the
-  emancipation grids" (also T-150's gun beam).
-- Cause: nothing drove the gun while carrying or at a grid. p2_fx only had
-  the top light / muzzle flash; the viewmodel never played its carry
-  sequences (ACT_VM_PICKUP idle_to_carrying, idle_carrying, carrying_to_idle)
-  and played `fizzle` only on a failed shot.
-- Fix: p2_core `GunHolding` (held object's world centre, kept by p2_game
-  props::gun_holding; through a portal the hold point on this side) and
-  `GunCleansed` (written on trigger_portal_cleanser touch when the gun can
-  fire). p2_fx spawns `portalgun_beam_holding_FP` (portalgun.pcf: CP0 muzzle,
-  CP1 object; the end point is rescaled for the 50-degree viewmodel FOV so it
-  lands on the object; unit test hold_beam_end_matches_world_projection)
-  on the viewmodel layer with the `Weapon_Portalgun.HoldSound` loop, only
-  while the gun is shown. p2_view plays the carry sequences and `fizzle` on
-  GunCleansed; p2_fx plays `Portal.FizzlerShimmy`.
-- Evidence (autopilot only, sp_a1_intro4): `goto section_2_box_2 70; use`:
-  after build shows the electric beam from the muzzle to the cube centre and
-  the raised carrying pose, log "play Weapon_Portalgun.HoldSound"; before
-  build (dist 69426f1) the cube floats with no beam and the idle pose.
-  Walking through fizzler_brush: log "play Portal.FizzlerShimmy" and the gun
-  mid-`fizzle` in the shot; before: nothing.
-- Not done: a spark particle on the gun at the grid (no Valve effect name
-  confirmed for it; the fizzle sequence shows no particle events in
-  animinfo); the beam particles don't follow the gun between restarts
-  ("Movement Lock to Saved Position Along Path" not implemented; the effect
-  restarts often enough that it looked right in the shot). Owner replay:
-  does the beam/fizzle feel like Windows Portal 2?
-
+### T-173 (moved back to TASKS.md 2026-10-23: owner reported the hold beam again)
 ### T-174 Elevator-room videos buggy and very low quality  (P3, OPEN: quality better, panel layout wrong)
 - Owner round 5 (2026-10-21): "the quality looks a little better but the
   panels are like awkwardly not together and some are in the wrong places".

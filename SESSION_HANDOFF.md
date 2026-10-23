@@ -4,6 +4,10 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
+2026-10-23 03:00 owner playtest 11 recorded (cloud session, docs only): chapter 2
+finished, sphere_peek and ricochet played; bridge_intro BLOCKED (T-221),
+bridge_the_gap crash (T-220). New T-220..T-228, T-173 back from hold.
+Before that:
 2026-10-23 owner session, PAUSED by the owner mid T-217. Done: T-216 FIXED
 b9ac2b1; T-218 PARTLY FIXED 51c6aa7; T-145 PARTLY FIXED (c005fbc dark
 cubes, bf5006a spikes; jitter open). T-217 missing floor: cause found and
@@ -27,9 +31,10 @@ check not done; details in TASKS.md T-217.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-Resume T-217: `git merge attempt/T-217` only after its regression check
-(TASKS.md T-217 "To finish"), then Wheatley through the wall and the
-floating texture. Then wait for the owner (T-145 jitter is open, narrowed).
+TASKS.md "Priority order": T-220 (bridge_the_gap crash), T-221
+(bridge_intro invisible walls; check T-222/T-223 with it), T-222, T-223,
+then finish T-217 (attempt/T-217 regression check), T-145 jitter, then the
+feel tasks. The owner plays the campaign himself; no level scripts.
 
 ## Uncommitted / in-flight work
 None. T-217 work in progress is on branch attempt/T-217 (pushed).

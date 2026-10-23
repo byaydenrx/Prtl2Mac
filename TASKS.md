@@ -29,7 +29,7 @@ right, then fix the biggest problems common to many levels, each gel, then
 the full campaign (chapters 2-9), done by the auto sessions. Audit sources:
 docs/UPSTREAM_GAPS.md (upstream README gaps), T-214 (all-maps sweep), fxaudit.
 ON HOLD (owner): menus (no menu code changes at all); screenshot tasks
-T-173, T-174, T-147, T-149, T-116, T-152, T-151, T-154; T-164
+T-174, T-147, T-149, T-116, T-152, T-151, T-154; T-164
 skipped; T-120 done enough. Don't work on anything already fixed.
 Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles, T-150
 motion blur and gun glow, T-213 PotatOS on the gun, T-198 faith plates, T-215 winref.sh.
@@ -37,14 +37,22 @@ This list is the one source of what's next: the handoff's "Next action" names
 its first open item, and resume.sh warns when they disagree.
 Owner 2026-10-22 (playtest 10): playability first. The owner plays the
 campaign himself; fix what stops him, then what he called "necessary now".
-Owner's order (2026-10-22 23:20): T-216, T-218, T-145, T-217; everything
-else (items 1-8 below and the "Later" list) waits until the owner says.
-0a. T-216 sp_a2_catapult_intro: the plate throws the cube too low. FIXED, awaiting replay.
-0b. T-218 performance. PARTLY FIXED (culling), awaiting replay; MSAA-at-4K and v-sync-off findings in its entry.
-0c. T-145 cubes on buttons: dark cubes and spikes FIXED, awaiting replay; jitter open (cause narrowed, entry).
-0d. T-217 sp_a2_laser_stairs: missing floor fixed on attempt/T-217 (regression check left); Wheatley through the wall and floating texture not started.
-0e. Then wait for the owner's next playtest (chapter 2 from catapult_intro);
-    his reports go before everything below.
+Owner playtest 11 (2026-10-23): chapter 2 done, chapter 3 started. Order
+(crash and unplayable first; the owner may reorder):
+0a. T-220 sp_a2_bridge_the_gap crash after spawning a cube (P0).
+0b. T-221 sp_a2_bridge_intro invisible walls/machinery (unplayable); look at
+    T-222 and T-223 with it (likely one cause: moving panels/bodygroups).
+0c. T-222 sphere_peek, T-223 ricochet (whatever T-221's fix doesn't cover).
+0d. T-217 laser_stairs: merge attempt/T-217 after its regression check;
+    Wheatley through the wall; floating texture.
+0e. T-145 jitter of cubes on buttons.
+0f. Feel: T-224 cube tumbling, T-225 dissolve effect, T-226 pedestal
+    buttons, T-173 gun hold beam ("really bad"), T-227 zoom, T-228 HUD icons.
+0g. Then wait for the owner's next playtest (chapter 3 on).
+Owner notes 2026-10-23: T-216, T-198, T-213, T-215, T-130 done; T-218 better;
+T-212 still plays (its fix sits unmerged on attempt/T-212); engine gaps
+(item 5) and T-211 untouched and big; some particles missing or random
+(T-199/T-200); GLaDOS wake-up still not right (T-153).
 Later, owner says not blocking (keep for the polish pass): intro1 sky
 red-black (T-175 area) and spiky ride debris (T-164); intro1 window (T-116);
 water looks poor in intro3/wakeup (T-151, T-112); fog-blue seen through walls
@@ -79,7 +87,104 @@ them until the owner lifts the hold; search that file by task id.
 
 ## Open: P1
 
-### T-145 Cubes go dark and jitter on buttons, every chapter  (P1 by owner, PARTLY FIXED: dark cubes c005fbc and button spikes bf5006a awaiting replay; jitter open, cause narrowed)
+### T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up  (P0 crash, TODO; owner playtest 11)
+- Owner: "i couldnt pick up one of the cubes that landed on a bridge about
+  half way into beating this level so i spawned another and it crashed my
+  game". Reproduce both: a cube resting on a hard light bridge (pickup ray /
+  use cone vs the bridge's collider, or the cube asleep on a kinematic
+  body), and the crash when the dropper replaces it (compare T-168, a Kill
+  reaching a template prototype; panic message in the terminal log).
+- Also seen in this map (P2): Wheatley glitches around; the bird that flies
+  through is visible when it shouldn't be (or looks wrong); some missing
+  textures (fewer than bridge_intro, likely the same cause as T-221).
+
+### T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room  (P1, TODO; owner playtest 11: "unplayable")
+- Owner: "lots of invisible textures and walls just from the beginning room,
+  the animations machinery is missing walls are missing ... you can crouch
+  past the hallway animation and continue". He finished it only because he
+  knows the game. Bridges work and show through portals ("super ugly").
+- First check (T-213 side effect): a598811 changed how MDL body parts are
+  read and said "other props' non-default bodygroups were garbage before and
+  are now hidden". Animated Aperture panels/arms may rely on bodygroups; diff
+  an autopilot shot of this room on a build before a598811 vs now. Also check
+  the models that fail to load (T-214) and fallback shaders.
+- Likely shares a cause with T-222/T-223 (moving panels drawn without their
+  surface) and bridge_the_gap's missing textures: fix the cause once.
+
+### T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far  (P1, TODO; playable; owner playtest 11)
+- A platform you stand on sometimes lets you fall through; "its like not
+  rendering the wall part itself just the mechanical" (see T-221 lead).
+- The faith plate GLaDOS tampers with should launch a player already standing
+  on it once she's done; it only launches after stepping off and on again
+  (trigger_catapult on Enable / touch state: Source re-tests touching
+  entities when a trigger is enabled).
+- Two moving platforms move too far: they end horizontal instead of angled
+  (animation end pose, pose parameters, or rotation clamping).
+
+### T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid  (P1, TODO; playable; owner playtest 11)
+- The platform surface (not the machinery) is missing, so the cube falls to
+  the floor (still grabbable). Same family as T-221/T-222.
+
+### T-224 Cube physics feel: no tumbling in the air; plate and button hits unreliable  (P2, TODO; owner playtest 11)
+- Cubes don't rotate/tumble in the air like Portal 2 (T-198 skipped Source's
+  random angular impulse on catapult launches; also check angular velocity
+  kept through portals and when thrown).
+- trust_fling: a cube missed the first faith plate once; dropping a cube on
+  a button from high is hit or miss.
+
+### T-225 No dissolve ("fizzle") effect on cubes  (P2, TODO; owner playtest 11)
+- Missing when a dropper replaces a cube, when GLaDOS fizzles one
+  (sp_a2_pit_flings) and at emancipation grills. Source: the prop dissolves
+  (white-out material + particles + sound) before it is removed.
+
+### T-226 Pedestal buttons (prop_button): no sound or press animation  (P2, TODO; owner playtest 11)
+- The stand-up buttons you click: no press animation, no sound.
+
+### T-227 Zoom doesn't work  (P3, TODO; owner playtest 11)
+- Toggle zoom / zoom in / zoom out do nothing (keys exist in Edit Keys).
+
+### T-173 Portal gun view model: hold beam, carry anims, fizzler shake  (P3, OPEN: hold beam "looks terrible"; fizzler shake owner-confirmed)
+- Owner playtest 11 (2026-10-23): "the holding something animation looks
+  nothing like portal 2, like the electricity looks really bad". Compare with
+  a Windows reference shot of holding a cube (scripts/winref.sh).
+- Owner round 5 (2026-10-21): "the gun hold beam is not fixed it looks
+  terrible, the fizzler shakes are fixed". A screenshot or clip of ours while
+  holding a cube would pin down what is wrong.
+- Owner playtest 9: "portal gun still doesn't have that electricity when
+  picking things up and doesn't spark/shake when going through the
+  emancipation grids" (also T-150's gun beam).
+- Cause: nothing drove the gun while carrying or at a grid. p2_fx only had
+  the top light / muzzle flash; the viewmodel never played its carry
+  sequences (ACT_VM_PICKUP idle_to_carrying, idle_carrying, carrying_to_idle)
+  and played `fizzle` only on a failed shot.
+- Fix: p2_core `GunHolding` (held object's world centre, kept by p2_game
+  props::gun_holding; through a portal the hold point on this side) and
+  `GunCleansed` (written on trigger_portal_cleanser touch when the gun can
+  fire). p2_fx spawns `portalgun_beam_holding_FP` (portalgun.pcf: CP0 muzzle,
+  CP1 object; the end point is rescaled for the 50-degree viewmodel FOV so it
+  lands on the object; unit test hold_beam_end_matches_world_projection)
+  on the viewmodel layer with the `Weapon_Portalgun.HoldSound` loop, only
+  while the gun is shown. p2_view plays the carry sequences and `fizzle` on
+  GunCleansed; p2_fx plays `Portal.FizzlerShimmy`.
+- Evidence (autopilot only, sp_a1_intro4): `goto section_2_box_2 70; use`:
+  after build shows the electric beam from the muzzle to the cube centre and
+  the raised carrying pose, log "play Weapon_Portalgun.HoldSound"; before
+  build (dist 69426f1) the cube floats with no beam and the idle pose.
+  Walking through fizzler_brush: log "play Portal.FizzlerShimmy" and the gun
+  mid-`fizzle` in the shot; before: nothing.
+- Not done: a spark particle on the gun at the grid (no Valve effect name
+  confirmed for it; the fizzle sequence shows no particle events in
+  animinfo); the beam particles don't follow the gun between restarts
+  ("Movement Lock to Saved Position Along Path" not implemented; the effect
+  restarts often enough that it looked right in the shot). Owner replay:
+  does the beam/fizzle feel like Windows Portal 2?
+
+
+### T-228 Chapter HUD icons don't look like Portal 2's  (P3, TODO; owner playtest 11)
+- Owner: "the chapter hud icons dont look like portal 2s". Ask which screen
+  if unclear (chapter title card, chamber sign icons); compare with Windows.
+
+### T-145 Cubes go dark and jitter on buttons, every chapter  (P1 by owner, PARTLY FIXED: dark cubes and spikes owner-confirmed 2026-10-23; jitter open)
 - 2026-10-23 dark cubes, cause: a moving prop's vertex light was baked once
   where it spawned and kept forever. Dropper and template cubes spawn in
   the dropper's tube, where the ambient light is 0.000, so they were black
@@ -205,7 +310,7 @@ them until the owner lifts the hold; search that file by task id.
 
 ## Open: engine gaps (2026-10-21 audit: upstream READMEs + all-maps sweep; docs/UPSTREAM_GAPS.md)
 
-### T-212 sp_a3_00 (start of chapter 6): loud glass smash at load  (P2, BLOCKED (needs owner); owner 2026-10-21)
+### T-212 sp_a3_00  (P2, BLOCKED: owner 2026-10-23 still hears it; the fix on attempt/T-212 was never merged: merge it for his replay)
 - Owner: "when you booted up chapter 6 the fall a loud glass noise played".
 - Reproduced (autopilot log, RUST_LOG=portal2::audio=debug): in the first
   frame after sp_a3_00 loads, `play ScriptedSequence.MoronSmash08
@@ -367,7 +472,7 @@ them until the owner lifts the hold; search that file by task id.
 
 ## Awaiting owner replay (fixed, autopilot evidence)
 
-### T-218 Performance: 60-70 fps and stutter on an M4 Pro; portals cost a lot; v-sync unclear  (P2, PARTLY FIXED, awaiting owner replay; findings below)
+### T-218 Performance: 60-70 fps and stutter on an M4 Pro; portals cost a lot; v-sync unclear  (P2, PARTLY FIXED: owner 2026-10-23 "fps is smoother"; more to gain, findings below)
 - Owner (playtest 10): "60-70fps and its stuttery ... not sure if vsync
   works correctly, portals lower performance". His settings: fullscreen
   3840x2160, v-sync on + triple buffering, 2x MSAA, on a 120 Hz 6K display.
@@ -402,7 +507,7 @@ them until the owner lifts the hold; search that file by task id.
      screen rectangle needs the portal and refraction shaders' screen UVs
      reworked (they use the drawing camera's viewport).
 
-### T-216 sp_a2_catapult_intro: the faith plate throws the cube too low; blocks chapter 2  (P1, FIXED, awaiting owner replay)
+### T-216 sp_a2_catapult_intro: the faith plate throws the cube too low; blocks chapter 2  (P1, DONE 2026-10-23: owner finished catapult_intro)
 - Owner (playtest 10): catching works, "the cube doesn't go high enough up".
 - Cause: props had avian `LinearDamping(0.05)`, which bled ~6% of the cube's
   speed per second of flight. The launch itself was right (850 u/s straight
@@ -449,7 +554,7 @@ them until the owner lifts the hold; search that file by task id.
   (-386,0,383), upper level z=128 with button_1 at (352,-160); the cube
   lands on the z=0 ledge west of the pit.
 
-### T-215 Windows reference capture tool (CrossOver)  (P1, DONE, awaiting owner replay; tooling)
+### T-215 Windows reference capture tool  (P1, DONE 2026-10-23: owner confirmed the CrossOver reference tool works)
 - Done 2026-10-21: `scripts/winref.sh` (usage in WORKFLOW.md). Cause of the
   old loading-screen shots: Portal 2 rejects `wait` ("Unknown command")
   until a server runs, so the cfg ran straight through during the load.
@@ -462,7 +567,7 @@ them until the owner lifts the hold; search that file by task id.
   much darker than Windows' (walls, floor; T-202/T-203 territory).
 
 
-### T-198 Aerial faith plates: physics wrong (chapter 2)  (P1, FIXED b55fc08, awaiting owner replay)
+### T-198 Aerial faith plates: physics wrong  (P1, DONE 2026-10-23: owner confirmed (threshold-check detail still open in the entry))
 - Owner 2026-10-21: "the fling things aerial plates ... have something wrong
   with the physics". Cause (server.dll CTriggerCatapult, Ghidra 2026-10-21):
   our launch-by-target used the horizontal distance for the flight time and
@@ -493,7 +598,7 @@ them until the owner lifts the hold; search that file by task id.
   scripts/check_faith_plates.py: REPO points at Portal2-rust-engine and the
   info regex misses the new "fwd/up" fields (fixed copy used in scratch).
 
-### T-213 PotatOS never shows on the portal gun  (P2, FIXED a598811, awaiting owner replay)
+### T-213 PotatOS never shows on the portal gun  (P2, DONE 2026-10-23: owner confirmed; her talking/eye animation and lighting on the gun and her not done (T-207))
 - Owner: "glados as a potato on the portal gun doesn't show in chapters
   after you have her". Cause: v_portalgun.mdl and w_portalgun.mdl do carry
   her as bodygroup 1 ("potatos_vmodel", model 1), but vmdl reads Portal 2
@@ -515,7 +620,7 @@ them until the owner lifts the hold; search that file by task id.
   Side effect to watch: other props' non-default bodygroups were garbage
   before and are now hidden (Source draws body 0).
 
-### T-150 Particles missing  (P4, FIXED, awaiting owner replay: motion blur 7cc1096, gun glow through the wall 8d48dab; intro3 splash/dust owner-confirmed "for now")
+### T-150 Particles missing  (P4, PARTLY FIXED: owner 2026-10-23 smoke, splash, motion blur, gun glow fixed; some particles missing or random (T-199/T-200); gun beam is T-173)
 - 2026-10-21 autorun, gun glow through the wall: FIXED 8d48dab. Cause: the
   gun's `info_particle_system` particle_gun_charge (electrical_arc_01,
   started by timer_gun_particles for 0.5 s every 1-3 s) has a child
@@ -575,7 +680,7 @@ them until the owner lifts the hold; search that file by task id.
   holding things; motion blur/speed lines; the gun's glow seen through the
   wall after the sp_a2_intro fall.
 
-### T-153 GLaDOS wake-up  (P3, FIXED, awaiting owner replay: leftover particles)
+### T-153 GLaDOS wake-up  (P3, OPEN: owner 2026-10-23 still not right, better than before; gun drop and arms confirmed)
 - 2026-10-21: the leftover white spray was glados_head_drag_droplets (800/s
   water_splash droplets on a ring around her head; bisected by
   DestroyImmediately on each fx: only fx_glados_head_01 removes it). Its
@@ -677,13 +782,13 @@ them until the owner lifts the hold; search that file by task id.
 
 ## Backlog
 
-### T-002 Prove sp_a2_dual_lasers  (P1, TODO)
+### T-002 Prove sp_a2_dual_lasers  (DONE 2026-10-23: owner played it through)
 - Both catchers powered by the player's redirection, door opens, next map.
-### T-003 Prove sp_a2_laser_over_goo  (P1, TODO)
-### T-004 Prove sp_a2_catapult_intro  (P1, TODO)
-### T-005 Prove sp_a2_trust_fling  (P1, TODO)
-### T-006 Prove sp_a2_pit_flings  (P1, TODO)
-### T-007 Prove sp_a2_fizzler_intro  (P1, TODO)
+### T-003 Prove sp_a2_laser_over_goo  (DONE 2026-10-23: owner played it through)
+### T-004 Prove sp_a2_catapult_intro  (DONE 2026-10-23: owner played it through)
+### T-005 Prove sp_a2_trust_fling  (DONE 2026-10-23: owner played it through)
+### T-006 Prove sp_a2_pit_flings  (DONE 2026-10-23: owner played it through)
+### T-007 Prove sp_a2_fizzler_intro  (DONE 2026-10-23: owner played it through)
 - Faith plates land on target (scripts/check_faith_plates.py); T-004..T-006 test the player's route.
 ### T-008 Prove chapter 3 rest: bridge_the_gap, turret_intro, laser_relays, turret_blocker, laser_vs_turret, pull_the_rug  (P1, TODO)
 ### T-010 Sweep chapter 4 (column_blocker, laser_chaining, triple_laser, bts1, bts2)  (P1, TODO)
@@ -701,6 +806,7 @@ them until the owner lifts the hold; search that file by task id.
 - Checklists in docs/STATUS.md.
 
 ## Done (newest first; details in git log and docs/STATUS.md)
+- 2026-10-23 Owner playtest 11: sp_a2_catapult_intro, trust_fling, pit_flings, fizzler_intro, sphere_peek, ricochet played through (T-002..T-007 done); T-216, T-198, T-213, T-215 confirmed; cubes no longer dark on buttons (T-145 part).
 - 2026-10-22 Owner playtest 10 (build 0634859) confirmed: T-114 intro1 door waits; T-143 clock digits; T-175 fog outside the ride (sky still dark: later); T-147 no black screen; T-148 portals behind glass; T-131 intro3 floor/roof; T-150 intro3 smoke + splash and sp_a2_intro gun glow; T-139/T-118 no loud glass at intro4; T-120 voice-line timing and all elevators; T-149 screens and lights; T-133 Wheatley falls; T-153 gun drops (some particles remain); T-128 laser_stairs playable; dying and saving work; no softlocks seen.
 - 2026-10-22 T-130 intro6 resting cube falls through a portal opened under it (0634859): owner verified; sp_a1_intro6 VERIFIED, chapter 1 fully verified pending the owner's full-chapter replay.
 - 2026-10-21 T-146 intro1 exit door wiggles half stuck (de1d09b): owner confirmed ("i just saw the door fixed"). Oscillator logic_timers fire OnTimerHigh/Low in turn.
