@@ -1517,3 +1517,12 @@ Start`/`Stop` to poke one; `cl_showfps 1` for cost):
   (door_open_trigger, enabled 10 s after wakeup via door_hud_hint_trigger;
   autopilot: closed at 6 s and 9 s, opens on reaching the hint trigger). The
   "apple" skip was handled earlier by the per-actor voice channel.
+
+#### avian 0.7: ActiveCollisionHooks must be on a collider when its proxy is created (T-130, 2026-10-22)
+- avian sets a broad-phase proxy's MODIFY_CONTACTS flag only at proxy
+  creation; inserting `ActiveCollisionHooks` later updates FILTER_PAIRS
+  alone (collider_tree/update.rs, observer "case 10"), and a contact pair
+  copies the flag only when the pair is made. Props now get their hooks in
+  the same insert as their re-attached colliders (props.rs
+  `insert_prop_body`, `PROP_HOOKS`); before, `modify_contacts` never ran
+  and a cube resting where a portal opened stayed on the floor.

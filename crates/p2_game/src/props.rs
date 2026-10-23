@@ -177,9 +177,13 @@ pub fn insert_prop_body(
     // off every contact and sink through the floor, T-144).
     let parts: Vec<Entity> = children.iter_descendants(entity).filter(|&c| colliders.contains(c)).collect();
     let density = prop_density(PROP_MASS, parts.iter().filter_map(|&c| colliders.get(c).ok()));
+    // The portal hooks go in with the collider: avian sets a proxy's
+    // MODIFY_CONTACTS flag only when the proxy is created (inserting the
+    // hooks later updates FILTER_PAIRS alone), and without it a cube resting
+    // where a portal opens keeps its floor contact (sp_a1_intro6, T-130).
     for c in parts {
         if let Ok(col) = colliders.get(c) {
-            commands.entity(c).remove::<(Collider, ColliderOf)>().insert((col.clone(), ColliderDensity(density)));
+            commands.entity(c).remove::<(Collider, ColliderOf)>().insert((col.clone(), ColliderDensity(density), PROP_HOOKS));
         }
     }
 }
@@ -863,12 +867,15 @@ impl CollisionHooks for PortalHooks<'_, '_> {
     }
 }
 
+/// The hooks every prop collider asks.
+const PROP_HOOKS: ActiveCollisionHooks = ActiveCollisionHooks::FILTER_PAIRS.union(ActiveCollisionHooks::MODIFY_CONTACTS);
+
 /// Every collider of a prop asks the filter.
 pub fn hook_prop_colliders(mut commands: Commands, props: Query<Entity, Added<Prop>>, children: Query<&Children>, colliders: Query<(), With<Collider>>) {
     for p in &props {
         for c in children.iter_descendants(p).chain(std::iter::once(p)) {
             if colliders.contains(c) {
-                commands.entity(c).insert(ActiveCollisionHooks::FILTER_PAIRS | ActiveCollisionHooks::MODIFY_CONTACTS);
+                commands.entity(c).insert(PROP_HOOKS);
             }
         }
     }

@@ -28,12 +28,12 @@ docs/UPSTREAM_GAPS.md (upstream README gaps), T-214 (all-maps sweep), fxaudit.
 ON HOLD (owner): menus (no menu code changes at all); screenshot tasks
 T-173, T-174, T-145, T-147, T-149, T-116, T-152, T-151, T-154; T-164
 skipped; T-120 done enough. Don't work on anything already fixed.
-Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles, T-150
+Awaiting the owner: T-130 intro6 cube, T-112 GLaDOS floor, T-153 leftover particles, T-150
 motion blur and gun glow, T-213 PotatOS on the gun, T-198 faith plates, T-215 winref.sh.
 This list is the one source of what's next: the handoff's "Next action" names
 its first open item, and resume.sh warns when they disagree.
-0. T-130 sp_a1_intro6: no portal under the resting cube (the last chapter 1
-   blocker; owner's pick, 2026-10-21 evening).
+0. T-130 sp_a1_intro6: cube resting on a new portal didn't fall through.
+   FIXED 2026-10-22, awaiting the owner's replay (route not saved: owner testing).
 1. T-212 loud glass smash at sp_a3_00 load (owner report). BLOCKED: attempt/T-212.
 2. T-213 PotatOS missing from the portal gun. FIXED a598811, awaiting replay.
 2b. T-215 Windows reference capture tool. DONE (scripts/winref.sh), awaiting replay.
@@ -61,26 +61,6 @@ them until the owner lifts the hold; search that file by task id.
 (none)
 
 ## Open: P1
-
-### T-130 sp_a1_intro6: can't put a portal under the resting cube; needed noclip  (P1, TODO; reopened 2026-10-21)
-- Owner playtest 8 (section 4): "couldn't get the cube down the portal
-  without noclip (should be able to place a portal under the cube by
-  shooting through it)"; playtest 7: "a cube still didn't fall into a
-  portal (noclip needed)". PROJECT_STATE.md has intro6 BLOCKED on this.
-- 2026-10-20 (0454ed8): the handrail half is fixed (models compiled
-  `$contents grate` let shots through). The cube half was NOT reproduced:
-  loose cubes already let shots pass (dynamic bodies are skipped), and in
-  that autopilot run the dropped cube landed tilted on non-portalable dirt at
-  (1947,381), ~25 u up a wall. The entry then left TASKS.md in owner round 5
-  (ef0144c) without the cube case being confirmed; restored here.
-- Leads: where the cube rests on the intended route; what the shot hits
-  there (`ray`, `portalable`, `info`); whether placement refuses because the
-  cube's collider overlaps the portal area or the surface under it, rather
-  than the trace stopping at the cube; what Portal 2 does (Windows reference
-  via scripts/winref.sh; server.dll study is allowed).
-- Acceptance: a route in scripts/routes/sp_a1_intro6.txt solves intro6 from
-  its start without noclip or setpos past a puzzle step; then the owner
-  replays it (VERIFIED needs the owner's play).
 
 ## Open: engine gaps (2026-10-21 audit: upstream READMEs + all-maps sweep; docs/UPSTREAM_GAPS.md)
 
@@ -245,6 +225,33 @@ them until the owner lifts the hold; search that file by task id.
 ## Open: P4
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-130 sp_a1_intro6: the resting cube didn't fall through a portal opened under it  (P1, FIXED 2026-10-22, awaiting owner replay)
+- Owner playtest 8 (section 4) and 2026-10-22: the cube sits in a pit under
+  a glass box; the only shot is straight down through the round hole on top.
+  The portal opens under the cube, but the cube doesn't go through it.
+- Cause: props.rs `PortalHooks::modify_contacts` (drops a prop's contact with
+  the wall behind a linked portal) was never called. avian 0.7 sets a
+  collider proxy's MODIFY_CONTACTS flag only when the proxy is created;
+  `hook_prop_colliders` inserted `ActiveCollisionHooks` a step after
+  `insert_prop_body` re-inserted the colliders, and avian's insert observer
+  then updates only FILTER_PAIRS. Cubes that arrive later still worked
+  (new pairs go through `filter_pairs`); a cube resting since map load kept
+  its floor contact. Fix: the hooks go in with the re-inserted collider.
+- Not the cause: the shot passes the cube (dynamic bodies are skipped); the
+  cube is not in the placement probes. Diagonal shots onto the 128 u panel
+  fail DoesNotFit, but the owner confirmed the hole above is the only shot.
+- Evidence (autopilot, `2.5 input room_1_fling_portal_activate_rl trigger;
+  4 setpos 256 192 110 89 90; 4.1 fire blue`, both portals linked): before,
+  the cube stays at (256,192,18) for 6 s, contact with floor brush 927 still
+  touching while it is in `PassingThrough`; after, 0.5 s later it is at
+  (-346,0,366) out of the orange wall portal, then rests at (-187,19,18).
+  `cargo test --release -p p2_game` 202 passed.
+- Left: a full route (scripts/routes/sp_a1_intro6.txt). Owner chose to
+  replay intro6 themselves instead (2026-10-22). Layout notes for a route:
+  fling pit floor (-96..96,-128..64) at z=-384, orange portal at
+  (-386,0,383), upper level z=128 with button_1 at (352,-160); the cube
+  lands on the z=0 ledge west of the pit.
 
 ### T-215 Windows reference capture tool (CrossOver)  (P1, DONE, awaiting owner replay; tooling)
 - Done 2026-10-21: `scripts/winref.sh` (usage in WORKFLOW.md). Cause of the

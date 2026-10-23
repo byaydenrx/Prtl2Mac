@@ -66,7 +66,7 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 |---|---|---|---|---|---|---|---|---|
 | 1 | sp_a1_intro1 | y | y | y | y | - | VERIFIED | owner played through (playtests 1-8); P2/P3 issues in TASKS |
 | 1 | sp_a1_intro2, intro3, intro5 | y | y | y | y | - | VERIFIED | owner played through (playtest 8); intro3 floors/roofs missing (T-131) |
-| 1 | sp_a1_intro6 | y | y | x | y | - | BLOCKED | owner needed noclip: no portal under the cube (T-130) |
+| 1 | sp_a1_intro6 | y | y | x | y | - | IN PROGRESS | T-130 fixed 2026-10-22 (resting cube now falls through the portal); owner to replay |
 | 1 | sp_a1_intro4 | y | y | y | y | - | VERIFIED | owner played through (playtest 8) |
 | 1 | sp_a1_intro7 | y | y | y | y | - | VERIFIED | owner played through (playtest 8); turn-away slow (T-125), Wheatley floats (T-133) |
 | 1 | sp_a1_wakeup | y | y | y | y | - | VERIFIED | owner played through (playtest 8); pod rotation (T-134), held drop (T-105) |
@@ -94,7 +94,6 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 9 | sp_a4_finale1..finale4 | - | - | - | - | - | NOT STARTED | T-015 |
 
 ## Release blockers (open P0/P1)
-- T-130: sp_a1_intro6 needs noclip (no portal under the resting cube).
 - sp_a2_laser_stairs: T-128 stairs fix (8ac53a2) awaiting the owner's replay.
 - T-211 gels (P1) before chapters 6-8; gel isn't kept in saves (saves.rs).
 - (The 2026-10-20 list here is closed: T-129 and T-132 fixed by autoruns,
