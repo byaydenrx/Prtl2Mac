@@ -48,7 +48,9 @@ Owner playtest 11 (2026-10-23): chapter 2 done, chapter 3 started. Order
 0e. T-145 jitter of cubes on buttons.
 0f. Feel: T-224 cube tumbling, T-225 dissolve effect, T-226 pedestal
     buttons, T-173 gun hold beam ("really bad"), T-227 zoom, T-228 HUD icons.
-0g. Then wait for the owner's next playtest (chapter 3 on).
+0g. Then items 1-8 below, in order (owner 2026-10-23: autoruns work through
+    everything except menus, on-hold tasks and the "Later" list). The
+    owner's next playtest report goes before all of it.
 Owner notes 2026-10-23: T-216, T-198, T-213, T-215, T-130 done; T-218 better;
 T-212 still plays (its fix sits unmerged on attempt/T-212); engine gaps
 (item 5) and T-211 untouched and big; some particles missing or random

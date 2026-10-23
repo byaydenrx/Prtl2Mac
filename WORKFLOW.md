@@ -123,9 +123,11 @@ for independent tasks with separate files.
   Portal2Rust/autopilot-session.lock; one row per run in docs/AUTORUN_LOG.md,
   appended with `sh scripts/log_run.sh <task> <outcome> <commit> <build>`
   (no need to read the log).
-- Only reproduced, verified fixes reach main. A bug a run could not
-  reproduce gets a best-guess fix on a local, never-pushed branch
-  `attempt/T-<n>`, noted in the task and the handoff. Owner sessions review
+- The task's exact instructions are in docs/AUTORUN_PROMPT.md (the owner
+  pastes them into the scheduled task; sessions can't edit it).
+- Only reproduced, verified fixes reach main. A fix a run could not verify
+  goes on branch `attempt/T-<n>`, pushed to origin (not main), noted in the
+  task and the handoff. Owner sessions review
   them: `git branch --list 'attempt/*'`, `git log -p wheatley..attempt/T-<n>`;
   merge with `git merge attempt/T-<n>` after a replay, or delete the branch.
 
