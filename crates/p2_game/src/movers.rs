@@ -272,6 +272,20 @@ fn setup_movers(
             movers.parented.push((i, p, offset));
         }
     }
+    // Track trains start on their first path_track (plus `height`), as
+    // Source spawns them (Windows: sp_a2_column_blocker's Wheatley rail
+    // train at its path_1, 34 u from its map origin, the departure
+    // elevator 16 u lower than placed). Left where the map put them, they
+    // rode beside their rails and jumped onto them when moved (T-232).
+    for i in 0..ents.list.len() {
+        let e = &ents.list[i];
+        let Some(node) = movers.movers.get(&i).and_then(|m| m.node).filter(|_| e.class == "func_tracktrain") else { continue };
+        let height = Vec3::Y * u(e.get_f32("height").unwrap_or(0.0));
+        let delta = ents.list[node].transform.translation + height - e.transform.translation;
+        if delta.length() > 1e-4 {
+            shift_with_riders(&mut ents, &mut movers, &mut transforms, i, delta, true);
+        }
+    }
     // Doors that start open (`spawnpos 1`: lifts lowered until a laser
     // powers them, catchers hidden until they rise): the map places them
     // closed; they and what rides them start moved open.
@@ -281,33 +295,42 @@ fn setup_movers(
             continue;
         }
         let (dir, travel) = door_travel(e, &map);
-        let delta = dir * travel;
-        if let Some(m) = movers.movers.get_mut(&i) {
-            m.pos += delta;
+        shift_with_riders(&mut ents, &mut movers, &mut transforms, i, dir * travel, false);
+    }
+}
+
+/// Moves mover `i` and everything parented to it (down the chain) by
+/// `delta` at load. `home` says whether `i`'s own home moves too (a door
+/// that starts open keeps its closed home; riders always move theirs).
+fn shift_with_riders(ents: &mut Ents, movers: &mut Movers, transforms: &mut Query<&mut Transform>, i: usize, delta: Vec3, home: bool) {
+    if let Some(m) = movers.movers.get_mut(&i) {
+        m.pos += delta;
+        if home {
+            m.home += delta;
         }
-        let mut riders = vec![i];
-        let mut k = 0;
-        while k < riders.len() {
-            let p = riders[k];
-            riders.extend(movers.parented.iter().filter(|c| c.1 == p && !riders.contains(&c.0)).map(|c| c.0).collect::<Vec<_>>());
-            k += 1;
+    }
+    let mut riders = vec![i];
+    let mut k = 0;
+    while k < riders.len() {
+        let p = riders[k];
+        riders.extend(movers.parented.iter().filter(|c| c.1 == p && !riders.contains(&c.0)).map(|c| c.0).collect::<Vec<_>>());
+        k += 1;
+    }
+    for r in riders {
+        if r != i {
+            if let Some(m) = movers.movers.get_mut(&r) {
+                m.pos += delta;
+                m.home += delta;
+            }
         }
-        for r in riders {
-            if r != i {
-                if let Some(m) = movers.movers.get_mut(&r) {
-                    m.pos += delta;
-                    m.home += delta;
-                }
-            }
-            let e = &mut ents.list[r];
-            e.transform.translation += delta;
-            if let Some((lo, hi)) = &mut e.bounds {
-                *lo += delta;
-                *hi += delta;
-            }
-            if let Some(mut t) = e.entity.and_then(|x| transforms.get_mut(x).ok()) {
-                t.translation += delta;
-            }
+        let e = &mut ents.list[r];
+        e.transform.translation += delta;
+        if let Some((lo, hi)) = &mut e.bounds {
+            *lo += delta;
+            *hi += delta;
+        }
+        if let Some(mut t) = e.entity.and_then(|x| transforms.get_mut(x).ok()) {
+            t.translation += delta;
         }
     }
 }
@@ -736,30 +759,41 @@ pub(crate) fn follow_parents(
         return;
     }
     let parented = movers.parented.clone();
-    for (child, parent, offset) in parented {
-        // Children on an animated attachment are placed by viewcontrol.
-        if !movers.moved.contains_key(&parent) || anims.as_ref().is_some_and(|a| a.is_attached(child)) {
-            continue;
-        }
-        let pt = ents.list[parent].transform;
-        let world = Transform::from_translation(pt.translation + pt.rotation * offset.translation).with_rotation(pt.rotation * offset.rotation);
-        let world = tanks.as_mut().map_or(world, |t| t.place(child, world));
-        let delta = world.translation - ents.list[child].transform.translation;
-        ents.list[child].transform = world;
-        if let Some((lo, hi)) = &mut ents.list[child].bounds {
-            *lo += delta;
-            *hi += delta;
-        }
-        if let Some(r) = ents.list[child].entity {
-            if let Ok(mut t) = transforms.get_mut(r) {
-                lerp.record(r, t.translation, world.translation);
-                t.translation = world.translation;
-                t.rotation = world.rotation;
+    // Children before their parents in the list wait for a later pass: one
+    // pass in list order left Wheatley (four links down a moving rail in
+    // sp_a2_bridge_the_gap) behind until the train stopped (T-232).
+    let mut placed: std::collections::HashSet<usize> = Default::default();
+    loop {
+        let before = placed.len();
+        for &(child, parent, offset) in &parented {
+            // Children on an animated attachment are placed by viewcontrol.
+            if placed.contains(&child) || !movers.moved.contains_key(&parent) || anims.as_ref().is_some_and(|a| a.is_attached(child)) {
+                continue;
             }
+            placed.insert(child);
+            let pt = ents.list[parent].transform;
+            let world = Transform::from_translation(pt.translation + pt.rotation * offset.translation).with_rotation(pt.rotation * offset.rotation);
+            let world = tanks.as_mut().map_or(world, |t| t.place(child, world));
+            let delta = world.translation - ents.list[child].transform.translation;
+            ents.list[child].transform = world;
+            if let Some((lo, hi)) = &mut ents.list[child].bounds {
+                *lo += delta;
+                *hi += delta;
+            }
+            if let Some(r) = ents.list[child].entity {
+                if let Ok(mut t) = transforms.get_mut(r) {
+                    lerp.record(r, t.translation, world.translation);
+                    t.translation = world.translation;
+                    t.rotation = world.rotation;
+                }
+            }
+            // A moving train's children move its own children in turn.
+            movers.moved.entry(child).or_insert(delta);
+            movers.parent_seen.insert(child, world);
         }
-        // A moving train's children move its own children in turn.
-        movers.moved.entry(child).or_insert(delta);
-        movers.parent_seen.insert(child, world);
+        if placed.len() == before {
+            break;
+        }
     }
 }
 

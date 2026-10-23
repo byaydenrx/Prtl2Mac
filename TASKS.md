@@ -31,8 +31,8 @@ Now (owner playtest 12, playability first):
 5. T-234 Turrets killed by a laser don't blow up (owner playtest 12b)
 6. T-235 sp_a2_column_blocker: the light doesn't switch back on in the surprise room (owner playtest 12b)
 7. T-236 sp_a2_column_blocker: invisible barrier at the departure elevator (NOT REPRODUCED, needs owner; owner playtest 12c)
-8. T-237 sp_a2_column_blocker: Wheatley in the departure elevator doesn't look at you (owner playtest 12c)
-9. T-232 sp_a2_bridge_the_gap: Wheatley glitches around; the bird looks wrong (owner playtests 11, 12)
+8. T-237 sp_a2_column_blocker: Wheatley in the departure elevator doesn't look at you (FIXED, awaiting owner replay: his rail train started 34 u off its rail)
+9. T-232 sp_a2_bridge_the_gap: Wheatley glitches around; the bird looks wrong (Wheatley FIXED, awaiting owner replay; bird: needs owner to say what looks wrong)
 10. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid (BLOCKED, needs owner replay: not reproduced on 18676be, likely fixed by T-221)
 11. T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall (BLOCKED, needs owner: floor fixed on main by T-221; Wheatley attempt on local branch attempt/T-217-wheatley)
 12. T-218 Performance: 60-70 fps and stutter on an M4 Pro; portals cost a lot; v-sync unclear (owner: better; continue)
@@ -185,7 +185,11 @@ Lower:
   -872 256 64 not touched?) or a save load put the clip back. Asked the
   owner whether the car had arrived and whether a save was loaded.
 
-### T-237 sp_a2_column_blocker: Wheatley in the departure elevator doesn't look at you, moves through his rail  (P2, IN_PROGRESS; owner playtest 12c)
+### T-237 sp_a2_column_blocker: Wheatley in the departure elevator doesn't look at you, moves through his rail  (P2, FIXED, awaiting owner replay; owner playtest 12c)
+- 2026-10-23: his rail train started at its map origin, 34 u off its rail
+  (Windows: on path_1), so he rode beside the rail; fixed by T-232 part 2.
+  His eye (+Y) tracked the player within 2 deg during the ride (measured
+  old and new), so the aim itself was fine.
 - Owner: "wheatlys animation here while im in the elevator is pretty buggy
   like he doesnt look at you and hes moving through a rail".
 - Same rig as T-232 (train -> top/bottom func_tank swivels -> @sphere). He
@@ -193,7 +197,32 @@ Lower:
   +X is ~89 deg off the player for the whole ride in both builds (eye axis
   not yet confirmed).
 
-### T-232 sp_a2_bridge_the_gap: Wheatley glitches around; the bird looks wrong  (P2, TODO; owner playtests 11, 12)
+### T-232 sp_a2_bridge_the_gap: Wheatley glitches around; the bird looks wrong  (P2, Wheatley FIXED, awaiting owner replay; bird needs owner; owner playtests 11, 12)
+- 2026-10-23 FIXED (movers.rs), two causes:
+  1. follow_parents moved a child only if its parent had already moved
+     that tick, in list order: Wheatley (train -> extension door -> top
+     swivel -> bottom swivel -> @sphere) stayed put while his rail train
+     moved and jumped ~150 u when it stopped. It now passes over the list
+     until no child is left. Evidence (P2_PROPTRACE per-frame trace, window
+     scene from start_wheatley_window_scene_relay): before one 148.6 u jump
+     at the end of the ride; after he rides along (train and Wheatley
+     sampled together every 0.2 s).
+  2. Track trains now start on their first path_track (+ height), as
+     Source spawns them. Windows (VScript GetOrigin over winref netcon):
+     bridge_the_gap rail train (-816,-928,1400) = path_1, ours was at its
+     map origin 112 u away; bird (-880,-904,1336) = its path_1; intro7 rail
+     train (-296,-416,1592); column_blocker rail train (-1260,192,-1295.75),
+     34 u off before; departure elevators 16 u lower than placed (all
+     maps). Ours now match all of these. ~40 trains move at load (survey:
+     bts3/bts5 panel trains by up to 2600 u, unchecked visually; those maps
+     load).
+- Regression: departure elevator rides in intro2 and column_blocker behave
+  the same as before (arrive, close, ride down); 11 maps with moved trains
+  load; 205 tests pass. A func_tank rewrite (absolute angles) was tried and
+  reverted: the old aim already pointed Wheatley's eye (+Y) at the player.
+- Bird: the scene plays (bird_attack_start_relay, wings flap via
+  bird_wing_1/2); screenshots weren't possible while the owner played.
+  Needs the owner to say what looks wrong.
 - Owner (11): "wheatly is also a little buggy glitching around and shit and
   the bird that comes through and you can see"; (12): "wheatly and the bird
   are still pretty buggy". Was part of T-220.

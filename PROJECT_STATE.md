@@ -82,7 +82,7 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 2 | sp_a2_fizzler_intro | y | y | y | y | y | VERIFIED | owner played through (playtest 11) |
 | 3 | sp_a2_sphere_peek, ricochet | y | y | y | y | y | VERIFIED | owner played through (playtest 11); bugs T-222, T-223 |
 | 3 | sp_a2_bridge_intro | y | y | y | y | y | VERIFIED | owner playtest 12: playable, visuals fixed (T-221) |
-| 3 | sp_a2_bridge_the_gap | y | y | y | y | y | VERIFIED | owner playtest 12: playable; Wheatley and the bird buggy (T-232) |
+| 3 | sp_a2_bridge_the_gap | y | y | y | y | y | VERIFIED | owner playtest 12: playable; Wheatley fixed since (T-232), bird open |
 | 3 | sp_a2_turret_intro | y | y | y | y | y | VERIFIED | owner playtest 12: completable; turrets don't shoot or tip over but do damage (T-229) |
 | 3 | sp_a2_laser_relays | y | y | y | y | - | IN PROGRESS | T-230 fixed: all three relays power and the exit opens (autopilot); owner to replay |
 | 3 | sp_a2_turret_blocker, laser_vs_turret | y | y | - | y | - | IN PROGRESS | owner playtest 12: turret_blocker finished only with godmode, laser_vs_turret noclipped (T-229 turrets fixed since) |
