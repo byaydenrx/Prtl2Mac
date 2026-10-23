@@ -27,19 +27,21 @@ run after it resets picks the work up from git state and the handoff.
   (scripts/winref.sh) to understand behaviour is allowed; write our own code;
   never commit decompiled code; never use leaked source.
 
-## Stop rules (owner: "I don't want to come back to lots of regression or broken stuff")
-- If `~/Library/Application Support/Portal2Rust/autopilot-STOP` exists: do
-  nothing (the starter checks this).
-- Stop for good when ANY is true: (a) no line in the priority order is left
-  that isn't FIXED, DONE, BLOCKED or already attempted; (b) the last 5 rows of
-  docs/AUTORUN_LOG.md are all STUCK / NOT REPRODUCED / ATTEMPT / UNFINISHED
-  (no FIXED or PARTIAL): the runs are thrashing. To stop for good: write the date and
-  reason into the STOP file, disable scheduled task prtl2mac-auto-resume-2 if
-  a scheduled-tasks tool is available, put the reason at the top of
-  SESSION_HANDOFF.md, commit and push the docs, remove the lock.
+## Keep going; don't stop yourself (owner: "get as much done as possible while I'm gone")
+- Never write a STOP file or disable the scheduled task. The owner decides
+  when the runs end. A task you can't fix is not a reason to stop: record it
+  (BLOCKED with the reason, or NOT REPRODUCED with what you tried) and the next
+  run takes the next open item.
+- Save tokens: skip any task already BLOCKED awaiting the owner's replay or a
+  decision, unless the owner's new report or a new commit changes it. Don't
+  repeat an investigation the log already shows as NOT REPRODUCED with the same
+  build; go straight to the next open item.
+- If no open item is left, write one line in SESSION_HANDOFF.md ("nothing open,
+  <date>"), log it, and exit. Don't invent work.
+- Only the lock can block a run: it expires after 90 minutes on its own.
 
 ## The run
-1. Setup is in the starter (stop file, lock, branch, sync). If `git status`
+1. Setup is in the starter (lock, branch, sync). If `git status`
    shows uncommitted changes or unpushed commits on `wheatley`, they are a
    previous run's unfinished work: read the diff, finish it (or revert only
    if clearly broken), test, commit, push. That is this run's work.
@@ -87,7 +89,7 @@ Avoid regressions: only reproduced, verified fixes reach main.
 ## Starter (paste this into the scheduled task)
 
 ```text
-Prtl2Mac autorun. First: if "$HOME/Library/Application Support/Portal2Rust/autopilot-STOP" exists, do nothing else (if a scheduled-tasks tool is available, disable task prtl2mac-auto-resume-2) and stop.
+Prtl2Mac autorun. First:
 Lock: LOCK="$HOME/Library/Application Support/Portal2Rust/autopilot-session.lock". If it exists and is less than 90 minutes old (find "$LOCK" -mmin -90 prints it), another run is working: stop now without doing anything else. Otherwise write the current date into it; delete it when you finish, also if you stop early.
-Then: cd ~/Documents/Claude/Portal2-wheatley, make sure you are on branch wheatley (git switch wheatley), run git fetch -q origin && git merge --no-edit origin/main, then read docs/AUTORUN.md and follow it exactly. It has the stop rules, which task to take, the 10-minute timebox and how to record the run.
+Then: cd ~/Documents/Claude/Portal2-wheatley, make sure you are on branch wheatley (git switch wheatley), run git fetch -q origin && git merge --no-edit origin/main, then read docs/AUTORUN.md and follow it exactly. It has the rules, which task to take, the 10-minute timebox and how to record the run.
 ```
