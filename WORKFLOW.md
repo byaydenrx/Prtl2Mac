@@ -118,18 +118,13 @@ for independent tasks with separate files.
   shrink with `sips -Z 1000` before reading.
 - Package: `sh scripts/make_app.sh` -> `dist/Prtl2Mac.app`.
 
-## Unattended runs (scheduled task `prtl2mac-auto-resume-2`; the old `prtl2mac-auto-resume` folder is unused)
-- One task per fresh session; lock in ~/Library/Application Support/
-  Portal2Rust/autopilot-session.lock; one row per run in docs/AUTORUN_LOG.md,
-  appended with `sh scripts/log_run.sh <task> <outcome> <commit> <build>`
-  (no need to read the log).
-- The task's exact instructions are in docs/AUTORUN_PROMPT.md (the owner
-  pastes them into the scheduled task; sessions can't edit it).
-- Only reproduced, verified fixes reach main. A fix a run could not verify
-  goes on branch `attempt/T-<n>`, pushed to origin (not main), noted in the
-  task and the handoff. Owner sessions review
-  them: `git branch --list 'attempt/*'`, `git log -p wheatley..attempt/T-<n>`;
-  merge with `git merge attempt/T-<n>` after a replay, or delete the branch.
+## Unattended runs
+The scheduled task `prtl2mac-auto-resume-2` runs every 10 minutes and follows
+docs/AUTORUN.md (rules, 10-minute timebox, stop rules, regression check, the
+starter text the owner pastes into the task). One row per run in
+docs/AUTORUN_LOG.md via `sh scripts/log_run.sh`. Unverified fixes stay on
+local `attempt/T-<n>` branches for the owner: `git branch --list 'attempt/*'`,
+`git log -p wheatley..attempt/T-<n>`; merge after a replay, or delete.
 
 ## Windows Portal 2 reference and reverse engineering
 - Windows Portal 2 is installed in the owner's CrossOver bottle "Steam":

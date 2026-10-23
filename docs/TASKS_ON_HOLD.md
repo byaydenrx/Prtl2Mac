@@ -1,4 +1,4 @@
-# Tasks on hold
+# Tasks on hold, and later
 
 Moved verbatim from TASKS.md on 2026-10-21 (housekeeping) so sessions stop
 reading 46 KB of tasks they must not work on. Statuses and wording are
@@ -609,3 +609,172 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
   (same entities in the original; unknown whether Windows hides it).
   BLOCKED: needs the owner to say which ride and what looked wrong, or a
   Windows reference of intro5's departure.
+
+## Later (owner: not blocking; polish pass after the campaign)
+Owner 2026-10-22/23: intro1 sky red-black tint and spiky ride debris (T-164),
+intro1 window (T-116), water looks poor in intro3/wakeup (T-151, T-112),
+fog-blue seen through walls outside rooms on every map (T-112's "blue
+wall"), intro5 floating vine (T-154), intro7 turn-away a couple of seconds
+slow (T-125, docs/STATUS.md), wakeup leftover particles (T-153), water
+footsteps (T-219), some particles missing or random (T-150; T-199/T-200).
+
+### T-219 No footstep or jump sounds in water (intro3)  (P3, TODO; owner playtest 10)
+- Splash on the fall works; walking or jumping in the water is silent.
+
+### T-150 Particles missing  (P4, PARTLY FIXED: owner 2026-10-23 smoke, splash, motion blur, gun glow fixed; some particles missing or random (T-199/T-200); gun beam is T-173)
+- 2026-10-21 autorun, gun glow through the wall: FIXED 8d48dab. Cause: the
+  gun's `info_particle_system` particle_gun_charge (electrical_arc_01,
+  started by timer_gun_particles for 0.5 s every 1-3 s) has a child
+  electrical_arc_01_cp0_glow drawn with particle_glow_05_add_15ob_noz
+  (`$ignorez`, no depth test); Source hides it behind the world with the
+  renderer's `Visibility Proxy Input Control Point Number` (an occlusion
+  query at CP0), which p2_fx ignored. (The env_sprite spr_gun_glow is depth
+  tested and was not it.) Now each frame a line of sight from the main
+  camera to the proxy point (static/kinematic colliders; props, the player,
+  player clips and grates don't block; the last max(radius, 2) units
+  ignored) gives visibility 0/1, mapped through `Visibility input min/max`
+  onto `Visibility Alpha Scale min/max` as particle alpha. Line of sight,
+  not a partial pixel count; `Visibility Radius Scale` not done. Unit test
+  visibility_proxy_fades_hidden_glows. Evidence (autopilot only): landing
+  spot (-3232 568 -10792) `lookat portalgun`, 24 shots 0.2 s apart: dist
+  7cc1096 shows the blue glow over the crushing arms in 2/24, 8d48dab in
+  0/24; close up (`setpos -1125 449 -11076`, lookat portalgun) the arcs and
+  glow still flash in both. First try was blocked by the invisible
+  portalgun_playerclip brush, hence the clip/grate exclusion.
+
+- 2026-10-21 autorun, motion blur/speed lines: FIXED (see commit "T-150:
+  Source-style motion blur"). Cause: no motion blur pass existed
+  (`mat_motion_blur_enabled` was a stored setting only). Windows Portal 2
+  has no speed-line particle (client.dll has none); the streaks are its
+  image-space `dev/motion_blur` pass. New `motion_blur.rs`: one blur vector
+  per frame from the view's turn (half-frame shutter, teleports skipped) plus
+  falling blur from `mat_motion_blur_falling_min/max` (8/20, read as m/s):
+  vertical when looking level, radial streaks from the screen centre when
+  looking down/up; max 4% of the screen; crosshair and gun stay sharp
+  (their own cameras); Options' Motion Blur turns it off. Our reading of
+  the convars/units, not disassembled. Evidence (autopilot only):
+  sp_a2_catapult_intro `setpos -400 -800 440 85 0`, shot 1.5 s into the
+  fall: dist d1fe5a4 sharp, new build radial streaks; pitch 0: vertical
+  streaks. Not checked in the real sp_a2_intro shaft (its opening freezes
+  the player, setpos is ignored there).
+- Still open: the gun's glow seen through the wall after the sp_a2_intro
+  fall (next).
+- Owner round 5 (2026-10-21): splash and dust fixed for now.
+- Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
+- 2026-10-21 autorun, intro3 fall: FIXED b8a2d76. Cause: the two entities
+  behind it had no code at all: `env_splash` "fall_splash" (input Splash
+  from the trigger at the pool) and `env_ar2explosion` "breakable_floor_dust"
+  (input Explode when the floor gives way by the gun pedestal). Now
+  Splash plays `water_splash_01/02/03` by scale (16 -> 03) pointing up,
+  with `Physics.WaterSplash` (client.dll's watersplash/FX_GunshotSplash
+  names; the scale thresholds 2/4 are our choice), and Explode throws a
+  one-shot cloud of 48 grey puffs (~3.5 s) drawn like env_steam. The
+  splash's spawnflag 1 (find the water below) isn't traced; the entity sits
+  on the water. Evidence (autopilot only): `goto/lookat fall_splash; input
+  fall_splash splash` and the same for breakable_floor_dust explode, dist
+  d0822f2 shows nothing, b8a2d76 the splash spray and the dust ball. Not
+  checked through the real fall path (the floor break is scripted).
+- Still open: the gun's beam while holding (done in T-173), motion
+  blur/speed lines, the gun's glow seen through the wall after the
+  sp_a2_intro fall.
+- Fall smoke and water splash (+ sounds) in intro3; the gun's beam when
+  holding things; motion blur/speed lines; the gun's glow seen through the
+  wall after the sp_a2_intro fall.
+
+### T-153 GLaDOS wake-up  (P3, OPEN: owner 2026-10-23 still not right, better than before; gun drop and arms confirmed)
+- 2026-10-21: the leftover white spray was glados_head_drag_droplets (800/s
+  water_splash droplets on a ring around her head; bisected by
+  DestroyImmediately on each fx: only fx_glados_head_01 removes it). Its
+  `Position Modify Place On Ground` (include water) was unsupported, so the
+  droplets sprayed in mid-air around her head instead of on the pool. Now
+  p2_fx traces once per frame below each such system's CP0 (static world via
+  avian, or a WorldReflectWater plane above it) and the initializer drops
+  particles onto it within `max trace length`. Unit test
+  place_on_ground_drops_particles_within_reach. Autopilot sp_a1_wakeup
+  (`input glados_start Trigger`, shots 9/13/17/21 s, dist de1d09b vs new):
+  the spray is smaller, sits at the water, gone by 17 s (before: mid-air
+  through 21 s). New tool: p2_fx example `pcfdump <file.pcf> <system>`.
+- Owner round 7 (2026-10-21, build 6e0efbf): "still has some particles
+  around it but its better, portal gun visibly drops, her arms are
+  connected, and the rest is good there".
+- Owner playtest 9 (2026-10-20, build 014ab6e): "glados awakening animation is still covered by lots of white particles".
+- White particles hide her; her arms float unattached when grabbing Chell
+  and Wheatley; the portal gun didn't visibly drop; the player is made to
+  look the wrong way (playtests 6-8).
+- Gun drop FIXED (c64a60b): glados_camera.nut fires `gun_shooter Shoot` at
+  6 s, and env_shooter wasn't implemented. The loader now spawns its
+  shootmodel hidden; Shoot throws m_igibs dynamic copies along its facing
+  (m_flvelocity 60, gib life 4 s). Autopilot `input gun_shooter Shoot`:
+  before (dist d1df637) nothing appears; after, w_portalgun
+  falls, lands ~3.5 s later and is removed at 4 s. Not seen inside the
+  full wake-up sequence (autopilot only, not owner-checked).
+- White particles FIXED (69426f1, 2026-10-21, autopilot only, build
+  0.1.0+69426f1.20261021T1447Z): gladox_fx_start starts glados_head/chest/
+  neck_drag (scene_fx.pcf) on her attachments. Their wake-ring children use
+  particle/wake/ring_wake_mod.vmt, a `$mod2x` SpriteCard ($overbrightfactor
+  3, $addself 2.5) that we drew as a plain sprite: a huge white disc (radius
+  up to 192 u). SpriteCard `$mod2x` now blends as 2*src*dst (grey = no
+  change). Also implemented `Remap CP Speed to CP` and emit_continuously's
+  `emission count scale control point` (only once that CP is set), so the
+  drag dust/wakes emit only while she moves (unit test
+  drag_effect_emits_only_while_its_control_point_moves). Autopilot
+  sp_a1_wakeup `3 setpos 8950 1070 380; 4 input glados_start Trigger;
+  16 lookat fx_chest_drag_01`: before (dist dcc0c0e) a white disc covers
+  her body; after, her body is visible, no white cloud through t=35. Killing
+  the three drag effects in the old build also removed the cloud
+  (confirms the source). `Position Modify Place On Ground` is still
+  unsupported (wakes sit at the attachment instead of on the water).
+- Still open: arms floating unattached, the player looking the wrong way.
+
+### T-112 Missing or flat textures  (P2, attempt MERGED 2c08d11 for owner testing)
+- 2026-10-21: merged at the owner's request (autopilot: floor changes 1-2/255).
+- 2026-10-21 check (attempt merged onto wheatley, sp_a1_wakeup `setpos 9060
+  1120 440 15 20`): floor pixels change by 1-2/255 vs dist b8a2d76, still the
+  yellow-brown sheet. Owner: keep the branch open. Next suspects: $refracttint
+  {151 135 34} gamma, the fog colour.
+- Owner playtest 9 (2026-10-20, build 014ab6e): "glados chamber floor is still just a weird murky brown ... it does look better than before". Likely needs the water reflection (see T-151, attempt/T-151).
+- GLaDOS chamber floor brown and flat like the old intro3 water (section 5);
+  hallway to GLaDOS; after the jumps a black wall you can walk through; a
+  blue flat wall behind the intro4 elevator.
+- GLaDOS chamber floor FIXED (991441d), awaiting owner replay. Cause: the
+  floor is shallow water (nature/water_glados_01, surface z 396 over a
+  displacement floor at z ~388-393, $fogend 30, $fogcolor 90 70 20,
+  $lightmapwaterfog). Our water shader fogged through an assumed 64 units
+  of water, so with $fogend 30 it was always fully fogged: one flat
+  lightmap-lit yellow-brown sheet. Source fogs by the real depth behind the
+  surface. Now map water is cut into a 32-unit grid at load
+  (glass::subdivide) and each vertex carries its measured depth to the
+  world geometry below (glass::WaterFloor, vertex colour alpha,
+  FLAG_WATER_DEPTH; ground just above a vertex, as under banks, = depth 0).
+  Unit tests: subdivision area/edge length/winding, depth below.
+  P2_LIST_MATS also logs each water mesh's mean depth (wakeup 13.4 units,
+  intro3 6.9 units).
+- Evidence (autopilot, sp_a1_wakeup, `3 setpos 9060 1120 440 55 20`):
+  dist 89f2bf5 shows a solid yellow sheet; new build shows the dark floor
+  through the shallows fading to murky olive with distance (pixels ~45,39,15,
+  near the floor's ~55,50,37). Not compared with Windows; the water's real
+  reflection (_rt_WaterReflection, $reflectamount 0.4) is still missing, so
+  it reads darker/flatter than the game. intro3's water (same path, fogend
+  60, ~7 units deep) now also shows more floor when looked down at:
+  owner replay should glance at both.
+- Still open: the hallway to GLaDOS's chamber, the black walk-through wall
+  after the jumps (where?), the blue flat wall behind the intro4 elevator.
+- Autorun 2026-10-21: reproduced the look (sp_a1_wakeup `setpos 9060 1120
+  440 15 20`: flat yellow-olive sheet), cause not confirmable without a
+  Windows shot. Suspected: water_glados_01 has `$reflecttexture
+  _rt_WaterReflection` WITHOUT `$reflectskyboxonly`, so Source reflects the
+  whole chamber (a mirrored scene render); we reflect nothing there (fogged
+  map: no sky either, and baked env_cubemaps aren't loaded).
+  Untested fix: local branch attempt/T-112 (cc81fdb), needs owner
+  review/replay. A half-size camera mirrored in the nearest such water plane
+  below the eye, oblique near plane at the water (p2_render's
+  PortalProjection), sampled x-flipped by glass.wgsl and Fresnel-mixed
+  (FLAG_WORLD_REFLECT); unit test for the mirror/clip plane. Autopilot: a
+  reflection-only debug shot shows the mirrored chamber; with the normal
+  blend the change is small at shallow pitches (Fresnel ~0.1), so the
+  floor still reads yellow-brown. Costs: one extra half-res scene render on
+  maps with such water; that water is drawn in the main view only, so it
+  is missing when seen through portals. intro3/laser_intro water
+  (`$reflectskyboxonly 1`) is untouched (that is attempt/T-151).
+  If the owner still sees brown, the next suspects are `$refracttint
+  {151 135 34}` (not gamma-converted here) and the fog colour.

@@ -60,11 +60,12 @@ else echo "  SESSION_HANDOFF.md missing"; fi
 echo
 echo "== Priority order (TASKS.md)"
 if [ -f TASKS.md ]; then
-    section TASKS.md "Priority order" | awk '/^[0-9]+[a-z]?\. /{on=1} on' | sed 's/^/  /'
+    # The open items only (done/blocked lines are skipped), first 12.
+    section TASKS.md "Priority order" | grep -E '^[0-9]+[a-z]?\. ' | grep -viE 'FIXED|DONE|BLOCKED|awaiting' | head -12 | cut -c1-110 | sed 's/^/  /'
     n() { grep -c "^### .*$1" TASKS.md; }
-    awaiting=$(section TASKS.md "Awaiting owner replay" | grep -c '^### T-')
+    awaiting=$(grep -ciE '^### T-.*awaiting (owner )?replay' TASKS.md)
     held=$(awk '/^### T-/{c++} END{print c+0}' docs/TASKS_ON_HOLD.md 2>/dev/null); held=${held:-0}
-    echo "  counts: $(n IN_PROGRESS) in progress, $(n TODO) todo, $(n BLOCKED) blocked, $awaiting awaiting owner replay, $held on hold (docs/TASKS_ON_HOLD.md)"
+    echo "  counts: $(n IN_PROGRESS) in progress, $(n TODO) todo, $(n BLOCKED) blocked, $awaiting awaiting owner replay, $held on hold or later (docs/TASKS_ON_HOLD.md)"
 else echo "  TASKS.md missing"; fi
 
 echo
@@ -77,7 +78,7 @@ if [ -f TASKS.md ]; then
     top=$(section TASKS.md "Priority order" | grep -E '^[0-9]+[a-z]?\. ' | grep -viE 'FIXED|DONE|BLOCKED|awaiting' | grep -oE 'T-[0-9]+' | head -1)
     said=$( [ -f SESSION_HANDOFF.md ] && section SESSION_HANDOFF.md "Next action" | grep -oE 'T-[0-9]+' | head -1)
     id=${active:-$top}
-    if [ -n "$id" ]; then entry "$id" TASKS.md docs/TASKS_ON_HOLD.md
+    if [ -n "$id" ]; then entry "$id" TASKS.md docs/TASKS_ON_HOLD.md docs/TASKS_DONE.md
     else echo "  no open task in the priority order"; fi
     if [ -n "$said" ] && [ "$said" != "$id" ]; then
         why="top of the priority order"; [ -n "$active" ] && why="in progress"

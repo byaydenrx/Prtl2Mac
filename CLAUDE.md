@@ -15,8 +15,10 @@ checkout.
 
 ## Where things live (one home per fact)
 - PROJECT_STATE.md: release target, per-map status with evidence, blockers.
-- TASKS.md: priority order and active tasks. docs/TASKS_ON_HOLD.md: tasks the
-  owner put on hold (menus, screenshot tasks); don't work on them.
+- TASKS.md: priority order and active tasks only. docs/TASKS_ON_HOLD.md:
+  owner holds (menus, screenshot tasks) and the "later" polish list; don't
+  work on them. docs/TASKS_DONE.md: finished tasks. Grep both by task id.
+- docs/AUTORUN.md: the rules for unattended (scheduled) runs.
 - SESSION_HANDOFF.md: where the last session stopped (overwrite it).
 - WORKFLOW.md: the loop, commit routine, autopilot and tool reference.
 - TEST_COMMANDS.md: copy-paste commands for the owner.

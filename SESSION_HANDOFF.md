@@ -4,6 +4,9 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
+2026-10-23 03:20 cloud session (docs only): TASKS.md reorganized (active only;
+done -> docs/TASKS_DONE.md, later -> docs/TASKS_ON_HOLD.md, all 80 entries
+kept); autorun rules in docs/AUTORUN.md (10-minute timebox). Before that:
 2026-10-23 03:00 owner playtest 11 recorded (cloud session, docs only): chapter 2
 finished, sphere_peek and ricochet played; bridge_intro BLOCKED (T-221),
 bridge_the_gap crash (T-220). New T-220..T-228, T-173 back from hold.
