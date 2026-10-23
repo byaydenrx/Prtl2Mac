@@ -4,6 +4,13 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
+2026-10-23 03:17 autorun (docs only, UNFINISHED): regression check on main
+3a2bddb passed (build, tests, 4 map shots; a4_intro shot black twice, then
+good on a third run: capture flake). T-220 crash REPRODUCED: load the
+owner's bridge_the_gap autosave, drop a cube; avian panics when the cube
+is killed ("no element at index 20 in StableVec"). Fresh loads don't crash.
+Repro and next step in TASKS.md T-220. No code changed.
+Before that:
 2026-10-23 03:20 cloud session (docs only): TASKS.md reorganized (active only;
 done -> docs/TASKS_DONE.md, later -> docs/TASKS_ON_HOLD.md, all 80 entries
 kept); autorun rules in docs/AUTORUN.md (10-minute timebox). Before that:
@@ -34,7 +41,8 @@ check not done; details in TASKS.md T-217.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-TASKS.md "Priority order": T-220 (bridge_the_gap crash), T-221
+TASKS.md "Priority order": T-220 (bridge_the_gap crash; IN_PROGRESS, repro and
+next step in its entry: save-load + kill -> avian panic), T-221
 (bridge_intro invisible walls; check T-222/T-223 with it), T-222, T-223,
 then finish T-217 (attempt/T-217 regression check), T-145 jitter, then the
 feel tasks. The owner plays the campaign himself; no level scripts.

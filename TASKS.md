@@ -24,7 +24,7 @@ The one source of what's next: sessions and autoruns take the first line not
 marked FIXED, DONE or BLOCKED. Crashes and softlocks found on the way go to
 the top. Menus, on-hold and "later" tasks are never taken without the owner.
 Now (owner playtest 11, playability first):
-1. T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up (P0 crash)
+1. T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up (P0 crash, IN_PROGRESS: crash reproduced after loading a save)
 2. T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room (unplayable; check T-222 and T-223 with it: likely one cause, see entry)
 3. T-222 sp_a2_sphere_peek: platform you fall through; tampered faith plate; panels rotate too far
 4. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid
@@ -69,7 +69,7 @@ Lower:
 
 ## Active tasks (in priority order)
 
-### T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up  (P0 crash, TODO; owner playtest 11)
+### T-220 sp_a2_bridge_the_gap: game crashed after spawning a new cube; a cube on a bridge couldn't be picked up  (P0 crash, IN_PROGRESS; owner playtest 11)
 - Owner: "i couldnt pick up one of the cubes that landed on a bridge about
   half way into beating this level so i spawned another and it crashed my
   game". Reproduce both: a cube resting on a hard light bridge (pickup ray /
@@ -79,6 +79,27 @@ Lower:
 - Also seen in this map (P2): Wheatley glitches around; the bird that flies
   through is visible when it shouldn't be (or looks wrong); some missing
   textures (fewer than bridge_intro, likely the same cause as T-221).
+- 2026-10-23 autorun: CRASH REPRODUCED (autopilot only). Back up the owner's
+  saves first (cp -Rp "~/Library/Application Support/Portal2Rust/saves",
+  save.txt, progress.cfg), then
+  `P2_SCRIPT="1 con load autosave; 9 input cube_dropper-cube_dropper_relay trigger; 21 quit" ./target/release/portal2 sp_a2_bridge_the_gap`
+  with the owner's 02:16 autosave: the dropped cube falls into
+  trigger_kill_boxes and the game panics in avian
+  `update_solver_body_aabbs`: "no element at index 20 in
+  StableVec::index_mut" (avian3d-0.7.0 data_structures/stable_vec.rs:334).
+  Exit 101. Same steps on a fresh map load, or after `con map` reload, do
+  NOT crash, and re-dropping 3 times in a row is fine. So it's specific to
+  a save load: the restored cube (#1281, restored from the save rather
+  than spawned by the template) probably has a stale collider-tree proxy
+  key or a body restored without avian re-registering it, and killing it
+  (or the dropper's respawn) hits a freed slot.
+  Not reproduced: the bridge pickup (cube placed on the projector3 bridge
+  with propto, goto+lookat+use picks it up fine).
+  Next step: read crates/p2_game/src/saves.rs prop restore (how props get
+  re-created or moved on load) and avian's ColliderTreeProxyKey handling;
+  check whether `load` despawns and respawns physics entities in the same
+  frame, or reinserts Collider/RigidBody on existing entities. A minimal
+  repro: load the save, then `input cube_dropper-cube_dropper_box kill`.
 
 ### T-221 sp_a2_bridge_intro: invisible walls and textures, missing animated machinery from the first room  (P1, TODO; owner playtest 11: "unplayable")
 - Owner: "lots of invisible textures and walls just from the beginning room,
