@@ -41,7 +41,6 @@ impl Plugin for AnimPropsPlugin {
             (anim_inputs, start_default_anims, advance_anims, pose_parts)
                 .chain()
                 .after(crate::io::run_io)
-                .before(crate::viewcontrol::track_animations)
                 .in_set(crate::level::GameSet::Logic),
         );
     }
@@ -267,7 +266,7 @@ pub fn calibrated_aim(params: &[p2_assets::anim::PoseParam], cal: &AimCal, dir: 
 }
 
 #[derive(Resource, Default)]
-struct Posed(HashMap<usize, PoseState>);
+pub(crate) struct Posed(HashMap<usize, PoseState>);
 
 /// Crossfade weight of the new pose `elapsed` seconds into a [`FADE`]:
 /// Source's ease-in-out spline from 0 to 1.
@@ -373,7 +372,7 @@ pub fn aim_layer(anim: &Animator, base: usize) -> Option<usize> {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn anim_inputs(
+pub(crate) fn anim_inputs(
     mut inputs: MessageReader<EntInput>,
     ents: Option<Res<Ents>>,
     game: Res<GameFsRes>,
@@ -628,7 +627,7 @@ fn scene_anims(ents: &Ents, scenes: &crate::scenes::Playing, player_eye: Option<
 /// changed: its sequence (crossfaded from the last one), auto-layers, the
 /// aim matrix driven by a scene's lookat, and scene gestures on top.
 #[allow(clippy::too_many_arguments)]
-fn pose_parts(
+pub(crate) fn pose_parts(
     ents: Option<Res<Ents>>,
     game: Res<GameFsRes>,
     scenes: Res<crate::scenes::Playing>,

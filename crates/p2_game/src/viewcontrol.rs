@@ -23,7 +23,12 @@ impl Plugin for ViewControlPlugin {
         app.init_resource::<PropAnims>()
             .init_resource::<ViewControl>()
             .init_resource::<ViewProxy>()
-            .add_systems(Update, (track_animations, follow_attachments, viewcontrol_inputs, viewproxy_inputs).chain().after(crate::io::run_io).in_set(crate::level::GameSet::Logic))
+            // Attach inputs see the pose a prop had when they were sent, before
+            // this frame's animation inputs re-pose it: sp_a2_laser_stairs
+            // attaches its floor tiles to the arms (keeping their offset) and
+            // switches the arms' animation from the same logic_auto (T-217).
+            .add_systems(Update, track_animations.after(crate::io::run_io).before(crate::anim_props::anim_inputs).in_set(crate::level::GameSet::Logic))
+            .add_systems(Update, (follow_attachments, viewcontrol_inputs, viewproxy_inputs).chain().after(crate::anim_props::pose_parts).in_set(crate::level::GameSet::Logic))
             .add_systems(PostUpdate, (drive_camera, apply_viewproxy).chain().after(P2Systems::View).before(bevy::transform::TransformSystems::Propagate));
     }
 }
