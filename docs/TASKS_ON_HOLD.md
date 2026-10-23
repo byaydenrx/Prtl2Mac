@@ -408,46 +408,8 @@ autoruns until the screenshots arrive.
   persists (entry/exit_emergency.bik don't exist in the game files; that
   warning is harmless).
 
-### T-145 Buttons don't animate; cubes don't change colour on a button  (P2, BLOCKED (needs owner): lit cubes dark, cause not found; spikes and jitter not looked at)
-- 2026-10-20 19:50 autorun: dark lit cube REPRODUCED (autopilot sp_a1_intro2,
-  `propto box -607 288 -20` onto button_1-button, dist build 9f1ed5a): on the
-  pressed button the cube body renders dark grey (yellow ring fine); off the
-  button it is light grey. P2_HIDE_MAT=metal_box_skin002 hides the whole cube,
-  so only the lit-skin draw shows, and it is the one that is dark. Forcing lit
-  skin 4 instead of 2 is just as dark, so it is not the texture. Ruled out:
-  texture brightness (skin000/002/004 avg ~0.6, decoded with `ls --vtf`),
-  shader combo (both `vs 0 ps 36`), lighting (one ambient-cube closure, baked
-  into both skins' vertices at spawn), sRGB cache (both srgb=true), skin
-  switch (apply_model_skins only flips Visibility). Not yet checked: the
-  render side for draws under a SkinVariant entity spawned Hidden
-  (valve_render prepare/upload of draws first seen while hidden, e.g. light
-  stream or constants), and whether the dark look is the variant draw being
-  drawn without its static-light stream. Next step: spawn the cube with
-  base skin 2 (no variant) and compare; if bright, the bug is the
-  hidden-at-spawn variant path.
-- Also found: cube_lit_skin's table was wrong for non-standard cubes:
-  metal_box skin textures are 0 standard, 1 companion, 2 standard lit,
-  3 rusted, 4 companion lit, 5 rusted lit (we lit companion 1 as 3 = rusted
-  blue, rusted 3 not at all). Fix cc8d8e0 (was attempt/T-145) MERGED
-  2026-10-21 at the owner's request; not seen in game (no companion or
-  rusted cube on a button was checked). The dark standard lit cube is NOT
-  fixed by it.
-- Spikes under the button and jitter on buttons: not looked at this run.
-- Owner playtest 9 (2026-10-20, build 014ab6e): button press works, but "cubes turn black when they're activated and yellow" and "it adds weird spikes under the button almost like there's grass under it"; "buttons are still juttery/buggy when [cubes are] put on buttons".
-- Section 0: no press-down when used or when a cube lands; cubes kept their
-  off skin; cubes twitched on buttons (press/unpress flicker as they settle).
-- Press + twitch (feb5072): buttons were a baked pose; now animated
-  (down/idledown/up and variants), release only after 0.15 s clear.
-- Cube skins (2e8df1a): skin was baked in at spawn. Cubes whose model has a
-  lit skin (metal_box 0/1 -> 2/3; reflection/antique have none) spawn both
-  skins' draws in SkinVariant groups; floor_buttons sets ModelSkin lit while
-  the cube rests on a pressed button. Unit test cube_lit_skins.
-- Evidence (autopilot, sp_a1_intro2, `propto box` onto button_1-button): old
-  build cube ring stays blue on the pressed button, new build ring lit
-  yellow; moved off the button, ring blue again. Not owner-verified.
-- Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
-
-### T-147 intro2: the screen goes black right as the first door opens  (P2, BLOCKED (needs owner): not reproduced)
+### T-145 (moved back to TASKS.md 2026-10-22: owner wants it fixed now)
+### T-147 intro2: the screen goes black right as the first door opens  (DONE 2026-10-22: owner sees no black screen; was: P2, BLOCKED (needs owner): not reproduced)
 - Section 1; compare T-119. Screenshot 7 (intro2): a dark shard in a door.
 - 2026-10-21 autorun: NOT REPRODUCED. Owner saw it on build 1faf8d2
   (playtest 8, which already had the T-119 door/area-portal fix 6d75b6f);
@@ -464,7 +426,7 @@ autoruns until the screenshots arrive.
   screenshot or a short video, and whether it is the whole screen or a
   shape in the door (screenshot 7's dark shard).
 
-### T-149 Chamber signs blank; screens and lights wrong  (P2, BLOCKED (needs owner): signs drawn; intro5 screens/lights and big number not reproduced)
+### T-149 Chamber signs blank; screens and lights wrong  (DONE 2026-10-22: owner: screens and lights fine everywhere; was: P2, BLOCKED (needs owner): signs drawn; intro5 screens/lights and big number not reproduced)
 - Owner playtest 9 (2026-10-20, build 014ab6e): signs fixed; "the videos that play in the elevator rooms are a bit buggy and super low quality" (now T-174). Owner screenshot 2026-10-20 2.45.36 PM (sp_a2_laser_over_goo) shows "04/22" with a big "01": check the big number against Windows.
 - The white chamber-number screens ("02") were blank in every level:
   they are `vgui_screen`s with panelname `sp_progress_sign`, which we never
@@ -637,7 +599,7 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
 ### T-154 Floating vine/moss/grass texture by the centre wall (intro5)  (P4, TODO: owner says not fixed)
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
 
-### T-120 Elevators  (P2, OPEN: VO timing only; jitter, car sounds, thumps owner-confirmed)
+### T-120 Elevators  (DONE 2026-10-22: owner: late voice lines fixed, every elevator works; was: P2, OPEN: VO timing only; jitter, car sounds, thumps owner-confirmed)
 - Owner playtest 9 (2026-10-20, build 014ab6e): jittery rides FIXED, thumps FIXED; VO timing NOT fixed (voice lines start late, also while riding, which stretches the ride: see T-172); rubble/turrets still fall through the elevator (T-135).
 - Jitter FIXED 2026-10-20 (c1079f9, see Awaiting owner replay). Still open:
   the VO after intro5's second button started

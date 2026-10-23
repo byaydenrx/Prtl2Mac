@@ -4,6 +4,10 @@ Overwrite this file at every stopping point. Keep it short: the next session
 reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
+2026-10-22 23:30 owner playtest 10 recorded (cloud session, docs only):
+chapter 1 and chapter 2 through laser_over_goo VERIFIED; catapult_intro
+blocked (T-216). New T-216..T-219, T-145 back from hold, confirmations in
+TASKS.md Done; raw report in docs/PLAYTESTS.md. Before that:
 2026-10-22 22:40 owner (cloud session): T-130 verified by the owner; intro6
 VERIFIED. Owner rule: no scripts that play whole levels; fix reported
 bugs with before/after evidence and a regression check (TASKS.md top).
@@ -26,16 +30,15 @@ tasks when wanted). No intro6 route saved: the owner replays it themselves.
   T-153 particles, T-150 motion blur + gun glow, T-213 PotatOS on the gun,
   T-198 faith plates, T-215 winref.sh.
 - ON HOLD: menus (no menu code changes), screenshot tasks (T-173, T-174,
-  T-145, T-147, T-149, T-116, T-152, T-151, T-154), T-164, T-120.
+  T-116, T-152, T-151, T-154), T-164. T-145 is active again; T-147, T-149,
+  T-120 confirmed done (playtest 10).
 - Regression-check note: sp_a3_jump_intro's 8 s shot is sometimes washed
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-T-130 DONE (owner verified intro6, 2026-10-22). The owner is replaying all
-of chapter 1; act on his bug report first. Then TASKS.md "Priority order": the common engine gaps
-(T-203 lights, T-199 sprite sheets, T-214 DecalModulate/SolidEnergy/broken
-models, T-201, T-206, T-200, T-202, T-204), T-211 gels, then the campaign
-T-002..T-015. ON HOLD: menus, screenshot tasks, T-164, T-120.
+TASKS.md "Priority order": T-216 (sp_a2_catapult_intro, catching the cube in
+the air; blocks chapter 2), then T-145, T-217, T-218. The owner plays the
+campaign himself: fix what he reports, no level scripts.
 
 ## Uncommitted / in-flight work
 None outside what this file's commit contains.

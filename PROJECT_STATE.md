@@ -1,7 +1,7 @@
 # Project state
 
-Last updated 2026-10-21 (map statuses re-checked against the owner's
-VERIFIED rule; release blockers refreshed). Keep this current; evidence goes in TASKS.md and
+Last updated 2026-10-22 (owner playtest 10: chapter 1 and chapter 2 up to
+sp_a2_laser_over_goo played; R = dying/saving checked by the owner). Keep this current; evidence goes in TASKS.md and
 docs/STATUS.md.
 
 ## Release target (honest definition)
@@ -24,8 +24,9 @@ Not part of v1 (tracked as P3/P4): full visual fidelity (projected-texture
 lighting, every particle, glass refraction), every non-blocking scripted
 scene, co-op, commentary, multiplayer, Windows/Linux.
 
-Today we can honestly claim: the owner played chapter 1 and chapter 2 up
-to sp_a2_laser_stairs on build 1faf8d2 (playtest 8, 2026-10-20). intro6
+Today we can honestly claim (playtest 10, 2026-10-22, build 0634859): the
+owner played all of chapter 1 and chapter 2 through sp_a2_laser_over_goo;
+sp_a2_catapult_intro is blocked (T-216). Before that, playtest 8 (2026-10-20): intro6
 needed noclip (T-130) and laser_stairs' stairs didn't rise (T-128, fixed
 since, awaiting replay). Many P2-P4 issues remain (TASKS.md). Autopilot runs
 that use `setpos`/`input` prove logic, not playability.
@@ -64,18 +65,18 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 
 | Ch | Map | L | O | S | N | R | Status | Evidence / notes |
 |---|---|---|---|---|---|---|---|---|
-| 1 | sp_a1_intro1 | y | y | y | y | - | VERIFIED | owner played through (playtests 1-8); P2/P3 issues in TASKS |
-| 1 | sp_a1_intro2, intro3, intro5 | y | y | y | y | - | VERIFIED | owner played through (playtest 8); intro3 floors/roofs missing (T-131) |
+| 1 | sp_a1_intro1 | y | y | y | y | y | VERIFIED | owner replayed (playtest 10, 2026-10-22); later: sky tint, ride debris, window |
+| 1 | sp_a1_intro2, intro3, intro5 | y | y | y | y | y | VERIFIED | owner replayed (playtest 10); cubes on buttons T-145; intro5 vine T-154 |
 | 1 | sp_a1_intro6 | y | y | y | y | - | VERIFIED | owner replayed after the T-130 fix (0634859), 2026-10-22 |
-| 1 | sp_a1_intro4 | y | y | y | y | - | VERIFIED | owner played through (playtest 8) |
-| 1 | sp_a1_intro7 | y | y | y | y | - | VERIFIED | owner played through (playtest 8); turn-away slow (T-125), Wheatley floats (T-133) |
-| 1 | sp_a1_wakeup | y | y | y | y | - | VERIFIED | owner played through (playtest 8); pod rotation (T-134), held drop (T-105) |
-| 2 | sp_a2_intro | y | y | y | y | - | VERIFIED | owner: the fall plays and lands right, played on (playtest 8) |
-| 2 | sp_a2_laser_intro | y | y | y | y | - | VERIFIED | solved dbc2f19; owner played through (playtest 8) |
-| 2 | sp_a2_laser_stairs | y | y | x | y | - | BLOCKED | owner: stairs didn't rise (T-128 fixed 8ac53a2, replay pending); a screen blocks the arrival staircase (T-129) |
-| 2 | sp_a2_dual_lasers | y | - | - | y | - | IN PROGRESS | exit reached by placement only (T-002) |
-| 2 | sp_a2_laser_over_goo | y | - | - | y | - | IN PROGRESS | T-003 |
-| 2 | sp_a2_catapult_intro | y | - | - | y | - | IN PROGRESS | plates land on target (check_faith_plates.py); T-004 |
+| 1 | sp_a1_intro4 | y | y | y | y | y | VERIFIED | owner replayed (playtest 10) |
+| 1 | sp_a1_intro7 | y | y | y | y | y | VERIFIED | owner replayed (playtest 10); turn-away slow (T-125) |
+| 1 | sp_a1_wakeup | y | y | y | y | y | VERIFIED | owner replayed (playtest 10); floor water look, leftover particles (later) |
+| 2 | sp_a2_intro | y | y | y | y | y | VERIFIED | owner replayed (playtest 10) |
+| 2 | sp_a2_laser_intro | y | y | y | y | y | VERIFIED | owner played through (playtest 10) |
+| 2 | sp_a2_laser_stairs | y | y | y | y | y | VERIFIED | owner played through (playtest 10); T-217 floor, Wheatley through wall, floating texture |
+| 2 | sp_a2_dual_lasers | y | y | y | y | y | VERIFIED | owner played through (playtest 10) |
+| 2 | sp_a2_laser_over_goo | y | y | y | y | y | VERIFIED | owner: played "the level after" dual_lasers (playtest 10) |
+| 2 | sp_a2_catapult_intro | y | y | x | y | - | BLOCKED | owner can't catch/carry the cube in the air (T-216) |
 | 2 | sp_a2_trust_fling | y | - | - | y | - | IN PROGRESS | plates land on target; T-005 |
 | 2 | sp_a2_pit_flings | y | - | - | y | - | IN PROGRESS | plates land on target; T-006 |
 | 2 | sp_a2_fizzler_intro | y | - | - | y | - | IN PROGRESS | T-007 |
@@ -94,7 +95,7 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 9 | sp_a4_finale1..finale4 | - | - | - | - | - | NOT STARTED | T-015 |
 
 ## Release blockers (open P0/P1)
-- sp_a2_laser_stairs: T-128 stairs fix (8ac53a2) awaiting the owner's replay.
+- T-216: sp_a2_catapult_intro, the cube can't be caught in the air (blocks chapter 2).
 - T-211 gels (P1) before chapters 6-8; gel isn't kept in saves (saves.rs).
 - (The 2026-10-20 list here is closed: T-129 and T-132 fixed by autoruns,
   T-131 owner-confirmed, T-105 carried on as T-167/T-170 (T-170

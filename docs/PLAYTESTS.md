@@ -144,3 +144,36 @@ i just saw the door fixed, and continue to get the rest of the game runnning rat
 look at this repo https://github.com/Stink-O/Portal2-rust-engine in the crates theres different sections ... theres a readme with known gaps in some of them, this is the engine we built off of so check these known gaps and triple check if we have a fix for it if not add it to the tasks list ... also all maps should load maybe not fully correctly but they should be able to be loaded, get textures and all animations going correctly and then focus on the biggest most common things between each level, what bugs appear most, each gel, and so on.
 when you booted up chapter 6 the fall a loud glass noise played btw (T-212)
 also from what im noticing the glados as a potato on the portal gun doesnt show in chapters after you have her (T-213)
+
+## Owner playtest 10 (2026-10-22, build 0634859), chapter 1 replay + chapter 2, the owner's words
+Tracked in TASKS.md (T-216..T-219 new; T-145 back from hold; confirmations in Done).
+
+intro1: wheatlys door doesnt open early, there is fog outside, the skys still black more like a red black tint but thats a later issue, still spiky debtis but also a later issue, both those issues dont stop playability, the 12:00 only digits blink correctly, the window by the bed stilk doesnt render like the actual game but also a later issue that doesnt affect playability.
+
+cubes stilm show as black and are jittery/ buggy moving on buttons, still playable but a necessary now fix this is global not just intro2 i see it across every level but it doesnt show on all buttons idk.
+
+intro2: no black screen, noted cubes on buttons above, and portals behind glass is fixed perfectly.
+
+intro3: floor and roof are there so fixed, there is smoke from where i fall and there is a splash but no walking or jumping in water sound effects and water still doesnt look good.
+
+intro4: no loud glass sound on arrival, and the flat blue is there yes but it looks more like just the fog and its there on every level not just this one and its outside of the room so it may just be that you can see through that wall yk.
+
+intro5: the late voicelines was a global issue thats fixed now, screens and lights are fine this was also global but fixed now, and that floating vine/moss texture is still there.
+
+intro6: verified
+
+intro7:turning around still takes a couple extra seconds, and wheatly does fall after the panel moves so thats fixed.
+
+ap_a1_wakeup: wheatly does get carried correctly, the floor is still murky brown but thats beachse there is supposed to be water it just looks like the water from the previous level and it looks better than before the portal gun does visibly drop and there are still some random particles.
+
+sp_a2_intro: portal gun effects no longer show through the wall so fixed.
+
+also verified playable: sp_a2_laser_intro,
+
+sp_a2_laser_stairs is playable but theres a bug with missing floor after the animation of glados moving the floor happens at setpod 121.78 -354.91 -90.00 if you look down a few seconds after the animation, and after tping to that room where you get the laser box and wheatly shows for a second he continues to show through the wall after the wall closing animation plays setpos -529.75 327.04 -90.00;setang -5.15 87.45 0.00, and another floating texture to the right of the wheatly bug but fully playable.
+
+sp_a2_dual_lasers verified playable, aswell as the level after that i forgot to write it down lol.
+
+sp_a2_catapult_intro is where playability stops, the catapult physics or something is incorrect here, im not sure if its the cube or person that moves incorrectly but im pretty sure the cubes physics are wrong, i cant push it midair it goes below me rather than at my chest or wherever usually so i cant grab it and move forward.
+
+dying and saving works as expected, i didnt see any softlocks. every elevator worked as expected, performance is pretty poor for my m4 pro macbook pro 24gb ram sitting at 60-70fps and its stuttery and im not sure if vsync works correctly, portals lower performance, but it is definitely playable.

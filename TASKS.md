@@ -31,10 +31,24 @@ docs/UPSTREAM_GAPS.md (upstream README gaps), T-214 (all-maps sweep), fxaudit.
 ON HOLD (owner): menus (no menu code changes at all); screenshot tasks
 T-173, T-174, T-145, T-147, T-149, T-116, T-152, T-151, T-154; T-164
 skipped; T-120 done enough. Don't work on anything already fixed.
-Awaiting the owner: T-130 intro6 cube, T-112 GLaDOS floor, T-153 leftover particles, T-150
+Awaiting the owner: T-112 GLaDOS floor, T-153 leftover particles, T-150
 motion blur and gun glow, T-213 PotatOS on the gun, T-198 faith plates, T-215 winref.sh.
 This list is the one source of what's next: the handoff's "Next action" names
 its first open item, and resume.sh warns when they disagree.
+Owner 2026-10-22 (playtest 10): playability first. The owner plays the
+campaign himself; fix what stops him, then what he called "necessary now".
+0a. T-216 sp_a2_catapult_intro: can't catch the cube in the air (blocks chapter 2).
+0b. T-145 cubes dark and jittery on buttons, every chapter (owner: fix now).
+0c. T-217 sp_a2_laser_stairs: missing floor, Wheatley through the wall, floating texture.
+0d. T-218 performance (60-70 fps, stutter, portals, v-sync).
+0e. Then wait for the owner's next playtest (chapter 2 from catapult_intro);
+    his reports go before everything below.
+Later, owner says not blocking (keep for the polish pass): intro1 sky
+red-black (T-175 area) and spiky ride debris (T-164); intro1 window (T-116);
+water looks poor in intro3/wakeup (T-151, T-112); fog-blue seen through walls
+outside rooms on every map (T-112's "blue wall"); intro5 floating vine
+(T-154); intro7 turn-away a couple of seconds slow (T-125, docs/STATUS.md);
+wakeup leftover particles (T-153); water footsteps (T-219).
 1. T-212 loud glass smash at sp_a3_00 load (owner report). BLOCKED: attempt/T-212.
 2. T-213 PotatOS missing from the portal gun. FIXED a598811, awaiting replay.
 2b. T-215 Windows reference capture tool. DONE (scripts/winref.sh), awaiting replay.
@@ -62,6 +76,89 @@ them until the owner lifts the hold; search that file by task id.
 (none)
 
 ## Open: P1
+
+### T-216 sp_a2_catapult_intro: can't catch/carry the cube in the air; blocks the chapter  (P1, TODO; owner playtest 10)
+- Owner: "playability stops ... im pretty sure the cubes physics are wrong,
+  i cant push it midair it goes below me rather than at my chest ... so i
+  cant grab it and move forward." Unclear whether the cube, the player or
+  both move wrong; first find out (reproduce the intended solution: the
+  owner can describe it, or docs/maps/sp_a2_catapult_intro.md).
+- Leads: T-198 (b55fc08, 2026-10-21) rewrote faith-plate launches and added
+  air-control suppression, and this is the first plate map the owner reached
+  since: check it first (diff the plate's cube launch and the player's).
+  props.rs carry: held velocity = player_vel + chase (HOLD_MAX_SPEED 1000
+  u/s, HOLD_BREAK_DISTANCE 64 u); gravity/hold point while airborne; the
+  T-176 use cone for grabbing a moving cube. Compare with Windows
+  (scripts/winref.sh; server.dll study allowed).
+- Done when the owner can finish catapult_intro; regression: the other plate
+  maps (trust_fling, pit_flings) still launch on target
+  (scripts/check_faith_plates.py) and carrying in intro2 is unchanged.
+
+### T-145 Cubes go dark and jitter on buttons, every chapter  (P1 by owner, TODO; back from hold 2026-10-22)
+- Owner playtest 10 (2026-10-22): "cubes still show as black and are
+  jittery/buggy moving on buttons, still playable but a necessary now fix,
+  global, not on all buttons". Find which buttons/cubes (class, skin, model)
+  show it and which don't; the dark lit skin and the settle jitter may be
+  separate causes. Leads already in this entry.
+- 2026-10-20 19:50 autorun: dark lit cube REPRODUCED (autopilot sp_a1_intro2,
+  `propto box -607 288 -20` onto button_1-button, dist build 9f1ed5a): on the
+  pressed button the cube body renders dark grey (yellow ring fine); off the
+  button it is light grey. P2_HIDE_MAT=metal_box_skin002 hides the whole cube,
+  so only the lit-skin draw shows, and it is the one that is dark. Forcing lit
+  skin 4 instead of 2 is just as dark, so it is not the texture. Ruled out:
+  texture brightness (skin000/002/004 avg ~0.6, decoded with `ls --vtf`),
+  shader combo (both `vs 0 ps 36`), lighting (one ambient-cube closure, baked
+  into both skins' vertices at spawn), sRGB cache (both srgb=true), skin
+  switch (apply_model_skins only flips Visibility). Not yet checked: the
+  render side for draws under a SkinVariant entity spawned Hidden
+  (valve_render prepare/upload of draws first seen while hidden, e.g. light
+  stream or constants), and whether the dark look is the variant draw being
+  drawn without its static-light stream. Next step: spawn the cube with
+  base skin 2 (no variant) and compare; if bright, the bug is the
+  hidden-at-spawn variant path.
+- Also found: cube_lit_skin's table was wrong for non-standard cubes:
+  metal_box skin textures are 0 standard, 1 companion, 2 standard lit,
+  3 rusted, 4 companion lit, 5 rusted lit (we lit companion 1 as 3 = rusted
+  blue, rusted 3 not at all). Fix cc8d8e0 (was attempt/T-145) MERGED
+  2026-10-21 at the owner's request; not seen in game (no companion or
+  rusted cube on a button was checked). The dark standard lit cube is NOT
+  fixed by it.
+- Spikes under the button and jitter on buttons: not looked at this run.
+- Owner playtest 9 (2026-10-20, build 014ab6e): button press works, but "cubes turn black when they're activated and yellow" and "it adds weird spikes under the button almost like there's grass under it"; "buttons are still juttery/buggy when [cubes are] put on buttons".
+- Section 0: no press-down when used or when a cube lands; cubes kept their
+  off skin; cubes twitched on buttons (press/unpress flicker as they settle).
+- Press + twitch (feb5072): buttons were a baked pose; now animated
+  (down/idledown/up and variants), release only after 0.15 s clear.
+- Cube skins (2e8df1a): skin was baked in at spawn. Cubes whose model has a
+  lit skin (metal_box 0/1 -> 2/3; reflection/antique have none) spawn both
+  skins' draws in SkinVariant groups; floor_buttons sets ModelSkin lit while
+  the cube rests on a pressed button. Unit test cube_lit_skins.
+- Evidence (autopilot, sp_a1_intro2, `propto box` onto button_1-button): old
+  build cube ring stays blue on the pressed button, new build ring lit
+  yellow; moved off the button, ring blue again. Not owner-verified.
+- Not done: spheres (mp_ball skin 1 is orange, unconfirmed as the lit skin).
+
+
+### T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall  (P2, TODO; playable; owner playtest 10)
+- Missing floor: look down a few seconds after the animation where GLaDOS
+  moves the floor, at `setpos 121.78 -354.91 -90.00`.
+- Wheatley: in the room where you get the laser cube, he appears for a
+  moment and stays visible through the wall after the wall-closing
+  animation: `setpos -529.75 327.04 -90.00; setang -5.15 87.45 0.00`.
+- A floating texture to the right of that spot.
+- Done when all three are gone and the map still plays through.
+
+### T-218 Performance: 60-70 fps and stutter on an M4 Pro; portals cost a lot; v-sync unclear  (P2, TODO; owner playtest 10)
+- Owner: "pretty poor for my m4 pro ... 60-70fps and its stuttery and im not
+  sure if vsync works correctly, portals lower performance". Measure first:
+  frame times (P2_TRACE / overlay) with and without portals in view on a few
+  maps; what v-sync/frame-limit settings actually do (present mode); where
+  the stutter comes from (shader compiles, asset loads, GC-like spikes,
+  portal render targets). No full-map visibility culling exists (audit).
+  Fix the biggest cost first; report fps before/after on the same views.
+
+### T-219 No footstep or jump sounds in water (intro3)  (P3, TODO; owner playtest 10)
+- Splash on the fall works; walking or jumping in the water is silent.
 
 ## Open: engine gaps (2026-10-21 audit: upstream READMEs + all-maps sweep; docs/UPSTREAM_GAPS.md)
 
@@ -506,6 +603,7 @@ them until the owner lifts the hold; search that file by task id.
 - Checklists in docs/STATUS.md.
 
 ## Done (newest first; details in git log and docs/STATUS.md)
+- 2026-10-22 Owner playtest 10 (build 0634859) confirmed: T-114 intro1 door waits; T-143 clock digits; T-175 fog outside the ride (sky still dark: later); T-147 no black screen; T-148 portals behind glass; T-131 intro3 floor/roof; T-150 intro3 smoke + splash and sp_a2_intro gun glow; T-139/T-118 no loud glass at intro4; T-120 voice-line timing and all elevators; T-149 screens and lights; T-133 Wheatley falls; T-153 gun drops (some particles remain); T-128 laser_stairs playable; dying and saving work; no softlocks seen.
 - 2026-10-22 T-130 intro6 resting cube falls through a portal opened under it (0634859): owner verified; sp_a1_intro6 VERIFIED, chapter 1 fully verified pending the owner's full-chapter replay.
 - 2026-10-21 T-146 intro1 exit door wiggles half stuck (de1d09b): owner confirmed ("i just saw the door fixed"). Oscillator logic_timers fire OnTimerHigh/Low in turn.
 - 2026-10-21 Owner-confirmed (round 7, build 6e0efbf): T-175 sp_a1_intro1 ride: the big room outside the container has no fog in parts, black sky; T-140 Game-placed portals: no screen shake or sound; T-117 Blocky shadows (run-time fog "looks better", portal shake good, shadows good). T-153: gun drop and arms confirmed.
