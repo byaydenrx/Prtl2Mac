@@ -209,6 +209,18 @@ fn trace_lasers(
         excluded.push(p);
     }
     let mut powered: HashSet<usize> = HashSet::new();
+    // Relays a leg passes through, whatever ends it (a wall, a portal, the
+    // player): a leg into a portal used to skip them (T-230).
+    let pass_relays = |a: Vec3, b: Vec3, powered: &mut HashSet<usize>| {
+        for &r in &relays {
+            let rt = &ents.list[r].transform;
+            let up = rt.rotation * Vec3::Y;
+            let base = rt.translation + up * (8.0 * U);
+            if segment_distance(a, b, base, base + up * (48.0 * U)) < 12.0 * U {
+                powered.insert(r);
+            }
+        }
+    };
     let mut burn: Option<Vec3> = None;
     let on: Vec<usize> = state.on.iter().copied().collect();
     for emitter in on {
@@ -250,11 +262,13 @@ fn trace_lasers(
             if let Some(t) = player_t {
                 len = t;
                 state.legs.push((o, o + dir * len));
+                pass_relays(o, o + dir * len, &mut powered);
                 burn = Some(dir);
                 break;
             }
             if let Some((t, pair, walls)) = through {
                 state.legs.push((o, o + dir * t));
+                pass_relays(o, o + dir * t, &mut powered);
                 let p = o + dir * t;
                 dir = pair.map_dir(dir).normalize();
                 o = pair.map_point(p) + dir * 1e-3;
@@ -265,15 +279,7 @@ fn trace_lasers(
             }
             let end = o + dir * len;
             state.legs.push((o, end));
-            // Relays the leg passes through.
-            for &r in &relays {
-                let rt = &ents.list[r].transform;
-                let up = rt.rotation * Vec3::Y;
-                let base = rt.translation + up * (8.0 * U);
-                if segment_distance(o, end, base, base + up * (48.0 * U)) < 12.0 * U {
-                    powered.insert(r);
-                }
-            }
+            pass_relays(o, end, &mut powered);
             let Some(h) = hit else { break };
             let Some(i) = ent_of(h.entity) else { break };
             state.hit.push(i);

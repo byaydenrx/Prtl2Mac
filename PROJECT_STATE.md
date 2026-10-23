@@ -84,7 +84,7 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 3 | sp_a2_bridge_intro | y | y | y | y | y | VERIFIED | owner playtest 12: playable, visuals fixed (T-221) |
 | 3 | sp_a2_bridge_the_gap | y | y | y | y | y | VERIFIED | owner playtest 12: playable; Wheatley and the bird buggy (T-232) |
 | 3 | sp_a2_turret_intro | y | y | y | y | y | VERIFIED | owner playtest 12: completable; turrets don't shoot or tip over but do damage (T-229) |
-| 3 | sp_a2_laser_relays | y | y | x | y | - | BLOCKED | owner playtest 12: a laser through a portal doesn't power the relays, can't finish (T-230) |
+| 3 | sp_a2_laser_relays | y | y | y | y | - | IN PROGRESS | T-230 fixed: all three relays power and the exit opens (autopilot); owner to replay |
 | 3 | sp_a2_turret_blocker, laser_vs_turret, pull_the_rug | y | y | - | y | - | IN PROGRESS | owner playtest 12: turret_blocker finished only with godmode, laser_vs_turret noclipped (T-229); pull_the_rug no bugs seen, not finished |
 | 4 | sp_a2_column_blocker, laser_chaining, triple_laser, bts1, bts2 | - | - | - | - | - | NOT STARTED | T-010 |
 | 5 | sp_a2_bts3..bts6, sp_a2_core | - | - | - | - | - | NOT STARTED | T-011 |
@@ -96,7 +96,6 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 9 | sp_a4_finale1..finale4 | - | - | - | - | - | NOT STARTED | T-015 |
 
 ## Release blockers (open P0/P1)
-- T-230: laser_relays can't be finished (laser through a portal doesn't power relays).
 - T-229: turrets don't work (turret_blocker, laser_vs_turret unplayable without cheats).
 - T-211 gels (P1) before chapters 6-8; gel isn't kept in saves (saves.rs).
 - (The 2026-10-20 list here is closed: T-129 and T-132 fixed by autoruns,

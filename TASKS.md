@@ -24,7 +24,7 @@ The one source of what's next: sessions and autoruns take the first line not
 marked FIXED, DONE or BLOCKED. Crashes and softlocks found on the way go to
 the top. Menus, on-hold and "later" tasks are never taken without the owner.
 Now (owner playtest 12, playability first):
-1. T-230 sp_a2_laser_relays: a laser that has gone through a portal doesn't power the relays (unsolvable without noclip; owner playtest 12)
+1. T-230 sp_a2_laser_relays: a laser that has gone through a portal doesn't power the relays (FIXED, awaiting owner replay; was unsolvable)
 2. T-229 Turrets don't work: no shooting animation, beams or bullets, knocking or dropping them does nothing, but they still do damage (turret_blocker and laser_vs_turret unplayable without godmode/noclip; owner playtest 12, "definitely prioritize")
 3. T-231 Lasers aim wrong globally: a laser angles up or down instead of going straight (owner playtest 12)
 4. T-232 sp_a2_bridge_the_gap: Wheatley glitches around; the bird looks wrong (owner playtests 11, 12)
@@ -69,7 +69,21 @@ Lower:
 
 ## Active tasks (in priority order)
 
-### T-230 sp_a2_laser_relays: a laser that has gone through a portal doesn't power the relays  (P1, TODO; owner playtest 12)
+### T-230 sp_a2_laser_relays: a laser that has gone through a portal doesn't power the relays  (P1, FIXED, awaiting owner replay; owner playtest 12)
+- 2026-10-23 FIXED. Cause: lasers.rs checked relays only on a beam's last
+  leg; a leg that ended by entering a portal (or on the player) skipped
+  them. In laser_relays the reflection cube's leg passes catcher_1 into a
+  portal, so catcher_1 dropped out the moment the portal opened; the
+  branch listener went "mixed" and closed the exit door in the same frame.
+  Fix: every leg checks the relays it passes. Evidence (autopilot: spawn
+  laser_cube, cube on the beam at -544 -704, blue portal east wall
+  448 -704, orange north wall 256 -320): before catcher_1 OnUnpowered,
+  onmixed -> exit_door_close_rl; after catcher_1..3 stay powered,
+  onalltrue -> exit_door_open_rl, door stays open. Smaller repro: cube leg
+  through catcher_2 into a portal: before catcher_2 unpowered, after
+  powered. Regression: starting laser state identical on 7 laser maps; 202
+  tests pass. The legs in that run also show T-231's tilt (the cube leg
+  climbs z 18 -> 58 toward the portal).
 - Owner: "the laser goes through multiile of the glass things but after it
   goes through a portal it doesnt so i cant trigger all 3 to finish the
   level". Laser relays (prop_laser_relay) pass the beam on and light up; the
