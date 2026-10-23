@@ -39,7 +39,7 @@ Owner 2026-10-22 (playtest 10): playability first. The owner plays the
 campaign himself; fix what stops him, then what he called "necessary now".
 Owner's order (2026-10-22 23:20): T-216, T-218, T-145, T-217; everything
 else (items 1-8 below and the "Later" list) waits until the owner says.
-0a. T-216 sp_a2_catapult_intro: the plate throws the cube too low (blocks chapter 2).
+0a. T-216 sp_a2_catapult_intro: the plate throws the cube too low. FIXED, awaiting replay.
 0b. T-218 performance (60-70 fps, stutter, portals, v-sync).
 0c. T-145 cubes dark and jittery on buttons, every chapter.
 0d. T-217 sp_a2_laser_stairs: missing floor, Wheatley through the wall, floating texture.
@@ -78,24 +78,6 @@ them until the owner lifts the hold; search that file by task id.
 (none)
 
 ## Open: P1
-
-### T-216 sp_a2_catapult_intro: the faith plate throws the cube too low; blocks chapter 2  (P1, TODO; owner playtest 10)
-- Owner (2026-10-22 23:20): catching and carrying work fine ("cubes and props
-  can be caught midair"). The problem is the plate's throw: "the cube doesn't
-  go high enough up". T-198 (b55fc08) "improved the issue but didn't fix it".
-  So it is the launch of a physics prop by trigger_catapult, not the carry.
-- Leads: how triggers.rs launches props vs the player (T-198 rebuilt the
-  player path from server.dll CTriggerCatapult: 3D-distance flight time,
-  player feet aimed 32 u under the target, exact-velocity arcs; check the
-  prop path got the same: physicsSpeed vs playerSpeed, the prop's aim point
-  (its centre, not feet), and that nothing slows it after launch: avian
-  damping/gravity scale, prop mass 40 kg (T-144), contact with the plate, the
-  speed cap HOLD_MAX_SPEED if a held-prop path touches it, sv_gravity 600).
-  Source also adds a random angular impulse to props (skipped; harmless?).
-  Compare the arc with Windows (scripts/winref.sh; server.dll study allowed).
-- Done when the cube reaches its target in catapult_intro and the owner can
-  finish the map; regression: player launches unchanged
-  (scripts/check_faith_plates.py on catapult_intro, trust_fling, pit_flings).
 
 ### T-145 Cubes go dark and jitter on buttons, every chapter  (P1 by owner, TODO; back from hold 2026-10-22)
 - Owner playtest 10 (2026-10-22): "cubes still show as black and are
@@ -326,6 +308,26 @@ them until the owner lifts the hold; search that file by task id.
 ## Open: P4
 
 ## Awaiting owner replay (fixed, autopilot evidence)
+
+### T-216 sp_a2_catapult_intro: the faith plate throws the cube too low; blocks chapter 2  (P1, FIXED, awaiting owner replay)
+- Owner (playtest 10): catching works, "the cube doesn't go high enough up".
+- Cause: props had avian `LinearDamping(0.05)`, which bled ~6% of the cube's
+  speed per second of flight. The launch itself was right (850 u/s straight
+  up, catapult2c). Windows Portal 2 reference (netcon + vscript printing the
+  cube's z every 50 ms, docs/STATUS.md): the cube peaks at z 190 on the first
+  throw, 204 after; ours peaked at 165-171, level with the flying player's
+  feet (feet 152 crossing the plate on the 2a flight, same in both games)
+  instead of his eyes. Fix (props.rs): no linear damping on props.
+- Evidence: peaks old 165/171 -> new 188, 196-200 (Windows 190, 204); bounce
+  period 2.82 s (Windows 2.81 s); autopilot ride on plate 2a + use at the
+  apex catches the cube and carries it to the far plate. Regression: p2_game
+  tests 202 pass; check_faith_plates (catapult_intro, trust_fling,
+  pit_flings) same as before within sampling; 20 maps (chapter 1-2, pit_flings,
+  fizzler_intro, sp_a3_jump_intro, sp_a4_intro, sp_a4_tb_catch) load with no
+  panics and every named cube at rest from 4 s to 9 s.
+- Replay: sp_a2_catapult_intro: ride the far plate across the room and grab
+  the cube at the top of its bounce over the middle plate; it should be at
+  eye height. Then finish the map.
 
 ### T-130 sp_a1_intro6: the resting cube didn't fall through a portal opened under it  (P1, DONE 2026-10-22: owner replayed and verified intro6)
 - Owner playtest 8 (section 4) and 2026-10-22: the cube sits in a pit under

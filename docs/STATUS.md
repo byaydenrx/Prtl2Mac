@@ -1526,3 +1526,16 @@ Start`/`Stop` to poke one; `cl_showfps 1` for cost):
   the same insert as their re-attached colliders (props.rs
   `insert_prop_body`, `PROP_HOOKS`); before, `modify_contacts` never ran
   and a cube resting where a portal opened stayed on the floor.
+
+## Measuring Windows Portal 2 numerically (T-216, 2026-10-23)
+Windows Portal 2 has VScript: over winref.sh's netcon (-netconport) a
+session can send `sv_cheats 1`, then `script ::c <- Entities.FindByName(null,
+"<name>")`, `script c.SetOrigin(Vector(x,y,z))`, and poll
+`script printl("Z " + c.GetOrigin().z)` (or `GetPlayer().GetOrigin()`)
+every 50 ms, timestamping the replies on the Mac side. That gives real
+trajectories to compare with our autopilot `info`/`log` output. T-216 used it
+on sp_a2_catapult_intro: a cube dropped on catapult2c (physicsSpeed 850,
+straight up) peaks at z 190 (first throw from a slow fall) and 204 after,
+bounce period 2.81 s, so Source loses almost nothing to drag; ours lost ~35
+units to avian `LinearDamping(0.05)`, now removed from props. The player's
+2a flight matched Windows to the unit (apex z 156 near y -219).

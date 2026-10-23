@@ -159,7 +159,8 @@ pub fn insert_prop_body(
         Mass(PROP_MASS),
         Friction::new(0.6),
         Restitution::new(0.05),
-        LinearDamping(0.05),
+        // No linear damping: Portal 2 cubes keep their speed in the air
+        // (catapult_intro's plate throws the cube 600 units up, T-216).
         AngularDamping(0.3),
         // Never asleep: world pieces they rest on move without waking
         // them (a dropper's iris opening, a func_brush switched off).
