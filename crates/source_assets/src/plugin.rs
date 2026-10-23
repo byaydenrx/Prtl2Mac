@@ -58,7 +58,7 @@ impl Plugin for SourceMapPlugin {
         .add_plugins(crate::proxy::MaterialProxyPlugin)
         .add_plugins(crate::projected::ProjectedLightPlugin)
         .add_plugins(crate::glass::GlassPlugin)
-        .add_systems(PostUpdate, relight_moved_props.after(TransformSystems::Propagate));
+        .add_systems(PostUpdate, (relight_moved_props.after(TransformSystems::Propagate), update_stretch_surfaces));
         if std::env::var_os("P2_TRACE_BONE").is_some() {
             app.add_systems(PostUpdate, trace_bones.after(TransformSystems::Propagate));
         }
@@ -276,6 +276,35 @@ fn relight_moved_props(
             draw.vertices = Arc::new(vertices);
             surface.0 = Arc::new(draw);
         }
+    }
+}
+
+/// On the Valve surface of a model's [`crate::models::STRETCH`] part:
+/// per vertex, the [`BonePart`] it follows and its position and normal in
+/// that bone's space (Source axes). [`update_stretch_surfaces`] moves the
+/// vertices whenever a bone part moves.
+#[derive(Component, Clone)]
+pub struct StretchSurface {
+    verts: Arc<Vec<(Entity, Vec3, Vec3)>>,
+}
+
+/// Puts each [`StretchSurface`] vertex where its bone part now holds it.
+fn update_stretch_surfaces(mut surfaces: Query<(&mut crate::valve::ValveSurface, &StretchSurface)>, parts: Query<Ref<Transform>, With<BonePart>>) {
+    for (mut surface, st) in &mut surfaces {
+        if !st.verts.iter().any(|(p, ..)| parts.get(*p).is_ok_and(|t| t.is_changed())) {
+            continue;
+        }
+        let mut draw = (*surface.0).clone();
+        let mut vertices = (*draw.vertices).clone();
+        for (v, &(part, pos, n)) in vertices.iter_mut().zip(st.verts.iter()) {
+            let Ok(t) = parts.get(part) else { continue };
+            let p = world_to_source(t.transform_point(source_to_world(pos)));
+            let wn = t.rotation * source_dir_to_world(n);
+            v.position = [p.x, p.y, p.z, 1.0];
+            v.normal = [wn.x, -wn.z, wn.y, 1.0];
+        }
+        draw.vertices = Arc::new(vertices);
+        surface.0 = Arc::new(draw);
     }
 }
 
@@ -1534,12 +1563,14 @@ fn spawn_model(
         }
     }
     let mut parts = HashMap::new();
-    // (mesh, light normals if not its own source normals, parent entity)
-    let draws: Vec<(Cow<crate::models::ModelMesh>, Option<Vec<Vec3>>, Entity)> = match pose {
-        ModelPose::Stored => model.meshes.iter().map(|m| (eyes(model, Cow::Borrowed(m)), None, e)).collect(),
+    // (mesh, light normals if not its own source normals, parent entity,
+    // per-vertex (bone part, bone-space position, normal) of a stretch part)
+    type Stretch = Option<Vec<(Entity, Vec3, Vec3)>>;
+    let draws: Vec<(Cow<crate::models::ModelMesh>, Option<Vec<Vec3>>, Entity, Stretch)> = match pose {
+        ModelPose::Stored => model.meshes.iter().map(|m| (eyes(model, Cow::Borrowed(m)), None, e, None)).collect(),
         ModelPose::Posed(seq) => match model.posed_meshes(seq) {
-            Cow::Borrowed(ms) => ms.iter().map(|m| (eyes(model, Cow::Borrowed(m)), None, e)).collect(),
-            Cow::Owned(ms) => ms.into_iter().map(|m| (eyes(model, Cow::Owned(m)), None, e)).collect(),
+            Cow::Borrowed(ms) => ms.iter().map(|m| (eyes(model, Cow::Borrowed(m)), None, e, None)).collect(),
+            Cow::Owned(ms) => ms.into_iter().map(|m| (eyes(model, Cow::Owned(m)), None, e, None)).collect(),
         },
         ModelPose::Animated(seq) => {
             let sk = model.skeleton.as_ref().expect("animated models have a skeleton");
@@ -1550,8 +1581,12 @@ fn spawn_model(
                 .iter()
                 .flat_map(|m| crate::models::split_by_bone(&eyes(model, Cow::Borrowed(m)), &pose_to_bone, &bone_to_model))
                 .collect();
-            let bones: std::collections::BTreeSet<usize> =
-                split.iter().map(|p| p.bone).chain(model.physics_bones.iter().flatten().copied()).filter(|&b| b < sk.bones.len()).collect();
+            let bones: std::collections::BTreeSet<usize> = split
+                .iter()
+                .flat_map(|p| std::iter::once(p.bone).chain(p.stretch.iter().map(|s| s.0)))
+                .chain(model.physics_bones.iter().flatten().copied())
+                .filter(|&b| b < sk.bones.len())
+                .collect();
             for b in bones {
                 let part = commands
                     .spawn((
@@ -1569,7 +1604,8 @@ fn spawn_model(
                 .into_iter()
                 .map(|p| {
                     let parent = parts.get(&p.bone).copied().unwrap_or(e);
-                    (Cow::Owned(p.mesh), Some(p.light_normals), parent)
+                    let stretch = (!p.stretch.is_empty()).then(|| p.stretch.iter().map(|&(b, pos, n)| (parts.get(&b).copied().unwrap_or(e), pos, n)).collect());
+                    (Cow::Owned(p.mesh), Some(p.light_normals), parent, stretch)
                 })
                 .collect()
         }
@@ -1588,7 +1624,7 @@ fn spawn_model(
         }
     }
     for (di, skin, variant) in skinned {
-        let (mesh, light_normals, e) = &draws[di];
+        let (mesh, light_normals, e, stretch) = &draws[di];
         let (mesh, mut e) = (&**mesh, *e);
         if let Some(vis) = variant {
             e = commands.spawn((SkinVariant(skin), Transform::IDENTITY, vis, ChildOf(e))).id();
@@ -1644,6 +1680,9 @@ fn spawn_model(
                         ));
                         if relit {
                             ec.insert(RelightNormals(Arc::new(normals.to_vec())));
+                        }
+                        if let Some(st) = stretch {
+                            ec.insert(StretchSurface { verts: Arc::new(st.clone()) });
                         }
                         continue;
                     }

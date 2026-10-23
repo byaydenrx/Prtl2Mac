@@ -501,6 +501,7 @@ pub(crate) fn prepare_surfaces(
             let bytes: &[u8] = bytemuck::cast_slice(&d.vertices);
             if !live.contains(&old) && prepared.meshes[slot].vertex.size() == bytes.len() as u64 {
                 queue.write_buffer(&prepared.meshes[slot].vertex, 0, bytes);
+                prepared.meshes[slot].bounds = vertex_bounds(&d.vertices);
                 prepared.mesh_index.remove(&old);
                 prepared.mesh_index.insert(key, slot);
                 prepared.slot_keys[slot] = key;
@@ -517,10 +518,7 @@ pub(crate) fn prepare_surfaces(
             contents: bytemuck::cast_slice(&d.indices),
             usage: BufferUsages::INDEX,
         });
-        let bounds = d.vertices.iter().fold((Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)), |(lo, hi), v| {
-            let p = Vec3::new(v.position[0], v.position[1], v.position[2]);
-            (lo.min(p), hi.max(p))
-        });
+        let bounds = vertex_bounds(&d.vertices);
         prepared.mesh_index.insert(key, prepared.meshes.len());
         prepared.slot_of_indices.insert(key.1, prepared.meshes.len());
         prepared.slot_keys.push(key);
@@ -695,6 +693,14 @@ pub(crate) fn prepare_surfaces(
         prepared.constants = Some(buffer);
     }
     queue.write_buffer(prepared.constants.as_ref().unwrap(), 0, bytes);
+}
+
+/// Bounds of a draw's vertices (Source units, model space).
+fn vertex_bounds(vertices: &[FatVertex]) -> (Vec3, Vec3) {
+    vertices.iter().fold((Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)), |(lo, hi), v| {
+        let p = Vec3::new(v.position[0], v.position[1], v.position[2]);
+        (lo.min(p), hi.max(p))
+    })
 }
 
 pub(crate) fn valve_main_pass(

@@ -41,7 +41,7 @@ Owner's order (2026-10-22 23:20): T-216, T-218, T-145, T-217; everything
 else (items 1-8 below and the "Later" list) waits until the owner says.
 0a. T-216 sp_a2_catapult_intro: the plate throws the cube too low. FIXED, awaiting replay.
 0b. T-218 performance. PARTLY FIXED (culling), awaiting replay; MSAA-at-4K and v-sync-off findings in its entry.
-0c. T-145 cubes on buttons: dark cubes FIXED (relight); spikes and jitter in progress.
+0c. T-145 cubes on buttons: dark cubes and spikes FIXED; jitter in progress.
 0d. T-217 sp_a2_laser_stairs: missing floor, Wheatley through the wall, floating texture.
 0e. Then wait for the owner's next playtest (chapter 2 from catapult_intro);
     his reports go before everything below.
@@ -79,7 +79,7 @@ them until the owner lifts the hold; search that file by task id.
 
 ## Open: P1
 
-### T-145 Cubes go dark and jitter on buttons, every chapter  (P1 by owner, IN_PROGRESS: dark cubes FIXED (see 2026-10-23), spikes and jitter next)
+### T-145 Cubes go dark and jitter on buttons, every chapter  (P1 by owner, IN_PROGRESS: dark cubes and button spikes FIXED (see 2026-10-23), jitter next)
 - 2026-10-23 dark cubes, cause: a moving prop's vertex light was baked once
   where it spawned and kept forever. Dropper and template cubes spawn in
   the dropper's tube, where the ambient light is 0.000, so they were black
@@ -96,6 +96,19 @@ them until the owner lifts the hold; search that file by task id.
   catapult_intro dropper cube on the floor 84 -> 110 (floor 34 both);
   intro5/intro6 cubes slightly brighter. 20-map load check clean, fps
   unchanged, tests 202 + 72 pass.
+- 2026-10-23 spikes, cause: animated models are drawn as rigid per-bone
+  parts and each triangle went to one bone. portal_button(_damaged01/02)
+  has 80 triangles with corners pinned to the base and to the top; pressed,
+  the top drops 7.3 u (13.64 -> 6.35) and those triangles stayed up with
+  the base, poking through the red pad. Fix (models.rs split_by_bone,
+  plugin.rs StretchSurface): such triangles go to a stretch part whose
+  vertices each follow their own bone and are moved when bone parts move,
+  as skinning stretches them. Also used by the faith plate, Wheatley,
+  GLaDOS pieces, a chamber door, the box dropper, an arm and intro1's
+  container-ride debris (possibly T-164's "spiky debris"; not checked).
+  Evidence: intro2 button pressed, spikes before, none after; released pose
+  normal; plate arm mid-launch, Wheatley and GLaDOS shots unchanged; unit
+  test pinned_mixed_triangles_stretch.
 - Left: under intro2's button lamp the relit cube's top is a saturated
   pinkish white where Windows shows grey, and its sides stay darker than
   Windows: our ambient for models (leaf-average samples, world-light term)

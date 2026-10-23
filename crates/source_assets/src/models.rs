@@ -234,7 +234,16 @@ pub struct RigidPart {
     /// Per-vertex model-space Source normals in the pose the part was split
     /// for, for baked lighting (which doesn't follow the animation).
     pub light_normals: Vec<Vec3>,
+    /// For the [`STRETCH`] part only: per vertex, the bone it follows and its
+    /// position and normal in that bone's space (Source axes).
+    pub stretch: Vec<(usize, Vec3, Vec3)>,
 }
+
+/// [`RigidPart::bone`] of the part holding triangles whose corners are
+/// pinned to different bones. It is drawn in model space and its vertices
+/// are moved one by one as their bones move (a floor button's skirt between
+/// its base and its top), as skinning stretches them.
+pub const STRETCH: usize = usize::MAX;
 
 /// The bone a triangle follows: the one with the most weight over its three
 /// vertices (ties go to the lower bone). Bones past `bones` are ignored.
@@ -270,9 +279,16 @@ fn dominant_bone(weights: [&[(u8, f32); 3]; 3], bones: usize) -> usize {
 pub fn split_by_bone(mesh: &ModelMesh, pose_to_bone: &[Affine3A], bone_to_model: &[Affine3A]) -> Vec<RigidPart> {
     let mut parts: Vec<RigidPart> = Vec::new();
     let mut remaps: Vec<std::collections::HashMap<u32, u32>> = Vec::new();
+    let bones = pose_to_bone.len();
+    let weights = |v: usize| mesh.bone_weights.get(v).unwrap_or(&[(0, 1.0), (0, 0.0), (0, 0.0)]);
+    // The bone a vertex follows alone: its heaviest one.
+    let vertex_bone = |v: usize| weights(v).iter().filter(|(b, wt)| *wt > 0.0 && (*b as usize) < bones).fold((0usize, 0.0f32), |a, &(b, wt)| if wt > a.1 { (b as usize, wt) } else { a }).0;
     for t in mesh.indices.chunks_exact(3) {
-        let w = |k: usize| mesh.bone_weights.get(t[k] as usize).unwrap_or(&[(0, 1.0), (0, 0.0), (0, 0.0)]);
-        let bone = dominant_bone([w(0), w(1), w(2)], pose_to_bone.len());
+        let w = |k: usize| weights(t[k] as usize);
+        // Corners fully weighted to different bones: no one bone can carry it.
+        let pins: Vec<usize> = (0..3).filter_map(|k| w(k).iter().find(|(b, wt)| *wt >= 0.99 && (*b as usize) < bones).map(|(b, _)| *b as usize)).collect();
+        let stretch = pins.iter().any(|&b| b != pins[0]);
+        let bone = if stretch { STRETCH } else { dominant_bone([w(0), w(1), w(2)], bones) };
         let pi = match parts.iter().position(|p| p.bone == bone) {
             Some(i) => i,
             None => {
@@ -280,28 +296,36 @@ pub fn split_by_bone(mesh: &ModelMesh, pose_to_bone: &[Affine3A], bone_to_model:
                     bone,
                     mesh: ModelMesh { material_index: mesh.material_index, eyeball: mesh.eyeball, ..Default::default() },
                     light_normals: Vec::new(),
+                    stretch: Vec::new(),
                 });
                 remaps.push(Default::default());
                 parts.len() - 1
             }
         };
-        let to_bone = pose_to_bone.get(bone).copied().unwrap_or(Affine3A::IDENTITY);
-        let light = bone_to_model.get(bone).copied().unwrap_or(Affine3A::IDENTITY);
         let (part, remap) = (&mut parts[pi], &mut remaps[pi]);
         for &vi in t {
             let v = vi as usize;
             let ni = *remap.entry(vi).or_insert_with(|| {
                 let m = &mut part.mesh;
-                let p = to_bone.transform_point3(mesh.source_positions[v]);
-                let n = to_bone.transform_vector3(mesh.source_normals[v]).normalize_or_zero();
+                let vb = if stretch { vertex_bone(v) } else { bone };
+                let to_bone = pose_to_bone.get(vb).copied().unwrap_or(Affine3A::IDENTITY);
+                let light = bone_to_model.get(vb).copied().unwrap_or(Affine3A::IDENTITY);
+                let mut p = to_bone.transform_point3(mesh.source_positions[v]);
+                let mut n = to_bone.transform_vector3(mesh.source_normals[v]).normalize_or_zero();
+                if stretch {
+                    // Drawn in model space, in the split pose to begin with.
+                    part.stretch.push((vb, p, n));
+                    p = light.transform_point3(p);
+                    n = light.transform_vector3(n).normalize_or_zero();
+                }
                 m.positions.push(source_to_world(p).to_array());
                 m.normals.push(source_dir_to_world(n).to_array());
                 m.uvs.push(mesh.uvs[v]);
                 m.source_normals.push(n);
                 m.source_positions.push(p);
                 m.vvd_index.push(mesh.vvd_index[v]);
-                m.bone_weights.push([(bone as u8, 1.0), (0, 0.0), (0, 0.0)]);
-                part.light_normals.push(light.transform_vector3(n).normalize_or_zero());
+                m.bone_weights.push([(vb as u8, 1.0), (0, 0.0), (0, 0.0)]);
+                part.light_normals.push(if stretch { n } else { light.transform_vector3(n).normalize_or_zero() });
                 (m.positions.len() - 1) as u32
             });
             part.mesh.indices.push(ni);
@@ -981,6 +1005,33 @@ mod part_tests {
         // Source +Z (up) turned onto +X stays +X in the world.
         let up_to_x = Affine3A::from_quat(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2));
         assert!((bone_transform(up_to_x).rotation * Vec3::Y - Vec3::X).length() < 1e-5);
+    }
+
+    /// A triangle whose corners are pinned to different bones goes to the
+    /// stretch part; each of its vertices, moved by its own bone, lands
+    /// where skinning puts it. Blended corners keep the rigid split.
+    #[test]
+    fn pinned_mixed_triangles_stretch() {
+        let bind = bones();
+        let pose_to_bone: Vec<Affine3A> = bind.iter().map(|m| m.inverse()).collect();
+        let mut m = mesh();
+        // Triangle 2-3-4 with every corner pinned: 2 to bone 0, 3 and 4 to bone 1.
+        m.bone_weights[2] = [(0, 1.0), (0, 0.0), (0, 0.0)];
+        m.bone_weights[4] = [(1, 1.0), (0, 0.0), (0, 0.0)];
+        let parts = split_by_bone(&m, &pose_to_bone, &bind);
+        assert_eq!(parts.iter().map(|p| p.bone).collect::<Vec<_>>(), vec![0, STRETCH]);
+        let s = &parts[1];
+        assert_eq!(s.stretch.iter().map(|x| x.0).collect::<Vec<_>>(), vec![0, 1, 1]);
+        let posed = [Affine3A::from_translation(Vec3::new(0.0, 0.0, 5.0)), Affine3A::from_translation(Vec3::new(0.0, 0.0, -7.0))];
+        for (k, &(b, p, _)) in s.stretch.iter().enumerate() {
+            let orig = (s.mesh.vvd_index[k] - 10) as usize;
+            let skinned = (posed[b] * pose_to_bone[b]).transform_point3(m.source_positions[orig]);
+            assert!((posed[b].transform_point3(p) - skinned).length() < 1e-4);
+            // Drawn in model space at the split pose to begin with.
+            assert!((s.mesh.source_positions[k] - m.source_positions[orig]).length() < 1e-4);
+        }
+        // The shared blended corner of the fixture stays rigid.
+        assert!(split_by_bone(&mesh(), &pose_to_bone, &bind).iter().all(|p| p.bone != STRETCH));
     }
 
     /// A posed bone moves its part rigidly (what the animation system does
