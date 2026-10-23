@@ -9,6 +9,13 @@ The autorun no longer stops itself or uses a STOP file (docs/AUTORUN.md
 T-217, T-222, T-223 wait for the owner's replay (see Fix attempts below).
 
 ## Last update
+2026-10-23 evening, manual session: owner playtest 12 recorded (T-145,
+T-220, T-222 done; bridge_intro, bridge_the_gap, turret_intro VERIFIED;
+new T-229 turrets, T-230 laser_relays, T-231 laser tilt, T-232 Wheatley and
+bird). T-230 FIXED (c7a8308, app 0.1.0+c7a8308.20261023T2012Z): relays now power on every
+beam leg, incl. legs into a portal; laser_relays' exit opens (autopilot).
+Next: T-229 turrets (owner: "definitely prioritize").
+Before that:
 2026-10-23 evening, manual session: T-145 JITTER FIXED (c38ce98, app
 0.1.0+c38ce98.20261023T1930Z). Cubes rocked and slid on floor buttons
 because avian/parry clips only 4 corners of a face and the button pad is
@@ -111,10 +118,9 @@ fixed on branch attempt/T-217 (2fe2ac4, pushed to origin), regression
 check not done; details in TASKS.md T-217.
 
 ## Where things stand
-- dist/Prtl2Mac.app = 0.1.0+c38ce98.20261023T1930Z (T-145 jitter fix, T-220 regression fix).
-- Owner to replay: T-145 put cubes on floor buttons in any map (also off
-  centre and on the tilted damaged buttons): they should land and stay
-  still, not rock or creep. Say if any button still jitters, and which.
+- dist/Prtl2Mac.app = 0.1.0+c7a8308.20261023T2012Z (T-230 laser relays, T-145, T-220).
+- Owner to replay: T-230 sp_a2_laser_relays: route the beam through all
+  three relays (cube + portals); the exit door should open and stay open.
 - Owner to replay: T-222 sphere_peek: the two arm platforms should end
   angled, the GLaDOS faith plate should launch you while standing on it, and
   no platform should drop you (none reproduced by autopilot on this build;
@@ -143,7 +149,7 @@ check not done; details in TASKS.md T-217.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-TASKS.md "Priority order": T-218 performance, then the feel tasks (T-224 first: may be helped by the T-145 fix). T-217, T-222
+TASKS.md "Priority order": T-229 turrets, then T-231 laser tilt. T-217, T-222
 and T-223 are BLOCKED on owner replay
 (optional: Windows check of the catapult2_up ceiling bounce). The owner plays the campaign himself; no level scripts.
 
