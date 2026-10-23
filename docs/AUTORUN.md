@@ -64,13 +64,10 @@ run after it resets picks the work up from git state and the handoff.
      build id). Header and priority line: "FIXED, awaiting owner replay",
      with cause, evidence and what the owner should replay.
    - PARTIAL: a tested step committed as above; the rest written in the entry.
-   - ATTEMPT (not reproduced, or the cause can't be confirmed): don't change
-     `wheatley`/main code. Best guess on a local branch only: `git switch -c
-     attempt/T-<n>` from `wheatley`, build and tests pass, commit, `git switch
-     wheatley` (clean tree). Never push or merge it, don't rebuild dist with
-     it. Entry: what you tried, suspected cause, "Untested fix: local branch
-     attempt/T-<n> (<commit>), needs owner review/replay"; header and priority
-     line BLOCKED (needs owner).
+   - ATTEMPT (not reproduced, or the cause can't be confirmed): change no code
+     and make no commit or branch. Write in the task entry what you tried, the
+     suspected cause and the untested idea (a few lines of text, no code);
+     header and priority line BLOCKED (needs owner).
    - STUCK / NOT REPRODUCED: no fix; the entry says what you tried; BLOCKED
      with the reason if there is nothing left to try.
    - UNFINISHED: only when nothing could be committed (ran out of time or
@@ -83,6 +80,8 @@ run after it resets picks the work up from git state and the handoff.
    another task.
 
 Rules: never claim owner verification; say what was only autopilot-checked.
+Branches: the autorun uses only `wheatley` (its worktree) and `main`. It never
+creates `attempt/*` or any other branch, and never deletes one.
 Don't touch other checkouts (Portal2-rust-engine is mid-merge). No subagents.
 Avoid regressions: only reproduced, verified fixes reach main.
 

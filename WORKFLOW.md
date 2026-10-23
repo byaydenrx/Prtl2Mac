@@ -120,11 +120,12 @@ for independent tasks with separate files.
 
 ## Unattended runs
 The scheduled task `prtl2mac-auto-resume-2` runs every 10 minutes and follows
-docs/AUTORUN.md (rules, 10-minute timebox, stop rules, regression check, the
-starter text the owner pastes into the task). One row per run in
-docs/AUTORUN_LOG.md via `sh scripts/log_run.sh`. Unverified fixes stay on
-local `attempt/T-<n>` branches for the owner: `git branch --list 'attempt/*'`,
-`git log -p wheatley..attempt/T-<n>`; merge after a replay, or delete.
+docs/AUTORUN.md (rules, 10-minute timebox, the starter text the owner pastes
+into the task). One row per run in docs/AUTORUN_LOG.md via
+`sh scripts/log_run.sh`. The autorun makes no branches: an unverified idea is
+written in the task entry, not committed. Older `attempt/*` branches (before
+2026-10-23) are listed in SESSION_HANDOFF.md under "Fix attempts awaiting the
+owner"; the owner deletes them or merges them after a replay.
 
 ## Windows Portal 2 reference and reverse engineering
 - Windows Portal 2 is installed in the owner's CrossOver bottle "Steam":

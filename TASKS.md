@@ -296,14 +296,14 @@ Lower:
   container ride and camera proxy, Wheatley's rail in intro1/wakeup,
   sp_a2_intro's portal panel, laser_stairs' panel_error_arm and
   brush_armfollow_move03 tiles); shots of the owner's spot before/after;
-  then merge attempt/T-217 into main, make_app. Wheatley-through-wall and
-  the floating texture: not started.
+  then make_app. Wheatley-through-wall and the floating texture: not started.
 - 2026-10-23 05:40 autorun: missing floor is already fixed on main by
   T-221 (18676be, props spawn in their DefaultAnim): same replay on main
   (no attempt/T-217 code) leaves all 18 brush_flooranima_NN tiles flat at
   z -97 on the grid (tile 11 at (80,-352,-97)); mid-animation tile 11 moves
   (-46 at 5 s, -88 at 6 s) and comes back; shot at the owner's spot shows
-  floor. attempt/T-217 (2fe2ac4) is not needed; don't merge it.
+  floor. The old attempt/T-217 (commit 2fe2ac4, branch deleted 2026-10-23) is
+  not needed; don't bring it back.
   Wheatley: he is npc_personality_core sphere_peek01, parented to
   prop_dynamic sphere_bone. sphere_hide_trigger (trigger_look) plays
   sphere_peek_01, then _end at 3 s, then Kills sphere_bone at 4 s. Source's

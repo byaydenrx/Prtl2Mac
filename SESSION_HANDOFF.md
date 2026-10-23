@@ -127,12 +127,12 @@ tracker (method in docs/STATUS.md "Measuring Windows Portal 2
 numerically"), frame benchmarks (P2_FRAMELOG, WORKFLOW.md).
 
 ## Fix attempts awaiting the owner
-- attempt/T-217 (2fe2ac4, pushed): superseded, main already has the floor
-  right (T-221); can be deleted.
-- attempt/T-217-wheatley (978c28c, local): Kill also kills entities
-  parented to the target (laser_stairs Wheatley). Not pushed.
-- attempt/T-212 (9a9373e): skip frame-0 events of a spawn default sequence
-  (sp_a3_00 glass smash at load). Not pushed.
+- attempt/T-217 (origin) was deleted 2026-10-23: superseded by T-221 on main.
+  Its commit 2fe2ac4 is recorded in TASKS.md T-217.
+- On the owner's Mac only (not in this repo, not pushed), to delete or merge
+  after a replay: attempt/T-217-wheatley (978c28c, Wheatley's Kill on
+  children), attempt/T-212 (9a9373e, frame-0 spawn events). Older attempt/
+  branches from before 2026-10-23 may also be there (T-164, T-151, T-112).
 
 ## Checkouts (2026-10-20)
 - `Portal2-wheatley` (this one): level with origin/main; work happens here.
