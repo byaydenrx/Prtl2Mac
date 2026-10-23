@@ -9,6 +9,19 @@ The autorun no longer stops itself or uses a STOP file (docs/AUTORUN.md
 T-217, T-222, T-223 wait for the owner's replay (see Fix attempts below).
 
 ## Last update
+2026-10-23 evening, manual session: T-220 REGRESSION FIXED (af7d368, app
+0.1.0+f73361b.20261023T1844Z). The owner reported that a8fda9c "removed the
+entire cube from the dropper" in bridge_the_gap (softlock). Bevy's clone
+`deny` also denies components that require the denied one, so denying
+avian's ColliderTreeProxyKey stripped the Collider from every template
+copy (all droppers, all maps). Now only the key is denied. Shown by trace:
+copies fell through before; they rest in the dropper after; the save-load
+crash repro stays fixed (exit 0); 5 other dropper maps fine; 202 tests pass.
+T-221 owner-confirmed, moved to docs/TASKS_DONE.md. T-145 jitter was
+paused mid-investigation; findings are in its entry (new P2_PROPTRACE trace).
+Autopilot screenshots were all black this session, old build too (capture
+problem, not a code change).
+Before that:
 2026-10-23 05:42 autorun (ATTEMPT, docs only on main): T-217 laser_stairs:
 the missing floor is already fixed on main by T-221 (all tiles flat on the
 grid after the floor move; attempt/T-217 not needed). Wheatley: Kill didn't
@@ -88,9 +101,7 @@ fixed on branch attempt/T-217 (2fe2ac4, pushed to origin), regression
 check not done; details in TASKS.md T-217.
 
 ## Where things stand
-- dist/Prtl2Mac.app = 0.1.0+18676be.20261023T0847Z (T-216, T-218, T-145, T-220, T-221 fixes).
-- Owner to replay: T-221 bridge_intro from the start: the hallway floor
-  panels rise to floor level, no invisible walls.
+- dist/Prtl2Mac.app = 0.1.0+f73361b.20261023T1844Z (T-220 regression fix on top of 18676be).
 - Owner to replay: T-222 sphere_peek: the two arm platforms should end
   angled, the GLaDOS faith plate should launch you while standing on it, and
   no platform should drop you (none reproduced by autopilot on this build;
@@ -99,8 +110,11 @@ check not done; details in TASKS.md T-217.
   (fixed by T-221); say where Wheatley stays visible through the wall.
 - Owner to replay: T-223 ricochet: the turning platform under the cube at
   the start is visible and solid (not reproduced by autopilot on 18676be).
-- Owner to replay: T-220 load the bridge_the_gap autosave, drop a new cube,
-  finish the map; try picking up a cube resting on a bridge.
+- Owner to replay first: T-220 bridge_the_gap: the dropper's cube should
+  sit in the dropper and drop normally; load the autosave, drop a new cube,
+  finish the map; try picking up a cube resting on a bridge. Any map with
+  a cube dropper was affected by the a8fda9c build, so droppers elsewhere
+  should work again too.
 - Owner to replay: T-216 catapult_intro (grab the bouncing cube at eye
   height from the far plate, finish the map). T-218 fps with cl_showfps 1
   (4K: try Antialiasing off; keep v-sync on). T-145: cubes from droppers
@@ -116,7 +130,7 @@ check not done; details in TASKS.md T-217.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-TASKS.md "Priority order": T-145 jitter, then the feel tasks. T-217, T-222
+TASKS.md "Priority order": T-145 jitter (findings and next steps in its entry), then the feel tasks. T-217, T-222
 and T-223 are BLOCKED on owner replay
 (optional: Windows check of the catapult2_up ceiling bounce). The owner plays the campaign himself; no level scripts.
 
