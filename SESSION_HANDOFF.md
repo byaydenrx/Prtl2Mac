@@ -5,17 +5,18 @@ reads it first (via `sh scripts/resume.sh`).
 
 ## Last update
 2026-10-23 owner session (owner's order T-216, T-218, T-145, T-217):
-T-216 FIXED b9ac2b1 (cube throw matches Windows). T-218 PARTLY FIXED
-51c6aa7 (per-view culling of Valve surfaces; MSAA-at-4K and v-sync-off
-findings in its entry). Working on T-145 next.
+T-216 FIXED b9ac2b1. T-218 PARTLY FIXED 51c6aa7 (culling; MSAA/v-sync
+findings). T-145 PARTLY FIXED: dark cubes c005fbc (relit where they are),
+button spikes bf5006a (stretch parts); jitter open, narrowed (entry).
+Working on T-217 next.
 
 ## Where things stand
-- dist/Prtl2Mac.app = 0.1.0+51c6aa7.20261023T0427Z (T-216 + T-218).
-- Owner to replay: T-216 sp_a2_catapult_intro: ride the far plate across
-  and grab the cube at the top of its bounce over the middle plate (now at
-  eye height, as in Portal 2), then finish the map. T-218: play with the fps
-  counter on (cl_showfps 1); expect higher fps, most of all below 4K; at 4K
-  try Antialiasing off; keep v-sync on (off caps a window at 60).
+- dist/Prtl2Mac.app = 0.1.0+c0cd7f1.20261023T0530Z (T-216, T-218, T-145 fixes).
+- Owner to replay: T-216 catapult_intro (grab the bouncing cube at eye
+  height from the far plate, finish the map). T-218 fps with cl_showfps 1
+  (4K: try Antialiasing off; keep v-sync on). T-145: cubes from droppers
+  (fizzler_intro, laser_stairs) should look grey, not black; pressed
+  buttons should have no spikes; the jitter is not fixed yet.
 - Awaiting the owner: T-112 GLaDOS floor reflection,
   T-153 particles, T-150 motion blur + gun glow, T-213 PotatOS on the gun,
   T-198 faith plates, T-215 winref.sh.
@@ -26,8 +27,8 @@ findings in its entry). Working on T-145 next.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-Owner's order: T-216 and T-218 done (awaiting replay); next T-145 (cubes on
-buttons), then T-217 (laser_stairs). Nothing else until the
+Owner's order: T-216, T-218 and T-145 (partly) done, awaiting replay; next
+T-217 (laser_stairs), then T-145's jitter if the owner wants it continued. Nothing else until the
 owner says. The owner plays the campaign himself: fix what he reports, no
 level scripts.
 
