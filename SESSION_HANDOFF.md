@@ -9,6 +9,11 @@ The autorun no longer stops itself or uses a STOP file (docs/AUTORUN.md
 T-217, T-222, T-223 wait for the owner's replay (see Fix attempts below).
 
 ## Last update
+2026-10-24, docs only: owner notes 15 logged (the owner played the original
+Portal 2 and listed differences, intro1..turret_intro). New T-244..T-253 in
+TASKS.md, notes added to existing tasks; not prioritized, no work started
+("just update the repo dont begin working"). Next action unchanged (T-203).
+Before that:
 2026-10-24, same session, stopped by the owner ("just log everything in the
 github now and dont continue working on it"). Owner playtest 14 logged:
 bts1 and bts2 VERIFIED (T-239 done). bts3 BLOCKED: opening room pitch

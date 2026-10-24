@@ -220,8 +220,86 @@ Tracked in TASKS.md T-239.
 im still getting picked up by wheatlys rail
 
 ## Owner playtest 14 (2026-10-24, build cde979f), the owner's words
-Tracked in TASKS.md (T-239 done; T-241..T-244 new; T-203 now P1).
+Tracked in TASKS.md (T-239 done; T-241..T-243 new; T-203 now P1).
 
 the cube disappears once the lights turn off but it should continue to fall, other than that its perfect bts1 is verified and playable. bts3 i had some issues with turrets and wheatly jittering and teleporting on the rail, wheatly jittering seems to be a bit of a global problem but its not on every map other than that bts2 is confirmed and playable mark it verified. bts3s opening room is pitch black and im stuck and cant get outve it so unplayable past this point.
 
 (Follow-up: "the doors supposed to be stuck and i portal out but theres no lights so i cant see anything its pitch black". Then: "just log everything in the github now and dont continue working on it".)
+
+## Owner notes 15 (2026-10-24): playing the original Portal 2, compared from memory, the owner's words
+Not a playtest of our build: the owner played Windows Portal 2 and wrote
+down what differs from ours, numbered by loading screens (0 = sp_a1_intro1).
+Tracked in TASKS.md (T-244..T-253 new; notes added to T-150, T-151, T-152,
+T-153, T-173, T-203, T-206, T-218, T-219, T-224, T-226, T-228, T-229) and
+docs/TASKS_ON_HOLD.md (pause screen, T-195). Owner: "just update the repo
+dont begin working".
+
+i noticed these playing the original game. i just played as far as i felt, wrote down as i noticed, wasnt playing with the other alongside but these are what i remember. their numbered by how many loading screens i hit.
+
+0
+in chapter 1 the ui saying “chapter 1” doesn’t pop up when you wakeup in our version but it should. the ui popping up sounds for like “speak” dont play. wheatly doesnt fully look at you more to the side of you in the opening scenes in our version which is wrong he should look directly at you. the music volumes either are different or dont play like when the alarms going off and theres the evilish music. the windows still different in the opening room. performance is way better even at max settings 4k via translation layers like crossover. theres no like motion blur/speed lines when wheatlys smashing into containers in the moving portion. the lighting in this part is sooo much different from our version so much better in the og. textures also look worse in our version. the smoke particles dont play after wheatly takes the wall down. buttons should emit some light and look dirty almost you can compare in screenshots you take since you have access to the real portal 2. the blur when pausing should like fade in and out along with the desaturation, also the desaturation when pausing doesnt desaturate enough in our version. in our version we cant move around in elevators but you should be able to.
+
+1
+screens should be dirty and like flicker on rather than just snap on in our version. also the fog behind the elevator rooms is too much you cant see anything behind it. the pedestal buttons in our version dont have the click animation or the sound. portals between the 2 bars like in the portals introduction dont have the little lights on the side. cubes dont make drop sounds in our version, and they should also pickup at a set distance from the player and auto rotate. the sound of things falling on the exit elevator is much louder than it should be in our version. 
+
+2
+our ambient sounds are either the wrong volume or just non existent. the doors dont have their opening sounds or closing sounds in our version. the portal gun in our version doesnt have the animations and also lighting doesnt effect it. the water looks like shit in our version and doesnt have the sounds of jumping and walking in it. in our version you cant see your portals through walls like the original. the screens in elevator rooms dont have seams so it looks like their just clipped weird in our version. 
+
+3
+the shake screen effect when portals open from the game is different and worse on our version than the original. tv screens (not the chamber screens or elevator rooms screens but the screens in backrooms and shit) dont have their scanline animation, the elevator and chamber screens also dont have scanlines. 
+
+4
+sounds dont change depending on distance or the way your looking on our version but it should. the game just looks and sounds and feels way better and smoother on the original than our version.
+
+5
+no notes that havent been said above.
+
+6
+the screen shake effect in our version doesnt play for every portal the game opens. wheatlys dialogue should play all the way through until he says “people with brain damage are the real heros” even if you already get to the other side of the room with him. the portal opening animation in our version is non existent. the orange portal in the room where we catch wheatly should close after we get to the other side. wheatly doesnt back up a bit in our version after saying “thats really high”. in our version you cant shoot the portal gun even when holding props or wheatly but you shouldnt be able to. the turret when “following the rail” laser doesnt flicker on and off in our version.
+
+7
+the way you hold props and the way they move when being pushed on walls and with you is much different in our version compared to the og, i noticed in the escape hatch while holding wheatly. also in the escape hatch wheatly in our version auto plugs in but you should have to put him there and after he plugs in the light doesnt switch on and the sound effect doesnt play. the particles and wires in glados wakeup and her whole animation is much different. the see throughness and reflection of water is much different also noticed in glados chamber while she picked us up. the drop hole where she drops us looks like it has a rectangle in the center of ours but its normal in the og.
+
+8
+the fall animation fog and particles is much different and worse in ours. theres some cubes in our version that when their falling while navigating the incinerator room have weird white boxes around them. the color of the lights on the portal gun should change to the color of the last portal you shot. 
+
+side note: the loading screens are annoying, remove them completely in our version.
+
+9 (start of chapter 2)
+the chapter ui is too low and doesnt play the animation in our version. particles not playing seems to be a global issue. again lasers look much worse in our version and you can also see the seam in them between portals. same thing with ambient sound i think its a global issue because it sounds much better in the og. after going through the emancipation grill the portal guns lights should turn off and your portals should disappear. 
+
+10
+grabbing props through portals in our version is finnicky. laser cubes look like shit in our version you cant see the laser in them. 
+
+11
+no notes
+
+12
+cameras in our version dont follow you. 
+
+13
+also noticing shooting the emancipation grills makes it flash a little lighter for a second in the og and not ours. tge cube falling rotates a little in the og and not ours. 
+
+14
+flickering lights and their sounds just dont play in our version. the dying animation in our version is also different. 
+
+15
+i dont think wheatly showing himself through the wall in this chamber plays in our version.
+
+16
+no notes
+
+17 (the start of chapter 3)
+the beeping of the faith plate is much louder in our version and doesnt change by how far you get, and the blue color should flash ti orange while beeping syncing with the beeps. 
+
+18
+lasers dont emit the fog/loght around them. the music while flying in air doesnt play.
+
+19
+the jumping and walking on bridges and their sounds dont play in our version. bridges also just look like shit.
+
+20
+glass should have like a textured look to it which is likely why the bird looks weird in the wheatly cutscene. buttons in our version should change color with the cube on it.
+
+21
+turrets in our version dont open up just from being picked up and they also dont freakout and start shooting then shutting down after throwing them. turrets in our version also cant see through portals. their bullets in our version dont leave bullet holes on glass and walls. they also dont do the freakout then shutdown when being hit with props like cubes

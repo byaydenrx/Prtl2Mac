@@ -22,6 +22,8 @@ owner says so. Kept here for later: dead buttons, T-179 flip polish
   pixels sideways instead of one flat, even grid (T-197); (4) the paused
   game behind the pause menu should be blurred/bloomed and slightly
   desaturated (T-195).
+- Owner notes 15 (2026-10-24), pause screen (T-195): the blur and the
+  desaturation should fade in and out, and it doesn't desaturate enough.
 
 ### T-193 Scrolling and arrow glyphs  (P2, FIXED, awaiting owner replay; owner notes 2026-10-21 items 2-4)
 - 2026-10-21 FIXED: the wheel position is clamped to the list's real
@@ -529,6 +531,8 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
   ConstRecipe. Keep the current non-bump path as the fallback when any step
   fails. Next run: start with (1)+(2) on an attempt branch, check the intro3
   rubble and the wakeup tube turrets before/after.
+- Owner notes 15 (2026-10-24): intro1 ride lighting "sooo much different"
+  and textures worse; the opening room's windows still differ.
 
 ### T-151 Water like Portal 2's (reflections, murk), intro3 and sp_a2_laser_intro  (P4, OPEN: attempt dropped 2026-10-21)
 - 2026-10-21 check: attempt/T-151 (2df932d) turned the intro3 water bright
@@ -563,6 +567,8 @@ jitter is fixed (owner), its VO timing overlaps T-172 (confirmed fixed).
   Portal 2's looks that pale is unknown without a Windows screenshot of the
   intro3 pool (or laser_intro). Not done: `$pseudotranslucent` alpha blend
   (`$waterblendfactor`), `$reflectamount` screen-space offset.
+- Owner notes 15 (2026-10-24): water "looks like shit" (intro3); its
+  see-through and reflection differ (wakeup, GLaDOS's chamber).
 
 ### T-154 Floating vine/moss/grass texture by the centre wall (intro5)  (P4, TODO: owner says not fixed)
 - Owner playtest 9 (2026-10-20, build 014ab6e): not fixed.
@@ -620,6 +626,7 @@ footsteps (T-219), some particles missing or random (T-150; T-199/T-200).
 
 ### T-219 No footstep or jump sounds in water (intro3)  (P3, TODO; owner playtest 10)
 - Splash on the fall works; walking or jumping in the water is silent.
+- Owner notes 15 (2026-10-24): still no water walk/jump sounds (intro3).
 
 ### T-150 Particles missing  (P4, PARTLY FIXED: owner 2026-10-23 smoke, splash, motion blur, gun glow fixed; some particles missing or random (T-199/T-200); gun beam is T-173)
 - 2026-10-21 autorun, gun glow through the wall: FIXED 8d48dab. Cause: the
@@ -680,6 +687,10 @@ footsteps (T-219), some particles missing or random (T-150; T-199/T-200).
 - Fall smoke and water splash (+ sounds) in intro3; the gun's beam when
   holding things; motion blur/speed lines; the gun's glow seen through the
   wall after the sp_a2_intro fall.
+- Owner notes 15 (2026-10-24): "particles not playing seems to be a global
+  issue"; no motion blur/speed lines when Wheatley smashes into containers
+  (intro1 ride); no smoke after Wheatley takes the wall down (intro1);
+  the fall (sp_a2_intro) fog and particles much worse.
 
 ### T-153 GLaDOS wake-up  (P3, OPEN: owner 2026-10-23 still not right, better than before; gun drop and arms confirmed)
 - 2026-10-21: the leftover white spray was glados_head_drag_droplets (800/s
@@ -725,6 +736,8 @@ footsteps (T-219), some particles missing or random (T-150; T-199/T-200).
   (confirms the source). `Position Modify Place On Ground` is still
   unsupported (wakes sit at the attachment instead of on the water).
 - Still open: arms floating unattached, the player looking the wrong way.
+- Owner notes 15 (2026-10-24): her particles, wires and whole wake-up
+  animation still differ.
 
 ### T-112 Missing or flat textures  (P2, attempt MERGED 2c08d11 for owner testing)
 - 2026-10-21: merged at the owner's request (autopilot: floor changes 1-2/255).

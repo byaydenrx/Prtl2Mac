@@ -45,6 +45,14 @@ Also open from playtest 14:
 - T-242 Wheatley jitters and teleports on his rail (bts3; "a bit of a global problem but its not on every map")
 - T-241 sp_a2_bts1: the cube vanishes when the lights cut instead of falling on
 - T-243 sp_a2_bts3: turret issues (needs owner: which)
+Logged from owner notes 15 (comparison with the original, 2026-10-24; not
+prioritized yet: the owner said "just update the repo dont begin working"):
+- T-249 can't move in elevators; T-246 Wheatley chapter 1 scenes; T-248
+  portals (through-wall outlines, open animation, shake); T-245 audio
+  parity; T-247 visual parity; T-244 remove loading screens; T-250 fog
+  behind elevators; T-251 cameras; T-252 dying; T-253 wakeup/a2_intro
+  visuals. Notes also added to T-150, T-151, T-152, T-153, T-173, T-203,
+  T-206, T-218, T-219, T-224, T-226, T-228, T-229.
 Then the engine gaps common to many maps, and gels:
 18. T-212 sp_a3_00 (start of chapter 6): loud glass smash at load (BLOCKED: merge attempt/T-212 for the owner's replay)
 19. T-199 Particle sprite sheets not decoded: sheet particles draw the whole atlas
@@ -121,6 +129,11 @@ Lower:
   (impact effects, damage, push on props), the red eye laser sight,
   knocked over / picked up / dropped -> tips over, "dies" (sparks, voice,
   stops firing), lasers kill turrets, voice lines per state.
+- Owner notes 15 (turret_intro): turrets don't deploy when picked up; thrown
+  or hit by a prop (cube) they should panic, fire, then shut down; they
+  can't see through portals; bullets leave no holes (decals) on glass and
+  walls. intro7: the turret "following the rail" should have its sight
+  laser flicker on and off.
 
 ### T-238 sp_a2_laser_vs_turret: lasers don't pass glass  (P1, FIXED, awaiting owner replay; owner playtest 13)
 - Owner: "sp_a2_laser_vs_turret is still not playable because the lasers
@@ -144,6 +157,87 @@ Lower:
   into the glass still stops the player. Starting beams on laser_relays,
   laser_chaining, triple_laser, column_blocker identical to the old
   build; tests 205 + 74 pass.
+
+### T-244 Remove the loading screens  (P3, TODO; owner request, notes 15)
+- Owner: "the loading screens are annoying, remove them completely in our
+  version". Our loading screen shows between maps (loading.rs; startup
+  intro has P2_NO_INTRO). Check what the transition looks like without it
+  (Portal 2 keeps the old frame frozen while loading).
+
+### T-245 Audio parity: missing and mis-levelled sounds  (P2, TODO; owner notes 15)
+- Ambient sounds wrong volume or missing, "a global issue" (intro3,
+  laser_intro); music volumes differ or don't play (intro1 alarm and the
+  "evilish" music; faith-plate flight music, ricochet).
+- Missing: door open/close sounds (intro3), cube drop/impact sounds (intro2),
+  hint pop-up sound (intro1), bridge walk/jump sounds (bridge_intro), water
+  steps (T-219), flickering light buzz (T-203), Wheatley's plug-in sound
+  (wakeup, T-246).
+- Too loud: things falling on the exit elevator (intro2), faith plate beep
+  (sphere_peek). Distance/direction falloff: T-206.
+
+### T-246 Wheatley scenes in chapter 1  (P2, TODO; owner notes 15)
+- He looks to the side of the player, not straight at them, in the opening
+  scenes (intro1; compare T-237's 89 deg note).
+- intro7: his line should play through to "people with brain damage are
+  the real heroes" even if you already reached the other side; after
+  "that's really high" he should back off a little; the orange portal in
+  the room where you catch him should close once you are across.
+- wakeup escape hatch: he plugs in by himself, you should have to put him
+  in; then the light should come on and the sound play.
+- Loading screen 15 (pit_flings by the count): Wheatley showing himself
+  through the wall doesn't seem to play.
+
+### T-247 Visual parity: screens, buttons, glass, bridges, lasers  (P3, TODO; owner notes 15)
+- Screens: dirty look, flicker on instead of snapping on (intro2);
+  elevator-room screens have no seams, look clipped (intro3); no scanlines
+  on elevator/chamber screens nor scrolling scanlines on backroom TVs
+  (intro4). See T-201 (UnlitTwoTexture), T-174.
+- Buttons: should give off some light and look dirty (intro1); floor
+  buttons should change colour with a cube on them (bridge_the_gap).
+- Portal surfaces between the two bars (portal intro rooms) lack the small
+  side lights (intro2).
+- Emancipation grill flashes a little lighter when shot (catapult_intro).
+- Faith plate: the blue light should flash orange in time with its beeps
+  (sphere_peek).
+- Glass should look textured (bridge_the_gap; likely why the bird looks
+  wrong, T-232).
+- Bridges look bad (bridge_intro). Lasers look worse, show a seam between
+  portals, give off no glow/haze (laser_intro, ricochet); laser cubes
+  don't show the laser inside (laser_stairs).
+- Overall lighting/textures: T-152, T-202, T-203. Water: T-151.
+
+### T-248 Portals: through-wall outlines, open animation, screen shake  (P2, TODO; owner notes 15)
+- You can't see your portals through walls (intro3): Portal 2 draws your
+  portals' outlines through geometry.
+- No portal opening animation (intro7).
+- The screen shake when the game opens a portal is different and weaker
+  (intro4) and doesn't play for every portal the game opens (intro7).
+
+### T-249 The player can't move inside elevators  (P2, TODO; owner notes 15)
+- Owner: "in our version we cant move around in elevators but you should
+  be able to" (intro1). Likely movers.rs `ride`: the elevator lock sets
+  the player's position to the car each tick (offset fixed at the start),
+  so walking does nothing until the car stops. Not investigated.
+
+### T-250 Fog behind the elevator rooms too thick  (P3, TODO; owner notes 15)
+- Owner (intro2): "the fog behind the elevator rooms is too much you cant
+  see anything behind it". Compare fog controllers vs Windows (winref).
+
+### T-251 Security cameras don't follow the player  (P3, TODO; owner notes 15)
+- Owner (laser_over_goo by the count): "cameras in our version dont follow
+  you". npc_security_camera aim.
+
+### T-252 Dying looks different  (P3, TODO; owner notes 15)
+- Owner (trust_fling by the count): "the dying animation in our version is
+  also different". Compare view fade, camera drop and sound vs Windows.
+
+### T-253 sp_a1_wakeup / sp_a2_intro visual bugs  (P3, TODO; owner notes 15)
+- wakeup: the drop hole GLaDOS drops you through shows a rectangle in its
+  centre (normal in the original).
+- sp_a2_intro: some cubes falling in the incinerator room have white boxes
+  around them.
+- See also T-153 (GLaDOS wake-up), T-151 (water), T-150 (fall fog and
+  particles).
 
 ### T-241 sp_a2_bts1: the cube vanishes when the lights cut  (P3, TODO; owner playtest 14)
 - Owner: "the cube disappears once the lights turn off but it should
@@ -341,6 +435,9 @@ Lower:
      passes) and a full-resolution render; rendering only the portal's
      screen rectangle needs the portal and refraction shaders' screen UVs
      reworked (they use the drawing camera's viewport).
+- Owner notes 15: Windows Portal 2 under CrossOver runs "way better even at
+  max settings 4k"; overall the original "looks and sounds and feels way
+  better and smoother".
 
 ### T-224 Cube physics feel: no tumbling in the air; plate and button hits unreliable  (P2, TODO; owner playtest 11)
 - Cubes don't rotate/tumble in the air like Portal 2 (T-198 skipped Source's
@@ -348,6 +445,11 @@ Lower:
   kept through portals and when thrown).
 - trust_fling: a cube missed the first faith plate once; dropping a cube on
   a button from high is hit or miss.
+- Owner notes 15: cubes should be picked up to a set distance from the
+  player and turn to a set orientation; held props move differently when
+  pushed against walls or with you (escape hatch while holding Wheatley,
+  sp_a1_wakeup); grabbing props through portals is finicky (laser_stairs);
+  a falling cube turns a little in the original (catapult_intro).
 
 ### T-225 No dissolve ("fizzle") effect on cubes  (P2, TODO; owner playtest 11)
 - Missing when a dropper replaces a cube, when GLaDOS fizzles one
@@ -356,6 +458,7 @@ Lower:
 
 ### T-226 Pedestal buttons (prop_button): no sound or press animation  (P2, TODO; owner playtest 11)
 - The stand-up buttons you click: no press animation, no sound.
+- Owner notes 15 (sp_a1_intro2): still no click animation or sound.
 
 ### T-173 Portal gun view model: hold beam, carry anims, fizzler shake  (P3, OPEN: hold beam "looks terrible"; fizzler shake owner-confirmed)
 - Owner playtest 11 (2026-10-23): "the holding something animation looks
@@ -392,6 +495,12 @@ Lower:
   ("Movement Lock to Saved Position Along Path" not implemented; the effect
   restarts often enough that it looked right in the shot). Owner replay:
   does the beam/fizzle feel like Windows Portal 2?
+- Owner notes 15: the gun has no animations and isn't lit by the scene
+  (intro3); its lights should take the colour of the last portal shot
+  (sp_a2_intro) and go out after an emancipation grill, which also closes
+  your portals (laser_intro); you should not be able to fire while holding
+  a prop or Wheatley (intro7; owner wrote "cant ... but you shouldnt be
+  able to", read as: ours fires, it shouldn't).
 
 ### T-227 Zoom doesn't work  (P3, TODO; owner playtest 11)
 - Toggle zoom / zoom in / zoom out do nothing (keys exist in Edit Keys).
@@ -399,6 +508,10 @@ Lower:
 ### T-228 Chapter HUD icons don't look like Portal 2's  (P3, TODO; owner playtest 11)
 - Owner: "the chapter hud icons dont look like portal 2s". Ask which screen
   if unclear (chapter title card, chamber sign icons); compare with Windows.
+- Owner notes 15: chapter 1's title card doesn't appear on waking up
+  (sp_a1_intro1) but should; chapter 2's (sp_a2_laser_intro) sits too low
+  and doesn't play its animation; the "speak"-style hint pop-ups have no
+  sound.
 
 ### T-212 sp_a3_00 (start of chapter 6): loud glass smash at load  (P2, BLOCKED: owner 2026-10-23 still hears it; the fix on attempt/T-212 was never merged: merge it for his replay)
 - Owner: "when you booted up chapter 6 the fall a loud glass noise played".
@@ -464,6 +577,9 @@ Lower:
   face's style lightmaps and a per-style brightness (style index from the
   light's `style` keyvalue, inputs toggle it; patterns for flickering
   styles), blend in the lightmap shader. Unit test with a two-style face.
+- Owner notes 15: flickering lights and their sounds don't play
+  (pit_flings by the loading count); lighting overall much worse than the
+  original (intro1 ride).
 
 ### T-199 Particle sprite sheets not decoded: sheet particles draw the whole atlas  (P2, TODO; upstream gap)
 - p2_fx render.rs `SheetGrids` is empty ("the game's sheet layouts are not
@@ -506,6 +622,9 @@ Lower:
   position, so you can't hear where turrets, Wheatley or GLaDOS's panels
   are. Add Source-like panning (and the soundlevel falloff check) with a
   listener on the camera; through-portal sound is a later step.
+- Owner notes 15: sounds don't change with distance or with the way you
+  face (intro5); the faith plate beep is much louder than the original and
+  doesn't fade with distance (sphere_peek).
 
 ### T-200 Particle operators the maps' effects use but p2_fx doesn't simulate  (P3, TODO; upstream gap + audit)
 - `fxaudit` (p2_fx example) over every map's info_particle_system effects
