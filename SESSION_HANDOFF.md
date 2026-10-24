@@ -9,6 +9,15 @@ The autorun no longer stops itself or uses a STOP file (docs/AUTORUN.md
 T-217, T-222, T-223 wait for the owner's replay (see Fix attempts below).
 
 ## Last update
+2026-10-24, same session, stopped by the owner ("just log everything in the
+github now and dont continue working on it"). Owner playtest 14 logged:
+bts1 and bts2 VERIFIED (T-239 done). bts3 BLOCKED: opening room pitch
+black (T-203, now P1; cause found: the room's light is lightmap style 35,
+we draw style 0 only; fix plan in TASKS.md T-203, no code started). New:
+T-241 bts1 cube vanishes at the power cut, T-242 Wheatley jitter on rails
+(global), T-243 bts3 turrets (ask owner). laser_vs_turret line of 3
+(T-234) still awaits the owner's replay. No uncommitted code.
+Before that:
 2026-10-24, same session, part 3 (owner 13c: "still getting picked up by
 wheatlys rail"): passable trains no longer carry the player (the lock took
 anyone airborne near Wheatley's starting train). Reproduced on 4e0f7f0 and
@@ -204,8 +213,8 @@ check not done; details in TASKS.md T-217.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-TASKS.md "Priority order": T-235 (column_blocker light, likely T-203) is the
-first open item; T-229, T-240 and T-239's "Wheatley buggy" wait on the owner.
+TASKS.md "Priority order": T-203 switchable lights (plan in its entry;
+unblocks sp_a2_bts3), then T-235. T-229, T-240, T-243 wait on the owner.
 The owner plays the campaign himself; no level scripts.
 
 ## Uncommitted / in-flight work

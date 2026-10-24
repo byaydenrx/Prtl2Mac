@@ -218,3 +218,10 @@ because the turrets dont explode when they die i cant shoot past them so the lin
 Tracked in TASKS.md T-239.
 
 im still getting picked up by wheatlys rail
+
+## Owner playtest 14 (2026-10-24, build cde979f), the owner's words
+Tracked in TASKS.md (T-239 done; T-241..T-244 new; T-203 now P1).
+
+the cube disappears once the lights turn off but it should continue to fall, other than that its perfect bts1 is verified and playable. bts3 i had some issues with turrets and wheatly jittering and teleporting on the rail, wheatly jittering seems to be a bit of a global problem but its not on every map other than that bts2 is confirmed and playable mark it verified. bts3s opening room is pitch black and im stuck and cant get outve it so unplayable past this point.
+
+(Follow-up: "the doors supposed to be stuck and i portal out but theres no lights so i cant see anything its pitch black". Then: "just log everything in the github now and dont continue working on it".)

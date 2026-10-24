@@ -23,11 +23,11 @@ VERIFIED (PROJECT_STATE.md) means the owner played the map. T-008..T-015
 The one source of what's next: sessions and autoruns take the first line not
 marked FIXED, DONE or BLOCKED. Crashes and softlocks found on the way go to
 the top. Menus, on-hold and "later" tasks are never taken without the owner.
-Now (owner playtests 12-13, playability first):
-1. T-239 sp_a2_bts1: Wheatley's breakout: starts now; the power-cut teleport dropped you on the floor and Wheatley's rail carried you into the void (FIXED, awaiting owner replay: landmark teleports keep your place; only cars you stand in carry you; "Wheatley pretty buggy during the sequence" needs the owner's details)
+Now (owner playtests 12-14, playability first):
+1. T-203 Switchable lights: sp_a2_bts3's opening room is pitch black, so the owner can't see to portal out (P1 now: unplayable past this point; cause found, fix planned, not started)
 2. T-234 Turrets killed by a laser don't blow up, so the beam can't reach the next one (FIXED, awaiting owner replay: they break into the turret.phy gibs and are removed; laser_vs_turret's line of 3 was unplayable)
 3. T-238 sp_a2_laser_vs_turret: lasers don't pass glass (FIXED, awaiting owner replay: Portal 2's laser mask passes glass and grates; was unplayable)
-4. T-229 Turrets: owner: "turret functions still arent finished" (BLOCKED, needs owner: which parts; turret_blocker verified; needs owner to say what's missing; known gaps: guns don't aim, no eye glow, no carry pose)
+4. T-229 Turrets: owner: "turret functions still arent finished"; bts3 "some issues with turrets" (BLOCKED, needs owner: which parts; turret_blocker verified; needs owner to say what's missing; known gaps: guns don't aim, no eye glow, no carry pose)
 5. T-235 sp_a2_column_blocker: the light doesn't switch back on in the surprise room (owner playtest 12b)
 6. T-240 sp_a2_triple_laser: invisible barrier behind one of the portals (BLOCKED, needs owner: where; he got out and finished the level)
 7. T-237 sp_a2_column_blocker: Wheatley in the departure elevator doesn't look at you (FIXED, awaiting owner replay: his rail train started 34 u off its rail)
@@ -41,35 +41,38 @@ Now (owner playtests 12-13, playability first):
 15. T-173 Portal gun view model: hold beam, carry anims, fizzler shake
 16. T-227 Zoom doesn't work
 17. T-228 Chapter HUD icons don't look like Portal 2's
+Also open from playtest 14:
+- T-242 Wheatley jitters and teleports on his rail (bts3; "a bit of a global problem but its not on every map")
+- T-241 sp_a2_bts1: the cube vanishes when the lights cut instead of falling on
+- T-243 sp_a2_bts3: turret issues (needs owner: which)
 Then the engine gaps common to many maps, and gels:
 18. T-212 sp_a3_00 (start of chapter 6): loud glass smash at load (BLOCKED: merge attempt/T-212 for the owner's replay)
-19. T-203 Switchable lights frozen: lightmap styles other than 0 ignored (50 of 63 maps)
-20. T-199 Particle sprite sheets not decoded: sheet particles draw the whole atlas
-21. T-214 All-maps load sweep findings (2026-10-21)
-22. T-201 UnlitTwoTexture (TV/monitor screens) and other model shaders on the fallback
-23. T-206 Sounds not panned left/right
-24. T-200 Particle operators the maps' effects use but p2_fx doesn't simulate
-25. T-202 No bloom or colour correction (every map)
-26. T-204 No env_cubemap reflections or dynamic lights on props
-27. T-211 Gels: check each against Source
-28. T-030 Gel chapters: missing buttons in gel rooms, black elevator, cube carry feel
+19. T-199 Particle sprite sheets not decoded: sheet particles draw the whole atlas
+20. T-214 All-maps load sweep findings (2026-10-21)
+21. T-201 UnlitTwoTexture (TV/monitor screens) and other model shaders on the fallback
+22. T-206 Sounds not panned left/right
+23. T-200 Particle operators the maps' effects use but p2_fx doesn't simulate
+24. T-202 No bloom or colour correction (every map)
+25. T-204 No env_cubemap reflections or dynamic lights on props
+26. T-211 Gels: check each against Source
+27. T-030 Gel chapters: missing buttons in gel rooms, black elevator, cube carry feel
 Then the campaign sweeps (the owner's playtests go first):
-29. T-008 Prove chapter 3 rest: bridge_the_gap, turret_intro, laser_relays, turret_blocker, laser_vs_turret, pull_the_rug
-30. T-010 Sweep chapter 4 (column_blocker, laser_chaining, triple_laser, bts1, bts2)
-31. T-011 Sweep chapter 5 (bts3, bts4, bts5, bts6, core)
-32. T-012 Sweep chapter 6 rest (jump_intro gel climb, bomb_flings, crazy_box, transition01)
-33. T-013 Sweep chapter 7 (speed_ramp, speed_flings, portal_intro, end)
-34. T-014 Sweep chapter 8 (sp_a4_intro .. jump_polarity)
-35. T-015 Sweep chapter 9 (finale1..finale4)
+28. T-008 Prove chapter 3 rest: bridge_the_gap, turret_intro, laser_relays, turret_blocker, laser_vs_turret, pull_the_rug
+29. T-010 Sweep chapter 4 (column_blocker, laser_chaining, triple_laser, bts1, bts2)
+30. T-011 Sweep chapter 5 (bts3, bts4, bts5, bts6, core)
+31. T-012 Sweep chapter 6 rest (jump_intro gel climb, bomb_flings, crazy_box, transition01)
+32. T-013 Sweep chapter 7 (speed_ramp, speed_flings, portal_intro, end)
+33. T-014 Sweep chapter 8 (sp_a4_intro .. jump_polarity)
+34. T-015 Sweep chapter 9 (finale1..finale4)
 Lower:
-36. T-205 Portal gun edge cases
-37. T-209 Portal transit only mirrors box-shaped geometry at the exit
-38. T-207 Viewmodel gaps
-39. T-208 Chell body gaps
-40. T-210 Upstream minor gaps
-41. T-090 Restart check per verified map
-42. T-040 App icon and second-Mac first-run check
-43. T-050 Verify merged cloud features in game: Wheatley look-at, gels, projtex, saves
+35. T-205 Portal gun edge cases
+36. T-209 Portal transit only mirrors box-shaped geometry at the exit
+37. T-207 Viewmodel gaps
+38. T-208 Chell body gaps
+39. T-210 Upstream minor gaps
+40. T-090 Restart check per verified map
+41. T-040 App icon and second-Mac first-run check
+42. T-050 Verify merged cloud features in game: Wheatley look-at, gels, projtex, saves
 
 ## Active tasks (in priority order)
 
@@ -119,63 +122,6 @@ Lower:
   knocked over / picked up / dropped -> tips over, "dies" (sparks, voice,
   stops firing), lasers kill turrets, voice lines per state.
 
-### T-239 sp_a2_bts1: Wheatley's breakout doesn't start  (P1, FIXED, awaiting owner replay; owner playtests 13, 13b)
-- Owner (13b): the cutscene starts but "it teleports me rather than just
-  turning the lights off ... i tp to the floor, i also ended up getting
-  attached to wheatlys rail and it dropped me in the void and it does this
-  everytime"; "wheatlys also pretty buggy during the sequence" (asked what).
-- 2026-10-23 FIXED part 2 (triggers.rs, movers.rs). (a) power_loss_teleport
-  has a landmark: Source keeps the player's offset from the landmark at the
-  destination (the dark chamber is a copy), we put them on the destination
-  point. Now landmark teleports keep place, motion and view (turned with
-  uselandmarkangles), and move touching props too (spawnflag 8). Evidence:
-  crossing at -9776 -900: before at -3712 -1152 0 (the destination), after
-  at -4016 -900 (same place in the copy). (b) The elevator lock (movers.rs
-  `ride`) took any player within 2.5 m across and 5 m below a train that
-  starts moving; Wheatley's rail train runs 192 u over the floor, so a
-  player under its start was locked to it and carried along the rail off
-  the edge. Now it never takes someone standing on the map's own floor.
-  Evidence (player at -3200 -1680 0 when @sphere_start_moving_relay fires):
-  before carried to -2949 and killed falling; after stays put. Regression:
-  arrival elevator (laser_vs_turret), departure elevator ride
-  (column_blocker), sp_a1_intro1 container, bts5 identical to the old build.
-  Departure-elevator player teleports have no target (script-set) and are
-  unchanged; sp_a3_jump_intro's startup_lighting_teleport is the same kind
-  of landmark swap and now keeps place too.
-- Owner (13c, build 4e0f7f0): "im still getting picked up by wheatlys rail".
-- 2026-10-24 FIXED part 3 (movers.rs). The lock also took a player in the
-  air (jumping, dropping down) when the train set off, and it re-arms each
-  time Wheatley starts moving again; his walkway (x -2804) runs 92 u from
-  the rail, inside the lock's 98 u. Now Passable trains (spawnflag 8: not
-  solid, carry nothing in Source) never take the player, by the lock or
-  the inside-the-car check. Evidence (player held in the air at
-  -3188 -1708 40 as @sphere_start_moving_relay fires, t 21.8): 4e0f7f0
-  carried to -2937 and killed falling; new stays and lands. Elevators are
-  all solid trains: arrival (laser_vs_turret) and departure (column_blocker)
-  rides identical. sp_a3_00 changed: the old build locked the player at
-  spawn to potatos_train (passable, 22 u away) and carried them up to
-  z 1054 and down to -12308; the owner's Windows game keeps the player at
-  0 -4096 0 for 36 s+, as the new build does. Not checked yet: bts5/bts6
-  pod rides and the finale tube trains (passable; bts5 is a view-proxy
-  tube ride).
-- Owner: "at sp_a2_bts1 the wheatly busting you out cutscene or whatever
-  doesnt register or start so not playable past this point".
-- 2026-10-23 FIXED (triggers.rs). The breakout trigger
-  (jailbreak_chamber_lit-jailbreak_trigger, a slab at y -912) starts
-  disabled. A trigger_multiple at the dropper mouth (model *96, z 544..576,
-  cube filter) enables it when the dropped cube falls through, and one in
-  the pit (*94) disables it again if the cube falls in: the cube has to be
-  caught on the light bridge. Both have spawnflags 4161 (clients +
-  "everything"); our triggers only let props touch flag 8, so the cube
-  never armed it. Flag 64 now counts the player, props and NPCs. Evidence
-  (autopilot: cube moved through *96 and onto the bridge, player into the
-  slab): before the trigger stays disabled and nothing fires; after it is
-  enabled and @jailbreak_begin_logic, @sphere_lookat_player_relay and
-  jailbreak_peak_logic fire. Other maps with flag-64 triggers (bts3, bts4,
-  core, laser_over_goo, jump_intro, speed_ramp, tb_wall_button,
-  stop_the_box, finale2, finale3) load and run without a crash or death
-  in both builds. The rest of the breakout sequence is not checked yet.
-
 ### T-238 sp_a2_laser_vs_turret: lasers don't pass glass  (P1, FIXED, awaiting owner replay; owner playtest 13)
 - Owner: "sp_a2_laser_vs_turret is still not playable because the lasers
   dont shoot through glass like they should"; later: "turrets shouldnt be
@@ -198,6 +144,24 @@ Lower:
   into the glass still stops the player. Starting beams on laser_relays,
   laser_chaining, triple_laser, column_blocker identical to the old
   build; tests 205 + 74 pass.
+
+### T-241 sp_a2_bts1: the cube vanishes when the lights cut  (P3, TODO; owner playtest 14)
+- Owner: "the cube disappears once the lights turn off but it should
+  continue to fall". Since T-239 power_loss_teleport (spawnflags 4105:
+  clients + physics) moves touching props with the landmark too; a cube
+  falling in the lit chamber should come out falling in the dark copy.
+  Not investigated: whether it is teleported, killed (the dropper/pit
+  triggers, a dissolve) or left behind and hidden.
+
+### T-242 Wheatley jitters and teleports on his rail  (P2, TODO; owner playtest 14)
+- Owner: "wheatly jittering and teleporting on the rail, wheatly jittering
+  seems to be a bit of a global problem but its not on every map" (seen in
+  bts3). Related history: T-232/T-237 (rail trains, deep parent chains).
+  Not investigated.
+
+### T-243 sp_a2_bts3: turret issues  (P2, NEEDS OWNER: what; owner playtest 14)
+- Owner: "bts3 i had some issues with turrets". Ask which (shooting, dying,
+  sight through something, etc.).
 
 ### T-240 sp_a2_triple_laser: invisible barrier behind one of the portals  (P3, NEEDS OWNER: where; owner playtest 13)
 - Owner: "there was a weird bug behind one of the portals with an invisible
@@ -464,8 +428,35 @@ Lower:
   skipped on its first step; sp_a3_00 MoronSmash plays 1 -> 0 (autopilot
   log only). Also adds a debug log of animation event sounds.
 
-### T-203 Switchable lights frozen: lightmap styles other than 0 ignored (50 of 63 maps)  (P2, TODO; upstream gap)
-- Lightmaps use style 0 only (geometry.rs; P2_ALLSTYLES sums every style as
+### T-203 Switchable lights frozen: lightmap styles other than 0 ignored (50 of 63 maps)  (P1 since 2026-10-24: blocks sp_a2_bts3; cause found, fix planned, not started)
+- Owner (playtest 14): "bts3s opening room is pitch black and im stuck and
+  cant get outve it"; "the doors supposed to be stuck and i portal out but
+  theres no lights so i cant see anything its pitch black".
+- 2026-10-24 findings (no code changed). The airlock door jamming is
+  correct: entry_airlock_door-open_door_malfunction plays
+  vert_door_partial_open (only the upper panel rises 23 u); in the owner's
+  Windows game a player walking north is stopped at y 1058 by it too (a
+  first probe at load did get through to 4235 1109; not looked into). The
+  room is dark because its light is in a switchable style: of the 43 HDR
+  faces within 400 u of the spawn (4224 896 128), 27 have styles (0, 35);
+  style 35 is light_spot entry_canyon_paired_light_0 (style kv 35), on at
+  start; style 0 there is near black. The map's lights then go out one
+  per second (entry_canyon_lights_off_relay TurnOff 4..0) and Wheatley's
+  flashlight takes over (sphere_flashlight_turnon_relay EnableFlashlight).
+  global_ents-environment_darkness sets autoexposure min 1 max 5 (handled
+  by exposure.rs).
+- Plan (not started): geometry.rs `FaceBuilder::pack` keeps, for faces with
+  styles past 0, each style's samples (per bump block) and composes texels
+  from per-style weights (replaces the P2_ALLSTYLES debug sum); map.rs
+  weights at load: style 0 = 1, styles 1..31 (patterns) = 1, a named
+  light's style (its `style` kv, 32+) = 1 unless every light with it has
+  spawnflags 1 (initially dark). plugin.rs keeps the lightmap Handle in a
+  resource; lightmap_image is RENDER_WORLD-only, so a change re-inserts
+  the Image at that handle. p2_game: light/light_spot TurnOn/TurnOff/Toggle
+  (style >= 32) set the weight and recompose those faces. Not covered:
+  per-style vertex lighting on static props and light probes; patterns
+  (flicker) kept steady.
+- Earlier note: Lightmaps use style 0 only (geometry.rs; P2_ALLSTYLES sums every style as
   a debug view). Named `light`/`light_spot` entities (50 of 63 maps have
   some) switch with TurnOn/TurnOff/Toggle and their light lives in extra
   lightmap styles: chambers lighting up as you enter, power-ups (intro1),

@@ -3,6 +3,64 @@
 Moved out of TASKS.md (2026-10-23) to keep it short. Entries unchanged;
 newest summary list at the bottom. Grep by task id.
 
+### T-239 sp_a2_bts1: Wheatley's breakout doesn't start  (P1, DONE 2026-10-24: owner playtest 14: "bts1 is verified and playable"; cube at the power cut moved to T-241)
+- Owner (13b): the cutscene starts but "it teleports me rather than just
+  turning the lights off ... i tp to the floor, i also ended up getting
+  attached to wheatlys rail and it dropped me in the void and it does this
+  everytime"; "wheatlys also pretty buggy during the sequence" (asked what).
+- 2026-10-23 FIXED part 2 (triggers.rs, movers.rs). (a) power_loss_teleport
+  has a landmark: Source keeps the player's offset from the landmark at the
+  destination (the dark chamber is a copy), we put them on the destination
+  point. Now landmark teleports keep place, motion and view (turned with
+  uselandmarkangles), and move touching props too (spawnflag 8). Evidence:
+  crossing at -9776 -900: before at -3712 -1152 0 (the destination), after
+  at -4016 -900 (same place in the copy). (b) The elevator lock (movers.rs
+  `ride`) took any player within 2.5 m across and 5 m below a train that
+  starts moving; Wheatley's rail train runs 192 u over the floor, so a
+  player under its start was locked to it and carried along the rail off
+  the edge. Now it never takes someone standing on the map's own floor.
+  Evidence (player at -3200 -1680 0 when @sphere_start_moving_relay fires):
+  before carried to -2949 and killed falling; after stays put. Regression:
+  arrival elevator (laser_vs_turret), departure elevator ride
+  (column_blocker), sp_a1_intro1 container, bts5 identical to the old build.
+  Departure-elevator player teleports have no target (script-set) and are
+  unchanged; sp_a3_jump_intro's startup_lighting_teleport is the same kind
+  of landmark swap and now keeps place too.
+- Owner (13c, build 4e0f7f0): "im still getting picked up by wheatlys rail".
+- 2026-10-24 FIXED part 3 (movers.rs). The lock also took a player in the
+  air (jumping, dropping down) when the train set off, and it re-arms each
+  time Wheatley starts moving again; his walkway (x -2804) runs 92 u from
+  the rail, inside the lock's 98 u. Now Passable trains (spawnflag 8: not
+  solid, carry nothing in Source) never take the player, by the lock or
+  the inside-the-car check. Evidence (player held in the air at
+  -3188 -1708 40 as @sphere_start_moving_relay fires, t 21.8): 4e0f7f0
+  carried to -2937 and killed falling; new stays and lands. Elevators are
+  all solid trains: arrival (laser_vs_turret) and departure (column_blocker)
+  rides identical. sp_a3_00 changed: the old build locked the player at
+  spawn to potatos_train (passable, 22 u away) and carried them up to
+  z 1054 and down to -12308; the owner's Windows game keeps the player at
+  0 -4096 0 for 36 s+, as the new build does. Not checked yet: bts5/bts6
+  pod rides and the finale tube trains (passable; bts5 is a view-proxy
+  tube ride).
+- Owner: "at sp_a2_bts1 the wheatly busting you out cutscene or whatever
+  doesnt register or start so not playable past this point".
+- 2026-10-23 FIXED (triggers.rs). The breakout trigger
+  (jailbreak_chamber_lit-jailbreak_trigger, a slab at y -912) starts
+  disabled. A trigger_multiple at the dropper mouth (model *96, z 544..576,
+  cube filter) enables it when the dropped cube falls through, and one in
+  the pit (*94) disables it again if the cube falls in: the cube has to be
+  caught on the light bridge. Both have spawnflags 4161 (clients +
+  "everything"); our triggers only let props touch flag 8, so the cube
+  never armed it. Flag 64 now counts the player, props and NPCs. Evidence
+  (autopilot: cube moved through *96 and onto the bridge, player into the
+  slab): before the trigger stays disabled and nothing fires; after it is
+  enabled and @jailbreak_begin_logic, @sphere_lookat_player_relay and
+  jailbreak_peak_logic fire. Other maps with flag-64 triggers (bts3, bts4,
+  core, laser_over_goo, jump_intro, speed_ramp, tb_wall_button,
+  stop_the_box, finale2, finale3) load and run without a crash or death
+  in both builds. The rest of the breakout sequence is not checked yet.
+
+
 ### T-233 sp_a2_column_blocker: lasers and turret sight don't pass the grate  (P1, DONE 2026-10-23: owner playtest 13b: "sp_a2_column_blocker is fixed tho and verified and playable")
 - 2026-10-23 FIXED with T-238 (one cause). Grate colliders (CONTENTS_GRATE,
   no SOLID/WINDOW; brushes and `$contents grate` models) are on their own

@@ -90,9 +90,10 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 3 | sp_a2_pull_the_rug | y | y | y | y | y | VERIFIED | owner playtest 12b: verified and playable |
 | 4 | sp_a2_column_blocker | y | y | y | y | y | VERIFIED | owner playtest 13b: fixed, verified and playable (T-233); light T-235 open |
 | 4 | sp_a2_laser_chaining, triple_laser | y | y | y | y | y | VERIFIED | owner playtest 13: verified and playable; triple_laser invisible barrier behind a portal (T-240, not blocking) |
-| 4 | sp_a2_bts1 | y | y | x | y | - | IN PROGRESS | owner playtest 13b: breakout starts; teleport dropped him on the floor, Wheatley's rail carried him into the void (T-239 part 2, fixed since); owner to replay |
-| 4 | sp_a2_bts2 | - | - | - | - | - | NOT STARTED | T-010 |
-| 5 | sp_a2_bts3..bts6, sp_a2_core | - | - | - | - | - | NOT STARTED | T-011 |
+| 4 | sp_a2_bts1 | y | y | y | y | y | VERIFIED | owner playtest 14: verified and playable; cube vanishes at the power cut (T-241) |
+| 4 | sp_a2_bts2 | y | y | y | y | y | VERIFIED | owner playtest 14: confirmed and playable |
+| 5 | sp_a2_bts3 | y | - | x | - | - | BLOCKED | owner playtest 14: opening room pitch black, can't see to portal out (T-203 switchable lights); turrets (T-243), Wheatley jitter (T-242) |
+| 5 | sp_a2_bts4..bts6, sp_a2_core | - | - | - | - | - | NOT STARTED | T-011 |
 | 6 | sp_a3_00, sp_a3_01, sp_a3_03 | y | y | y | y | - | IN PROGRESS | I/O chains and transitions by autopilot with setpos/use (ch6-9 session); owner hasn't played them (was VERIFIED before the 2026-10-21 rule) |
 | 6 | sp_a3_jump_intro | y | y | - | - | - | IN PROGRESS | buttons/doors proven; gel + portal climb not flown (T-012) |
 | 6 | sp_a3_bomb_flings, crazy_box, transition01 | - | - | - | - | - | NOT STARTED | T-012 |
@@ -101,7 +102,8 @@ proven; NOT STARTED = nothing proven; BLOCKED = a known `x`.
 | 9 | sp_a4_finale1..finale4 | - | - | - | - | - | NOT STARTED | T-015 |
 
 ## Release blockers (open P0/P1)
-- T-239 bts1 breakout (teleport, rail) and T-234 laser_vs_turret turret gibs fixed; owner to replay.
+- T-203 switchable lights (P1): sp_a2_bts3 unplayable in the dark; plan in TASKS.md.
+- T-234 laser_vs_turret turret gibs fixed; owner to replay.
 - T-229: turrets mostly working (turret_blocker verified); owner to say what is still missing.
 - T-211 gels (P1) before chapters 6-8; gel isn't kept in saves (saves.rs).
 - (The 2026-10-20 list here is closed: T-129 and T-132 fixed by autoruns,
