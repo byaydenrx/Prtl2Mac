@@ -582,6 +582,37 @@ pub fn entity_model(e: &SourceEntity) -> Option<String> {
     e.studio_model().or_else(|| default_entity_model(e))
 }
 
+/// The pieces a floor turret breaks into when a laser burns it out: the
+/// `break` list of models/npcs/turret/turret.phy (each "burst" 500,
+/// "fadetime" 20, "debris" 1).
+pub const TURRET_GIBS: [u32; 10] = [2, 3, 12, 13, 15, 16, 20, 21, 24, 25];
+
+/// Name of the hidden prototype of turret gib `n` (see [`add_turret_gibs`]).
+pub fn turret_gib_name(n: u32) -> String {
+    format!("@turret_break_gib{n}")
+}
+
+/// Maps with floor turrets get one hidden prototype per turret gib, as
+/// `env_shooter`s (their model is loaded and kept hidden), for the game to
+/// copy when a turret blows up (T-234).
+fn add_turret_gibs(entities: &mut Vec<SourceEntity>) {
+    if !entities.iter().any(|e| e.classname == "npc_portal_turret_floor") {
+        return;
+    }
+    for n in TURRET_GIBS {
+        entities.push(SourceEntity {
+            classname: "env_shooter".into(),
+            targetname: Some(turret_gib_name(n)),
+            keyvalues: vec![
+                ("classname".into(), "env_shooter".into()),
+                ("targetname".into(), turret_gib_name(n)),
+                ("shootmodel".into(), format!("models/npcs/turret/turret_fx_break_gib{n}.mdl")),
+            ],
+            ..Default::default()
+        });
+    }
+}
+
 /// Convert a map. `name` is a map name (`sp_a1_intro3`) or a path to a `.bsp`.
 pub fn load_map(fs: &GameFs, surfprops: &SurfaceProps, name: &str) -> anyhow::Result<LoadedMap> {
     let t0 = Instant::now();
@@ -610,7 +641,8 @@ pub fn load_map(fs: &GameFs, surfprops: &SurfaceProps, name: &str) -> anyhow::Re
     let mapfs = MapFs { game: fs, pak: &pak };
     let read = |p: &str| mapfs.read(p);
 
-    let entities = entities::parse_entities(&entities::entity_lump(&data, &bsp.entities));
+    let mut entities = entities::parse_entities(&entities::entity_lump(&data, &bsp.entities));
+    add_turret_gibs(&mut entities);
     let mut brush_model_entity = HashMap::new();
     for (i, e) in entities.iter().enumerate() {
         if let Some(m) = e.brush_model() {

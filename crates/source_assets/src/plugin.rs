@@ -1411,9 +1411,13 @@ pub const WINDOW_LAYER: u32 = 1 << 2;
 /// The collision layer of grates (CONTENTS_GRATE brushes and `$contents
 /// grate` models without SOLID or WINDOW), like [`WINDOW_LAYER`].
 pub const GRATE_LAYER: u32 = 1 << 3;
+/// The collision layer of gibs (a burned-out turret's pieces): beams and
+/// sight pass them.
+pub const DEBRIS_LAYER: u32 = 1 << 4;
 /// Portal 2's laser mask (MASK_SHOT without CONTENTS_WINDOW, read from
-/// server.dll): beams pass glass, grates and player clips (T-233, T-238).
-pub const LASER_MASK: u32 = !(PLAYER_CLIP_LAYER | WINDOW_LAYER | GRATE_LAYER);
+/// server.dll): beams pass glass, grates and player clips (T-233, T-238),
+/// and gibs.
+pub const LASER_MASK: u32 = !(PLAYER_CLIP_LAYER | WINDOW_LAYER | GRATE_LAYER | DEBRIS_LAYER);
 /// What blocks a turret's sight (MASK_BLOCKLOS): not glass, grates or clips.
 pub const SIGHT_MASK: u32 = LASER_MASK;
 /// What stops a bullet (MASK_SHOT): glass does, grates and clips don't.

@@ -1580,3 +1580,9 @@ movement) see everything as before.
 1 clients, 2 NPCs, 8 physics objects, 64 "everything" (players, props,
 NPCs; not debris). bts1's jailbreak arming trigger is 4161 (1 + 64 + 4096)
 and is touched by the falling dropper cube; flag 64 was ignored before.
+Windows probes (2026-10-24, T-234): run the game with -netconport, wait for
+"Redownloading all lightmaps", then send one console line per command;
+`script` lines must hold a single statement (the console splits on ';', so
+define nothing with braces), e.g. `script ::e <- Entities.FindByClassnameNearest(...)`
+then `script printl(...)`. Time() over netcon advances ~1 s per command
+under CrossOver, so timings are coarse.

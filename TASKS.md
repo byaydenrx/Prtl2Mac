@@ -24,54 +24,52 @@ The one source of what's next: sessions and autoruns take the first line not
 marked FIXED, DONE or BLOCKED. Crashes and softlocks found on the way go to
 the top. Menus, on-hold and "later" tasks are never taken without the owner.
 Now (owner playtests 12-13, playability first):
-1. T-239 sp_a2_bts1: Wheatley's breakout doesn't start (FIXED, awaiting owner replay: triggers ignored spawnflag 64 "everything", so the dropped cube never armed it; was unplayable past this point)
-2. T-238 sp_a2_laser_vs_turret: lasers don't pass glass (FIXED, awaiting owner replay: Portal 2's laser mask passes glass and grates; was unplayable)
-3. T-233 sp_a2_column_blocker: lasers and turret sight don't pass the grate (FIXED, awaiting owner replay: same fix as T-238; turrets see through glass and grates, bullets pass grates but stop at glass)
+1. T-239 sp_a2_bts1: Wheatley's breakout: starts now; the power-cut teleport dropped you on the floor and Wheatley's rail carried you into the void (FIXED, awaiting owner replay: landmark teleports keep your place; only cars you stand in carry you; "Wheatley pretty buggy during the sequence" needs the owner's details)
+2. T-234 Turrets killed by a laser don't blow up, so the beam can't reach the next one (FIXED, awaiting owner replay: they break into the turret.phy gibs and are removed; laser_vs_turret's line of 3 was unplayable)
+3. T-238 sp_a2_laser_vs_turret: lasers don't pass glass (FIXED, awaiting owner replay: Portal 2's laser mask passes glass and grates; was unplayable)
 4. T-229 Turrets: owner: "turret functions still arent finished" (BLOCKED, needs owner: which parts; turret_blocker verified; needs owner to say what's missing; known gaps: guns don't aim, no eye glow, no carry pose)
-5. T-234 Turrets killed by a laser don't blow up (owner playtest 12b)
-6. T-235 sp_a2_column_blocker: the light doesn't switch back on in the surprise room (owner playtest 12b)
-7. T-240 sp_a2_triple_laser: invisible barrier behind one of the portals (BLOCKED, needs owner: where; he got out and finished the level)
-8. T-236 sp_a2_column_blocker: invisible barrier at the departure elevator (NOT REPRODUCED, needs owner; owner playtest 12c)
-9. T-237 sp_a2_column_blocker: Wheatley in the departure elevator doesn't look at you (FIXED, awaiting owner replay: his rail train started 34 u off its rail)
-10. T-232 sp_a2_bridge_the_gap: Wheatley glitches around; the bird looks wrong (Wheatley FIXED, awaiting owner replay; bird: needs owner to say what looks wrong)
-11. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid (BLOCKED, needs owner replay: not reproduced on 18676be, likely fixed by T-221)
-12. T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall (BLOCKED, needs owner: floor fixed on main by T-221; Wheatley attempt on local branch attempt/T-217-wheatley)
-13. T-218 Performance: 60-70 fps and stutter on an M4 Pro; portals cost a lot; v-sync unclear (owner: better; continue)
-14. T-224 Cube physics feel: no tumbling in the air; plate and button hits unreliable
-15. T-225 No dissolve ("fizzle") effect on cubes
-16. T-226 Pedestal buttons (prop_button): no sound or press animation
-17. T-173 Portal gun view model: hold beam, carry anims, fizzler shake
-18. T-227 Zoom doesn't work
-19. T-228 Chapter HUD icons don't look like Portal 2's
+5. T-235 sp_a2_column_blocker: the light doesn't switch back on in the surprise room (owner playtest 12b)
+6. T-240 sp_a2_triple_laser: invisible barrier behind one of the portals (BLOCKED, needs owner: where; he got out and finished the level)
+7. T-237 sp_a2_column_blocker: Wheatley in the departure elevator doesn't look at you (FIXED, awaiting owner replay: his rail train started 34 u off its rail)
+8. T-232 sp_a2_bridge_the_gap: Wheatley glitches around; the bird looks wrong (Wheatley FIXED, awaiting owner replay; bird: needs owner to say what looks wrong)
+9. T-223 sp_a2_ricochet: the rotating platform under the cube is invisible and not solid (BLOCKED, needs owner replay: not reproduced on 18676be, likely fixed by T-221)
+10. T-217 sp_a2_laser_stairs: floor missing after GLaDOS's floor move; Wheatley seen through the closed wall (BLOCKED, needs owner: floor fixed on main by T-221; Wheatley attempt on local branch attempt/T-217-wheatley)
+11. T-218 Performance: 60-70 fps and stutter on an M4 Pro; portals cost a lot; v-sync unclear (owner: better; continue)
+12. T-224 Cube physics feel: no tumbling in the air; plate and button hits unreliable
+13. T-225 No dissolve ("fizzle") effect on cubes
+14. T-226 Pedestal buttons (prop_button): no sound or press animation
+15. T-173 Portal gun view model: hold beam, carry anims, fizzler shake
+16. T-227 Zoom doesn't work
+17. T-228 Chapter HUD icons don't look like Portal 2's
 Then the engine gaps common to many maps, and gels:
-20. T-212 sp_a3_00 (start of chapter 6): loud glass smash at load (BLOCKED: merge attempt/T-212 for the owner's replay)
-21. T-203 Switchable lights frozen: lightmap styles other than 0 ignored (50 of 63 maps)
-22. T-199 Particle sprite sheets not decoded: sheet particles draw the whole atlas
-23. T-214 All-maps load sweep findings (2026-10-21)
-24. T-201 UnlitTwoTexture (TV/monitor screens) and other model shaders on the fallback
-25. T-206 Sounds not panned left/right
-26. T-200 Particle operators the maps' effects use but p2_fx doesn't simulate
-27. T-202 No bloom or colour correction (every map)
-28. T-204 No env_cubemap reflections or dynamic lights on props
-29. T-211 Gels: check each against Source
-30. T-030 Gel chapters: missing buttons in gel rooms, black elevator, cube carry feel
+18. T-212 sp_a3_00 (start of chapter 6): loud glass smash at load (BLOCKED: merge attempt/T-212 for the owner's replay)
+19. T-203 Switchable lights frozen: lightmap styles other than 0 ignored (50 of 63 maps)
+20. T-199 Particle sprite sheets not decoded: sheet particles draw the whole atlas
+21. T-214 All-maps load sweep findings (2026-10-21)
+22. T-201 UnlitTwoTexture (TV/monitor screens) and other model shaders on the fallback
+23. T-206 Sounds not panned left/right
+24. T-200 Particle operators the maps' effects use but p2_fx doesn't simulate
+25. T-202 No bloom or colour correction (every map)
+26. T-204 No env_cubemap reflections or dynamic lights on props
+27. T-211 Gels: check each against Source
+28. T-030 Gel chapters: missing buttons in gel rooms, black elevator, cube carry feel
 Then the campaign sweeps (the owner's playtests go first):
-31. T-008 Prove chapter 3 rest: bridge_the_gap, turret_intro, laser_relays, turret_blocker, laser_vs_turret, pull_the_rug
-32. T-010 Sweep chapter 4 (column_blocker, laser_chaining, triple_laser, bts1, bts2)
-33. T-011 Sweep chapter 5 (bts3, bts4, bts5, bts6, core)
-34. T-012 Sweep chapter 6 rest (jump_intro gel climb, bomb_flings, crazy_box, transition01)
-35. T-013 Sweep chapter 7 (speed_ramp, speed_flings, portal_intro, end)
-36. T-014 Sweep chapter 8 (sp_a4_intro .. jump_polarity)
-37. T-015 Sweep chapter 9 (finale1..finale4)
+29. T-008 Prove chapter 3 rest: bridge_the_gap, turret_intro, laser_relays, turret_blocker, laser_vs_turret, pull_the_rug
+30. T-010 Sweep chapter 4 (column_blocker, laser_chaining, triple_laser, bts1, bts2)
+31. T-011 Sweep chapter 5 (bts3, bts4, bts5, bts6, core)
+32. T-012 Sweep chapter 6 rest (jump_intro gel climb, bomb_flings, crazy_box, transition01)
+33. T-013 Sweep chapter 7 (speed_ramp, speed_flings, portal_intro, end)
+34. T-014 Sweep chapter 8 (sp_a4_intro .. jump_polarity)
+35. T-015 Sweep chapter 9 (finale1..finale4)
 Lower:
-38. T-205 Portal gun edge cases
-39. T-209 Portal transit only mirrors box-shaped geometry at the exit
-40. T-207 Viewmodel gaps
-41. T-208 Chell body gaps
-42. T-210 Upstream minor gaps
-43. T-090 Restart check per verified map
-44. T-040 App icon and second-Mac first-run check
-45. T-050 Verify merged cloud features in game: Wheatley look-at, gels, projtex, saves
+36. T-205 Portal gun edge cases
+37. T-209 Portal transit only mirrors box-shaped geometry at the exit
+38. T-207 Viewmodel gaps
+39. T-208 Chell body gaps
+40. T-210 Upstream minor gaps
+41. T-090 Restart check per verified map
+42. T-040 App icon and second-Mac first-run check
+43. T-050 Verify merged cloud features in game: Wheatley look-at, gels, projtex, saves
 
 ## Active tasks (in priority order)
 
@@ -121,23 +119,29 @@ Lower:
   knocked over / picked up / dropped -> tips over, "dies" (sparks, voice,
   stops firing), lasers kill turrets, voice lines per state.
 
-### T-233 sp_a2_column_blocker: lasers and turret sight don't pass the grate  (P1, FIXED, awaiting owner replay; owner playtest 12b)
-- 2026-10-23 FIXED with T-238 (one cause). Grate colliders (CONTENTS_GRATE,
-  no SOLID/WINDOW; brushes and `$contents grate` models) are on their own
-  collision layer (plugin.rs GRATE_LAYER); lasers and turret sight mask it
-  out, bullets too. Evidence (autopilot, player at -192 600 0 across the
-  pit from the turret behind grate brush 600 at y 1027): before the
-  turret stays Idle; after Deploying -> Firing and the player dies in
-  ~2.5 s. Lasers use the same mask, shown through glass in T-238.
-- Owner: "the laser for the turret doesnt go through the grate in that level
-  and the turret cant see you through or shoot you through the grate, also
-  the laser doesnt kill the turret through the grate". Grates
-  (CONTENTS_GRATE, T-130) stop the player but should pass lasers, turret
-  sight lines and bullets. Also: "this level is nit completeable because of
-  the lasers being weird and angling, it angles itself above the next
-  reflection box" (build 1894bb5, before the T-231 fix: replay first).
-
-### T-239 sp_a2_bts1: Wheatley's breakout doesn't start  (P1, FIXED, awaiting owner replay; owner playtest 13)
+### T-239 sp_a2_bts1: Wheatley's breakout doesn't start  (P1, FIXED, awaiting owner replay; owner playtests 13, 13b)
+- Owner (13b): the cutscene starts but "it teleports me rather than just
+  turning the lights off ... i tp to the floor, i also ended up getting
+  attached to wheatlys rail and it dropped me in the void and it does this
+  everytime"; "wheatlys also pretty buggy during the sequence" (asked what).
+- 2026-10-23 FIXED part 2 (triggers.rs, movers.rs). (a) power_loss_teleport
+  has a landmark: Source keeps the player's offset from the landmark at the
+  destination (the dark chamber is a copy), we put them on the destination
+  point. Now landmark teleports keep place, motion and view (turned with
+  uselandmarkangles), and move touching props too (spawnflag 8). Evidence:
+  crossing at -9776 -900: before at -3712 -1152 0 (the destination), after
+  at -4016 -900 (same place in the copy). (b) The elevator lock (movers.rs
+  `ride`) took any player within 2.5 m across and 5 m below a train that
+  starts moving; Wheatley's rail train runs 192 u over the floor, so a
+  player under its start was locked to it and carried along the rail off
+  the edge. Now it never takes someone standing on the map's own floor.
+  Evidence (player at -3200 -1680 0 when @sphere_start_moving_relay fires):
+  before carried to -2949 and killed falling; after stays put. Regression:
+  arrival elevator (laser_vs_turret), departure elevator ride
+  (column_blocker), sp_a1_intro1 container, bts5 identical to the old build.
+  Departure-elevator player teleports have no target (script-set) and are
+  unchanged; sp_a3_jump_intro's startup_lighting_teleport is the same kind
+  of landmark swap and now keeps place too.
 - Owner: "at sp_a2_bts1 the wheatly busting you out cutscene or whatever
   doesnt register or start so not playable past this point".
 - 2026-10-23 FIXED (triggers.rs). The breakout trigger
@@ -184,26 +188,31 @@ Lower:
   barrier but i got out without noclip and still completed the level like
   normal". Needs the spot (setpos/getpos or which portal surface).
 
-### T-234 Turrets killed by a laser don't blow up  (P2, TODO; owner playtest 12b)
-- Owner: "when the turret does get killed by the laser it doesnt blow up".
-  Portal 2: a burned-out turret explodes into gibs (robot_fx.pcf
-  turret_fx_break_gib*, impact_turret_break sparks, explosion sound).
+### T-234 Turrets killed by a laser don't blow up  (P1, FIXED, awaiting owner replay; owner playtests 12b, 13b)
+- Owner (13b): "because the turrets dont explode when they die i cant shoot
+  past them so the line of 3 in laser_vs_turret is still not playable".
+- Windows reference (owner's install, VScript over netcon): a turret put in
+  room_6_laser's beam is valid 1 s after the laser comes on and gone by 3 s;
+  `turret_fx_break_gib12/20` prop_physics fly out. server.dll: the burn
+  think ends with a no-damage env_explosion and a screen shake. The beam
+  trace (0x46004001) does not skip turrets, so the removal is what lets the
+  beam on. The pieces are turret.phy's `break` list (gibs 2, 3, 12, 13,
+  15, 16, 20, 21, 24, 25; burst 500, fadetime 20, debris).
+- 2026-10-23 FIXED (turrets.rs `break_turrets`, map.rs `add_turret_gibs`,
+  plugin.rs DEBRIS_LAYER). Turret maps get hidden gib prototypes; when the
+  1 s burn ends: `turret_coop_explosion` particle, BaseExplosionEffect.Sound,
+  the 10 gibs thrown out (20 s, on a debris layer lasers pass), the turret
+  killed. Evidence (laser_vs_turret, beam from room_10_box3 at 64 96 290
+  aimed at the catcher, three turrets in its path): before (same code with
+  the break off) the beam stops on the first dead turret and the catcher
+  stays off; after each burns 1 s and breaks in turn, the catcher fires
+  OnPowered. Gibs land 30..200 u around (P2_TRACE). Tests 205 + 75 pass.
+- Owner (12b): "when the turret does get killed by the laser it doesnt blow
+  up".
 
 ### T-235 sp_a2_column_blocker: the light doesn't switch back on in the surprise room  (P2, TODO; owner playtest 12b)
 - Owner: "the light doesnt switch back on in the supries room". Likely the
   switchable-lights gap (T-203: lightmap styles other than 0 ignored).
-
-### T-236 sp_a2_column_blocker: invisible barrier at the departure elevator  (P1, NOT REPRODUCED, needs owner; owner playtest 12c)
-- Owner: "that first chamber is completeable but when i get to the elevator
-  theres an invisivle barrier stopping me from getting in", noclip got past.
-- 2026-10-23 autopilot (build a40afeb + T-232 fix): from past the exit door
-  (-850 256 0) walking west: source_elevator_door_open_trigger fires,
-  elevator_arrive fires, departure_elevator-elevator_playerclip is killed
-  3.5 s later, walking on enters the car, "close" fires and it rides down.
-  The clip is meant to block the empty shaft until the car has arrived, so
-  the barrier likely means the car hadn't arrived (walk-in trigger at
-  -872 256 64 not touched?) or a save load put the clip back. Asked the
-  owner whether the car had arrived and whether a save was loaded.
 
 ### T-237 sp_a2_column_blocker: Wheatley in the departure elevator doesn't look at you, moves through his rail  (P2, FIXED, awaiting owner replay; owner playtest 12c)
 - 2026-10-23: his rail train started at its map origin, 34 u off its rail

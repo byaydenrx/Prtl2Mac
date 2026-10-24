@@ -192,6 +192,8 @@ pub struct TurretFx {
     anims: Vec<(usize, Option<&'static str>, &'static str)>,
     /// Turrets walked into: (body, spin that tips them).
     bumps: Vec<(Entity, Vec3)>,
+    /// Turrets a laser burned out: they blow apart (T-234).
+    breaks: Vec<usize>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -305,6 +307,7 @@ pub fn run_turrets(
                 say(&mut play, "NPC_FloorTurret.TalkBurned", eye);
                 say(&mut play, "NPC_FloorTurret.Die", eye);
                 fire.write(FireOutput { ent: i, event: "OnDeath".into(), activator: Some(PLAYER) });
+                fx.breaks.push(i);
             }
         }
         if !matches!(t.mode, Mode::Dead | Mode::Burning(_)) {
@@ -542,6 +545,93 @@ pub fn turret_fx(
     }
 }
 
+/// Speed a gib flies off at (turret.phy `break` "burst" 500).
+const GIB_BURST: f32 = 500.0 * U;
+/// Seconds a gib stays (turret.phy "fadetime" 20).
+const GIB_LIFE: f32 = 20.0;
+
+/// A turret gib, removed at `until` (game seconds).
+#[derive(Component)]
+pub struct TurretGib {
+    until: f32,
+}
+
+/// A laser burned a turret out: as in Portal 2 (checked in the owner's
+/// Windows game: the turret entity is gone and its `turret_fx_break_gib*`
+/// props fly off) it blows apart: a fireball, the explosion sound, the
+/// turret.phy break pieces thrown out from its centre, and the turret is
+/// removed, so a beam goes on to whatever stood behind it (T-234). The gibs
+/// are copies of the hidden prototypes the loader adds to turret maps
+/// (source_assets map.rs `add_turret_gibs`).
+#[allow(clippy::too_many_arguments)]
+pub fn break_turrets(
+    mut commands: Commands,
+    time: Res<Time>,
+    ents: Option<Res<Ents>>,
+    mut fx: ResMut<TurretFx>,
+    props: Query<(&Prop, &Position, &Rotation, &LinearVelocity)>,
+    gibs: Query<(Entity, &TurretGib, &Transform)>,
+    mut kill: MessageWriter<EntInput>,
+    mut play: MessageWriter<PlayGameSound>,
+) {
+    let now = time.elapsed_secs();
+    for (e, g, _) in &gibs {
+        if now >= g.until {
+            commands.entity(e).despawn();
+        }
+    }
+    if std::env::var_os("P2_TRACE").is_some() && !gibs.is_empty() && (now * 2.0).fract() < time.delta_secs() * 2.0 {
+        let at: Vec<Vec3> = gibs.iter().map(|(_, _, t)| shared::world_to_source(t.translation).round()).collect();
+        info!("TRACE turret gibs at {at:?}");
+    }
+    let breaks = std::mem::take(&mut fx.breaks);
+    let Some(ents) = ents else { return };
+    for i in breaks {
+        let Some((_, pos, rot, vel)) = props.iter().find(|p| p.0.ent == i) else { continue };
+        let (at, turn) = (pos.0, rot.0);
+        let center = at + turn * Vec3::Y * (30.0 * U);
+        let mut boom = ParticleEffect::new("turret_coop_explosion");
+        boom.despawn_when_done = true;
+        boom.set_cp(0, center, crate::map_particles::source_basis(Quat::IDENTITY));
+        commands.spawn((Name::new("turret explosion"), boom, LevelOwned));
+        play.write(PlayGameSound { sound: "BaseExplosionEffect.Sound".into(), at: Some(center), looped: false, owner: None, music: false, volume: 1.0, voice: None, ui: false });
+        for (k, n) in source_assets::map::TURRET_GIBS.into_iter().enumerate() {
+            let name = source_assets::map::turret_gib_name(n);
+            let Some(proto) = ents.list.iter().find(|e| e.name == name) else { continue };
+            let Some(model) = proto.entity else { continue };
+            // Each piece is modelled around its own origin: all start at the
+            // turret's centre and fly out in a fixed spread, a little upward.
+            let (lo, hi) = proto.bounds.unwrap_or((Vec3::splat(-2.0 * U), Vec3::splat(2.0 * U)));
+            let (mid, half) = ((lo + hi) * 0.5, ((hi - lo) * 0.5).max(Vec3::splat(0.5 * U)));
+            let a = k as f32 * 2.399_963; // golden angle
+            let out = turn * Vec3::new(a.cos(), 0.6, a.sin()).normalize();
+            let gib = commands.entity(model).clone_and_spawn_with_opt_out(|b| {
+                b.linked_cloning(true);
+            }).id();
+            commands.entity(gib).remove::<ChildOf>().insert((
+                Transform::from_translation(center + out * (8.0 * U)).with_rotation(turn),
+                Visibility::Visible,
+                RigidBody::Dynamic,
+                LinearVelocity(vel.0 + out * GIB_BURST * (0.5 + 0.5 * (a * 1.7).sin().abs())),
+                AngularVelocity(out.cross(Vec3::Y) * 6.0),
+                Friction::new(0.6),
+                Restitution::new(0.2),
+                TurretGib { until: now + GIB_LIFE },
+                LevelOwned,
+            ));
+            // Debris: never in a beam's way.
+            commands.spawn((
+                Name::new("turret gib collider"),
+                Collider::cuboid(half.x * 2.0, half.y * 2.0, half.z * 2.0),
+                CollisionLayers::new(LayerMask(source_assets::plugin::DEBRIS_LAYER), LayerMask::ALL),
+                Transform::from_translation(mid),
+                ChildOf(gib),
+            ));
+        }
+        kill.write(EntInput { target: i, input: "kill".into(), param: String::new(), activator: None });
+    }
+}
+
 /// The `impact_fx.pcf` effect for a bullet hitting a surfaceprop.
 fn impact_system(surface: &str) -> &'static str {
     let s = surface.to_ascii_lowercase();
@@ -592,4 +682,3 @@ mod tests {
         }
     }
 }
-

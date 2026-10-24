@@ -92,7 +92,7 @@ for independent tasks with separate files.
   `setpos x y z [pitch yaw]`, `look pitch yaw`, `turn`, `walk/back/left/right <s>`,
   `duck`, `jump`, `use`, `fire blue|orange`, `goto|lookat <name> [dist]`,
   `input <target> <input> [param]`, `info <name>` (state, bounds),
-  `portalable x y z r`, `ray x y z [dx dy dz]`, `propto <name> x y z [pitch yaw roll]`,
+  `portalable x y z r`, `ray x y z [dx dy dz]`, `propto <name|#index> x y z [pitch yaw roll]`,
   `shot <file.png>`, `log`, `click <Action>`, `hover <Action>`, `key up|down|left|right|enter|tab|escape`, `quit`.
   `RUST_LOG=info,portal2::io=debug` logs every entity output that fires.
 - Debug env: P2_NO_INTRO=1 (skip the startup intro movie and loading screen

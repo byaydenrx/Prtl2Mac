@@ -3,6 +3,36 @@
 Moved out of TASKS.md (2026-10-23) to keep it short. Entries unchanged;
 newest summary list at the bottom. Grep by task id.
 
+### T-233 sp_a2_column_blocker: lasers and turret sight don't pass the grate  (P1, DONE 2026-10-23: owner playtest 13b: "sp_a2_column_blocker is fixed tho and verified and playable")
+- 2026-10-23 FIXED with T-238 (one cause). Grate colliders (CONTENTS_GRATE,
+  no SOLID/WINDOW; brushes and `$contents grate` models) are on their own
+  collision layer (plugin.rs GRATE_LAYER); lasers and turret sight mask it
+  out, bullets too. Evidence (autopilot, player at -192 600 0 across the
+  pit from the turret behind grate brush 600 at y 1027): before the
+  turret stays Idle; after Deploying -> Firing and the player dies in
+  ~2.5 s. Lasers use the same mask, shown through glass in T-238.
+- Owner: "the laser for the turret doesnt go through the grate in that level
+  and the turret cant see you through or shoot you through the grate, also
+  the laser doesnt kill the turret through the grate". Grates
+  (CONTENTS_GRATE, T-130) stop the player but should pass lasers, turret
+  sight lines and bullets. Also: "this level is nit completeable because of
+  the lasers being weird and angling, it angles itself above the next
+  reflection box" (build 1894bb5, before the T-231 fix: replay first).
+
+
+### T-236 sp_a2_column_blocker: invisible barrier at the departure elevator  (P1, DONE 2026-10-23: owner verified column_blocker playable in playtest 13b; never reproduced)
+- Owner: "that first chamber is completeable but when i get to the elevator
+  theres an invisivle barrier stopping me from getting in", noclip got past.
+- 2026-10-23 autopilot (build a40afeb + T-232 fix): from past the exit door
+  (-850 256 0) walking west: source_elevator_door_open_trigger fires,
+  elevator_arrive fires, departure_elevator-elevator_playerclip is killed
+  3.5 s later, walking on enters the car, "close" fires and it rides down.
+  The clip is meant to block the empty shaft until the car has arrived, so
+  the barrier likely means the car hadn't arrived (walk-in trigger at
+  -872 256 64 not touched?) or a save load put the clip back. Asked the
+  owner whether the car had arrived and whether a save was loaded.
+
+
 ### T-230 sp_a2_laser_relays: a laser that has gone through a portal doesn't power the relays  (P1, DONE 2026-10-23: owner playtest 13: "sp_a2_laser_relays is now verified and playable")
 - 2026-10-23 FIXED. Cause: lasers.rs checked relays only on a beam's last
   leg; a leg that ended by entering a portal (or on the player) skipped

@@ -808,6 +808,20 @@ fn ride(
 ) {
     let Some(ents) = ents else { return };
     let Ok((mut tf, mut feet, ground, mut vel, mut view)) = players.single_mut() else { return };
+    // The map entity owning the collider the player stands on (None: the
+    // world, or in the air): walk up from the collider.
+    let ground_owner = || -> Option<usize> {
+        let mut cur = ground.entity.filter(|_| ground.on_ground);
+        for _ in 0..4 {
+            let c = cur?;
+            if let Some((i, _)) = ents.list.iter().enumerate().find(|(_, e)| e.entity == Some(c)) {
+                return Some(i);
+            }
+            cur = parents.get(c).ok().map(|p| p.parent()).or_else(|| body_of.get(c).ok().map(|b| b.body));
+        }
+        None
+    };
+    let on_world = ground.on_ground && ground_owner().is_none();
     // Elevator rides: locked to the car from its start to its stop.
     let riders: Vec<(usize, Option<Vec3>)> = movers.riders.iter().map(|(k, v)| (*k, *v)).collect();
     for (i, offset) in riders {
@@ -819,7 +833,10 @@ fn ride(
             None => {
                 let d = tf.translation - m.pos;
                 let flat = Vec2::new(d.x, d.z).length();
-                if flat < 2.5 && d.y > -5.0 && d.y < 2.0 {
+                // Not someone standing on the map's own floor: bts1's
+                // Wheatley rail train starts 192 u over the floor and locked
+                // a player under it, carrying them off into the void (T-239).
+                if flat < 2.5 && d.y > -5.0 && d.y < 2.0 && !on_world {
                     movers.riders.insert(i, Some(d));
                 } else {
                     movers.riders.remove(&i);
@@ -881,18 +898,11 @@ fn ride(
             return;
         }
     }
-    let Some(g) = ground.entity.filter(|_| ground.on_ground) else { return };
-    // The collider's owning map entity: walk up from the collider.
-    let mut cur = Some(g);
-    for _ in 0..4 {
-        let Some(c) = cur else { break };
-        if let Some((i, _)) = ents.list.iter().enumerate().find(|(_, e)| e.entity == Some(c)) {
-            if let Some(&d) = movers.moved.get(&i) {
-                apply(d, turn_of(i), &mut tf, &mut feet, &mut view);
-            }
-            return;
+    // Standing on something that moved this tick: carried with it.
+    if let Some(i) = ground_owner() {
+        if let Some(&d) = movers.moved.get(&i) {
+            apply(d, turn_of(i), &mut tf, &mut feet, &mut view);
         }
-        cur = parents.get(c).ok().map(|p| p.parent()).or_else(|| body_of.get(c).ok().map(|b| b.body));
     }
 }
 

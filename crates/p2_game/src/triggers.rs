@@ -103,7 +103,8 @@ fn touch_triggers(
         info!("TRACE player box {p_lo:.2?}..{p_hi:.2?}");
     }
     let mut now_touching = std::collections::HashSet::new();
-    let mut teleport_to: Option<usize> = None;
+    let mut teleport_to: Option<Teleport> = None;
+    let mut teleport_props: Vec<(Entity, Teleport)> = Vec::new();
     let mut dissolve: Vec<(Entity, usize)> = Vec::new();
     let mut launch_player: Option<(Vec3, f32)> = None;
     let mut push_player = Vec3::ZERO;
@@ -204,8 +205,19 @@ fn touch_triggers(
             match class.as_str() {
                 // Once only: stop listening (its queued outputs still fire).
                 "trigger_once" => ents.list[i].enabled = false,
-                "trigger_teleport" | "trigger_playerteleport" if t == PLAYER => {
-                    teleport_to = ents.list[i].get("target").and_then(|tg| ents.find(tg, i, Some(t)).first().copied());
+                "trigger_teleport" | "trigger_playerteleport" => {
+                    let e = &ents.list[i];
+                    let found = |key: &str| e.get(key).filter(|v| !v.is_empty()).and_then(|v| ents.find(v, i, Some(t)).first().copied());
+                    if let Some(dest) = found("target") {
+                        let tp = Teleport { dest, landmark: found("landmark"), landmark_angles: e.get("uselandmarkangles").is_some_and(|v| v.trim() == "1") };
+                        if t == PLAYER {
+                            teleport_to = Some(tp);
+                        } else if class == "trigger_teleport" && !ents.list[t].killed {
+                            if let Some((pe, ..)) = props.iter().find(|p| p.1.ent == t && !p.3) {
+                                teleport_props.push((pe, tp));
+                            }
+                        }
+                    }
                 }
                 "trigger_catapult" => {
                     let e = &ents.list[i];
@@ -341,12 +353,46 @@ fn touch_triggers(
         vel.0 = v;
         commands.entity(player).insert(p2_core::AirControlSuppressed(suppress));
     }
-    if let Some(dest) = teleport_to {
-        let t = ents.list[dest].transform;
-        ptf.translation = t.translation;
-        *feet = InterpolatedFeet { prev: t.translation, curr: t.translation };
-        view.yaw = entity_yaw(t.rotation);
-        vel.0 = Vec3::ZERO;
+    for (pe, tp) in teleport_props {
+        if let Ok((_, _, pos, _, lv)) = props.get(pe) {
+            let (to, turn) = tp.place(&ents, pos.0);
+            commands.entity(pe).try_insert((Position(to), LinearVelocity(turn * lv.0)));
+        }
+    }
+    if let Some(tp) = teleport_to {
+        let (to, turn) = tp.place(&ents, ptf.translation);
+        ptf.translation = to;
+        *feet = InterpolatedFeet { prev: to, curr: to };
+        if tp.landmark.is_some() {
+            // Same place and motion relative to the landmark: bts1's power
+            // cut swaps you into an identical dark chamber unnoticed (T-239).
+            view.yaw += entity_yaw(turn) - entity_yaw(Quat::IDENTITY);
+            vel.0 = turn * vel.0;
+        } else {
+            view.yaw = entity_yaw(ents.list[tp.dest].transform.rotation);
+            vel.0 = Vec3::ZERO;
+        }
+    }
+}
+
+/// Where a trigger_teleport sends what touches it: its destination, or,
+/// with a landmark, the same offset from the destination as it had from
+/// the landmark (turned too with `uselandmarkangles`).
+#[derive(Clone, Copy)]
+struct Teleport {
+    dest: usize,
+    landmark: Option<usize>,
+    landmark_angles: bool,
+}
+
+impl Teleport {
+    /// The new position and the turn applied to velocity and view.
+    fn place(&self, ents: &Ents, from: Vec3) -> (Vec3, Quat) {
+        let dest = ents.list[self.dest].transform;
+        let Some(l) = self.landmark else { return (dest.translation, Quat::IDENTITY) };
+        let lt = ents.list[l].transform;
+        let turn = if self.landmark_angles { dest.rotation * lt.rotation.inverse() } else { Quat::IDENTITY };
+        (dest.translation + turn * (from - lt.translation), turn)
     }
 }
 

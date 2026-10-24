@@ -9,6 +9,16 @@ The autorun no longer stops itself or uses a STOP file (docs/AUTORUN.md
 T-217, T-222, T-223 wait for the owner's replay (see Fix attempts below).
 
 ## Last update
+2026-10-24 early, same manual session, part 2 (owner playtest 13b): column_blocker
+VERIFIED (T-233, T-236 done). Fixed: T-234 laser-burned turrets break into
+the turret.phy gibs and are removed (Windows-checked), so laser_vs_turret's
+line of 3 is passable; T-239 part 2: bts1's power-cut landmark teleport
+keeps your place, and the elevator lock no longer grabs a player standing
+on the map's floor under a starting train (Wheatley's rail carried him into
+the void). Asked the owner what "Wheatley pretty buggy during the sequence"
+means. Scratch Windows probe (VScript over netcon, one statement per line:
+the console splits on ';') described in docs/STATUS.md "Trace masks".
+Before that:
 2026-10-23 night (2), manual session. Owner playtest 13 logged: laser_chaining,
 triple_laser, laser_relays, turret_blocker VERIFIED (T-230, T-231 done).
 Fixed (pushed, app build id in "Where things stand"): T-239 bts1 Wheatley breakout
@@ -148,10 +158,10 @@ check not done; details in TASKS.md T-217.
 
 ## Where things stand
 - dist/Prtl2Mac.app = 0.1.0+9d43b7a.20261023T2309Z (T-239 bts1 breakout, T-238/T-233 glass and grates; before: T-232/T-237, T-231, T-229, T-230).
-- Owner to replay (0.1.0+9d43b7a): sp_a2_bts1 (catch the cube on the bridge, walk
-  on: the power cut and Wheatley's breakout should start); sp_a2_laser_vs_turret
-  (beams through glass burn the turrets; turrets behind glass can't hurt you);
-  column_blocker grate (laser and turret through it).
+- Owner to replay (build id in the line above): sp_a2_bts1 breakout (you
+  stay where you were when the lights cut; follow Wheatley without being
+  carried off); sp_a2_laser_vs_turret (burned turrets blow apart, the beam
+  reaches the next one and the catcher).
 - Owner to replay: column_blocker with the T-231 fix (beams stay level),
   its departure elevator (barrier? Wheatley rides his rail and looks at you),
   bridge_the_gap Wheatley window scene (no teleport) and say what's wrong
@@ -188,8 +198,8 @@ check not done; details in TASKS.md T-217.
   out (mean 164 vs 18) on both the old and new builds; not a regression.
 
 ## Next action (manual and auto sessions)
-TASKS.md "Priority order": T-234 (laser-killed turrets explode), then T-235
-(column_blocker light, likely T-203). T-229 and T-240 wait on the owner.
+TASKS.md "Priority order": T-235 (column_blocker light, likely T-203) is the
+first open item; T-229, T-240 and T-239's "Wheatley buggy" wait on the owner.
 The owner plays the campaign himself; no level scripts.
 
 ## Uncommitted / in-flight work

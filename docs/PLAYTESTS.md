@@ -208,3 +208,8 @@ Tracked in TASKS.md (T-238..T-240 new; T-230, T-231 done; T-229 partly).
 sp_a2_laser_chaining is verified and playable. sp_a2_triple_laser is also verified and playable there was a weird bug behind one of the portals with an invisible barrier but i got out without noclip and still completed the level like mormal. at sp_a2_bts1 the wheatly busting you out cutscene or whatever doesnt register or start so not playable past this point. going back through chapter 3 levels now to test the ones i didnt verify before, sp_a2_laser_relays is now verified and playable. sp_a2_turret_blocker is verified and playable although turret functions still arent finished. sp_a2_laser_vs_turret is still not playable because the lasers dont shoot through glass like they should.
 
 (Later in the session: "turrets shouldnt be able to shoot through glass btw".)
+
+## Owner playtest 13b (2026-10-23 night, build 9d43b7a), the owner's words
+Tracked in TASKS.md (T-234, T-239 updated; T-233, T-236 done).
+
+because the turrets dont explode when they die i cant shoot past them so the line of 3 in laser_vs_turret is still not playable. in bts1 the cutscene now triggers but it teleports me rather than just turning the lights off and turning the bridge off like normal i tp to the floor, i also ended up getting attached to wheatlys rail and it dropped me in the void and it does this everytime i try to replay so unplayable past this point, wheatlys also pretty buggy during the sequence. sp_a2_column_blocker is fixed tho and verified and playable.
