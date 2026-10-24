@@ -142,6 +142,22 @@ Lower:
   Departure-elevator player teleports have no target (script-set) and are
   unchanged; sp_a3_jump_intro's startup_lighting_teleport is the same kind
   of landmark swap and now keeps place too.
+- Owner (13c, build 4e0f7f0): "im still getting picked up by wheatlys rail".
+- 2026-10-24 FIXED part 3 (movers.rs). The lock also took a player in the
+  air (jumping, dropping down) when the train set off, and it re-arms each
+  time Wheatley starts moving again; his walkway (x -2804) runs 92 u from
+  the rail, inside the lock's 98 u. Now Passable trains (spawnflag 8: not
+  solid, carry nothing in Source) never take the player, by the lock or
+  the inside-the-car check. Evidence (player held in the air at
+  -3188 -1708 40 as @sphere_start_moving_relay fires, t 21.8): 4e0f7f0
+  carried to -2937 and killed falling; new stays and lands. Elevators are
+  all solid trains: arrival (laser_vs_turret) and departure (column_blocker)
+  rides identical. sp_a3_00 changed: the old build locked the player at
+  spawn to potatos_train (passable, 22 u away) and carried them up to
+  z 1054 and down to -12308; the owner's Windows game keeps the player at
+  0 -4096 0 for 36 s+, as the new build does. Not checked yet: bts5/bts6
+  pod rides and the finale tube trains (passable; bts5 is a view-proxy
+  tube ride).
 - Owner: "at sp_a2_bts1 the wheatly busting you out cutscene or whatever
   doesnt register or start so not playable past this point".
 - 2026-10-23 FIXED (triggers.rs). The breakout trigger

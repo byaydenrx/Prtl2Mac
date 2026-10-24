@@ -9,6 +9,12 @@ The autorun no longer stops itself or uses a STOP file (docs/AUTORUN.md
 T-217, T-222, T-223 wait for the owner's replay (see Fix attempts below).
 
 ## Last update
+2026-10-24, same session, part 3 (owner 13c: "still getting picked up by
+wheatlys rail"): passable trains no longer carry the player (the lock took
+anyone airborne near Wheatley's starting train). Reproduced on 4e0f7f0 and
+shown gone; sp_a3_00 spawn no longer rides potatos_train (matches Windows).
+bts5/bts6 pods and finale tubes (passable) to check when reached.
+Before that:
 2026-10-24 early, same manual session, part 2 (owner playtest 13b): column_blocker
 VERIFIED (T-233, T-236 done). Fixed: T-234 laser-burned turrets break into
 the turret.phy gibs and are removed (Windows-checked), so laser_vs_turret's

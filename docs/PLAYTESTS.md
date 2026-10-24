@@ -213,3 +213,8 @@ sp_a2_laser_chaining is verified and playable. sp_a2_triple_laser is also verifi
 Tracked in TASKS.md (T-234, T-239 updated; T-233, T-236 done).
 
 because the turrets dont explode when they die i cant shoot past them so the line of 3 in laser_vs_turret is still not playable. in bts1 the cutscene now triggers but it teleports me rather than just turning the lights off and turning the bridge off like normal i tp to the floor, i also ended up getting attached to wheatlys rail and it dropped me in the void and it does this everytime i try to replay so unplayable past this point, wheatlys also pretty buggy during the sequence. sp_a2_column_blocker is fixed tho and verified and playable.
+
+## Owner playtest 13c (2026-10-24, build 4e0f7f0), the owner's words
+Tracked in TASKS.md T-239.
+
+im still getting picked up by wheatlys rail

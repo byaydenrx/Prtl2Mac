@@ -822,6 +822,9 @@ fn ride(
         None
     };
     let on_world = ground.on_ground && ground_owner().is_none();
+    // Spawnflag 8 "Passable": a train that isn't solid carries nothing
+    // (bts1's Wheatley rail train took players following him, T-239).
+    let passable = |i: usize| ents.list[i].spawnflags & 8 != 0 && matches!(ents.list[i].class.as_str(), "func_tracktrain" | "func_train");
     // Elevator rides: locked to the car from its start to its stop.
     let riders: Vec<(usize, Option<Vec3>)> = movers.riders.iter().map(|(k, v)| (*k, *v)).collect();
     for (i, offset) in riders {
@@ -836,7 +839,7 @@ fn ride(
                 // Not someone standing on the map's own floor: bts1's
                 // Wheatley rail train starts 192 u over the floor and locked
                 // a player under it, carrying them off into the void (T-239).
-                if flat < 2.5 && d.y > -5.0 && d.y < 2.0 && !on_world {
+                if flat < 2.5 && d.y > -5.0 && d.y < 2.0 && !on_world && !passable(i) {
                     movers.riders.insert(i, Some(d));
                 } else {
                     movers.riders.remove(&i);
@@ -888,7 +891,7 @@ fn ride(
     let p = tf.translation;
     for (&i, &d) in &movers.moved {
         let e = &ents.list[i];
-        if !matches!(e.class.as_str(), "func_tracktrain" | "func_train") {
+        if !matches!(e.class.as_str(), "func_tracktrain" | "func_train") || passable(i) {
             continue;
         }
         let Some((lo, hi)) = e.bounds else { continue };
