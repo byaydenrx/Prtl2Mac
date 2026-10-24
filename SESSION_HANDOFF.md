@@ -163,7 +163,7 @@ fixed on branch attempt/T-217 (2fe2ac4, pushed to origin), regression
 check not done; details in TASKS.md T-217.
 
 ## Where things stand
-- dist/Prtl2Mac.app = 0.1.0+4e0f7f0.20261024T0015Z (T-234 turret gibs, T-239 bts1 teleport and rail; before: T-238/T-233 glass and grates, T-232/T-237, T-231).
+- dist/Prtl2Mac.app = 0.1.0+cde979f.20261024T0042Z (T-239 passable trains carry nothing; T-234 turret gibs, T-239 bts1 teleport; before: T-238/T-233 glass and grates, T-232/T-237, T-231).
 - Owner to replay (build id in the line above): sp_a2_bts1 breakout (you
   stay where you were when the lights cut; follow Wheatley without being
   carried off); sp_a2_laser_vs_turret (burned turrets blow apart, the beam
